@@ -56,6 +56,9 @@ export default function ProjectInfoPanel() {
 
   const pageCount = project.spreads.reduce((sum, s) => sum + (s.pageSide === 'spread' ? 2 : 1), 0)
 
+  const isCustomEventType = !(EVENT_TYPES as readonly string[]).includes(project.eventType)
+  const isCustomCommunity = project.community !== '' && !(WEDDING_COMMUNITIES as readonly string[]).includes(project.community)
+
   return (
     <div className="panel project-info">
       <h3>
@@ -71,22 +74,48 @@ export default function ProjectInfoPanel() {
           onChange={(e) => updateProjectMeta({ clientName: e.target.value })}
         />
         <div className="job-meta__row">
-          <select value={project.eventType} onChange={(e) => updateProjectMeta({ eventType: e.target.value })}>
+          <select
+            value={isCustomEventType ? '__custom__' : project.eventType}
+            onChange={(e) =>
+              updateProjectMeta({ eventType: e.target.value === '__custom__' ? '' : e.target.value })
+            }
+          >
             {EVENT_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>
             ))}
+            <option value="__custom__">Custom…</option>
           </select>
-          <select value={project.community} onChange={(e) => updateProjectMeta({ community: e.target.value })}>
+          <select
+            value={isCustomCommunity ? '__custom__' : project.community}
+            onChange={(e) =>
+              updateProjectMeta({ community: e.target.value === '__custom__' ? ' ' : e.target.value })
+            }
+          >
             <option value="">Community —</option>
             {WEDDING_COMMUNITIES.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             ))}
+            <option value="__custom__">Custom…</option>
           </select>
         </div>
+        {isCustomEventType && (
+          <input
+            placeholder="Custom event type"
+            value={project.eventType}
+            onChange={(e) => updateProjectMeta({ eventType: e.target.value })}
+          />
+        )}
+        {isCustomCommunity && (
+          <input
+            placeholder="Custom community / tradition"
+            value={project.community.trim()}
+            onChange={(e) => updateProjectMeta({ community: e.target.value })}
+          />
+        )}
       </div>
 
       <dl className="project-info__grid">

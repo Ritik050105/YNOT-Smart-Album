@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
 import { Stage, Layer, Rect, Group, Image as KonvaImage, Text as KonvaText, Line } from 'react-konva'
+import type Konva from 'konva'
 import useImage from 'use-image'
 import { useProjectStore } from '@/state/projectStore'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { computeCoverCrop } from '@/engine/cropFit'
 import { ensureFontLoaded } from '@/engine/fonts'
+import { quotesForEventType } from '@/engine/textSuggestions'
 import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
 
@@ -162,6 +164,15 @@ export default function DesignerCanvas() {
   const boxes = spread ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight) : []
 
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
+  const stageRef = useRef<Konva.Stage>(null)
+
+  // Web fonts (quote suggestions, custom Inspector font picks) can finish loading after Konva
+  // already painted text in a fallback typeface — redraw once the real font is ready.
+  useEffect(() => {
+    const onFontLoaded = () => stageRef.current?.batchDraw()
+    window.addEventListener('album-studio:font-loaded', onFontLoaded)
+    return () => window.removeEventListener('album-studio:font-loaded', onFontLoaded)
+  }, [])
 
   useEffect(() => {
     spread?.textBoxes.forEach((t) => void ensureFontLoaded(t.fontFamily))
@@ -220,6 +231,39 @@ export default function DesignerCanvas() {
           <Icon name="type" size={14} />
           Add Text
         </button>
+        <select
+          className="toolbar-quote-select"
+          value=""
+          onChange={(e) => {
+            const quote = quotesForEventType(project.eventType)[Number(e.target.value)]
+            if (!quote) return
+            void ensureFontLoaded(quote.fontFamily)
+            addTextBox(spread.id, {
+              id: uuid(),
+              x: 0.1,
+              y: 0.42,
+              width: 0.8,
+              height: 0.16,
+              text: quote.text,
+              fontFamily: quote.fontFamily,
+              fontSize: quote.fontSize,
+              color: quote.color,
+              align: quote.align,
+              bold: quote.bold,
+              italic: quote.italic,
+            })
+            e.target.value = ''
+          }}
+        >
+          <option value="" disabled>
+            ✨ Insert matching quote…
+          </option>
+          {quotesForEventType(project.eventType).map((q, i) => (
+            <option key={q.text} value={i}>
+              “{q.text}” — {q.fontFamily}
+            </option>
+          ))}
+        </select>
         <label className="toolbar-toggle">
           <input type="checkbox" checked={showGrid} onChange={toggleGrid} />
           Rule-of-thirds grid
@@ -236,6 +280,7 @@ export default function DesignerCanvas() {
         onDrop={handleContainerDrop}
       >
       <Stage
+        ref={stageRef}
         width={STAGE_WIDTH}
         height={stageHeight}
         onMouseDown={(e) => {
@@ -320,6 +365,7 @@ export default function DesignerCanvas() {
                 y={y}
                 width={box.width * STAGE_WIDTH}
                 text={box.text}
+                fontFamily={box.fontFamily}
                 fontSize={box.fontSize}
                 fontStyle={`${box.bold ? 'bold' : ''} ${box.italic ? 'italic' : ''}`.trim() || 'normal'}
                 fill={box.color}

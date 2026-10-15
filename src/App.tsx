@@ -19,7 +19,6 @@ export default function App() {
           </div>
           <ProjectInfoPanel />
           <ImportPanel />
-          <PhotoBin />
           <SpreadsPanel />
         </aside>
         <main className="app-main">
@@ -30,6 +29,7 @@ export default function App() {
           <TemplateLibraryPanel />
         </aside>
       </div>
+      <PhotoBin />
     </div>
   )
 }

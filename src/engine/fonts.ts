@@ -79,6 +79,10 @@ export async function ensureFontLoaded(family: string): Promise<void> {
   try {
     if ('fonts' in document) {
       await document.fonts.load(`16px "${family}"`)
+      // Canvas-based renderers (Konva) don't repaint on their own once a web font finishes
+      // loading after the initial draw — nothing about their props changed. Let listeners
+      // (the designer canvas) know it's safe to redraw with the real typeface now.
+      window.dispatchEvent(new CustomEvent('album-studio:font-loaded', { detail: { family } }))
     }
   } catch {
     // Offline or blocked — text will render with the browser's fallback font instead.

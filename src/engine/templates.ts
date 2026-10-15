@@ -148,6 +148,100 @@ const sixGrid: TemplateDefinition = {
   thumbnailColor: '#7e96a3',
 }
 
+/** Splits `total` into `parts` buckets as evenly as possible (e.g. 10 into 3 -> [4,3,3]). */
+function distributeEvenly(total: number, parts: number): number[] {
+  const base = Math.floor(total / parts)
+  const remainder = total % parts
+  return Array.from({ length: parts }, (_, i) => base + (i < remainder ? 1 : 0))
+}
+
+/** Lays `count` placeholders into a "justified" grid (balanced rows, no ragged gaps — the same
+ *  approach photo apps like Google/Apple Photos use) inside the sub-rectangle (x0,y0,w,h).
+ *  `idOffset` keeps placeholder ids unique when this is combined with other placeholders (e.g.
+ *  a hero cell). Row count is chosen from the rect's own aspect ratio, not assumed square. */
+function placeGridInRect(idOffset: number, count: number, x0: number, y0: number, w: number, h: number): PlaceholderRect[] {
+  const rows = Math.max(1, Math.round(Math.sqrt((count * h) / w)))
+  const rowCounts = distributeEvenly(count, rows)
+  const rowH = h / rows
+  const placeholders: PlaceholderRect[] = []
+  let idx = idOffset
+  for (let r = 0; r < rows; r++) {
+    const cols = rowCounts[r]
+    const colW = w / cols
+    for (let c = 0; c < cols; c++) {
+      placeholders.push({
+        id: `p${idx}`,
+        x: x0 + c * colW + GAP / 2,
+        y: y0 + r * rowH + GAP / 2,
+        width: colW - GAP,
+        height: rowH - GAP,
+        preferredOrientation: 'any',
+      })
+      idx++
+    }
+  }
+  return placeholders
+}
+
+/** Auto-generated balanced grid for photo counts beyond the hand-designed templates (7-30).
+ *  Deterministic id/placeholder-ids so re-deriving the same template on every render (via
+ *  findTemplate) keeps matching the photo placements already stored on the spread. */
+export function generateJustifiedGrid(count: number): TemplateDefinition {
+  return {
+    id: `auto-justified-${count}`,
+    name: 'Even Grid',
+    photoCount: count,
+    pageSide: 'spread',
+    placeholders: placeGridInRect(0, count, 0, 0, 1, 1),
+    isBuiltIn: true,
+    createdAt: new Date(0).toISOString(),
+    thumbnailColor: '#5c75a3',
+  }
+}
+
+/** Auto-generated "feature photo + supporting grid" layout — a large hero cell plus the rest
+ *  of the photos in a balanced grid alongside it, for counts beyond the hand-designed templates. */
+export function generateHeroGrid(count: number): TemplateDefinition {
+  if (count <= 1) return generateJustifiedGrid(count)
+  const heroW = count <= 4 ? 0.62 : 0.5
+  const hero: PlaceholderRect = {
+    id: 'p0',
+    x: GAP / 2,
+    y: GAP / 2,
+    width: heroW - GAP,
+    height: 1 - GAP,
+    preferredOrientation: 'portrait',
+  }
+  const rest = placeGridInRect(1, count - 1, heroW, 0, 1 - heroW, 1)
+  return {
+    id: `auto-hero-${count}`,
+    name: 'Feature + Grid',
+    photoCount: count,
+    pageSide: 'spread',
+    placeholders: [hero, ...rest],
+    isBuiltIn: true,
+    createdAt: new Date(0).toISOString(),
+    thumbnailColor: '#536a96',
+  }
+}
+
+/** A fully custom rows x cols uniform grid — the "custom layout" escape hatch beyond any
+ *  suggested template, picked explicitly by rows/columns rather than photo count. */
+export function generateCustomGrid(rows: number, cols: number): TemplateDefinition {
+  const safeRows = Math.max(1, Math.min(10, Math.round(rows)))
+  const safeCols = Math.max(1, Math.min(10, Math.round(cols)))
+  return {
+    id: `custom-grid-${safeRows}x${safeCols}`,
+    name: `${safeRows} × ${safeCols} Custom Grid`,
+    photoCount: safeRows * safeCols,
+    pageSide: 'spread',
+    placeholders: placeGridInRect(0, safeRows * safeCols, 0, 0, 1, 1),
+    isBuiltIn: true,
+    createdAt: new Date(0).toISOString(),
+    thumbnailColor: '#8a6fd1',
+  }
+}
+
 export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [
   full,
   twoVertical,
@@ -162,7 +256,12 @@ export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [
 
 /** Returns every built-in template that fits a given photo count, for the "smart grid suggestions" picker. */
 export function templatesForCount(count: number): TemplateDefinition[] {
-  return BUILT_IN_TEMPLATES.filter((t) => t.photoCount === count)
+  if (count <= 0) return []
+  const builtins = BUILT_IN_TEMPLATES.filter((t) => t.photoCount === count)
+  if (builtins.length > 0) return builtins
+  // Beyond the hand-designed 1-6 photo templates, offer two auto-generated, balanced layouts.
+  const clamped = Math.min(count, 30)
+  return [generateJustifiedGrid(clamped), generateHeroGrid(clamped)]
 }
 
 // User-saved/imported templates aren't known to this module by default — the store mirrors its
@@ -176,12 +275,24 @@ export function setUserTemplateRegistry(templates: TemplateDefinition[]) {
 
 /** Looks up a template by id across both the built-in library and the user's saved/imported ones. */
 export function findTemplate(id: string): TemplateDefinition | undefined {
-  return BUILT_IN_TEMPLATES.find((t) => t.id === id) ?? userTemplateRegistry.find((t) => t.id === id)
+  const known = BUILT_IN_TEMPLATES.find((t) => t.id === id) ?? userTemplateRegistry.find((t) => t.id === id)
+  if (known) return known
+
+  // Auto-generated templates (justified/hero grids, custom rows x cols) aren't stored anywhere —
+  // they're cheap to recompute deterministically from their id, which also keeps them in sync if
+  // the generator logic changes later.
+  const justified = id.match(/^auto-justified-(\d+)$/)
+  if (justified) return generateJustifiedGrid(Number(justified[1]))
+  const hero = id.match(/^auto-hero-(\d+)$/)
+  if (hero) return generateHeroGrid(Number(hero[1]))
+  const custom = id.match(/^custom-grid-(\d+)x(\d+)$/)
+  if (custom) return generateCustomGrid(Number(custom[1]), Number(custom[2]))
+  return undefined
 }
 
 /** Picks a reasonable default template for a count, varying the choice so consecutive spreads don't repeat. */
 export function suggestTemplate(count: number, avoidId?: string): TemplateDefinition {
-  const candidates = templatesForCount(Math.min(count, 6))
+  const candidates = templatesForCount(Math.max(1, Math.min(count, 30)))
   if (candidates.length === 0) return full
   const filtered = candidates.filter((t) => t.id !== avoidId)
   const pool = filtered.length > 0 ? filtered : candidates

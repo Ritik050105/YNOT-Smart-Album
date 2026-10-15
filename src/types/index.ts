@@ -94,7 +94,7 @@ export interface Spread {
   marginPx: number
 }
 
-export type AlbumSizeCategory = 'Square' | 'Portrait' | 'Landscape' | 'Panoramic' | 'Magazine'
+export type AlbumSizeCategory = 'Square' | 'Portrait' | 'Landscape' | 'Panoramic' | 'Magazine' | 'Custom'
 
 export interface AlbumSize {
   id: string

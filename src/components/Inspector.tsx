@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { templatesForCount } from '@/engine/templates'
+import { templatesForCount, generateCustomGrid } from '@/engine/templates'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { LOCAL_FONTS, CLOUD_FONTS, FontOption, getLocalFonts, ensureFontLoaded } from '@/engine/fonts'
 import Icon from './Icon'
+import SliderField from './SliderField'
 
 export default function Inspector() {
   const [localFonts, setLocalFonts] = useState<FontOption[]>(LOCAL_FONTS)
@@ -24,6 +25,8 @@ export default function Inspector() {
   const saveSpreadAsTemplate = useProjectStore((s) => s.saveSpreadAsTemplate)
   const userTemplates = useProjectStore((s) => s.userTemplates)
   const [templateName, setTemplateName] = useState('')
+  const [customRows, setCustomRows] = useState(3)
+  const [customCols, setCustomCols] = useState(3)
 
   const spread = project.spreads.find((s) => s.id === selectedSpreadId)
   if (!spread) {
@@ -43,6 +46,8 @@ export default function Inspector() {
 
   const placement = spread.placements.find((p) => p.placeholderId === selectedPlaceholderId)
   const textBox = spread.textBoxes.find((t) => t.id === selectedTextBoxId)
+  const knownFontNames = new Set([...localFonts, ...CLOUD_FONTS].map((f) => f.family))
+  const isCustomFont = !!textBox && !knownFontNames.has(textBox.fontFamily)
   const photo = placement?.photoId ? project.photos.find((p) => p.id === placement.photoId) : undefined
   const suggestions = templatesForCount(spread.placements.length)
   const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / (project.size.widthIn / project.size.heightIn)).find(
@@ -104,6 +109,32 @@ export default function Inspector() {
             Save
           </button>
         </div>
+
+        <div className="custom-grid-row">
+          <span className="custom-grid-row__label">Custom grid</span>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={customRows}
+            onChange={(e) => setCustomRows(Math.max(1, Math.min(10, Number(e.target.value))))}
+          />
+          <span className="custom-grid-row__x">×</span>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={customCols}
+            onChange={(e) => setCustomCols(Math.max(1, Math.min(10, Number(e.target.value))))}
+          />
+          <button
+            className="btn btn--tiny"
+            onClick={() => applyTemplateToSpread(spread.id, generateCustomGrid(customRows, customCols).id)}
+          >
+            <Icon name="grid" size={11} />
+            Apply
+          </button>
+        </div>
       </section>
 
       <section>
@@ -119,26 +150,22 @@ export default function Inspector() {
             onChange={(e) => updateSpread(spread.id, { backgroundColor: e.target.value })}
           />
         </label>
-        <label>
-          Gap
-          <input
-            type="range"
-            min={0}
-            max={60}
-            value={spread.gapPx}
-            onChange={(e) => updateSpread(spread.id, { gapPx: Number(e.target.value) })}
-          />
-        </label>
-        <label>
-          Margin
-          <input
-            type="range"
-            min={0}
-            max={120}
-            value={spread.marginPx}
-            onChange={(e) => updateSpread(spread.id, { marginPx: Number(e.target.value) })}
-          />
-        </label>
+        <SliderField
+          label="Gap"
+          value={spread.gapPx}
+          min={0}
+          max={120}
+          suffix="px"
+          onChange={(v) => updateSpread(spread.id, { gapPx: v })}
+        />
+        <SliderField
+          label="Margin"
+          value={spread.marginPx}
+          min={0}
+          max={240}
+          suffix="px"
+          onChange={(v) => updateSpread(spread.id, { marginPx: v })}
+        />
         <label>
           Page side
           <select
@@ -166,50 +193,38 @@ export default function Inspector() {
               {dpi !== null && <> · {dpi} DPI {dpi < project.size.dpi && '(below target!)'}</>}
             </div>
           )}
-          <label>
-            Zoom
-            <input
-              type="range"
-              min={1}
-              max={3}
-              step={0.05}
-              value={placement.zoom}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { zoom: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            Focal X
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.02}
-              value={placement.focalX}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { focalX: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            Focal Y
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.02}
-              value={placement.focalY}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { focalY: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            Opacity
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={placement.opacity}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { opacity: Number(e.target.value) })}
-            />
-          </label>
+          <SliderField
+            label="Zoom"
+            value={placement.zoom}
+            min={1}
+            max={5}
+            step={0.05}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { zoom: v })}
+          />
+          <SliderField
+            label="Focal X"
+            value={placement.focalX}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { focalX: v })}
+          />
+          <SliderField
+            label="Focal Y"
+            value={placement.focalY}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { focalY: v })}
+          />
+          <SliderField
+            label="Opacity"
+            value={placement.opacity}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { opacity: v })}
+          />
           <label>
             Frame
             <select
@@ -224,26 +239,22 @@ export default function Inspector() {
               <option value="shadow">Drop Shadow</option>
             </select>
           </label>
-          <label>
-            Tilt
-            <input
-              type="range"
-              min={-20}
-              max={20}
-              value={placement.rotationDeg}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { rotationDeg: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            Border width
-            <input
-              type="range"
-              min={0}
-              max={30}
-              value={placement.borderWidth}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { borderWidth: Number(e.target.value) })}
-            />
-          </label>
+          <SliderField
+            label="Tilt"
+            value={placement.rotationDeg}
+            min={-45}
+            max={45}
+            suffix="°"
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { rotationDeg: v })}
+          />
+          <SliderField
+            label="Border width"
+            value={placement.borderWidth}
+            min={0}
+            max={60}
+            suffix="px"
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { borderWidth: v })}
+          />
           <label>
             Border color
             <input
@@ -252,58 +263,41 @@ export default function Inspector() {
               onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { borderColor: e.target.value })}
             />
           </label>
-          <label>
-            Warmth
-            <input
-              type="range"
-              min={-100}
-              max={100}
-              value={placement.warmth}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { warmth: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            Brightness
-            <input
-              type="range"
-              min={-50}
-              max={50}
-              value={placement.brightness}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { brightness: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            Contrast
-            <input
-              type="range"
-              min={-50}
-              max={50}
-              value={placement.contrast}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { contrast: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            Saturation
-            <input
-              type="range"
-              min={-100}
-              max={100}
-              value={placement.saturation}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { saturation: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            Relight
-            <input
-              type="range"
-              min={-100}
-              max={100}
-              value={placement.relightIntensity}
-              onChange={(e) =>
-                updatePlacement(spread.id, placement.placeholderId, { relightIntensity: Number(e.target.value) })
-              }
-            />
-          </label>
+          <SliderField
+            label="Warmth"
+            value={placement.warmth}
+            min={-100}
+            max={100}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { warmth: v })}
+          />
+          <SliderField
+            label="Brightness"
+            value={placement.brightness}
+            min={-100}
+            max={100}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { brightness: v })}
+          />
+          <SliderField
+            label="Contrast"
+            value={placement.contrast}
+            min={-100}
+            max={100}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { contrast: v })}
+          />
+          <SliderField
+            label="Saturation"
+            value={placement.saturation}
+            min={-100}
+            max={100}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { saturation: v })}
+          />
+          <SliderField
+            label="Relight"
+            value={placement.relightIntensity}
+            min={-100}
+            max={100}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { relightIntensity: v })}
+          />
         </section>
       )}
 
@@ -316,9 +310,13 @@ export default function Inspector() {
           <label>
             Font
             <select
-              value={textBox.fontFamily}
+              value={isCustomFont ? '__custom__' : textBox.fontFamily}
               onChange={(e) => {
                 const family = e.target.value
+                if (family === '__custom__') {
+                  updateTextBox(spread.id, textBox.id, { fontFamily: '' })
+                  return
+                }
                 void ensureFontLoaded(family)
                 updateTextBox(spread.id, textBox.id, { fontFamily: family })
               }}
@@ -337,18 +335,27 @@ export default function Inspector() {
                   </option>
                 ))}
               </optgroup>
+              <option value="__custom__">Custom…</option>
             </select>
           </label>
-          <label>
-            Size
-            <input
-              type="range"
-              min={10}
-              max={96}
-              value={textBox.fontSize}
-              onChange={(e) => updateTextBox(spread.id, textBox.id, { fontSize: Number(e.target.value) })}
-            />
-          </label>
+          {isCustomFont && (
+            <label>
+              Custom font name
+              <input
+                placeholder="e.g. a font installed on this PC"
+                value={textBox.fontFamily}
+                onChange={(e) => updateTextBox(spread.id, textBox.id, { fontFamily: e.target.value })}
+              />
+            </label>
+          )}
+          <SliderField
+            label="Size"
+            value={textBox.fontSize}
+            min={8}
+            max={240}
+            suffix="px"
+            onChange={(v) => updateTextBox(spread.id, textBox.id, { fontSize: v })}
+          />
           <label>
             Color
             <input

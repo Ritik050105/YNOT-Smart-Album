@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { importPhotoFiles } from '@/engine/importPhotos'
 import Icon from './Icon'
+import SliderField from './SliderField'
 
 export default function ImportPanel() {
   const addPhotos = useProjectStore((s) => s.addPhotos)
@@ -58,32 +59,21 @@ export default function ImportPanel() {
       </p>
 
       <div className="auto-layout-controls">
-        <label>
-          <span className="row">
-            Story sensitivity
-            <span className="value-pill">{options.gapMinutes}m</span>
-          </span>
-          <input
-            type="range"
-            min={2}
-            max={120}
-            value={options.gapMinutes}
-            onChange={(e) => setOptions({ gapMinutes: Number(e.target.value) })}
-          />
-        </label>
-        <label>
-          <span className="row">
-            Max photos per spread
-            <span className="value-pill">{options.maxPhotosPerSpread}</span>
-          </span>
-          <input
-            type="range"
-            min={1}
-            max={6}
-            value={options.maxPhotosPerSpread}
-            onChange={(e) => setOptions({ maxPhotosPerSpread: Number(e.target.value) })}
-          />
-        </label>
+        <SliderField
+          label="Story sensitivity"
+          value={options.gapMinutes}
+          min={1}
+          max={180}
+          suffix="m"
+          onChange={(v) => setOptions({ gapMinutes: v })}
+        />
+        <SliderField
+          label="Max photos per spread"
+          value={options.maxPhotosPerSpread}
+          min={1}
+          max={30}
+          onChange={(v) => setOptions({ maxPhotosPerSpread: v })}
+        />
         <button className="btn btn--primary btn--block" disabled={photos.length === 0} onClick={() => runAutoBuild()}>
           <Icon name="sparkles" size={14} />
           Auto-Build Album
