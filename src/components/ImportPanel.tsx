@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { importPhotoFiles } from '@/engine/importPhotos'
+import Icon from './Icon'
 
 export default function ImportPanel() {
   const addPhotos = useProjectStore((s) => s.addPhotos)
@@ -23,7 +24,10 @@ export default function ImportPanel() {
 
   return (
     <div className="panel import-panel">
-      <h3>Import Photos</h3>
+      <h3>
+        <Icon name="image" size={14} />
+        Import Photos
+      </h3>
       <div
         className={`dropzone ${isDragging ? 'dropzone--active' : ''}`}
         onDragOver={(e) => {
@@ -46,13 +50,19 @@ export default function ImportPanel() {
           hidden
           onChange={(e) => void handleFiles(e.target.files)}
         />
+        <Icon name="upload" size={22} />
         {importing ? 'Reading photos…' : 'Drop photos here or click to browse'}
       </div>
-      <p className="muted">{photos.length} photo{photos.length === 1 ? '' : 's'} imported</p>
+      <p className="muted" style={{ marginTop: 8 }}>
+        {photos.length} photo{photos.length === 1 ? '' : 's'} imported
+      </p>
 
       <div className="auto-layout-controls">
         <label>
-          Story sensitivity (minutes between moments)
+          <span className="row">
+            Story sensitivity
+            <span className="value-pill">{options.gapMinutes}m</span>
+          </span>
           <input
             type="range"
             min={2}
@@ -60,10 +70,12 @@ export default function ImportPanel() {
             value={options.gapMinutes}
             onChange={(e) => setOptions({ gapMinutes: Number(e.target.value) })}
           />
-          <span>{options.gapMinutes}m</span>
         </label>
         <label>
-          Max photos per spread
+          <span className="row">
+            Max photos per spread
+            <span className="value-pill">{options.maxPhotosPerSpread}</span>
+          </span>
           <input
             type="range"
             min={1}
@@ -71,9 +83,9 @@ export default function ImportPanel() {
             value={options.maxPhotosPerSpread}
             onChange={(e) => setOptions({ maxPhotosPerSpread: Number(e.target.value) })}
           />
-          <span>{options.maxPhotosPerSpread}</span>
         </label>
-        <button className="btn btn--primary" disabled={photos.length === 0} onClick={() => runAutoBuild()}>
+        <button className="btn btn--primary btn--block" disabled={photos.length === 0} onClick={() => runAutoBuild()}>
+          <Icon name="sparkles" size={14} />
           Auto-Build Album
         </button>
       </div>

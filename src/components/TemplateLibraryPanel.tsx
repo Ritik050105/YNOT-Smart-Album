@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { BUILT_IN_TEMPLATES } from '@/engine/templates'
 import { blobUrlToDataUrl } from '@/engine/projectFile'
+import Icon from './Icon'
 
 /** Browse the full template library (built-in + user-saved/imported) and register new templates
  *  from an uploaded reference photo — "template registration" + "template importing via photo
@@ -42,11 +43,15 @@ export default function TemplateLibraryPanel() {
 
   return (
     <div className="panel template-library">
-      <h3>Template Library</h3>
+      <h3>
+        <Icon name="bookOpen" size={14} />
+        Template Library
+      </h3>
 
       {!pendingPhoto ? (
-        <button className="btn" onClick={() => inputRef.current?.click()}>
-          + Import Template from Photo
+        <button className="btn btn--block" onClick={() => inputRef.current?.click()}>
+          <Icon name="upload" size={14} />
+          Import Template from Photo
         </button>
       ) : (
         <div className="template-import-form">
@@ -78,7 +83,10 @@ export default function TemplateLibraryPanel() {
       />
 
       {userTemplates.length === 0 ? (
-        <p className="muted">No saved templates yet. Use "Save as Template" on a spread, or import one from a photo above.</p>
+        <div className="empty-state">
+          <Icon name="layers" size={24} />
+          <p>No saved templates yet. Use "Save" on a spread's layout, or import one from a photo above.</p>
+        </div>
       ) : (
         <div className="template-library__grid">
           {userTemplates.map((t) => (
@@ -92,6 +100,7 @@ export default function TemplateLibraryPanel() {
               />
               <span className="template-library__name">{t.name}</span>
               <button className="btn btn--tiny btn--danger" onClick={() => deleteUserTemplate(t.id)}>
+                <Icon name="trash" size={10} />
                 Delete
               </button>
             </div>

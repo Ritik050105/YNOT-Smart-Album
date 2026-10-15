@@ -1,4 +1,5 @@
 import { useProjectStore } from '@/state/projectStore'
+import Icon from './Icon'
 
 /** Draggable strip of imported photos, sorted by capture time, for manually placing/replacing
  *  photos in a spread (drop target lives in DesignerCanvas). */
@@ -10,7 +11,10 @@ export default function PhotoBin() {
 
   return (
     <div className="panel photo-bin">
-      <h3>Photos (timeline order)</h3>
+      <h3>
+        <Icon name="layers" size={14} />
+        Photos (timeline order)
+      </h3>
       <div className="photo-bin__grid">
         {sorted.map((photo) => (
           <div

@@ -9,6 +9,7 @@ import {
   exportAlbumToProofingGallery,
 } from '@/engine/exportAlbum'
 import { saveProjectToFile, openProjectFromFile } from '@/engine/projectFile'
+import Icon from './Icon'
 
 type ExportFormat = 'pdf' | 'jpg' | 'png' | 'psd' | 'proofing'
 
@@ -75,20 +76,30 @@ export default function TopBar() {
 
   return (
     <header className="topbar">
-      <div className="topbar__brand">Album Studio</div>
-      <button className="btn" onClick={handleNewProject}>
-        New
+      <div className="topbar__brand">
+        <span className="topbar__brand-mark">
+          <Icon name="bookOpen" size={14} />
+        </span>
+        <span className="topbar__brand-name">Album Studio</span>
+      </div>
+
+      <button className="btn btn--icon" title="New Album" onClick={handleNewProject}>
+        <Icon name="plus" />
       </button>
-      <button className="btn" disabled={projectBusy !== null} onClick={handleOpenProject}>
-        {projectBusy === 'open' ? 'Opening…' : 'Open'}
+      <button className="btn btn--icon" title="Open Project" disabled={projectBusy !== null} onClick={handleOpenProject}>
+        <Icon name="folder" />
       </button>
-      <button className="btn" disabled={projectBusy !== null} onClick={handleSaveProject}>
-        {projectBusy === 'save' ? 'Saving…' : 'Save'}
+      <button className="btn btn--icon" title="Save Project" disabled={projectBusy !== null} onClick={handleSaveProject}>
+        <Icon name="save" />
       </button>
+
+      <div className="topbar__divider" />
+
       <input
         className="topbar__title"
         value={project.name}
         onChange={(e) => renameProject(e.target.value)}
+        title="Album name"
       />
       <select value={project.size.id} onChange={(e) => setSize(e.target.value)} className="topbar__size">
         {ALBUM_SIZE_CATEGORIES.map((category) => (
@@ -101,13 +112,18 @@ export default function TopBar() {
           </optgroup>
         ))}
       </select>
+
       <div className="topbar__spacer" />
-      <button className="btn" disabled={history.length === 0} onClick={undo}>
-        Undo
+
+      <button className="btn btn--icon" title="Undo" disabled={history.length === 0} onClick={undo}>
+        <Icon name="undo" />
       </button>
-      <button className="btn" disabled={future.length === 0} onClick={redo}>
-        Redo
+      <button className="btn btn--icon" title="Redo" disabled={future.length === 0} onClick={redo}>
+        <Icon name="redo" />
       </button>
+
+      <div className="topbar__divider" />
+
       <select className="topbar__size" value={format} onChange={(e) => setFormat(e.target.value as ExportFormat)}>
         <option value="pdf">PDF (album)</option>
         <option value="jpg">JPG (per spread)</option>
@@ -120,6 +136,7 @@ export default function TopBar() {
         disabled={exporting || project.spreads.length === 0}
         onClick={handleExport}
       >
+        <Icon name="download" size={14} />
         {exporting ? 'Exporting…' : 'Export'}
       </button>
     </header>

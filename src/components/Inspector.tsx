@@ -4,6 +4,7 @@ import { templatesForCount } from '@/engine/templates'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { LOCAL_FONTS, CLOUD_FONTS, FontOption, getLocalFonts, ensureFontLoaded } from '@/engine/fonts'
+import Icon from './Icon'
 
 export default function Inspector() {
   const [localFonts, setLocalFonts] = useState<FontOption[]>(LOCAL_FONTS)
@@ -28,8 +29,14 @@ export default function Inspector() {
   if (!spread) {
     return (
       <div className="panel inspector">
-        <h3>Inspector</h3>
-        <p className="muted">Select a spread to see its details.</p>
+        <h3>
+          <Icon name="palette" size={14} />
+          Inspector
+        </h3>
+        <div className="empty-state">
+          <Icon name="swatch" size={24} />
+          <p>Select a spread, photo, or text box to edit its details here.</p>
+        </div>
       </div>
     )
   }
@@ -53,10 +60,16 @@ export default function Inspector() {
 
   return (
     <div className="panel inspector">
-      <h3>Inspector</h3>
+      <h3>
+        <Icon name="palette" size={14} />
+        Inspector
+      </h3>
 
       <section>
-        <h4>Smart Grid Suggestions</h4>
+        <h4>
+          <Icon name="sparkles" size={13} />
+          Smart Grid Suggestions
+        </h4>
         <div className="template-grid">
           {[...suggestions, ...userTemplates.filter((t) => t.photoCount === spread.placements.length)].map((t) => (
             <button
@@ -87,13 +100,17 @@ export default function Inspector() {
               setTemplateName('')
             }}
           >
-            Save as Template
+            <Icon name="save" size={13} />
+            Save
           </button>
         </div>
       </section>
 
       <section>
-        <h4>Spread Settings</h4>
+        <h4>
+          <Icon name="layers" size={13} />
+          Spread Settings
+        </h4>
         <label>
           Background
           <input
@@ -138,9 +155,13 @@ export default function Inspector() {
 
       {placement && (
         <section>
-          <h4>Photo Adjustments</h4>
+          <h4>
+            <Icon name="droplet" size={13} />
+            Photo Adjustments
+          </h4>
           {photo && (
             <div className={`dpi-badge ${dpi !== null && dpi < project.size.dpi ? 'dpi-badge--warn' : ''}`}>
+              <Icon name="info" size={12} />
               {photo.fileName} · {photo.width}×{photo.height}px
               {dpi !== null && <> · {dpi} DPI {dpi < project.size.dpi && '(below target!)'}</>}
             </div>
@@ -288,7 +309,10 @@ export default function Inspector() {
 
       {textBox && (
         <section>
-          <h4>Text</h4>
+          <h4>
+            <Icon name="type" size={13} />
+            Text
+          </h4>
           <label>
             Font
             <select
@@ -356,7 +380,8 @@ export default function Inspector() {
               </button>
             ))}
           </div>
-          <button className="btn btn--danger" onClick={() => removeTextBox(spread.id, textBox.id)}>
+          <button className="btn btn--danger btn--block" onClick={() => removeTextBox(spread.id, textBox.id)}>
+            <Icon name="trash" size={13} />
             Delete Text Box
           </button>
         </section>

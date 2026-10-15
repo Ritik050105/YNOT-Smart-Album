@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import SpreadThumbnail from './SpreadThumbnail'
+import Icon from './Icon'
 
 /** Left/right page rearrangement strip: reorder spreads by drag, click to open in the designer. */
 export default function SpreadsPanel() {
@@ -17,7 +18,10 @@ export default function SpreadsPanel() {
 
   return (
     <div className="panel spreads-panel">
-      <h3>Spreads ({spreads.length})</h3>
+      <h3>
+        <Icon name="grid" size={14} />
+        Spreads ({spreads.length})
+      </h3>
       <div className="spreads-panel__list">
         {spreads.map((spread, index) => (
           <div
@@ -33,7 +37,7 @@ export default function SpreadsPanel() {
             }}
             onClick={() => selectSpread(spread.id)}
           >
-            <SpreadThumbnail spread={spread} photosById={photosById} size={project.size} width={150} />
+            <SpreadThumbnail spread={spread} photosById={photosById} size={project.size} width={170} />
             <span className="spreads-panel__label">
               {index + 1}. {spread.pageSide} · {spread.placements.length} photo{spread.placements.length === 1 ? '' : 's'}
             </span>
@@ -46,6 +50,7 @@ export default function SpreadsPanel() {
                     splitSpread(spread.id)
                   }}
                 >
+                  <Icon name="scissors" size={11} />
                   Split
                 </button>
               )}
@@ -57,13 +62,19 @@ export default function SpreadsPanel() {
                     mergeWithNext(spread.id)
                   }}
                 >
-                  Merge ↓
+                  <Icon name="merge" size={11} />
+                  Merge
                 </button>
               )}
             </div>
           </div>
         ))}
-        {spreads.length === 0 && <p className="muted">Import photos and run Auto-Build to get started.</p>}
+        {spreads.length === 0 && (
+          <div className="empty-state">
+            <Icon name="sparkles" size={26} />
+            <p>Import photos, then click Auto-Build to lay out your first spreads.</p>
+          </div>
+        )}
       </div>
     </div>
   )

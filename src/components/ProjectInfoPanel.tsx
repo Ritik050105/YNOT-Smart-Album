@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { computeCoverCrop, effectiveDpi } from '@/engine/cropFit'
+import Icon from './Icon'
 
 const PROBE_SIZE = 900
 
@@ -55,7 +56,10 @@ export default function ProjectInfoPanel() {
 
   return (
     <div className="panel project-info">
-      <h3>Project Details</h3>
+      <h3>
+        <Icon name="info" size={14} />
+        Project Details
+      </h3>
       <dl className="project-info__grid">
         <dt>Size</dt>
         <dd>
@@ -77,7 +81,7 @@ export default function ProjectInfoPanel() {
           </>
         )}
         <dt>Print quality</dt>
-        <dd className={stats.belowTargetCount > 0 ? 'project-info__warn' : undefined}>
+        <dd className={stats.belowTargetCount > 0 ? 'project-info__warn' : 'project-info__ok'}>
           {stats.belowTargetCount === 0
             ? stats.worstDpi
               ? `All placed photos meet ${project.size.dpi} DPI`

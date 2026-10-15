@@ -7,6 +7,7 @@ import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { computeCoverCrop } from '@/engine/cropFit'
 import { ensureFontLoaded } from '@/engine/fonts'
 import { Spread, FrameStyle } from '@/types'
+import Icon from './Icon'
 
 const STAGE_WIDTH = 900
 /** Standard "keep important content inside this line" inset used by most print labs. */
@@ -186,7 +187,10 @@ export default function DesignerCanvas() {
   if (!spread) {
     return (
       <div className="designer-canvas designer-canvas--empty">
-        <p className="muted">Select a spread from the left to start designing.</p>
+        <div className="empty-state">
+          <Icon name="frame" size={28} />
+          <p>Select a spread from the left to start designing, or import photos to get going.</p>
+        </div>
       </div>
     )
   }
@@ -213,7 +217,8 @@ export default function DesignerCanvas() {
             })
           }
         >
-          + Add Text
+          <Icon name="type" size={14} />
+          Add Text
         </button>
         <label className="toolbar-toggle">
           <input type="checkbox" checked={showGrid} onChange={toggleGrid} />
