@@ -3,7 +3,7 @@ import { Project } from '@/types'
 import { renderSpreadToCanvas } from './renderSpread'
 import { buildSpreadPsdBytes } from './exportPsd'
 import { buildProofingGalleryHtml } from './exportProofing'
-import { canvasToBytes, saveOneFile, saveManyFiles } from './exportUtil'
+import { canvasToBytes, saveOneFile, saveManyFiles, projectFileBaseName } from './exportUtil'
 
 /** Exports the whole album as a single multi-page, print-ready PDF (one page per spread). */
 export async function exportAlbumToPdf(project: Project): Promise<{ saved: boolean; filePath?: string }> {
@@ -20,7 +20,7 @@ export async function exportAlbumToPdf(project: Project): Promise<{ saved: boole
   }
 
   const bytes = await pdf.save()
-  const fileName = `${project.name.replace(/[^a-z0-9_\- ]/gi, '_')}.pdf`
+  const fileName = `${projectFileBaseName(project)}.pdf`
   return saveOneFile(bytes, fileName, 'application/pdf', [{ name: 'PDF Document', extensions: ['pdf'] }])
 }
 
@@ -54,7 +54,7 @@ export async function exportAlbumToPsds(project: Project): Promise<{ saved: bool
 export async function exportAlbumToProofingGallery(project: Project): Promise<{ saved: boolean; filePath?: string }> {
   const html = await buildProofingGalleryHtml(project)
   const bytes = new TextEncoder().encode(html)
-  const fileName = `${project.name.replace(/[^a-z0-9_\- ]/gi, '_')}-proofing.html`
+  const fileName = `${projectFileBaseName(project)}-proofing.html`
   return saveOneFile(bytes, fileName, 'text/html', [{ name: 'Proofing Gallery', extensions: ['html'] }])
 }
 

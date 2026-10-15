@@ -15,8 +15,10 @@ export const LOCAL_FONTS: FontOption[] = [
   { family: 'Verdana', category: 'local' },
 ]
 
-/** A curated set of Google Fonts, loaded on demand so the app isn't shipping font files itself. */
+/** A curated set of Google Fonts, loaded on demand so the app isn't shipping font files itself.
+ *  EB Garamond leads the list — it's the typeface YNOT Photography's own branding uses. */
 export const CLOUD_FONTS: FontOption[] = [
+  { family: 'EB Garamond', category: 'cloud', googleFontParam: 'EB+Garamond:wght@400;500;600' },
   { family: 'Playfair Display', category: 'cloud', googleFontParam: 'Playfair+Display:wght@400;700' },
   { family: 'Montserrat', category: 'cloud', googleFontParam: 'Montserrat:wght@400;700' },
   { family: 'Great Vibes', category: 'cloud', googleFontParam: 'Great+Vibes' },

@@ -8,15 +8,16 @@ npm run dist:all     # also builds mac (.dmg) and linux (.AppImage) targets
 
 This produces two Windows artifacts in `release/`:
 
-- **`Album Studio-Setup-<version>.exe`** — a standard installer (NSIS). Per-user install,
+- **`YNOT Album Studio-Setup-<version>.exe`** — a standard installer (NSIS). Per-user install,
   no admin rights required; lets the user pick the install directory and creates
   Start Menu + Desktop shortcuts. This is what you hand to end users for a normal install.
-- **`Album Studio-Portable-<version>.exe`** — a single self-contained exe, no installation
+- **`YNOT Album Studio-Portable-<version>.exe`** — a single self-contained exe, no installation
   step. Useful for running straight off a shared network drive/NAS or a USB stick without
   installing on every machine.
 
-To only regenerate the app icon (`build/icon.ico` / `build/icon.png`) after editing
-`build/icon.svg`, run `npm run icon`.
+The app icon (`build/icon.ico` / `build/icon.png`) is generated from YNOT Photography's own
+logo mark (`build/brand/ynot-mark.png`, cropped from their site logo). To regenerate it after
+swapping that source image, run `npm run icon`.
 
 ## Code signing
 

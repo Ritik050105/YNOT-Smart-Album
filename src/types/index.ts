@@ -114,6 +114,12 @@ export interface Project {
   spreads: Spread[]
   createdAt: string
   updatedAt: string
+  /** How this job is categorized in YNOT's own portfolio system (Wedding, Concert, etc.). */
+  eventType: string
+  /** Optional wedding-community tag (Brahmin, Kongu, Cross Culture, ...), blank if not applicable. */
+  community: string
+  /** Client / couple name for this job, shown on proofing galleries and exports. */
+  clientName: string
 }
 
 /** On-disk project file format — self-contained (photos embedded as data URLs) so it opens

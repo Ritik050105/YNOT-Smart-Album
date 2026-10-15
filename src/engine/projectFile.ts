@@ -1,5 +1,5 @@
 import { Project, ProjectFile, TemplateDefinition } from '@/types'
-import { saveOneFile } from './exportUtil'
+import { saveOneFile, projectFileBaseName } from './exportUtil'
 
 export function blobUrlToDataUrl(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -33,13 +33,13 @@ export async function serializeProjectFile(project: Project, userTemplates: Temp
 export function deserializeProjectFile(jsonText: string): ProjectFile {
   const parsed = JSON.parse(jsonText) as ProjectFile
   if (parsed.formatVersion !== 1 || !parsed.project) {
-    throw new Error('This file is not a valid Album Studio project.')
+    throw new Error('This file is not a valid YNOT Album Studio project.')
   }
   return parsed
 }
 
 function fileNameFor(project: Project): string {
-  return `${project.name.replace(/[^a-z0-9_\- ]/gi, '_') || 'album'}.ablm.json`
+  return `${projectFileBaseName(project)}.ablm.json`
 }
 
 export async function saveProjectToFile(
@@ -49,7 +49,7 @@ export async function saveProjectToFile(
   const json = await serializeProjectFile(project, userTemplates)
   const bytes = new TextEncoder().encode(json)
   return saveOneFile(bytes, fileNameFor(project), 'application/json', [
-    { name: 'Album Studio Project', extensions: ['ablm', 'json'] },
+    { name: 'YNOT Album Studio Project', extensions: ['ablm', 'json'] },
   ])
 }
 

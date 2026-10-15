@@ -10,6 +10,7 @@ import {
 } from '@/engine/exportAlbum'
 import { saveProjectToFile, openProjectFromFile } from '@/engine/projectFile'
 import Icon from './Icon'
+import ynotMark from '@/assets/ynot-mark-white.png'
 
 type ExportFormat = 'pdf' | 'jpg' | 'png' | 'psd' | 'proofing'
 
@@ -78,9 +79,11 @@ export default function TopBar() {
     <header className="topbar">
       <div className="topbar__brand">
         <span className="topbar__brand-mark">
-          <Icon name="bookOpen" size={14} />
+          <img src={ynotMark} alt="YNOT Photography" />
         </span>
-        <span className="topbar__brand-name">Album Studio</span>
+        <span className="topbar__brand-name">
+          YNOT <span className="topbar__brand-sub">Album Studio</span>
+        </span>
       </div>
 
       <button className="btn btn--icon" title="New Album" onClick={handleNewProject}>

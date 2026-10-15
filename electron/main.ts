@@ -12,7 +12,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     backgroundColor: '#1e1f22',
-    title: 'Album Studio',
+    title: 'YNOT Album Studio',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -75,7 +75,7 @@ ipcMain.handle(
 ipcMain.handle('project:open', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openFile'],
-    filters: [{ name: 'Album Studio Project', extensions: ['ablm', 'json'] }],
+    filters: [{ name: 'YNOT Album Studio Project', extensions: ['ablm', 'json'] }],
   })
   if (canceled || filePaths.length === 0) return { canceled: true as const }
   const contents = fs.readFileSync(filePaths[0], 'utf-8')

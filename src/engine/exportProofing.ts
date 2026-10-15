@@ -1,6 +1,8 @@
 import { Project } from '@/types'
 import { renderSpreadToCanvas } from './renderSpread'
 import { canvasToBytes } from './exportUtil'
+import { blobUrlToDataUrl } from './projectFile'
+import ynotMarkWhite from '@/assets/ynot-mark-white.png'
 
 function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   let binary = ''
@@ -38,20 +40,27 @@ export async function buildProofingGalleryHtml(project: Project): Promise<string
   }
 
   const generatedAt = new Date().toLocaleString()
+  const logoDataUrl = await blobUrlToDataUrl(ynotMarkWhite).catch(() => null)
+  const subtitleParts = [project.eventType, project.community, project.size.label].filter(Boolean)
+  const clientLine = project.clientName ? escapeHtml(project.clientName) : escapeHtml(project.name)
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${escapeHtml(project.name)} — Proofing Gallery</title>
+<title>${escapeHtml(project.name)} — YNOT Photography Proofing Gallery</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f4f5f7; color: #1c1d21; }
-  header { padding: 28px 24px; background: #1c1d21; color: #fff; }
-  header h1 { margin: 0 0 4px; font-size: 22px; }
-  header p { margin: 0; color: #a7a9b4; font-size: 13px; }
+  header { padding: 28px 24px; background: #0c0c0d; color: #fff; display: flex; align-items: center; gap: 16px; }
+  header .mark { width: 40px; height: 40px; flex-shrink: 0; }
+  header .mark img { width: 100%; height: 100%; object-fit: contain; }
+  header .titles { flex: 1; }
+  header h1 { margin: 0 0 4px; font-size: 20px; letter-spacing: 0.02em; }
+  header p { margin: 0; color: #9a9ca3; font-size: 12.5px; }
+  header .brand { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #6f7280; }
   main { padding: 24px; max-width: 1200px; margin: 0 auto; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
   .card { margin: 0; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
@@ -61,6 +70,7 @@ export async function buildProofingGalleryHtml(project: Project): Promise<string
   #lightbox.open { display: flex; }
   #lightbox img { max-width: 100%; max-height: 100%; border-radius: 6px; }
   footer { text-align: center; padding: 24px; color: #9a9ca3; font-size: 12px; }
+  footer strong { color: #5c6072; }
   @media print {
     header, footer, #lightbox { display: none; }
     .grid { grid-template-columns: 1fr; }
@@ -70,15 +80,19 @@ export async function buildProofingGalleryHtml(project: Project): Promise<string
 </head>
 <body>
 <header>
-  <h1>${escapeHtml(project.name)}</h1>
-  <p>${sorted.length} spread${sorted.length === 1 ? '' : 's'} &middot; ${project.size.label} &middot; generated ${escapeHtml(generatedAt)}</p>
+  ${logoDataUrl ? `<span class="mark"><img src="${logoDataUrl}" alt="YNOT Photography" /></span>` : ''}
+  <div class="titles">
+    <div class="brand">YNOT Photography</div>
+    <h1>${clientLine}</h1>
+    <p>${subtitleParts.map(escapeHtml).join(' &middot; ')} &middot; ${sorted.length} spread${sorted.length === 1 ? '' : 's'} &middot; generated ${escapeHtml(generatedAt)}</p>
+  </div>
 </header>
 <main>
   <div class="grid">
     ${cards.join('\n')}
   </div>
 </main>
-<footer>Click any spread to enlarge. This is a static snapshot for review — re-export and re-share after changes.</footer>
+<footer>Click any spread to enlarge. This is a static snapshot for review — re-export and re-share after changes.<br/><strong>YNOT Photography</strong> &middot; ynot.website</footer>
 <div id="lightbox" onclick="this.classList.remove('open')"><img id="lightbox-img" src="" alt="" /></div>
 <script>
   function openLightbox(src) {

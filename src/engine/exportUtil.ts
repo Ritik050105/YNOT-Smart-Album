@@ -1,3 +1,12 @@
+import { Project } from '@/types'
+
+/** Base filename for exports — prefers the client/couple name (how a studio actually refers to
+ *  a job) over the generic project title, falling back to it when no client name is set. */
+export function projectFileBaseName(project: Project): string {
+  const source = project.clientName.trim() || project.name
+  return source.replace(/[^a-z0-9_\- ]/gi, '_').trim() || 'album'
+}
+
 export function canvasToBytes(canvas: HTMLCanvasElement, mime: string, quality = 0.92): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(

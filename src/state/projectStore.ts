@@ -48,6 +48,9 @@ function newProject(name: string): Project {
     spreads: [],
     createdAt: now,
     updatedAt: now,
+    eventType: 'Wedding',
+    community: '',
+    clientName: '',
   }
 }
 
@@ -89,6 +92,7 @@ interface ProjectState {
   undo: () => void
   redo: () => void
   renameProject: (name: string) => void
+  updateProjectMeta: (patch: Partial<Pick<Project, 'eventType' | 'community' | 'clientName'>>) => void
   loadProjectFile: (file: ProjectFile) => void
   newProjectFile: () => void
 }
@@ -321,11 +325,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }),
 
   renameProject: (name) => withHistory(set, (p) => ({ ...p, name })),
+  updateProjectMeta: (patch) => withHistory(set, (p) => ({ ...p, ...patch })),
 
   loadProjectFile: (file) => {
     saveUserTemplates(file.userTemplates)
+    // Older saved project files predate eventType/community/clientName — default them so
+    // opening one doesn't crash the UI that reads these fields.
+    const project: Project = {
+      ...file.project,
+      eventType: file.project.eventType ?? 'Wedding',
+      community: file.project.community ?? '',
+      clientName: file.project.clientName ?? '',
+    }
     set({
-      project: file.project,
+      project,
       userTemplates: file.userTemplates,
       selectedSpreadId: null,
       selectedPlaceholderId: null,

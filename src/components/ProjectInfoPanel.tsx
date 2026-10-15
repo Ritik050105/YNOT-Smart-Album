@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { computeCoverCrop, effectiveDpi } from '@/engine/cropFit'
+import { EVENT_TYPES, WEDDING_COMMUNITIES } from '@/engine/eventCategories'
 import Icon from './Icon'
 
 const PROBE_SIZE = 900
@@ -10,6 +11,7 @@ const PROBE_SIZE = 900
  *  check across every placed photo, so quality issues surface before export instead of after. */
 export default function ProjectInfoPanel() {
   const project = useProjectStore((s) => s.project)
+  const updateProjectMeta = useProjectStore((s) => s.updateProjectMeta)
 
   const stats = useMemo(() => {
     const photosById = new Map(project.photos.map((p) => [p.id, p]))
@@ -60,6 +62,33 @@ export default function ProjectInfoPanel() {
         <Icon name="info" size={14} />
         Project Details
       </h3>
+
+      <div className="job-meta">
+        <input
+          className="job-meta__client"
+          placeholder="Client / couple name"
+          value={project.clientName}
+          onChange={(e) => updateProjectMeta({ clientName: e.target.value })}
+        />
+        <div className="job-meta__row">
+          <select value={project.eventType} onChange={(e) => updateProjectMeta({ eventType: e.target.value })}>
+            {EVENT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          <select value={project.community} onChange={(e) => updateProjectMeta({ community: e.target.value })}>
+            <option value="">Community —</option>
+            {WEDDING_COMMUNITIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <dl className="project-info__grid">
         <dt>Size</dt>
         <dd>
