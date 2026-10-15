@@ -9,6 +9,8 @@ import { ensureFontLoaded } from '@/engine/fonts'
 import { Spread, FrameStyle } from '@/types'
 
 const STAGE_WIDTH = 900
+/** Standard "keep important content inside this line" inset used by most print labs. */
+const SAFETY_MARGIN_IN = 0.25
 
 function PlaceholderImage({
   src,
@@ -127,6 +129,8 @@ export default function DesignerCanvas() {
   const addTextBox = useProjectStore((s) => s.addTextBox)
   const showGrid = useProjectStore((s) => s.showGrid)
   const toggleGrid = useProjectStore((s) => s.toggleGrid)
+  const showPrintGuides = useProjectStore((s) => s.showPrintGuides)
+  const togglePrintGuides = useProjectStore((s) => s.togglePrintGuides)
 
   const spread: Spread | undefined = project.spreads.find((s) => s.id === selectedSpreadId)
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
@@ -193,6 +197,10 @@ export default function DesignerCanvas() {
         <label className="toolbar-toggle">
           <input type="checkbox" checked={showGrid} onChange={toggleGrid} />
           Rule-of-thirds grid
+        </label>
+        <label className="toolbar-toggle">
+          <input type="checkbox" checked={showPrintGuides} onChange={togglePrintGuides} />
+          Print guides (<span style={{ color: '#ffb347' }}>bleed</span> / <span style={{ color: '#4fd6c0' }}>safety</span>)
         </label>
       </div>
       <div
@@ -261,6 +269,19 @@ export default function DesignerCanvas() {
               <Line key={`v${f}`} points={[STAGE_WIDTH * f, 0, STAGE_WIDTH * f, stageHeight]} stroke="#ff5c7a" strokeWidth={1} dash={[4, 4]} listening={false} />,
               <Line key={`h${f}`} points={[0, stageHeight * f, STAGE_WIDTH, stageHeight * f]} stroke="#ff5c7a" strokeWidth={1} dash={[4, 4]} listening={false} />,
             ])}
+
+          {showPrintGuides &&
+            (() => {
+              const pxPerIn = STAGE_WIDTH / project.size.widthIn
+              const bleed = project.size.bleedIn * pxPerIn
+              const safety = bleed + SAFETY_MARGIN_IN * pxPerIn
+              return (
+                <>
+                  <Rect x={bleed} y={bleed} width={STAGE_WIDTH - bleed * 2} height={stageHeight - bleed * 2} stroke="#ffb347" strokeWidth={1} dash={[5, 3]} listening={false} />
+                  <Rect x={safety} y={safety} width={STAGE_WIDTH - safety * 2} height={stageHeight - safety * 2} stroke="#4fd6c0" strokeWidth={1} dash={[2, 4]} listening={false} />
+                </>
+              )
+            })()}
 
           {spread.textBoxes.map((box) => {
             const x = box.x * STAGE_WIDTH

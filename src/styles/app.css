@@ -128,6 +128,25 @@ body,
   font-size: 13px;
 }
 
+.project-info__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 6px;
+  margin: 0;
+  font-size: 12px;
+}
+.project-info__grid dt {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.project-info__grid dd {
+  margin: 0;
+}
+.project-info__warn {
+  color: #ffb347;
+}
+
 .dropzone {
   border: 2px dashed var(--border);
   border-radius: 8px;

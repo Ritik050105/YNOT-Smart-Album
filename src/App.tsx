@@ -2,6 +2,7 @@ import TopBar from './components/TopBar'
 import ImportPanel from './components/ImportPanel'
 import PhotoBin from './components/PhotoBin'
 import SpreadsPanel from './components/SpreadsPanel'
+import ProjectInfoPanel from './components/ProjectInfoPanel'
 import DesignerCanvas from './components/DesignerCanvas'
 import Inspector from './components/Inspector'
 
@@ -11,6 +12,7 @@ export default function App() {
       <TopBar />
       <div className="app-body">
         <aside className="app-sidebar app-sidebar--left">
+          <ProjectInfoPanel />
           <ImportPanel />
           <PhotoBin />
           <SpreadsPanel />

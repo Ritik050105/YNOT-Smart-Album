@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { execFile } from 'child_process'
 
 const isDev = !app.isPackaged
 
@@ -79,4 +80,50 @@ ipcMain.handle('project:open', async () => {
   if (canceled || filePaths.length === 0) return { canceled: true as const }
   const contents = fs.readFileSync(filePaths[0], 'utf-8')
   return { canceled: false as const, filePath: filePaths[0], contents }
+})
+
+// Lists fonts actually installed on this machine, so the font picker reflects what's really
+// available rather than a hardcoded guess. Windows only for now (reads the registry via
+// PowerShell, read-only, no shell interpolation of user input).
+ipcMain.handle('fonts:listLocal', async (): Promise<{ fonts: string[] }> => {
+  if (process.platform !== 'win32') return { fonts: [] }
+
+  const script = `
+    $names = @()
+    foreach ($regPath in 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts','HKCU:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts') {
+      if (Test-Path $regPath) {
+        $props = Get-ItemProperty -Path $regPath
+        foreach ($p in $props.PSObject.Properties) {
+          if ($p.Name -notmatch '^PS') { $names += $p.Name }
+        }
+      }
+    }
+    $names | Sort-Object -Unique | ConvertTo-Json -Compress
+  `
+
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      { maxBuffer: 2 * 1024 * 1024, timeout: 10_000 },
+      (err, stdout) => {
+        if (err || !stdout) return resolve({ fonts: [] })
+        try {
+          const parsed: unknown = JSON.parse(stdout)
+          const raw = Array.isArray(parsed) ? parsed : [parsed]
+          const cleaned = Array.from(
+            new Set(
+              raw
+                .filter((n): n is string => typeof n === 'string')
+                .map((n) => n.replace(/\s*\(.*?\)\s*$/, '').trim())
+                .filter(Boolean)
+            )
+          ).sort((a, b) => a.localeCompare(b))
+          resolve({ fonts: cleaned })
+        } catch {
+          resolve({ fonts: [] })
+        }
+      }
+    )
+  })
 })

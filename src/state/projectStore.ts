@@ -51,6 +51,7 @@ interface ProjectState {
   selectedPlaceholderId: string | null
   selectedTextBoxId: string | null
   showGrid: boolean
+  showPrintGuides: boolean
   autoLayoutOptions: AutoLayoutOptions
   history: Project[]
   future: Project[]
@@ -61,6 +62,7 @@ interface ProjectState {
   selectPlaceholder: (id: string | null) => void
   selectTextBox: (id: string | null) => void
   toggleGrid: () => void
+  togglePrintGuides: () => void
   reorderSpreads: (fromIndex: number, toIndex: number) => void
   splitSpread: (spreadId: string) => void
   mergeWithNext: (spreadId: string) => void
@@ -100,6 +102,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectedPlaceholderId: null,
   selectedTextBoxId: null,
   showGrid: false,
+  showPrintGuides: true,
   autoLayoutOptions: DEFAULT_AUTO_LAYOUT_OPTIONS,
   history: [],
   future: [],
@@ -116,6 +119,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectPlaceholder: (id) => set({ selectedPlaceholderId: id, selectedTextBoxId: null }),
   selectTextBox: (id) => set({ selectedTextBoxId: id, selectedPlaceholderId: null }),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
+  togglePrintGuides: () => set((s) => ({ showPrintGuides: !s.showPrintGuides })),
 
   reorderSpreads: (fromIndex, toIndex) =>
     withHistory(set, (p) => {

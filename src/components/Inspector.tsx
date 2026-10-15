@@ -1,11 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { templatesForCount } from '@/engine/templates'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
-import { LOCAL_FONTS, CLOUD_FONTS, ensureFontLoaded } from '@/engine/fonts'
+import { LOCAL_FONTS, CLOUD_FONTS, FontOption, getLocalFonts, ensureFontLoaded } from '@/engine/fonts'
 
 export default function Inspector() {
+  const [localFonts, setLocalFonts] = useState<FontOption[]>(LOCAL_FONTS)
+  useEffect(() => {
+    void getLocalFonts().then(setLocalFonts)
+  }, [])
+
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
@@ -280,7 +285,7 @@ export default function Inspector() {
               }}
             >
               <optgroup label="Local Fonts">
-                {LOCAL_FONTS.map((f) => (
+                {localFonts.map((f) => (
                   <option key={f.family} value={f.family}>
                     {f.family}
                   </option>

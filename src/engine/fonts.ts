@@ -29,6 +29,35 @@ export const CLOUD_FONTS: FontOption[] = [
 
 export const ALL_FONTS: FontOption[] = [...LOCAL_FONTS, ...CLOUD_FONTS]
 
+let localFontsCache: FontOption[] | null = null
+let localFontsPending: Promise<FontOption[]> | null = null
+
+/** Returns the fonts actually installed on this machine (via Electron's main process), falling
+ *  back to the curated LOCAL_FONTS list when running in a browser preview or detection fails.
+ *  Result is cached for the life of the app — fonts don't change mid-session. */
+export function getLocalFonts(): Promise<FontOption[]> {
+  if (localFontsCache) return Promise.resolve(localFontsCache)
+  if (localFontsPending) return localFontsPending
+
+  localFontsPending = (async () => {
+    if (window.albumStudio?.isElectron) {
+      try {
+        const { fonts } = await window.albumStudio.listLocalFonts()
+        if (fonts.length > 0) {
+          localFontsCache = fonts.map((family) => ({ family, category: 'local' as const }))
+          return localFontsCache
+        }
+      } catch {
+        // Fall through to the curated list below.
+      }
+    }
+    localFontsCache = LOCAL_FONTS
+    return localFontsCache
+  })()
+
+  return localFontsPending
+}
+
 const loadedFontLinks = new Set<string>()
 
 /** Injects a <link> for a cloud font the first time it's used, and returns once the browser
