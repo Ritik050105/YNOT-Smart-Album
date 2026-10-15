@@ -62,7 +62,10 @@ export default function Inspector() {
             <button
               key={t.id}
               className={`template-swatch ${spread.templateId === t.id ? 'is-active' : ''}`}
-              style={{ background: t.thumbnailColor }}
+              style={{
+                background: t.thumbnailImage ? undefined : t.thumbnailColor,
+                backgroundImage: t.thumbnailImage ? `url(${t.thumbnailImage})` : undefined,
+              }}
               onClick={() => applyTemplateToSpread(spread.id, t.id)}
               title={t.name}
             >
@@ -266,6 +269,18 @@ export default function Inspector() {
               max={100}
               value={placement.saturation}
               onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { saturation: Number(e.target.value) })}
+            />
+          </label>
+          <label>
+            Relight
+            <input
+              type="range"
+              min={-100}
+              max={100}
+              value={placement.relightIntensity}
+              onChange={(e) =>
+                updatePlacement(spread.id, placement.placeholderId, { relightIntensity: Number(e.target.value) })
+              }
             />
           </label>
         </section>

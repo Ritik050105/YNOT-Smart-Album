@@ -1,5 +1,5 @@
 import { Spread } from '@/types'
-import { BUILT_IN_TEMPLATES } from './templates'
+import { findTemplate } from './templates'
 
 export interface PlaceholderBox {
   placeholderId: string
@@ -17,7 +17,7 @@ export function computePlaceholderBoxes(
   canvasWidthPx: number,
   canvasHeightPx: number
 ): PlaceholderBox[] {
-  const template = BUILT_IN_TEMPLATES.find((t) => t.id === spread.templateId)
+  const template = findTemplate(spread.templateId)
   if (!template) return []
 
   const margin = spread.marginPx

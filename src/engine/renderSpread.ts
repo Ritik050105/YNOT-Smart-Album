@@ -119,6 +119,8 @@ export async function renderSpreadToCanvas(
         ctx.globalCompositeOperation = 'source-over'
         ctx.globalAlpha = 1
       }
+
+      applyRelight(ctx, photoX, photoY, photoW, photoH, placement?.relightIntensity ?? 0)
     } else {
       ctx.fillStyle = '#e5e7eb'
       ctx.fillRect(photoX, photoY, photoW, photoH)
@@ -153,6 +155,29 @@ export async function renderSpreadToCanvas(
   }
 
   return canvas
+}
+
+/** Simulated "relighting": a soft radial glow (positive) or vignette/shadow (negative) centered
+ *  on the photo, blended with soft-light so it reads as changed lighting rather than a flat tint. */
+export function applyRelight(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, intensity: number) {
+  if (intensity === 0) return
+  const cx = x + w / 2
+  const cy = y + h / 2
+  const radius = Math.max(w, h) * 0.75
+  const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius)
+  const strength = Math.min(Math.abs(intensity) / 100, 1)
+  if (intensity > 0) {
+    gradient.addColorStop(0, `rgba(255,255,255,${0.65 * strength})`)
+    gradient.addColorStop(1, 'rgba(255,255,255,0)')
+  } else {
+    gradient.addColorStop(0, 'rgba(0,0,0,0)')
+    gradient.addColorStop(1, `rgba(0,0,0,${0.55 * strength})`)
+  }
+  ctx.save()
+  ctx.globalCompositeOperation = 'soft-light'
+  ctx.fillStyle = gradient
+  ctx.fillRect(x, y, w, h)
+  ctx.restore()
 }
 
 function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

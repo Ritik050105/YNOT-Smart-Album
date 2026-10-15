@@ -5,6 +5,7 @@ import SpreadsPanel from './components/SpreadsPanel'
 import ProjectInfoPanel from './components/ProjectInfoPanel'
 import DesignerCanvas from './components/DesignerCanvas'
 import Inspector from './components/Inspector'
+import TemplateLibraryPanel from './components/TemplateLibraryPanel'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         </main>
         <aside className="app-sidebar app-sidebar--right">
           <Inspector />
+          <TemplateLibraryPanel />
         </aside>
       </div>
     </div>

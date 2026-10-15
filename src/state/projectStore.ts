@@ -9,8 +9,9 @@ import {
   splitSpreadIntoPages,
   mergeSpreads,
 } from '@/engine/autoLayout'
-import { BUILT_IN_TEMPLATES } from '@/engine/templates'
+import { BUILT_IN_TEMPLATES, findTemplate, setUserTemplateRegistry } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
+import { blobUrlToDataUrl } from '@/engine/projectFile'
 
 const TEMPLATE_LIBRARY_KEY = 'albumstudio.templateLibrary'
 
@@ -23,13 +24,19 @@ function loadUserTemplates(): TemplateDefinition[] {
   }
 }
 
+// Every engine function that resolves a template by id (layout math, retemplating, thumbnails)
+// looks it up through templates.ts's own registry rather than reaching back into this store, so
+// that registry has to be kept in sync with userTemplates whenever it changes.
 function saveUserTemplates(templates: TemplateDefinition[]) {
+  setUserTemplateRegistry(templates)
   try {
     localStorage.setItem(TEMPLATE_LIBRARY_KEY, JSON.stringify(templates))
   } catch {
     // Storage unavailable (e.g. private mode) — template library just won't persist across sessions.
   }
 }
+
+setUserTemplateRegistry(loadUserTemplates())
 
 function newProject(name: string): Project {
   const now = new Date().toISOString()
@@ -74,7 +81,9 @@ interface ProjectState {
   addTextBox: (spreadId: string, box: TextBox) => void
   updateTextBox: (spreadId: string, textBoxId: string, patch: Partial<TextBox>) => void
   removeTextBox: (spreadId: string, textBoxId: string) => void
-  saveSpreadAsTemplate: (spreadId: string, name: string) => void
+  saveSpreadAsTemplate: (spreadId: string, name: string) => Promise<void>
+  importTemplateFromPhoto: (name: string, baseTemplateId: string, photoDataUrl: string) => Promise<void>
+  deleteUserTemplate: (id: string) => void
   setAutoLayoutOptions: (opts: Partial<AutoLayoutOptions>) => void
   allTemplates: () => TemplateDefinition[]
   undo: () => void
@@ -232,14 +241,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       ),
     })),
 
-  saveSpreadAsTemplate: (spreadId, name) => {
+  saveSpreadAsTemplate: async (spreadId, name) => {
     const { project } = get()
     const spread = project.spreads.find((s) => s.id === spreadId)
     if (!spread) return
-    const base = BUILT_IN_TEMPLATES.find((t) => t.id === spread.templateId)
+    const base = findTemplate(spread.templateId)
     const placeholders = base
       ? base.placeholders
-      : spread.placements.map((pl, i) => ({
+      : spread.placements.map((pl) => ({
           id: pl.placeholderId,
           x: 0,
           y: 0,
@@ -247,6 +256,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           height: 1,
           preferredOrientation: 'any' as const,
         }))
+
+    const firstPhotoId = spread.placements.find((pl) => pl.photoId)?.photoId
+    const firstPhoto = firstPhotoId ? project.photos.find((p) => p.id === firstPhotoId) : undefined
+    const thumbnailImage = firstPhoto ? await blobUrlToDataUrl(firstPhoto.src).catch(() => undefined) : undefined
+
     const template: TemplateDefinition = {
       id: uuid(),
       name,
@@ -256,8 +270,34 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       isBuiltIn: false,
       createdAt: new Date().toISOString(),
       thumbnailColor: '#8a6fd1',
+      thumbnailImage,
     }
     const next = [...get().userTemplates, template]
+    saveUserTemplates(next)
+    set({ userTemplates: next })
+  },
+
+  importTemplateFromPhoto: async (name, baseTemplateId, photoDataUrl) => {
+    const base = findTemplate(baseTemplateId)
+    if (!base) return
+    const template: TemplateDefinition = {
+      id: uuid(),
+      name,
+      photoCount: base.photoCount,
+      pageSide: base.pageSide,
+      placeholders: base.placeholders,
+      isBuiltIn: false,
+      createdAt: new Date().toISOString(),
+      thumbnailColor: '#8a6fd1',
+      thumbnailImage: photoDataUrl,
+    }
+    const next = [...get().userTemplates, template]
+    saveUserTemplates(next)
+    set({ userTemplates: next })
+  },
+
+  deleteUserTemplate: (id) => {
+    const next = get().userTemplates.filter((t) => t.id !== id)
     saveUserTemplates(next)
     set({ userTemplates: next })
   },

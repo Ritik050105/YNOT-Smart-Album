@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { PhotoAsset, Spread, PlacedPhoto, TextBox } from '@/types'
-import { suggestTemplate, BUILT_IN_TEMPLATES } from './templates'
+import { suggestTemplate, findTemplate } from './templates'
 
 export interface AutoLayoutOptions {
   /**
@@ -33,6 +33,7 @@ export function defaultPlacement(placeholderId: string, photoId: string | null):
     saturation: 0,
     frameStyle: 'none',
     rotationDeg: 0,
+    relightIntensity: 0,
   }
 }
 
@@ -89,7 +90,7 @@ export function autoBuildSpreads(photos: PhotoAsset[], options: AutoLayoutOption
 
 /** Rebuilds a single spread's placements against a different template, keeping as many existing photos as possible. */
 export function retemplateSpread(spread: Spread, templateId: string): Spread {
-  const template = BUILT_IN_TEMPLATES.find((t) => t.id === templateId)
+  const template = findTemplate(templateId)
   if (!template) return spread
   const existingPhotoIds = spread.placements.map((p) => p.photoId).filter((id): id is string => !!id)
   const placements = template.placeholders.map((ph, i) => defaultPlacement(ph.id, existingPhotoIds[i] ?? null))

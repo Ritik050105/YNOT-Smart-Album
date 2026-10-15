@@ -22,6 +22,7 @@ function PlaceholderImage({
   opacity,
   frameStyle,
   rotationDeg,
+  relightIntensity,
   selected,
   onSelect,
   onSwapTo,
@@ -35,6 +36,7 @@ function PlaceholderImage({
   opacity: number
   frameStyle: FrameStyle
   rotationDeg: number
+  relightIntensity: number
   selected: boolean
   onSelect: () => void
   onSwapTo: (targetPlaceholderId: string) => void
@@ -98,6 +100,25 @@ function PlaceholderImage({
           shadowOffsetY={Math.max(box.width, box.height) * 0.015}
           onClick={onSelect}
           onTap={onSelect}
+        />
+      )}
+      {img && crop && relightIntensity !== 0 && (
+        <Rect
+          x={localPhotoX}
+          y={localPhotoY}
+          width={photoW}
+          height={photoH}
+          listening={false}
+          globalCompositeOperation="soft-light"
+          fillRadialGradientStartPoint={{ x: photoW / 2, y: photoH / 2 }}
+          fillRadialGradientEndPoint={{ x: photoW / 2, y: photoH / 2 }}
+          fillRadialGradientStartRadius={0}
+          fillRadialGradientEndRadius={Math.max(photoW, photoH) * 0.75}
+          fillRadialGradientColorStops={
+            relightIntensity > 0
+              ? [0, `rgba(255,255,255,${0.65 * Math.min(relightIntensity / 100, 1)})`, 1, 'rgba(255,255,255,0)']
+              : [0, 'rgba(0,0,0,0)', 1, `rgba(0,0,0,${0.55 * Math.min(-relightIntensity / 100, 1)})`]
+          }
         />
       )}
       {selected && (
@@ -257,6 +278,7 @@ export default function DesignerCanvas() {
                 opacity={placement.opacity}
                 frameStyle={placement.frameStyle}
                 rotationDeg={placement.rotationDeg}
+                relightIntensity={placement.relightIntensity}
                 selected={selectedPlaceholderId === box.placeholderId}
                 onSelect={() => selectPlaceholder(box.placeholderId)}
                 onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}

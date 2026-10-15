@@ -350,9 +350,64 @@ body,
   font-size: 10px;
   padding: 10px 4px;
   cursor: pointer;
+  background-size: cover;
+  background-position: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 .template-swatch.is-active {
   border-color: #fff;
+}
+
+.template-import-form {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.template-import-form__preview {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.template-import-form input,
+.template-import-form select {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 5px 7px;
+  font-size: 12px;
+}
+.template-import-form__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.template-library__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+.template-library__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.template-library__swatch {
+  height: 60px;
+  border-radius: 6px;
+  background-size: cover;
+  background-position: center;
+}
+.template-library__name {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .save-template-row {

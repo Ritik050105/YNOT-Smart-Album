@@ -1,0 +1,103 @@
+import { useRef, useState } from 'react'
+import { useProjectStore } from '@/state/projectStore'
+import { BUILT_IN_TEMPLATES } from '@/engine/templates'
+import { blobUrlToDataUrl } from '@/engine/projectFile'
+
+/** Browse the full template library (built-in + user-saved/imported) and register new templates
+ *  from an uploaded reference photo — "template registration" + "template importing via photo
+ *  uploading". Importing a photo doesn't attempt to detect a layout from it (no vision model
+ *  here); instead you pick which built-in grid the new template should use, and the photo
+ *  becomes its thumbnail in the library so it's easy to recognize later. */
+export default function TemplateLibraryPanel() {
+  const userTemplates = useProjectStore((s) => s.userTemplates)
+  const importTemplateFromPhoto = useProjectStore((s) => s.importTemplateFromPhoto)
+  const deleteUserTemplate = useProjectStore((s) => s.deleteUserTemplate)
+
+  const [pendingPhoto, setPendingPhoto] = useState<string | null>(null)
+  const [importName, setImportName] = useState('')
+  const [importBaseId, setImportBaseId] = useState(BUILT_IN_TEMPLATES[0].id)
+  const [importing, setImporting] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    const dataUrl = await blobUrlToDataUrl(url)
+    URL.revokeObjectURL(url)
+    setPendingPhoto(dataUrl)
+    setImportName(file.name.replace(/\.[^.]+$/, ''))
+  }
+
+  async function confirmImport() {
+    if (!pendingPhoto || !importName.trim()) return
+    setImporting(true)
+    try {
+      await importTemplateFromPhoto(importName.trim(), importBaseId, pendingPhoto)
+      setPendingPhoto(null)
+      setImportName('')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <div className="panel template-library">
+      <h3>Template Library</h3>
+
+      {!pendingPhoto ? (
+        <button className="btn" onClick={() => inputRef.current?.click()}>
+          + Import Template from Photo
+        </button>
+      ) : (
+        <div className="template-import-form">
+          <img src={pendingPhoto} alt="" className="template-import-form__preview" />
+          <input placeholder="Template name" value={importName} onChange={(e) => setImportName(e.target.value)} />
+          <select value={importBaseId} onChange={(e) => setImportBaseId(e.target.value)}>
+            {BUILT_IN_TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.photoCount} photo{t.photoCount === 1 ? '' : 's'})
+              </option>
+            ))}
+          </select>
+          <div className="template-import-form__actions">
+            <button className="btn" onClick={() => setPendingPhoto(null)}>
+              Cancel
+            </button>
+            <button className="btn btn--primary" disabled={importing || !importName.trim()} onClick={() => void confirmImport()}>
+              {importing ? 'Saving…' : 'Save Template'}
+            </button>
+          </div>
+        </div>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => void handleFile(e.target.files?.[0])}
+      />
+
+      {userTemplates.length === 0 ? (
+        <p className="muted">No saved templates yet. Use "Save as Template" on a spread, or import one from a photo above.</p>
+      ) : (
+        <div className="template-library__grid">
+          {userTemplates.map((t) => (
+            <div key={t.id} className="template-library__item">
+              <div
+                className="template-library__swatch"
+                style={{
+                  background: t.thumbnailImage ? undefined : t.thumbnailColor,
+                  backgroundImage: t.thumbnailImage ? `url(${t.thumbnailImage})` : undefined,
+                }}
+              />
+              <span className="template-library__name">{t.name}</span>
+              <button className="btn btn--tiny btn--danger" onClick={() => deleteUserTemplate(t.id)}>
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

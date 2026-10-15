@@ -1,5 +1,5 @@
 import { Spread, PhotoAsset, AlbumSize } from '@/types'
-import { BUILT_IN_TEMPLATES } from '@/engine/templates'
+import { findTemplate } from '@/engine/templates'
 
 interface Props {
   spread: Spread
@@ -11,7 +11,7 @@ interface Props {
 /** Lightweight CSS-only preview of a spread, used in the spreads strip and template picker
  *  (the full interactive render lives in DesignerCanvas / the Konva stage). */
 export default function SpreadThumbnail({ spread, photosById, size, width }: Props) {
-  const template = BUILT_IN_TEMPLATES.find((t) => t.id === spread.templateId)
+  const template = findTemplate(spread.templateId)
   const height = width / (size.widthIn / size.heightIn)
 
   return (

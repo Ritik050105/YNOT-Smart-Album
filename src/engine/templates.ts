@@ -165,6 +165,20 @@ export function templatesForCount(count: number): TemplateDefinition[] {
   return BUILT_IN_TEMPLATES.filter((t) => t.photoCount === count)
 }
 
+// User-saved/imported templates aren't known to this module by default — the store mirrors its
+// userTemplates list in here via setUserTemplateRegistry() so lookups below (used when applying
+// a template to a spread, and when rendering a spread's placeholder boxes) can find them too.
+let userTemplateRegistry: TemplateDefinition[] = []
+
+export function setUserTemplateRegistry(templates: TemplateDefinition[]) {
+  userTemplateRegistry = templates
+}
+
+/** Looks up a template by id across both the built-in library and the user's saved/imported ones. */
+export function findTemplate(id: string): TemplateDefinition | undefined {
+  return BUILT_IN_TEMPLATES.find((t) => t.id === id) ?? userTemplateRegistry.find((t) => t.id === id)
+}
+
 /** Picks a reasonable default template for a count, varying the choice so consecutive spreads don't repeat. */
 export function suggestTemplate(count: number, avoidId?: string): TemplateDefinition {
   const candidates = templatesForCount(Math.min(count, 6))

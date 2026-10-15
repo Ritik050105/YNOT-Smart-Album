@@ -3,6 +3,7 @@ import { PhotoAsset, Spread, AlbumSize } from '@/types'
 import { computeCoverCrop } from './cropFit'
 import { computePlaceholderBoxes } from './layoutMath'
 import { ensureFontLoaded } from './fonts'
+import { applyRelight } from './renderSpread'
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -54,6 +55,8 @@ export async function buildSpreadPsdBytes(
     const crop = computeCoverCrop(img.naturalWidth, img.naturalHeight, w, h, placement.focalX, placement.focalY, placement.zoom)
     ctx.filter = `brightness(${1 + placement.brightness / 100}) contrast(${1 + placement.contrast / 100}) saturate(${1 + placement.saturation / 100})`
     ctx.drawImage(img, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, 0, 0, w, h)
+    ctx.filter = 'none'
+    applyRelight(ctx, 0, 0, w, h, placement.relightIntensity)
 
     layers.push({
       name: photo.fileName,

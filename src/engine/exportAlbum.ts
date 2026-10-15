@@ -2,6 +2,7 @@ import { PDFDocument } from 'pdf-lib'
 import { Project } from '@/types'
 import { renderSpreadToCanvas } from './renderSpread'
 import { buildSpreadPsdBytes } from './exportPsd'
+import { buildProofingGalleryHtml } from './exportProofing'
 import { canvasToBytes, saveOneFile, saveManyFiles } from './exportUtil'
 
 /** Exports the whole album as a single multi-page, print-ready PDF (one page per spread). */
@@ -46,6 +47,15 @@ export async function exportAlbumToPsds(project: Project): Promise<{ saved: bool
     files.push({ fileName: `spread-${String(i + 1).padStart(2, '0')}.psd`, bytes, mime: 'image/vnd.adobe.photoshop' })
   }
   return saveManyFiles(files)
+}
+
+/** Exports a self-contained proofing gallery (HTML, images embedded) to share with a client for
+ *  review — see buildProofingGalleryHtml for what "cloud proofing" means without a backend. */
+export async function exportAlbumToProofingGallery(project: Project): Promise<{ saved: boolean; filePath?: string }> {
+  const html = await buildProofingGalleryHtml(project)
+  const bytes = new TextEncoder().encode(html)
+  const fileName = `${project.name.replace(/[^a-z0-9_\- ]/gi, '_')}-proofing.html`
+  return saveOneFile(bytes, fileName, 'text/html', [{ name: 'Proofing Gallery', extensions: ['html'] }])
 }
 
 async function exportSpreadsAsRaster(

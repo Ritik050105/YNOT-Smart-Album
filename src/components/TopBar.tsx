@@ -1,10 +1,16 @@
 import { useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { ALBUM_SIZES } from '@/engine/albumSizes'
-import { exportAlbumToPdf, exportAlbumToJpegs, exportAlbumToPngs, exportAlbumToPsds } from '@/engine/exportAlbum'
+import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES } from '@/engine/albumSizes'
+import {
+  exportAlbumToPdf,
+  exportAlbumToJpegs,
+  exportAlbumToPngs,
+  exportAlbumToPsds,
+  exportAlbumToProofingGallery,
+} from '@/engine/exportAlbum'
 import { saveProjectToFile, openProjectFromFile } from '@/engine/projectFile'
 
-type ExportFormat = 'pdf' | 'jpg' | 'png' | 'psd'
+type ExportFormat = 'pdf' | 'jpg' | 'png' | 'psd' | 'proofing'
 
 export default function TopBar() {
   const project = useProjectStore((s) => s.project)
@@ -32,6 +38,7 @@ export default function TopBar() {
       else if (format === 'jpg') await exportAlbumToJpegs(project)
       else if (format === 'png') await exportAlbumToPngs(project)
       else if (format === 'psd') await exportAlbumToPsds(project)
+      else if (format === 'proofing') await exportAlbumToProofingGallery(project)
     } finally {
       setExporting(false)
     }
@@ -84,10 +91,14 @@ export default function TopBar() {
         onChange={(e) => renameProject(e.target.value)}
       />
       <select value={project.size.id} onChange={(e) => setSize(e.target.value)} className="topbar__size">
-        {ALBUM_SIZES.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.label}
-          </option>
+        {ALBUM_SIZE_CATEGORIES.map((category) => (
+          <optgroup key={category} label={category}>
+            {ALBUM_SIZES.filter((s) => s.category === category).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
       <div className="topbar__spacer" />
@@ -102,6 +113,7 @@ export default function TopBar() {
         <option value="jpg">JPG (per spread)</option>
         <option value="png">PNG (per spread)</option>
         <option value="psd">PSD (per spread, layered)</option>
+        <option value="proofing">Proofing Gallery (HTML)</option>
       </select>
       <button
         className="btn btn--primary"

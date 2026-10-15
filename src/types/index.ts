@@ -37,6 +37,9 @@ export interface TemplateDefinition {
   isBuiltIn: boolean
   createdAt: string
   thumbnailColor: string
+  /** Optional reference image (data URL) shown instead of the solid-color swatch — set when a
+   *  template is registered from an uploaded photo or saved from a spread with photos in it. */
+  thumbnailImage?: string
 }
 
 export type FrameStyle = 'none' | 'rounded' | 'polaroid' | 'shadow'
@@ -59,6 +62,9 @@ export interface PlacedPhoto {
   /** "Art gallery" framing + a gentle tilt ("skew") for a scattered-print look. */
   frameStyle: FrameStyle
   rotationDeg: number
+  /** Simulated relighting: a soft radial glow/shadow centered on the photo.
+   *  Positive = add light, negative = add shadow/vignette, 0 = off. */
+  relightIntensity: number
 }
 
 export interface TextBox {
@@ -88,9 +94,12 @@ export interface Spread {
   marginPx: number
 }
 
+export type AlbumSizeCategory = 'Square' | 'Portrait' | 'Landscape' | 'Panoramic' | 'Magazine'
+
 export interface AlbumSize {
   id: string
   label: string
+  category: AlbumSizeCategory
   widthIn: number
   heightIn: number
   bleedIn: number

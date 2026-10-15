@@ -1,7 +1,7 @@
 import { Project, ProjectFile, TemplateDefinition } from '@/types'
 import { saveOneFile } from './exportUtil'
 
-function blobUrlToDataUrl(url: string): Promise<string> {
+export function blobUrlToDataUrl(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     if (url.startsWith('data:')) return resolve(url)
     fetch(url)
