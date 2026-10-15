@@ -4,19 +4,44 @@
   "version": "0.1.0",
   "description": "Desktop album & magazine design studio for photographers",
   "main": "dist-electron/main.js",
+  "author": "Album Studio",
   "build": {
     "appId": "com.albumstudio.app",
     "productName": "Album Studio",
+    "copyright": "Copyright (c) Album Studio",
     "files": ["dist/**", "dist-electron/**"],
-    "directories": { "output": "release" },
-    "win": { "target": "nsis" },
-    "mac": { "target": "dmg" }
+    "directories": { "output": "release", "buildResources": "build" },
+    "icon": "build/icon.png",
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    },
+    "mac": { "target": "dmg", "icon": "build/icon.png" },
+    "linux": { "target": "AppImage", "icon": "build/icon.png" }
   },
   "scripts": {
     "dev": "vite",
     "dev:electron": "concurrently -k \"vite\" \"wait-on tcp:5173 && tsc -p electron/tsconfig.json && electron .\"",
-    "build": "tsc -b && vite build",
-    "build:electron": "tsc -p electron/tsconfig.json && electron-builder",
+    "icon": "node scripts/generate-icon.mjs",
+    "build:renderer": "tsc -b && vite build",
+    "build:main": "tsc -p electron/tsconfig.json",
+    "build": "npm run build:renderer && npm run build:main",
+    "dist": "npm run build && electron-builder --win",
+    "dist:all": "npm run build && electron-builder -mwl",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit"
   },
@@ -41,6 +66,8 @@
     "concurrently": "^8.2.2",
     "electron": "^31.3.1",
     "electron-builder": "^24.13.3",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.5",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
     "wait-on": "^7.2.0"
