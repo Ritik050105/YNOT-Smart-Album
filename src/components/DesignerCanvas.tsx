@@ -12,8 +12,6 @@ import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
 
 const STAGE_WIDTH = 900
-/** Standard "keep important content inside this line" inset used by most print labs. */
-const SAFETY_MARGIN_IN = 0.25
 
 function PlaceholderImage({
   src,
@@ -346,7 +344,7 @@ export default function DesignerCanvas() {
             (() => {
               const pxPerIn = STAGE_WIDTH / project.size.widthIn
               const bleed = project.size.bleedIn * pxPerIn
-              const safety = bleed + SAFETY_MARGIN_IN * pxPerIn
+              const safety = bleed + project.size.safeZoneIn * pxPerIn
               return (
                 <>
                   <Rect x={bleed} y={bleed} width={STAGE_WIDTH - bleed * 2} height={stageHeight - bleed * 2} stroke="#ffb347" strokeWidth={1} dash={[5, 3]} listening={false} />

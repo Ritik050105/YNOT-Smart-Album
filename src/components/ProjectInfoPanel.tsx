@@ -3,6 +3,7 @@ import { useProjectStore } from '@/state/projectStore'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { computeCoverCrop, effectiveDpi } from '@/engine/cropFit'
 import { EVENT_TYPES, WEDDING_COMMUNITIES } from '@/engine/eventCategories'
+import { inToDisplay } from '@/engine/units'
 import Icon from './Icon'
 
 const PROBE_SIZE = 900
@@ -45,12 +46,28 @@ export default function ProjectInfoPanel() {
     )
     const unusedPhotos = project.photos.filter((p) => !usedPhotoIds.has(p.id)).length
 
+    const orientationCounts = { landscape: 0, portrait: 0, square: 0 }
+    for (const photo of project.photos) orientationCounts[photo.orientation]++
+
+    const toneAdjustedCount = project.spreads.reduce(
+      (sum, s) =>
+        sum +
+        s.placements.filter(
+          (p) =>
+            p.photoId &&
+            (p.warmth !== 0 || p.brightness !== 0 || p.contrast !== 0 || p.saturation !== 0 || p.relightIntensity !== 0)
+        ).length,
+      0
+    )
+
     return {
       placedCount,
       emptyCount,
       belowTargetCount,
       worstDpi: worstDpi === Infinity ? null : Math.round(worstDpi),
       unusedPhotos,
+      orientationCounts,
+      toneAdjustedCount,
     }
   }, [project])
 
@@ -121,7 +138,9 @@ export default function ProjectInfoPanel() {
       <dl className="project-info__grid">
         <dt>Size</dt>
         <dd>
-          {project.size.label} ({project.size.widthIn}&quot; × {project.size.heightIn}&quot;, {project.size.dpi} DPI target)
+          {project.size.label} ({inToDisplay(project.size.widthIn, project.units)}
+          {project.units} × {inToDisplay(project.size.heightIn, project.units)}
+          {project.units}, {project.size.dpi} DPI, {project.colorProfile})
         </dd>
         <dt>Spreads / Pages</dt>
         <dd>
@@ -132,6 +151,17 @@ export default function ProjectInfoPanel() {
           {project.photos.length} imported · {stats.placedCount} placed · {stats.emptyCount} empty slot
           {stats.emptyCount === 1 ? '' : 's'}
         </dd>
+        <dt>Orientation</dt>
+        <dd>
+          {stats.orientationCounts.landscape} horizontal · {stats.orientationCounts.portrait} vertical ·{' '}
+          {stats.orientationCounts.square} square
+        </dd>
+        {stats.toneAdjustedCount > 0 && (
+          <>
+            <dt>Tone adjusted</dt>
+            <dd>{stats.toneAdjustedCount} photo{stats.toneAdjustedCount === 1 ? '' : 's'} with color/light edits</dd>
+          </>
+        )}
         {stats.unusedPhotos > 0 && (
           <>
             <dt>Unused</dt>

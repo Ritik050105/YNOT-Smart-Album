@@ -255,9 +255,15 @@ export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [
 ]
 
 /** Returns every built-in template that fits a given photo count, for the "smart grid suggestions" picker. */
-export function templatesForCount(count: number): TemplateDefinition[] {
+export function templatesForCount(count: number, enabledTemplateIds: string[] | null = null): TemplateDefinition[] {
   if (count <= 0) return []
-  const builtins = BUILT_IN_TEMPLATES.filter((t) => t.photoCount === count)
+  let builtins = BUILT_IN_TEMPLATES.filter((t) => t.photoCount === count)
+  if (enabledTemplateIds) {
+    const narrowed = builtins.filter((t) => enabledTemplateIds.includes(t.id))
+    // If the project's chosen template library happens to exclude every template for this
+    // exact count, fall back to the full set rather than silently producing nothing.
+    if (narrowed.length > 0) builtins = narrowed
+  }
   if (builtins.length > 0) return builtins
   // Beyond the hand-designed 1-6 photo templates, offer two auto-generated, balanced layouts.
   const clamped = Math.min(count, 30)
@@ -291,8 +297,8 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
 }
 
 /** Picks a reasonable default template for a count, varying the choice so consecutive spreads don't repeat. */
-export function suggestTemplate(count: number, avoidId?: string): TemplateDefinition {
-  const candidates = templatesForCount(Math.max(1, Math.min(count, 30)))
+export function suggestTemplate(count: number, avoidId?: string, enabledTemplateIds: string[] | null = null): TemplateDefinition {
+  const candidates = templatesForCount(Math.max(1, Math.min(count, 30)), enabledTemplateIds)
   if (candidates.length === 0) return full
   const filtered = candidates.filter((t) => t.id !== avoidId)
   const pool = filtered.length > 0 ? filtered : candidates

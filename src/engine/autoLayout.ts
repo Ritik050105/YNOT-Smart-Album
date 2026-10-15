@@ -63,12 +63,31 @@ export function groupPhotosIntoMoments(photos: PhotoAsset[], options: AutoLayout
   return groups
 }
 
-/** Builds full Spread records (template + placements) from timeline-grouped photos. "Auto-Build" entry point. */
-export function autoBuildSpreads(photos: PhotoAsset[], options: AutoLayoutOptions = DEFAULT_AUTO_LAYOUT_OPTIONS): Spread[] {
+export interface SpreadAppearanceDefaults {
+  backgroundColor: string
+  gapPx: number
+  marginPx: number
+}
+
+export const FALLBACK_APPEARANCE_DEFAULTS: SpreadAppearanceDefaults = {
+  backgroundColor: '#ffffff',
+  gapPx: 8,
+  marginPx: 24,
+}
+
+/** Builds full Spread records (template + placements) from timeline-grouped photos. "Auto-Build"
+ *  entry point. `enabledTemplateIds` narrows the 1-6 photo template pool to whatever was chosen
+ *  in the New Project wizard's Template Library step (null/omitted = every built-in available). */
+export function autoBuildSpreads(
+  photos: PhotoAsset[],
+  options: AutoLayoutOptions = DEFAULT_AUTO_LAYOUT_OPTIONS,
+  appearance: SpreadAppearanceDefaults = FALLBACK_APPEARANCE_DEFAULTS,
+  enabledTemplateIds: string[] | null = null
+): Spread[] {
   const groups = groupPhotosIntoMoments(photos, options)
   let lastTemplateId: string | undefined
   return groups.map((group, index) => {
-    const template = suggestTemplate(group.length, lastTemplateId)
+    const template = suggestTemplate(group.length, lastTemplateId, enabledTemplateIds)
     lastTemplateId = template.id
     const placements: PlacedPhoto[] = template.placeholders.map((ph, i) =>
       defaultPlacement(ph.id, group[i]?.id ?? null)
@@ -81,9 +100,9 @@ export function autoBuildSpreads(photos: PhotoAsset[], options: AutoLayoutOption
       templateId: template.id,
       placements,
       textBoxes,
-      backgroundColor: '#ffffff',
-      gapPx: 8,
-      marginPx: 24,
+      backgroundColor: appearance.backgroundColor,
+      gapPx: appearance.gapPx,
+      marginPx: appearance.marginPx,
     }
   })
 }

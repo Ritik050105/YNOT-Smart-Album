@@ -14,6 +14,9 @@ export interface PhotoAsset {
   megapixels: number
   /** MIME type, preserved so saved projects can reconstruct the right data-URL prefix. */
   mimeType: string
+  /** Named collections ("Bins" in Pixellu SmartAlbums) for organizing a big shoot — e.g.
+   *  "Ceremony", "Reception", "Getting Ready". A photo can belong to any number of bins. */
+  bins: string[]
 }
 
 export interface PlaceholderRect {
@@ -102,7 +105,10 @@ export interface AlbumSize {
   category: AlbumSizeCategory
   widthIn: number
   heightIn: number
+  /** Bleed/trim — how far past the trim line artwork should extend. */
   bleedIn: number
+  /** Safe zone — how far in from the trim line important content should stay clear of. */
+  safeZoneIn: number
   dpi: number
 }
 
@@ -120,6 +126,18 @@ export interface Project {
   community: string
   /** Client / couple name for this job, shown on proofing galleries and exports. */
   clientName: string
+  /** Display unit for size fields in the UI — storage stays in inches regardless. */
+  units: 'in' | 'cm'
+  /** Metadata only (no real ICC conversion performed) — recorded so exports/handoff notes
+   *  can say what color space the designer was working in, same as Pixellu's project setting. */
+  colorProfile: string
+  /** Defaults applied to newly created spreads (auto-build and "+ New Spread"). */
+  defaultBackgroundColor: string
+  defaultGapPx: number
+  defaultMarginPx: number
+  /** When set, Smart Grid Suggestions only offers templates from this list (chosen when the
+   *  project was created) — null means "all templates available". */
+  enabledTemplateIds: string[] | null
 }
 
 /** On-disk project file format — self-contained (photos embedded as data URLs) so it opens

@@ -1,10 +1,11 @@
 import { AlbumSize } from '@/types'
 
 const BLEED_IN = 0.125
+const SAFE_ZONE_IN = 0.25
 const DPI = 300
 
 function size(id: string, label: string, category: AlbumSize['category'], widthIn: number, heightIn: number): AlbumSize {
-  return { id, label, category, widthIn, heightIn, bleedIn: BLEED_IN, dpi: DPI }
+  return { id, label, category, widthIn, heightIn, bleedIn: BLEED_IN, safeZoneIn: SAFE_ZONE_IN, dpi: DPI }
 }
 
 /**

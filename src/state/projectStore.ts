@@ -38,12 +38,23 @@ function saveUserTemplates(templates: TemplateDefinition[]) {
 
 setUserTemplateRegistry(loadUserTemplates())
 
-function newProject(name: string): Project {
+export interface NewProjectOptions {
+  name: string
+  size: Project['size']
+  units: Project['units']
+  colorProfile: string
+  defaultBackgroundColor: string
+  defaultGapPx: number
+  defaultMarginPx: number
+  enabledTemplateIds: string[] | null
+}
+
+function newProject(opts: Partial<NewProjectOptions> & { name: string }): Project {
   const now = new Date().toISOString()
   return {
     id: uuid(),
-    name,
-    size: DEFAULT_ALBUM_SIZE,
+    name: opts.name,
+    size: opts.size ?? DEFAULT_ALBUM_SIZE,
     photos: [],
     spreads: [],
     createdAt: now,
@@ -51,6 +62,12 @@ function newProject(name: string): Project {
     eventType: 'Wedding',
     community: '',
     clientName: '',
+    units: opts.units ?? 'in',
+    colorProfile: opts.colorProfile ?? 'sRGB',
+    defaultBackgroundColor: opts.defaultBackgroundColor ?? '#ffffff',
+    defaultGapPx: opts.defaultGapPx ?? 8,
+    defaultMarginPx: opts.defaultMarginPx ?? 24,
+    enabledTemplateIds: opts.enabledTemplateIds ?? null,
   }
 }
 
@@ -95,6 +112,8 @@ interface ProjectState {
   updateProjectMeta: (patch: Partial<Pick<Project, 'eventType' | 'community' | 'clientName'>>) => void
   loadProjectFile: (file: ProjectFile) => void
   newProjectFile: () => void
+  createProjectFromWizard: (opts: NewProjectOptions) => void
+  setPhotoBins: (photoId: string, bins: string[]) => void
 }
 
 function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project) {
@@ -109,7 +128,7 @@ function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => vo
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
-  project: newProject('Untitled Album'),
+  project: newProject({ name: 'Untitled Album' }),
   userTemplates: loadUserTemplates(),
   selectedSpreadId: null,
   selectedPlaceholderId: null,
@@ -125,7 +144,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   runAutoBuild: () => {
     const { project, autoLayoutOptions } = get()
-    withHistory(set, (p) => ({ ...p, spreads: autoBuildSpreads(project.photos, autoLayoutOptions) }))
+    const appearance = {
+      backgroundColor: project.defaultBackgroundColor,
+      gapPx: project.defaultGapPx,
+      marginPx: project.defaultMarginPx,
+    }
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: autoBuildSpreads(project.photos, autoLayoutOptions, appearance, project.enabledTemplateIds),
+    }))
   },
 
   selectSpread: (id) => set({ selectedSpreadId: id, selectedPlaceholderId: null, selectedTextBoxId: null }),
@@ -329,13 +356,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   loadProjectFile: (file) => {
     saveUserTemplates(file.userTemplates)
-    // Older saved project files predate eventType/community/clientName — default them so
-    // opening one doesn't crash the UI that reads these fields.
+    // Older saved project files predate these fields — default them so opening one doesn't
+    // crash the UI that reads them.
     const project: Project = {
       ...file.project,
       eventType: file.project.eventType ?? 'Wedding',
       community: file.project.community ?? '',
       clientName: file.project.clientName ?? '',
+      units: file.project.units ?? 'in',
+      colorProfile: file.project.colorProfile ?? 'sRGB',
+      defaultBackgroundColor: file.project.defaultBackgroundColor ?? '#ffffff',
+      defaultGapPx: file.project.defaultGapPx ?? 8,
+      defaultMarginPx: file.project.defaultMarginPx ?? 24,
+      enabledTemplateIds: file.project.enabledTemplateIds ?? null,
+      size: { ...file.project.size, safeZoneIn: file.project.size.safeZoneIn ?? 0.25 },
+      photos: file.project.photos.map((photo) => ({ ...photo, bins: photo.bins ?? [] })),
     }
     set({
       project,
@@ -350,11 +385,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   newProjectFile: () =>
     set({
-      project: newProject('Untitled Album'),
+      project: newProject({ name: 'Untitled Album' }),
       selectedSpreadId: null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
       history: [],
       future: [],
     }),
+
+  createProjectFromWizard: (opts) =>
+    set({
+      project: newProject(opts),
+      selectedSpreadId: null,
+      selectedPlaceholderId: null,
+      selectedTextBoxId: null,
+      history: [],
+      future: [],
+    }),
+
+  setPhotoBins: (photoId, bins) =>
+    withHistory(set, (p) => ({
+      ...p,
+      photos: p.photos.map((photo) => (photo.id === photoId ? { ...photo, bins } : photo)),
+    })),
 }))
