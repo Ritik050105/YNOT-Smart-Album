@@ -12,6 +12,8 @@ export interface PhotoAsset {
   orientation: 'landscape' | 'portrait' | 'square'
   /** Native pixel resolution used to compute effective print DPI once placed. */
   megapixels: number
+  /** MIME type, preserved so saved projects can reconstruct the right data-URL prefix. */
+  mimeType: string
 }
 
 export interface PlaceholderRect {
@@ -37,6 +39,8 @@ export interface TemplateDefinition {
   thumbnailColor: string
 }
 
+export type FrameStyle = 'none' | 'rounded' | 'polaroid' | 'shadow'
+
 export interface PlacedPhoto {
   placeholderId: string
   photoId: string | null
@@ -52,6 +56,9 @@ export interface PlacedPhoto {
   brightness: number
   contrast: number
   saturation: number
+  /** "Art gallery" framing + a gentle tilt ("skew") for a scattered-print look. */
+  frameStyle: FrameStyle
+  rotationDeg: number
 }
 
 export interface TextBox {
@@ -98,4 +105,12 @@ export interface Project {
   spreads: Spread[]
   createdAt: string
   updatedAt: string
+}
+
+/** On-disk project file format — self-contained (photos embedded as data URLs) so it opens
+ *  on any machine without the original source images being present. */
+export interface ProjectFile {
+  formatVersion: 1
+  project: Project
+  userTemplates: TemplateDefinition[]
 }

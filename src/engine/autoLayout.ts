@@ -17,7 +17,7 @@ export const DEFAULT_AUTO_LAYOUT_OPTIONS: AutoLayoutOptions = {
   maxPhotosPerSpread: 6,
 }
 
-function defaultPlacement(placeholderId: string, photoId: string | null): PlacedPhoto {
+export function defaultPlacement(placeholderId: string, photoId: string | null): PlacedPhoto {
   return {
     placeholderId,
     photoId,
@@ -31,6 +31,8 @@ function defaultPlacement(placeholderId: string, photoId: string | null): Placed
     brightness: 0,
     contrast: 0,
     saturation: 0,
+    frameStyle: 'none',
+    rotationDeg: 0,
   }
 }
 
@@ -92,4 +94,39 @@ export function retemplateSpread(spread: Spread, templateId: string): Spread {
   const existingPhotoIds = spread.placements.map((p) => p.photoId).filter((id): id is string => !!id)
   const placements = template.placeholders.map((ph, i) => defaultPlacement(ph.id, existingPhotoIds[i] ?? null))
   return { ...spread, templateId: template.id, placements }
+}
+
+function buildSpreadFromPhotoIds(photoIds: (string | null)[], pageSide: Spread['pageSide'], like: Spread): Spread {
+  const template = suggestTemplate(Math.max(photoIds.length, 1))
+  const placements = template.placeholders.map((ph, i) => defaultPlacement(ph.id, photoIds[i] ?? null))
+  return {
+    id: uuid(),
+    order: like.order,
+    pageSide,
+    templateId: template.id,
+    placements,
+    textBoxes: [],
+    backgroundColor: like.backgroundColor,
+    gapPx: like.gapPx,
+    marginPx: like.marginPx,
+  }
+}
+
+/** Splits one spread into two independent pages (left/right), dividing its photos between them.
+ *  Any text boxes on the original spread stay with the left page. */
+export function splitSpreadIntoPages(spread: Spread): [Spread, Spread] {
+  const photoIds = spread.placements.map((p) => p.photoId)
+  const mid = Math.ceil(photoIds.length / 2)
+  const left = buildSpreadFromPhotoIds(photoIds.slice(0, mid), 'left', spread)
+  const right = buildSpreadFromPhotoIds(photoIds.slice(mid), 'right', spread)
+  left.textBoxes = spread.textBoxes
+  return [left, right]
+}
+
+/** Merges two adjacent spreads/pages back into a single full spread, combining their photos and text. */
+export function mergeSpreads(a: Spread, b: Spread): Spread {
+  const photoIds = [...a.placements, ...b.placements].map((p) => p.photoId)
+  const merged = buildSpreadFromPhotoIds(photoIds, 'spread', a)
+  merged.textBoxes = [...a.textBoxes, ...b.textBoxes]
+  return merged
 }

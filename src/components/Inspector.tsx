@@ -3,8 +3,7 @@ import { useProjectStore } from '@/state/projectStore'
 import { templatesForCount } from '@/engine/templates'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
-
-const FONT_FAMILIES = ['Georgia', 'Helvetica', 'Arial', 'Times New Roman', 'Playfair Display', 'Montserrat']
+import { LOCAL_FONTS, CLOUD_FONTS, ensureFontLoaded } from '@/engine/fonts'
 
 export default function Inspector() {
   const project = useProjectStore((s) => s.project)
@@ -183,6 +182,30 @@ export default function Inspector() {
             />
           </label>
           <label>
+            Frame
+            <select
+              value={placement.frameStyle}
+              onChange={(e) =>
+                updatePlacement(spread.id, placement.placeholderId, { frameStyle: e.target.value as typeof placement.frameStyle })
+              }
+            >
+              <option value="none">None</option>
+              <option value="rounded">Rounded</option>
+              <option value="polaroid">Polaroid</option>
+              <option value="shadow">Drop Shadow</option>
+            </select>
+          </label>
+          <label>
+            Tilt
+            <input
+              type="range"
+              min={-20}
+              max={20}
+              value={placement.rotationDeg}
+              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { rotationDeg: Number(e.target.value) })}
+            />
+          </label>
+          <label>
             Border width
             <input
               type="range"
@@ -250,13 +273,26 @@ export default function Inspector() {
             Font
             <select
               value={textBox.fontFamily}
-              onChange={(e) => updateTextBox(spread.id, textBox.id, { fontFamily: e.target.value })}
+              onChange={(e) => {
+                const family = e.target.value
+                void ensureFontLoaded(family)
+                updateTextBox(spread.id, textBox.id, { fontFamily: family })
+              }}
             >
-              {FONT_FAMILIES.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
+              <optgroup label="Local Fonts">
+                {LOCAL_FONTS.map((f) => (
+                  <option key={f.family} value={f.family}>
+                    {f.family}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Cloud Fonts">
+                {CLOUD_FONTS.map((f) => (
+                  <option key={f.family} value={f.family}>
+                    {f.family}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </label>
           <label>

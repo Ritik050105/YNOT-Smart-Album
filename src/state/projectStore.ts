@@ -1,7 +1,14 @@
 import { create } from 'zustand'
 import { v4 as uuid } from 'uuid'
-import { Project, PhotoAsset, Spread, TemplateDefinition, TextBox } from '@/types'
-import { autoBuildSpreads, DEFAULT_AUTO_LAYOUT_OPTIONS, AutoLayoutOptions, retemplateSpread } from '@/engine/autoLayout'
+import { Project, PhotoAsset, Spread, TemplateDefinition, TextBox, ProjectFile } from '@/types'
+import {
+  autoBuildSpreads,
+  DEFAULT_AUTO_LAYOUT_OPTIONS,
+  AutoLayoutOptions,
+  retemplateSpread,
+  splitSpreadIntoPages,
+  mergeSpreads,
+} from '@/engine/autoLayout'
 import { BUILT_IN_TEMPLATES } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
 
@@ -55,6 +62,8 @@ interface ProjectState {
   selectTextBox: (id: string | null) => void
   toggleGrid: () => void
   reorderSpreads: (fromIndex: number, toIndex: number) => void
+  splitSpread: (spreadId: string) => void
+  mergeWithNext: (spreadId: string) => void
   applyTemplateToSpread: (spreadId: string, templateId: string) => void
   updateSpread: (spreadId: string, patch: Partial<Spread>) => void
   setPlacementPhoto: (spreadId: string, placeholderId: string, photoId: string | null) => void
@@ -69,6 +78,8 @@ interface ProjectState {
   undo: () => void
   redo: () => void
   renameProject: (name: string) => void
+  loadProjectFile: (file: ProjectFile) => void
+  newProjectFile: () => void
 }
 
 function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project) {
@@ -111,6 +122,26 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const spreads = [...p.spreads]
       const [moved] = spreads.splice(fromIndex, 1)
       spreads.splice(toIndex, 0, moved)
+      return { ...p, spreads: spreads.map((s, i) => ({ ...s, order: i })) }
+    }),
+
+  splitSpread: (spreadId) =>
+    withHistory(set, (p) => {
+      const index = p.spreads.findIndex((s) => s.id === spreadId)
+      if (index === -1) return p
+      const [left, right] = splitSpreadIntoPages(p.spreads[index])
+      const spreads = [...p.spreads]
+      spreads.splice(index, 1, left, right)
+      return { ...p, spreads: spreads.map((s, i) => ({ ...s, order: i })) }
+    }),
+
+  mergeWithNext: (spreadId) =>
+    withHistory(set, (p) => {
+      const index = p.spreads.findIndex((s) => s.id === spreadId)
+      if (index === -1 || index === p.spreads.length - 1) return p
+      const merged = mergeSpreads(p.spreads[index], p.spreads[index + 1])
+      const spreads = [...p.spreads]
+      spreads.splice(index, 2, merged)
       return { ...p, spreads: spreads.map((s, i) => ({ ...s, order: i })) }
     }),
 
@@ -246,4 +277,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }),
 
   renameProject: (name) => withHistory(set, (p) => ({ ...p, name })),
+
+  loadProjectFile: (file) => {
+    saveUserTemplates(file.userTemplates)
+    set({
+      project: file.project,
+      userTemplates: file.userTemplates,
+      selectedSpreadId: null,
+      selectedPlaceholderId: null,
+      selectedTextBoxId: null,
+      history: [],
+      future: [],
+    })
+  },
+
+  newProjectFile: () =>
+    set({
+      project: newProject('Untitled Album'),
+      selectedSpreadId: null,
+      selectedPlaceholderId: null,
+      selectedTextBoxId: null,
+      history: [],
+      future: [],
+    }),
 }))

@@ -50,6 +50,7 @@ export async function importPhotoFiles(files: File[]): Promise<PhotoAsset[]> {
       capturedAt,
       orientation: orientationFor(width, height),
       megapixels: Math.round((width * height) / 1_000_000),
+      mimeType: file.type || 'image/jpeg',
     })
   }
   return results

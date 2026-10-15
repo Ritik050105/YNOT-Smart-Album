@@ -32,10 +32,15 @@ body,
 .topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 10px 16px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.topbar .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .topbar__brand {
@@ -50,7 +55,8 @@ body,
   font-size: 14px;
   padding: 6px 8px;
   border-radius: 6px;
-  min-width: 180px;
+  min-width: 120px;
+  flex-shrink: 1;
 }
 .topbar__title:hover,
 .topbar__title:focus {
@@ -212,6 +218,16 @@ body,
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 4px;
+  text-transform: capitalize;
+}
+.spreads-panel__actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.btn--tiny {
+  padding: 3px 7px;
+  font-size: 10px;
 }
 
 .spread-thumb {

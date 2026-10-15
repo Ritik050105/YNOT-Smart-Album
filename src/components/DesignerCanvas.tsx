@@ -1,11 +1,12 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
-import { Stage, Layer, Rect, Image as KonvaImage, Text as KonvaText, Line } from 'react-konva'
+import { Stage, Layer, Rect, Group, Image as KonvaImage, Text as KonvaText, Line } from 'react-konva'
 import useImage from 'use-image'
 import { useProjectStore } from '@/state/projectStore'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { computeCoverCrop } from '@/engine/cropFit'
-import { Spread } from '@/types'
+import { ensureFontLoaded } from '@/engine/fonts'
+import { Spread, FrameStyle } from '@/types'
 
 const STAGE_WIDTH = 900
 
@@ -17,6 +18,8 @@ function PlaceholderImage({
   focalY,
   zoom,
   opacity,
+  frameStyle,
+  rotationDeg,
   selected,
   onSelect,
   onSwapTo,
@@ -28,51 +31,77 @@ function PlaceholderImage({
   focalY: number
   zoom: number
   opacity: number
+  frameStyle: FrameStyle
+  rotationDeg: number
   selected: boolean
   onSelect: () => void
   onSwapTo: (targetPlaceholderId: string) => void
 }) {
   const [img] = useImage(src)
-  const crop = img ? computeCoverCrop(img.width, img.height, box.width, box.height, focalX, focalY, zoom) : null
+
+  const matPad = frameStyle === 'polaroid' ? Math.min(box.width, box.height) * 0.06 : 0
+  const matPadBottom = frameStyle === 'polaroid' ? box.height * 0.16 : 0
+  const photoW = box.width - matPad * 2
+  const photoH = box.height - matPad - matPadBottom
+  const crop = img ? computeCoverCrop(img.width, img.height, photoW, photoH, focalX, focalY, zoom) : null
+
+  const centerX = box.x + box.width / 2
+  const centerY = box.y + box.height / 2
+  // Local coordinates are relative to the box center so rotation pivots there, matching the export renderer.
+  const localBoxX = box.x - centerX
+  const localBoxY = box.y - centerY
+  const localPhotoX = localBoxX + matPad
+  const localPhotoY = localBoxY + matPad
 
   return (
-    <>
+    <Group
+      x={centerX}
+      y={centerY}
+      rotation={rotationDeg}
+      draggable
+      onDragStart={(e) => e.target.moveToTop()}
+      onDragEnd={(e) => {
+        const pointer = e.target.getStage()?.getPointerPosition()
+        e.target.position({ x: centerX, y: centerY })
+        e.target.getLayer()?.batchDraw()
+        if (!pointer) return
+        const target = allBoxes.find(
+          (b) =>
+            b.placeholderId !== box.placeholderId &&
+            pointer.x >= b.x &&
+            pointer.x <= b.x + b.width &&
+            pointer.y >= b.y &&
+            pointer.y <= b.y + b.height
+        )
+        if (target) onSwapTo(target.placeholderId)
+      }}
+    >
+      {frameStyle === 'polaroid' && (
+        <Rect x={localBoxX} y={localBoxY} width={box.width} height={box.height} fill="#ffffff" />
+      )}
       {img && crop && (
         <KonvaImage
           image={img}
-          x={box.x}
-          y={box.y}
-          width={box.width}
-          height={box.height}
+          x={localPhotoX}
+          y={localPhotoY}
+          width={photoW}
+          height={photoH}
           crop={{ x: crop.cropX, y: crop.cropY, width: crop.cropWidth, height: crop.cropHeight }}
           opacity={opacity}
+          cornerRadius={frameStyle === 'rounded' ? Math.min(box.width, box.height) * 0.06 : 0}
+          shadowEnabled={frameStyle === 'shadow'}
+          shadowColor="black"
+          shadowOpacity={0.45}
+          shadowBlur={Math.max(box.width, box.height) * 0.04}
+          shadowOffsetY={Math.max(box.width, box.height) * 0.015}
           onClick={onSelect}
           onTap={onSelect}
-          draggable
-          onDragStart={(e) => {
-            e.target.moveToTop()
-          }}
-          onDragEnd={(e) => {
-            const pointer = e.target.getStage()?.getPointerPosition()
-            e.target.position({ x: box.x, y: box.y })
-            e.target.getLayer()?.batchDraw()
-            if (!pointer) return
-            const target = allBoxes.find(
-              (b) =>
-                b.placeholderId !== box.placeholderId &&
-                pointer.x >= b.x &&
-                pointer.x <= b.x + b.width &&
-                pointer.y >= b.y &&
-                pointer.y <= b.y + b.height
-            )
-            if (target) onSwapTo(target.placeholderId)
-          }}
         />
       )}
       {selected && (
         <Rect
-          x={box.x}
-          y={box.y}
+          x={localBoxX}
+          y={localBoxY}
           width={box.width}
           height={box.height}
           stroke="#4f8cff"
@@ -81,7 +110,7 @@ function PlaceholderImage({
           listening={false}
         />
       )}
-    </>
+    </Group>
   )
 }
 
@@ -107,6 +136,10 @@ export default function DesignerCanvas() {
   const boxes = spread ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight) : []
 
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
+
+  useEffect(() => {
+    spread?.textBoxes.forEach((t) => void ensureFontLoaded(t.fontFamily))
+  }, [spread])
 
   function findBoxAt(x: number, y: number) {
     return boxes.find((b) => x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height)
@@ -214,6 +247,8 @@ export default function DesignerCanvas() {
                 focalY={placement.focalY}
                 zoom={placement.zoom}
                 opacity={placement.opacity}
+                frameStyle={placement.frameStyle}
+                rotationDeg={placement.rotationDeg}
                 selected={selectedPlaceholderId === box.placeholderId}
                 onSelect={() => selectPlaceholder(box.placeholderId)}
                 onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}

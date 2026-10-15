@@ -1,6 +1,7 @@
 import { PhotoAsset, Spread, AlbumSize } from '@/types'
 import { computeCoverCrop } from './cropFit'
 import { computePlaceholderBoxes } from './layoutMath'
+import { ensureFontLoaded } from './fonts'
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -43,10 +44,48 @@ export async function renderSpreadToCanvas(
     if (boxW <= 0 || boxH <= 0) continue
 
     const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
+    const frameStyle = placement?.frameStyle ?? 'none'
+    const rotation = ((placement?.rotationDeg ?? 0) * Math.PI) / 180
+
+    ctx.save()
+    if (rotation !== 0) {
+      const cx = boxX + boxW / 2
+      const cy = boxY + boxH / 2
+      ctx.translate(cx, cy)
+      ctx.rotate(rotation)
+      ctx.translate(-cx, -cy)
+    }
+
+    if (frameStyle === 'shadow') {
+      ctx.save()
+      ctx.shadowColor = 'rgba(0,0,0,0.45)'
+      ctx.shadowBlur = Math.max(boxW, boxH) * 0.04
+      ctx.shadowOffsetY = Math.max(boxW, boxH) * 0.015
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(boxX, boxY, boxW, boxH)
+      ctx.restore()
+    }
+
+    // The polaroid mat eats into the box, leaving extra room at the bottom for a caption strip.
+    const matPad = frameStyle === 'polaroid' ? Math.min(boxW, boxH) * 0.06 : 0
+    const matPadBottom = frameStyle === 'polaroid' ? boxH * 0.16 : 0
+    const photoX = boxX + matPad
+    const photoY = boxY + matPad
+    const photoW = boxW - matPad * 2
+    const photoH = boxH - matPad - matPadBottom
+
+    if (frameStyle === 'polaroid') {
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(boxX, boxY, boxW, boxH)
+    }
 
     ctx.save()
     ctx.beginPath()
-    ctx.rect(boxX, boxY, boxW, boxH)
+    if (frameStyle === 'rounded') {
+      roundedRectPath(ctx, boxX, boxY, boxW, boxH, Math.min(boxW, boxH) * 0.06)
+    } else {
+      ctx.rect(photoX, photoY, photoW, photoH)
+    }
     ctx.clip()
 
     if (photo) {
@@ -54,8 +93,8 @@ export async function renderSpreadToCanvas(
       const crop = computeCoverCrop(
         img.naturalWidth,
         img.naturalHeight,
-        boxW,
-        boxH,
+        photoW,
+        photoH,
         placement?.focalX ?? 0.5,
         placement?.focalY ?? 0.5,
         placement?.zoom ?? 1
@@ -67,7 +106,7 @@ export async function renderSpreadToCanvas(
       ctx.filter = `brightness(${brightness}) contrast(${contrast}) saturate(${saturate})`
       ctx.globalAlpha = placement?.opacity ?? 1
 
-      ctx.drawImage(img, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, boxX, boxY, boxW, boxH)
+      ctx.drawImage(img, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, photoX, photoY, photoW, photoH)
       ctx.filter = 'none'
       ctx.globalAlpha = 1
 
@@ -76,27 +115,30 @@ export async function renderSpreadToCanvas(
         ctx.globalAlpha = Math.min(Math.abs(warmth) / 100, 0.35)
         ctx.fillStyle = warmth > 0 ? '#ffb347' : '#4aa3ff'
         ctx.globalCompositeOperation = 'overlay'
-        ctx.fillRect(boxX, boxY, boxW, boxH)
+        ctx.fillRect(photoX, photoY, photoW, photoH)
         ctx.globalCompositeOperation = 'source-over'
         ctx.globalAlpha = 1
       }
     } else {
       ctx.fillStyle = '#e5e7eb'
-      ctx.fillRect(boxX, boxY, boxW, boxH)
+      ctx.fillRect(photoX, photoY, photoW, photoH)
     }
     ctx.restore()
 
     const borderWidth = placement?.borderWidth ?? 0
-    if (borderWidth > 0) {
+    if (borderWidth > 0 && frameStyle !== 'polaroid') {
       ctx.strokeStyle = placement?.borderColor ?? '#ffffff'
       ctx.lineWidth = borderWidth
-      ctx.strokeRect(boxX + borderWidth / 2, boxY + borderWidth / 2, boxW - borderWidth, boxH - borderWidth)
+      ctx.strokeRect(photoX + borderWidth / 2, photoY + borderWidth / 2, photoW - borderWidth, photoH - borderWidth)
     }
+
+    ctx.restore()
   }
 
   const innerW = widthPx - margin * 2
   const innerH = heightPx - margin * 2
   for (const box of spread.textBoxes) {
+    await ensureFontLoaded(box.fontFamily)
     const x = margin + box.x * innerW
     const y = margin + box.y * innerH
     const w = box.width * innerW
@@ -111,6 +153,16 @@ export async function renderSpreadToCanvas(
   }
 
   return canvas
+}
+
+function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const radius = Math.min(r, w / 2, h / 2)
+  ctx.moveTo(x + radius, y)
+  ctx.arcTo(x + w, y, x + w, y + h, radius)
+  ctx.arcTo(x + w, y + h, x, y + h, radius)
+  ctx.arcTo(x, y + h, x, y, radius)
+  ctx.arcTo(x, y, x + w, y, radius)
+  ctx.closePath()
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {

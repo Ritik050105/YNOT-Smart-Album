@@ -68,3 +68,15 @@ ipcMain.handle(
     return { filePath: target }
   }
 )
+
+// Open an existing .ablm project file chosen via native dialog; contents are returned as text
+// (project files are self-contained JSON with photos embedded as data URLs).
+ipcMain.handle('project:open', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'Album Studio Project', extensions: ['ablm', 'json'] }],
+  })
+  if (canceled || filePaths.length === 0) return { canceled: true as const }
+  const contents = fs.readFileSync(filePaths[0], 'utf-8')
+  return { canceled: false as const, filePath: filePaths[0], contents }
+})
