@@ -1,0 +1,249 @@
+import { create } from 'zustand'
+import { v4 as uuid } from 'uuid'
+import { Project, PhotoAsset, Spread, TemplateDefinition, TextBox } from '@/types'
+import { autoBuildSpreads, DEFAULT_AUTO_LAYOUT_OPTIONS, AutoLayoutOptions, retemplateSpread } from '@/engine/autoLayout'
+import { BUILT_IN_TEMPLATES } from '@/engine/templates'
+import { DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
+
+const TEMPLATE_LIBRARY_KEY = 'albumstudio.templateLibrary'
+
+function loadUserTemplates(): TemplateDefinition[] {
+  try {
+    const raw = localStorage.getItem(TEMPLATE_LIBRARY_KEY)
+    return raw ? (JSON.parse(raw) as TemplateDefinition[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveUserTemplates(templates: TemplateDefinition[]) {
+  try {
+    localStorage.setItem(TEMPLATE_LIBRARY_KEY, JSON.stringify(templates))
+  } catch {
+    // Storage unavailable (e.g. private mode) — template library just won't persist across sessions.
+  }
+}
+
+function newProject(name: string): Project {
+  const now = new Date().toISOString()
+  return {
+    id: uuid(),
+    name,
+    size: DEFAULT_ALBUM_SIZE,
+    photos: [],
+    spreads: [],
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+interface ProjectState {
+  project: Project
+  userTemplates: TemplateDefinition[]
+  selectedSpreadId: string | null
+  selectedPlaceholderId: string | null
+  selectedTextBoxId: string | null
+  showGrid: boolean
+  autoLayoutOptions: AutoLayoutOptions
+  history: Project[]
+  future: Project[]
+
+  addPhotos: (photos: PhotoAsset[]) => void
+  runAutoBuild: () => void
+  selectSpread: (id: string | null) => void
+  selectPlaceholder: (id: string | null) => void
+  selectTextBox: (id: string | null) => void
+  toggleGrid: () => void
+  reorderSpreads: (fromIndex: number, toIndex: number) => void
+  applyTemplateToSpread: (spreadId: string, templateId: string) => void
+  updateSpread: (spreadId: string, patch: Partial<Spread>) => void
+  setPlacementPhoto: (spreadId: string, placeholderId: string, photoId: string | null) => void
+  swapPlacements: (spreadId: string, placeholderIdA: string, placeholderIdB: string) => void
+  updatePlacement: (spreadId: string, placeholderId: string, patch: Partial<Spread['placements'][number]>) => void
+  addTextBox: (spreadId: string, box: TextBox) => void
+  updateTextBox: (spreadId: string, textBoxId: string, patch: Partial<TextBox>) => void
+  removeTextBox: (spreadId: string, textBoxId: string) => void
+  saveSpreadAsTemplate: (spreadId: string, name: string) => void
+  setAutoLayoutOptions: (opts: Partial<AutoLayoutOptions>) => void
+  allTemplates: () => TemplateDefinition[]
+  undo: () => void
+  redo: () => void
+  renameProject: (name: string) => void
+}
+
+function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project) {
+  set((s) => {
+    const nextProject = { ...mutate(s.project), updatedAt: new Date().toISOString() }
+    return {
+      project: nextProject,
+      history: [...s.history, s.project].slice(-50),
+      future: [],
+    }
+  })
+}
+
+export const useProjectStore = create<ProjectState>((set, get) => ({
+  project: newProject('Untitled Album'),
+  userTemplates: loadUserTemplates(),
+  selectedSpreadId: null,
+  selectedPlaceholderId: null,
+  selectedTextBoxId: null,
+  showGrid: false,
+  autoLayoutOptions: DEFAULT_AUTO_LAYOUT_OPTIONS,
+  history: [],
+  future: [],
+
+  addPhotos: (photos) =>
+    withHistory(set, (p) => ({ ...p, photos: [...p.photos, ...photos] })),
+
+  runAutoBuild: () => {
+    const { project, autoLayoutOptions } = get()
+    withHistory(set, (p) => ({ ...p, spreads: autoBuildSpreads(project.photos, autoLayoutOptions) }))
+  },
+
+  selectSpread: (id) => set({ selectedSpreadId: id, selectedPlaceholderId: null, selectedTextBoxId: null }),
+  selectPlaceholder: (id) => set({ selectedPlaceholderId: id, selectedTextBoxId: null }),
+  selectTextBox: (id) => set({ selectedTextBoxId: id, selectedPlaceholderId: null }),
+  toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
+
+  reorderSpreads: (fromIndex, toIndex) =>
+    withHistory(set, (p) => {
+      const spreads = [...p.spreads]
+      const [moved] = spreads.splice(fromIndex, 1)
+      spreads.splice(toIndex, 0, moved)
+      return { ...p, spreads: spreads.map((s, i) => ({ ...s, order: i })) }
+    }),
+
+  applyTemplateToSpread: (spreadId, templateId) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) => (s.id === spreadId ? retemplateSpread(s, templateId) : s)),
+    })),
+
+  updateSpread: (spreadId, patch) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) => (s.id === spreadId ? { ...s, ...patch } : s)),
+    })),
+
+  setPlacementPhoto: (spreadId, placeholderId, photoId) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) =>
+        s.id !== spreadId
+          ? s
+          : {
+              ...s,
+              placements: s.placements.map((pl) => (pl.placeholderId === placeholderId ? { ...pl, photoId } : pl)),
+            }
+      ),
+    })),
+
+  swapPlacements: (spreadId, placeholderIdA, placeholderIdB) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) => {
+        if (s.id !== spreadId) return s
+        const a = s.placements.find((pl) => pl.placeholderId === placeholderIdA)
+        const b = s.placements.find((pl) => pl.placeholderId === placeholderIdB)
+        if (!a || !b) return s
+        return {
+          ...s,
+          placements: s.placements.map((pl) => {
+            if (pl.placeholderId === placeholderIdA) return { ...pl, photoId: b.photoId }
+            if (pl.placeholderId === placeholderIdB) return { ...pl, photoId: a.photoId }
+            return pl
+          }),
+        }
+      }),
+    })),
+
+  updatePlacement: (spreadId, placeholderId, patch) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) =>
+        s.id !== spreadId
+          ? s
+          : {
+              ...s,
+              placements: s.placements.map((pl) =>
+                pl.placeholderId === placeholderId ? { ...pl, ...patch } : pl
+              ),
+            }
+      ),
+    })),
+
+  addTextBox: (spreadId, box) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) => (s.id === spreadId ? { ...s, textBoxes: [...s.textBoxes, box] } : s)),
+    })),
+
+  updateTextBox: (spreadId, textBoxId, patch) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) =>
+        s.id !== spreadId
+          ? s
+          : { ...s, textBoxes: s.textBoxes.map((t) => (t.id === textBoxId ? { ...t, ...patch } : t)) }
+      ),
+    })),
+
+  removeTextBox: (spreadId, textBoxId) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) =>
+        s.id !== spreadId ? s : { ...s, textBoxes: s.textBoxes.filter((t) => t.id !== textBoxId) }
+      ),
+    })),
+
+  saveSpreadAsTemplate: (spreadId, name) => {
+    const { project } = get()
+    const spread = project.spreads.find((s) => s.id === spreadId)
+    if (!spread) return
+    const base = BUILT_IN_TEMPLATES.find((t) => t.id === spread.templateId)
+    const placeholders = base
+      ? base.placeholders
+      : spread.placements.map((pl, i) => ({
+          id: pl.placeholderId,
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+          preferredOrientation: 'any' as const,
+        }))
+    const template: TemplateDefinition = {
+      id: uuid(),
+      name,
+      photoCount: spread.placements.length,
+      pageSide: spread.pageSide,
+      placeholders,
+      isBuiltIn: false,
+      createdAt: new Date().toISOString(),
+      thumbnailColor: '#8a6fd1',
+    }
+    const next = [...get().userTemplates, template]
+    saveUserTemplates(next)
+    set({ userTemplates: next })
+  },
+
+  setAutoLayoutOptions: (opts) => set((s) => ({ autoLayoutOptions: { ...s.autoLayoutOptions, ...opts } })),
+
+  allTemplates: () => [...BUILT_IN_TEMPLATES, ...get().userTemplates],
+
+  undo: () =>
+    set((s) => {
+      if (s.history.length === 0) return s
+      const prev = s.history[s.history.length - 1]
+      return { project: prev, history: s.history.slice(0, -1), future: [s.project, ...s.future] }
+    }),
+
+  redo: () =>
+    set((s) => {
+      if (s.future.length === 0) return s
+      const [next, ...rest] = s.future
+      return { project: next, history: [...s.history, s.project], future: rest }
+    }),
+
+  renameProject: (name) => withHistory(set, (p) => ({ ...p, name })),
+}))
