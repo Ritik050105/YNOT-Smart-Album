@@ -24,6 +24,7 @@ export default function Inspector() {
   const updateMultiplePlacements = useProjectStore((s) => s.updateMultiplePlacements)
   const updateTextBox = useProjectStore((s) => s.updateTextBox)
   const removeTextBox = useProjectStore((s) => s.removeTextBox)
+  const resetPlacementToOriginal = useProjectStore((s) => s.resetPlacementToOriginal)
   const applyTemplateToSpread = useProjectStore((s) => s.applyTemplateToSpread)
   const applyTemplateToAllSpreads = useProjectStore((s) => s.applyTemplateToAllSpreads)
   const saveSpreadAsTemplate = useProjectStore((s) => s.saveSpreadAsTemplate)
@@ -228,6 +229,28 @@ export default function Inspector() {
               {dpi !== null && <> · {dpi} DPI {dpi < project.size.dpi && '(below target!)'}</>}
             </div>
           )}
+          <div className="text-style-row">
+            <button
+              className="btn btn--tiny"
+              title="Undo every crop, zoom, border, and tone edit on this photo — keeps the same photo in place"
+              onClick={() => resetPlacementToOriginal(spread.id, placement.placeholderId)}
+            >
+              <Icon name="undo" size={11} />
+              Reload from Original
+            </button>
+            <button
+              className={`btn btn--tiny ${placement.saturation <= -100 ? 'is-active' : ''}`}
+              title="Toggle black & white"
+              onClick={() =>
+                updatePlacement(spread.id, placement.placeholderId, {
+                  saturation: placement.saturation <= -100 ? 0 : -100,
+                })
+              }
+            >
+              <Icon name="droplet" size={11} />
+              {placement.saturation <= -100 ? 'Color' : 'Black & White'}
+            </button>
+          </div>
           <SliderField
             label="Zoom"
             value={placement.zoom}
@@ -479,6 +502,31 @@ function MultiSelectInspector({
           {placeholderIds.length} Photos Selected
         </h4>
         <p className="template-match-count">Changes below apply to all selected photos.</p>
+        <button
+          className="btn btn--tiny btn--block"
+          title="Undo every crop, zoom, border, and tone edit on all selected photos"
+          onClick={() =>
+            updateMultiplePlacements(spreadId, placeholderIds, {
+              focalX: 0.5,
+              focalY: 0.5,
+              zoom: 1,
+              borderWidth: 0,
+              borderColor: '#ffffff',
+              opacity: 1,
+              warmth: 0,
+              brightness: 0,
+              contrast: 0,
+              saturation: 0,
+              frameStyle: 'none',
+              rotationDeg: 0,
+              relightIntensity: 0,
+              cornerRadiusPx: 24,
+            })
+          }
+        >
+          <Icon name="undo" size={11} />
+          Reload from Original
+        </button>
         <SliderField
           label="Opacity"
           value={1}

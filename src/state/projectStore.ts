@@ -114,7 +114,8 @@ interface ProjectState {
   setPlacementPhoto: (spreadId: string, placeholderId: string, photoId: string | null) => void
   swapPlacements: (spreadId: string, placeholderIdA: string, placeholderIdB: string) => void
   updatePlacement: (spreadId: string, placeholderId: string, patch: Partial<Spread['placements'][number]>) => void
-  updateMultiplePlacements: (spreadId: string, placeholderIds: string[], patch: Partial<ToneAdjustments>) => void
+  resetPlacementToOriginal: (spreadId: string, placeholderId: string) => void
+  updateMultiplePlacements: (spreadId: string, placeholderIds: string[], patch: Partial<Spread['placements'][number]>) => void
   copyToneAdjustments: (spreadId: string, placeholderId: string) => void
   pasteToneAdjustments: (spreadId: string, placeholderIds: string[]) => void
   addTextBox: (spreadId: string, box: TextBox) => void
@@ -328,6 +329,39 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
               ...s,
               placements: s.placements.map((pl) =>
                 pl.placeholderId === placeholderId ? { ...pl, ...patch } : pl
+              ),
+            }
+      ),
+    })),
+
+  resetPlacementToOriginal: (spreadId, placeholderId) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) =>
+        s.id !== spreadId
+          ? s
+          : {
+              ...s,
+              placements: s.placements.map((pl) =>
+                pl.placeholderId !== placeholderId
+                  ? pl
+                  : {
+                      ...pl,
+                      focalX: 0.5,
+                      focalY: 0.5,
+                      zoom: 1,
+                      borderWidth: 0,
+                      borderColor: '#ffffff',
+                      opacity: 1,
+                      warmth: 0,
+                      brightness: 0,
+                      contrast: 0,
+                      saturation: 0,
+                      frameStyle: 'none',
+                      rotationDeg: 0,
+                      relightIntensity: 0,
+                      cornerRadiusPx: 24,
+                    }
               ),
             }
       ),

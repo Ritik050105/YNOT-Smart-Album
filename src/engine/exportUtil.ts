@@ -7,6 +7,26 @@ export function projectFileBaseName(project: Project): string {
   return source.replace(/[^a-z0-9_\- ]/gi, '_').trim() || 'album'
 }
 
+/** Parses an "Output Range" field like "1, 2, 5-7" into 0-based spread indices, clamped to
+ *  1..count and de-duplicated/sorted. Invalid or out-of-range tokens are silently dropped. */
+export function parseSpreadRange(text: string, count: number): number[] {
+  const indices = new Set<number>()
+  for (const part of text.split(',').map((s) => s.trim()).filter(Boolean)) {
+    const rangeMatch = part.match(/^(\d+)\s*-\s*(\d+)$/)
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1])
+      const end = Number(rangeMatch[2])
+      for (let n = Math.min(start, end); n <= Math.max(start, end); n++) {
+        if (n >= 1 && n <= count) indices.add(n - 1)
+      }
+    } else {
+      const n = Number(part)
+      if (Number.isFinite(n) && n >= 1 && n <= count) indices.add(n - 1)
+    }
+  }
+  return Array.from(indices).sort((a, b) => a - b)
+}
+
 export function canvasToBytes(canvas: HTMLCanvasElement, mime: string, quality = 0.92): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(

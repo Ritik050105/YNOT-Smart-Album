@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
 import { Stage, Layer, Rect, Group, Image as KonvaImage, Text as KonvaText, Line } from 'react-konva'
-import type Konva from 'konva'
+import Konva from 'konva'
 import useImage from 'use-image'
 import { useProjectStore } from '@/state/projectStore'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
@@ -25,6 +25,9 @@ function PlaceholderImage({
   rotationDeg,
   relightIntensity,
   cornerRadiusPx,
+  brightness,
+  contrast,
+  saturation,
   selected,
   multiSelected,
   onSelect,
@@ -41,18 +44,37 @@ function PlaceholderImage({
   rotationDeg: number
   relightIntensity: number
   cornerRadiusPx: number
+  /** -100..100, same scale as the Inspector sliders — mapped onto Konva's own filter ranges
+   *  below so the live canvas matches the export renderer's look instead of only showing tone
+   *  adjustments after export. */
+  brightness: number
+  contrast: number
+  saturation: number
   selected: boolean
   multiSelected: boolean
   onSelect: (e: Konva.KonvaEventObject<Event>) => void
   onSwapTo: (targetPlaceholderId: string) => void
 }) {
   const [img] = useImage(src)
+  const imageRef = useRef<Konva.Image>(null)
+  const hasToneFilters = brightness !== 0 || contrast !== 0 || saturation !== 0
 
   const matPad = frameStyle === 'polaroid' ? Math.min(box.width, box.height) * 0.06 : 0
   const matPadBottom = frameStyle === 'polaroid' ? box.height * 0.16 : 0
   const photoW = box.width - matPad * 2
   const photoH = box.height - matPad - matPadBottom
   const crop = img ? computeCoverCrop(img.width, img.height, photoW, photoH, focalX, focalY, zoom) : null
+
+  // Konva filters require the node to be cached (rasterized) to apply; re-cache whenever the
+  // image, crop, or filter values change, and drop the cache when no filters are active so
+  // untouched photos stay cheap to redraw.
+  useEffect(() => {
+    const node = imageRef.current
+    if (!node) return
+    if (hasToneFilters) node.cache()
+    else node.clearCache()
+    node.getLayer()?.batchDraw()
+  }, [img, hasToneFilters, brightness, contrast, saturation, crop?.cropX, crop?.cropY, crop?.cropWidth, crop?.cropHeight, photoW, photoH])
 
   const centerX = box.x + box.width / 2
   const centerY = box.y + box.height / 2
@@ -90,6 +112,7 @@ function PlaceholderImage({
       )}
       {img && crop && (
         <KonvaImage
+          ref={imageRef}
           image={img}
           x={localPhotoX}
           y={localPhotoY}
@@ -97,6 +120,10 @@ function PlaceholderImage({
           height={photoH}
           crop={{ x: crop.cropX, y: crop.cropY, width: crop.cropWidth, height: crop.cropHeight }}
           opacity={opacity}
+          filters={hasToneFilters ? [Konva.Filters.Brighten, Konva.Filters.Contrast, Konva.Filters.HSL] : []}
+          brightness={brightness / 100}
+          contrast={contrast}
+          saturation={saturation / 100}
           cornerRadius={frameStyle === 'rounded' ? cornerRadiusPx : 0}
           shadowEnabled={frameStyle === 'shadow'}
           shadowColor="black"
@@ -373,6 +400,9 @@ export default function DesignerCanvas() {
                 rotationDeg={placement.rotationDeg}
                 relightIntensity={placement.relightIntensity}
                 cornerRadiusPx={placement.cornerRadiusPx}
+                brightness={placement.brightness}
+                contrast={placement.contrast}
+                saturation={placement.saturation}
                 selected={selectedPlaceholderId === box.placeholderId}
                 multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
                 onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
