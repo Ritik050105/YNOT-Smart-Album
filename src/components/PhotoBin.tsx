@@ -14,6 +14,8 @@ export default function PhotoBin() {
   const setPhotoBins = useProjectStore((s) => s.setPhotoBins)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
+  const selectedPhotoIds = useProjectStore((s) => s.selectedPhotoIds)
+  const togglePhotoSelection = useProjectStore((s) => s.togglePhotoSelection)
 
   const [binFilter, setBinFilter] = useState('')
   const [tagPopoverFor, setTagPopoverFor] = useState<string | null>(null)
@@ -76,19 +78,26 @@ export default function PhotoBin() {
         </div>
         <span className="muted">
           {sorted.length} total · {unplacedCount} unplaced
+          {selectedPhotoIds.length > 0 && ` · ${selectedPhotoIds.length} selected`}
         </span>
+        {selectedPhotoIds.length === 1 && <span className="muted photo-dock__hint">Click a frame on the canvas to place it</span>}
       </div>
       <div className="photo-dock__strip">
         {visible.map((photo) => {
           const used = usedPhotoIds.has(photo.id)
+          const selected = selectedPhotoIds.includes(photo.id)
           return (
             <div
               key={photo.id}
-              className={`photo-dock__item ${used ? 'is-used' : 'is-unused'}`}
+              className={`photo-dock__item ${used ? 'is-used' : 'is-unused'} ${selected ? 'is-selected' : ''}`}
               draggable
               onDragStart={(e) => {
                 e.dataTransfer.setData('application/x-photo-id', photo.id)
                 e.dataTransfer.effectAllowed = 'copy'
+              }}
+              onClick={(e) => {
+                const mode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
+                togglePhotoSelection(photo.id, visible.map((p) => p.id), mode)
               }}
               onDoubleClick={() => {
                 // Quick-place: double-click drops this photo into the currently selected slot.
@@ -96,7 +105,7 @@ export default function PhotoBin() {
                   setPlacementPhoto(selectedSpreadId, selectedPlaceholderId, photo.id)
                 }
               }}
-              title={`${photo.fileName} — ${new Date(photo.capturedAt).toLocaleString()}${used ? ' (placed)' : ''}`}
+              title={`${photo.fileName} — ${new Date(photo.capturedAt).toLocaleString()}${used ? ' (placed)' : ''} — click to select, shift/ctrl+click to multi-select, then click a canvas frame to place`}
             >
               <img src={photo.src} alt={photo.fileName} />
               <button

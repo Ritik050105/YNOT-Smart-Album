@@ -82,7 +82,7 @@ export async function renderSpreadToCanvas(
     ctx.save()
     ctx.beginPath()
     if (frameStyle === 'rounded') {
-      roundedRectPath(ctx, boxX, boxY, boxW, boxH, Math.min(boxW, boxH) * 0.06)
+      roundedRectPath(ctx, boxX, boxY, boxW, boxH, placement?.cornerRadiusPx ?? Math.min(boxW, boxH) * 0.06)
     } else {
       ctx.rect(photoX, photoY, photoW, photoH)
     }

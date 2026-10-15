@@ -656,6 +656,14 @@ input[type='checkbox'] {
 .photo-dock__item.is-used:hover {
   opacity: 0.85;
 }
+.photo-dock__item.is-selected {
+  border-color: #ff9f43;
+  box-shadow: 0 0 0 2px rgba(255, 159, 67, 0.35);
+}
+.photo-dock__hint {
+  margin-left: 8px !important;
+  color: var(--accent);
+}
 .photo-dock__badge {
   position: absolute;
   top: 4px;
@@ -832,6 +840,12 @@ input[type='checkbox'] {
 .inspector select {
   flex: 1;
   min-width: 0;
+}
+
+.template-match-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: -4px 0 8px;
 }
 
 .template-grid {

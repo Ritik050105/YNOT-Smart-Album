@@ -68,7 +68,27 @@ export interface PlacedPhoto {
   /** Simulated relighting: a soft radial glow/shadow centered on the photo.
    *  Positive = add light, negative = add shadow/vignette, 0 = off. */
   relightIntensity: number
+  /** Corner radius in px, used when frameStyle is 'rounded' (continuous control rather than a
+   *  single fixed radius). */
+  cornerRadiusPx: number
 }
+
+/** The subset of PlacedPhoto that "Copy/Paste Tone Adjustments" and multi-select batch editing
+ *  operate on — everything about how a photo looks, not which photo or where it's cropped. */
+export type ToneAdjustments = Pick<
+  PlacedPhoto,
+  | 'opacity'
+  | 'warmth'
+  | 'brightness'
+  | 'contrast'
+  | 'saturation'
+  | 'relightIntensity'
+  | 'borderWidth'
+  | 'borderColor'
+  | 'frameStyle'
+  | 'rotationDeg'
+  | 'cornerRadiusPx'
+>
 
 export interface TextBox {
   id: string
@@ -95,6 +115,9 @@ export interface Spread {
   backgroundColor: string
   gapPx: number
   marginPx: number
+  /** Mirrors the template horizontally (x' = 1 - x - width) without needing a second copy of
+   *  every template definition — "Flip Spread Horizontally". */
+  flipped: boolean
 }
 
 export type AlbumSizeCategory = 'Square' | 'Portrait' | 'Landscape' | 'Panoramic' | 'Magazine' | 'Custom'

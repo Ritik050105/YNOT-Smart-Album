@@ -1,5 +1,5 @@
 import { PDFDocument } from 'pdf-lib'
-import { Project } from '@/types'
+import { Project, Spread } from '@/types'
 import { renderSpreadToCanvas } from './renderSpread'
 import { buildSpreadPsdBytes } from './exportPsd'
 import { buildProofingGalleryHtml } from './exportProofing'
@@ -56,6 +56,23 @@ export async function exportAlbumToProofingGallery(project: Project): Promise<{ 
   const bytes = new TextEncoder().encode(html)
   const fileName = `${projectFileBaseName(project)}-proofing.html`
   return saveOneFile(bytes, fileName, 'text/html', [{ name: 'Proofing Gallery', extensions: ['html'] }])
+}
+
+/** Exports just one spread as a single-page PDF — for sending one page to a lab/client without
+ *  the whole album ("Export Spread" in the reference app's spread context menu). */
+export async function exportSingleSpreadToPdf(project: Project, spread: Spread): Promise<{ saved: boolean; filePath?: string }> {
+  const photosById = new Map(project.photos.map((p) => [p.id, p]))
+  const pdf = await PDFDocument.create()
+  const canvas = await renderSpreadToCanvas(spread, photosById, project.size, project.size.dpi)
+  const jpegBytes = await canvasToBytes(canvas, 'image/jpeg', 0.92)
+  const image = await pdf.embedJpg(jpegBytes)
+  const page = pdf.addPage([project.size.widthIn * 72, project.size.heightIn * 72])
+  page.drawImage(image, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() })
+
+  const bytes = await pdf.save()
+  const spreadNumber = spread.order + 1
+  const fileName = `${projectFileBaseName(project)}-spread-${String(spreadNumber).padStart(2, '0')}.pdf`
+  return saveOneFile(bytes, fileName, 'application/pdf', [{ name: 'PDF Document', extensions: ['pdf'] }])
 }
 
 async function exportSpreadsAsRaster(

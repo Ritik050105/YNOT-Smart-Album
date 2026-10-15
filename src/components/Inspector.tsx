@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { templatesForCount, generateCustomGrid } from '@/engine/templates'
+import { PlacedPhoto } from '@/types'
+import { templatesForCount, generateCustomGrid, TemplateFrameFilter } from '@/engine/templates'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { LOCAL_FONTS, CLOUD_FONTS, FontOption, getLocalFonts, ensureFontLoaded } from '@/engine/fonts'
@@ -17,16 +18,23 @@ export default function Inspector() {
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
   const selectedTextBoxId = useProjectStore((s) => s.selectedTextBoxId)
+  const multiSelectedPlaceholderIds = useProjectStore((s) => s.multiSelectedPlaceholderIds)
   const updateSpread = useProjectStore((s) => s.updateSpread)
   const updatePlacement = useProjectStore((s) => s.updatePlacement)
+  const updateMultiplePlacements = useProjectStore((s) => s.updateMultiplePlacements)
   const updateTextBox = useProjectStore((s) => s.updateTextBox)
   const removeTextBox = useProjectStore((s) => s.removeTextBox)
   const applyTemplateToSpread = useProjectStore((s) => s.applyTemplateToSpread)
+  const applyTemplateToAllSpreads = useProjectStore((s) => s.applyTemplateToAllSpreads)
   const saveSpreadAsTemplate = useProjectStore((s) => s.saveSpreadAsTemplate)
   const userTemplates = useProjectStore((s) => s.userTemplates)
+  const toneClipboard = useProjectStore((s) => s.toneClipboard)
+  const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
+  const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
   const [templateName, setTemplateName] = useState('')
   const [customRows, setCustomRows] = useState(3)
   const [customCols, setCustomCols] = useState(3)
+  const [frameFilter, setFrameFilter] = useState<TemplateFrameFilter>('all')
 
   const spread = project.spreads.find((s) => s.id === selectedSpreadId)
   if (!spread) {
@@ -44,12 +52,22 @@ export default function Inspector() {
     )
   }
 
+  if (multiSelectedPlaceholderIds.length > 1) {
+    return (
+      <MultiSelectInspector
+        spreadId={spread.id}
+        placeholderIds={multiSelectedPlaceholderIds}
+        updateMultiplePlacements={updateMultiplePlacements}
+      />
+    )
+  }
+
   const placement = spread.placements.find((p) => p.placeholderId === selectedPlaceholderId)
   const textBox = spread.textBoxes.find((t) => t.id === selectedTextBoxId)
   const knownFontNames = new Set([...localFonts, ...CLOUD_FONTS].map((f) => f.family))
   const isCustomFont = !!textBox && !knownFontNames.has(textBox.fontFamily)
   const photo = placement?.photoId ? project.photos.find((p) => p.id === placement.photoId) : undefined
-  const suggestions = templatesForCount(spread.placements.length)
+  const suggestions = templatesForCount(spread.placements.length, null, frameFilter)
   const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / (project.size.widthIn / project.size.heightIn)).find(
     (b) => b.placeholderId === selectedPlaceholderId
   )
@@ -75,6 +93,15 @@ export default function Inspector() {
           <Icon name="sparkles" size={13} />
           Smart Grid Suggestions
         </h4>
+        <label>
+          Frame ratio filter
+          <select value={frameFilter} onChange={(e) => setFrameFilter(e.target.value as TemplateFrameFilter)}>
+            <option value="all">All Templates</option>
+            <option value="no-square">Templates without square frames</option>
+            <option value="only-3x2">Templates only with 3:2 frame ratios</option>
+          </select>
+        </label>
+        <p className="template-match-count">{suggestions.length} matching templates found</p>
         <div className="template-grid">
           {[...suggestions, ...userTemplates.filter((t) => t.photoCount === spread.placements.length)].map((t) => (
             <button
@@ -135,6 +162,14 @@ export default function Inspector() {
             Apply
           </button>
         </div>
+        <button
+          className="btn btn--tiny btn--block"
+          title="Re-apply this spread's current template to every spread in the album"
+          onClick={() => applyTemplateToAllSpreads(spread.templateId)}
+        >
+          <Icon name="layers" size={11} />
+          Apply Template to All Spreads
+        </button>
       </section>
 
       <section>
@@ -239,6 +274,16 @@ export default function Inspector() {
               <option value="shadow">Drop Shadow</option>
             </select>
           </label>
+          {placement.frameStyle === 'rounded' && (
+            <SliderField
+              label="Radius"
+              value={placement.cornerRadiusPx}
+              min={0}
+              max={200}
+              suffix="px"
+              onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { cornerRadiusPx: v })}
+            />
+          )}
           <SliderField
             label="Tilt"
             value={placement.rotationDeg}
@@ -298,6 +343,20 @@ export default function Inspector() {
             max={100}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { relightIntensity: v })}
           />
+          <div className="text-style-row">
+            <button className="btn btn--tiny" onClick={() => copyToneAdjustments(spread.id, placement.placeholderId)}>
+              <Icon name="save" size={11} />
+              Copy Tone
+            </button>
+            <button
+              className="btn btn--tiny"
+              disabled={!toneClipboard}
+              onClick={() => pasteToneAdjustments(spread.id, [placement.placeholderId])}
+            >
+              <Icon name="download" size={11} />
+              Paste Tone
+            </button>
+          </div>
         </section>
       )}
 
@@ -393,6 +452,86 @@ export default function Inspector() {
           </button>
         </section>
       )}
+    </div>
+  )
+}
+
+/** Shown instead of the single-photo panel when more than one placeholder is multi-selected
+ *  (shift/ctrl+click on the canvas) — lets the user batch-apply tone adjustments across all of them. */
+function MultiSelectInspector({
+  spreadId,
+  placeholderIds,
+  updateMultiplePlacements,
+}: {
+  spreadId: string
+  placeholderIds: string[]
+  updateMultiplePlacements: (spreadId: string, placeholderIds: string[], patch: Partial<PlacedPhoto>) => void
+}) {
+  return (
+    <div className="panel inspector">
+      <h3>
+        <Icon name="palette" size={14} />
+        Inspector
+      </h3>
+      <section>
+        <h4>
+          <Icon name="layers" size={13} />
+          {placeholderIds.length} Photos Selected
+        </h4>
+        <p className="template-match-count">Changes below apply to all selected photos.</p>
+        <SliderField
+          label="Opacity"
+          value={1}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { opacity: v })}
+        />
+        <SliderField
+          label="Border width"
+          value={0}
+          min={0}
+          max={60}
+          suffix="px"
+          onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { borderWidth: v })}
+        />
+        <SliderField
+          label="Warmth"
+          value={0}
+          min={-100}
+          max={100}
+          onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { warmth: v })}
+        />
+        <SliderField
+          label="Brightness"
+          value={0}
+          min={-100}
+          max={100}
+          onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { brightness: v })}
+        />
+        <SliderField
+          label="Contrast"
+          value={0}
+          min={-100}
+          max={100}
+          onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { contrast: v })}
+        />
+        <SliderField
+          label="Saturation"
+          value={0}
+          min={-100}
+          max={100}
+          onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { saturation: v })}
+        />
+        <button
+          className="btn btn--tiny btn--block"
+          title="Black & white"
+          onClick={() => updateMultiplePlacements(spreadId, placeholderIds, { saturation: -100 })}
+        >
+          <Icon name="droplet" size={11} />
+          Black &amp; White
+        </button>
+      </section>
     </div>
   )
 }

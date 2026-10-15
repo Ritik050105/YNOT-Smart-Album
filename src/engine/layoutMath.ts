@@ -13,7 +13,7 @@ export interface PlaceholderBox {
  *  the given size, applying the spread's margin + gap. Shared by the live editor canvas and
  *  the export rasterizer so what you see is exactly what you print. */
 export function computePlaceholderBoxes(
-  spread: Pick<Spread, 'templateId' | 'marginPx' | 'gapPx'>,
+  spread: Pick<Spread, 'templateId' | 'marginPx' | 'gapPx' | 'flipped'>,
   canvasWidthPx: number,
   canvasHeightPx: number
 ): PlaceholderBox[] {
@@ -25,11 +25,14 @@ export function computePlaceholderBoxes(
   const innerW = canvasWidthPx - margin * 2
   const innerH = canvasHeightPx - margin * 2
 
-  return template.placeholders.map((ph) => ({
-    placeholderId: ph.id,
-    x: margin + ph.x * innerW + gap / 2,
-    y: margin + ph.y * innerH + gap / 2,
-    width: ph.width * innerW - gap,
-    height: ph.height * innerH - gap,
-  }))
+  return template.placeholders.map((ph) => {
+    const x = spread.flipped ? 1 - ph.x - ph.width : ph.x
+    return {
+      placeholderId: ph.id,
+      x: margin + x * innerW + gap / 2,
+      y: margin + ph.y * innerH + gap / 2,
+      width: ph.width * innerW - gap,
+      height: ph.height * innerH - gap,
+    }
+  })
 }

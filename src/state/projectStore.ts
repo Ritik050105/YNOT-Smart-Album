@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { v4 as uuid } from 'uuid'
-import { Project, PhotoAsset, Spread, TemplateDefinition, TextBox, ProjectFile } from '@/types'
+import { Project, PhotoAsset, Spread, TemplateDefinition, TextBox, ToneAdjustments, ProjectFile } from '@/types'
 import {
   autoBuildSpreads,
   DEFAULT_AUTO_LAYOUT_OPTIONS,
@@ -8,6 +8,8 @@ import {
   retemplateSpread,
   splitSpreadIntoPages,
   mergeSpreads,
+  flipSpreadHorizontally,
+  createBlankSpread,
 } from '@/engine/autoLayout'
 import { BUILT_IN_TEMPLATES, findTemplate, setUserTemplateRegistry } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
@@ -77,6 +79,13 @@ interface ProjectState {
   selectedSpreadId: string | null
   selectedPlaceholderId: string | null
   selectedTextBoxId: string | null
+  /** Canvas multi-select (shift/ctrl+click on placed photos within the current spread), for
+   *  batch tone/border editing — see updateMultiplePlacements. */
+  multiSelectedPlaceholderIds: string[]
+  /** Photo dock multi-select, for the click-to-select / click-to-place workflow. */
+  selectedPhotoIds: string[]
+  lastClickedPhotoId: string | null
+  toneClipboard: ToneAdjustments | null
   showGrid: boolean
   showPrintGuides: boolean
   autoLayoutOptions: AutoLayoutOptions
@@ -88,16 +97,26 @@ interface ProjectState {
   selectSpread: (id: string | null) => void
   selectPlaceholder: (id: string | null) => void
   selectTextBox: (id: string | null) => void
+  toggleMultiSelectPlaceholder: (id: string) => void
+  clearMultiSelect: () => void
+  setSelectedPhotoIds: (ids: string[], lastClicked: string | null) => void
+  togglePhotoSelection: (photoId: string, allPhotoIdsInOrder: string[], mode: 'single' | 'toggle' | 'range') => void
   toggleGrid: () => void
   togglePrintGuides: () => void
   reorderSpreads: (fromIndex: number, toIndex: number) => void
   splitSpread: (spreadId: string) => void
   mergeWithNext: (spreadId: string) => void
+  flipSpread: (spreadId: string) => void
+  addBlankSpread: () => void
   applyTemplateToSpread: (spreadId: string, templateId: string) => void
+  applyTemplateToAllSpreads: (templateId: string) => void
   updateSpread: (spreadId: string, patch: Partial<Spread>) => void
   setPlacementPhoto: (spreadId: string, placeholderId: string, photoId: string | null) => void
   swapPlacements: (spreadId: string, placeholderIdA: string, placeholderIdB: string) => void
   updatePlacement: (spreadId: string, placeholderId: string, patch: Partial<Spread['placements'][number]>) => void
+  updateMultiplePlacements: (spreadId: string, placeholderIds: string[], patch: Partial<ToneAdjustments>) => void
+  copyToneAdjustments: (spreadId: string, placeholderId: string) => void
+  pasteToneAdjustments: (spreadId: string, placeholderIds: string[]) => void
   addTextBox: (spreadId: string, box: TextBox) => void
   updateTextBox: (spreadId: string, textBoxId: string, patch: Partial<TextBox>) => void
   removeTextBox: (spreadId: string, textBoxId: string) => void
@@ -133,6 +152,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectedSpreadId: null,
   selectedPlaceholderId: null,
   selectedTextBoxId: null,
+  multiSelectedPlaceholderIds: [],
+  selectedPhotoIds: [],
+  lastClickedPhotoId: null,
+  toneClipboard: null,
   showGrid: false,
   showPrintGuides: true,
   autoLayoutOptions: DEFAULT_AUTO_LAYOUT_OPTIONS,
@@ -155,9 +178,48 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }))
   },
 
-  selectSpread: (id) => set({ selectedSpreadId: id, selectedPlaceholderId: null, selectedTextBoxId: null }),
-  selectPlaceholder: (id) => set({ selectedPlaceholderId: id, selectedTextBoxId: null }),
-  selectTextBox: (id) => set({ selectedTextBoxId: id, selectedPlaceholderId: null }),
+  selectSpread: (id) =>
+    set({
+      selectedSpreadId: id,
+      selectedPlaceholderId: null,
+      selectedTextBoxId: null,
+      multiSelectedPlaceholderIds: [],
+    }),
+  selectPlaceholder: (id) =>
+    set({ selectedPlaceholderId: id, selectedTextBoxId: null, multiSelectedPlaceholderIds: [] }),
+  selectTextBox: (id) => set({ selectedTextBoxId: id, selectedPlaceholderId: null, multiSelectedPlaceholderIds: [] }),
+
+  toggleMultiSelectPlaceholder: (id) =>
+    set((s) => {
+      const has = s.multiSelectedPlaceholderIds.includes(id)
+      // Starting a multi-select from a single selection folds that selection in as the first member.
+      const base = s.multiSelectedPlaceholderIds.length > 0 ? s.multiSelectedPlaceholderIds : s.selectedPlaceholderId ? [s.selectedPlaceholderId] : []
+      const next = has ? base.filter((x) => x !== id) : [...base, id]
+      return { multiSelectedPlaceholderIds: next, selectedPlaceholderId: null, selectedTextBoxId: null }
+    }),
+  clearMultiSelect: () => set({ multiSelectedPlaceholderIds: [] }),
+
+  setSelectedPhotoIds: (ids, lastClicked) => set({ selectedPhotoIds: ids, lastClickedPhotoId: lastClicked }),
+  togglePhotoSelection: (photoId, allPhotoIdsInOrder, mode) =>
+    set((s) => {
+      if (mode === 'single') {
+        return { selectedPhotoIds: [photoId], lastClickedPhotoId: photoId }
+      }
+      if (mode === 'toggle') {
+        const has = s.selectedPhotoIds.includes(photoId)
+        return {
+          selectedPhotoIds: has ? s.selectedPhotoIds.filter((id) => id !== photoId) : [...s.selectedPhotoIds, photoId],
+          lastClickedPhotoId: photoId,
+        }
+      }
+      // range: select everything between the last-clicked photo and this one (inclusive).
+      const anchor = s.lastClickedPhotoId ?? photoId
+      const from = allPhotoIdsInOrder.indexOf(anchor)
+      const to = allPhotoIdsInOrder.indexOf(photoId)
+      if (from === -1 || to === -1) return { selectedPhotoIds: [photoId], lastClickedPhotoId: photoId }
+      const [lo, hi] = from <= to ? [from, to] : [to, from]
+      return { selectedPhotoIds: allPhotoIdsInOrder.slice(lo, hi + 1), lastClickedPhotoId: photoId }
+    }),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   togglePrintGuides: () => set((s) => ({ showPrintGuides: !s.showPrintGuides })),
 
@@ -189,10 +251,33 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { ...p, spreads: spreads.map((s, i) => ({ ...s, order: i })) }
     }),
 
+  flipSpread: (spreadId) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) => (s.id === spreadId ? flipSpreadHorizontally(s) : s)),
+    })),
+
+  addBlankSpread: () =>
+    withHistory(set, (p) => {
+      const appearance = {
+        backgroundColor: p.defaultBackgroundColor,
+        gapPx: p.defaultGapPx,
+        marginPx: p.defaultMarginPx,
+      }
+      const spread = createBlankSpread(p.spreads.length, appearance)
+      return { ...p, spreads: [...p.spreads, spread] }
+    }),
+
   applyTemplateToSpread: (spreadId, templateId) =>
     withHistory(set, (p) => ({
       ...p,
       spreads: p.spreads.map((s) => (s.id === spreadId ? retemplateSpread(s, templateId) : s)),
+    })),
+
+  applyTemplateToAllSpreads: (templateId) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) => retemplateSpread(s, templateId)),
     })),
 
   updateSpread: (spreadId, patch) =>
@@ -247,6 +332,61 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
       ),
     })),
+
+  updateMultiplePlacements: (spreadId, placeholderIds, patch) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) =>
+        s.id !== spreadId
+          ? s
+          : {
+              ...s,
+              placements: s.placements.map((pl) =>
+                placeholderIds.includes(pl.placeholderId) ? { ...pl, ...patch } : pl
+              ),
+            }
+      ),
+    })),
+
+  copyToneAdjustments: (spreadId, placeholderId) => {
+    const spread = get().project.spreads.find((s) => s.id === spreadId)
+    const placement = spread?.placements.find((pl) => pl.placeholderId === placeholderId)
+    if (!placement) return
+    const {
+      opacity,
+      warmth,
+      brightness,
+      contrast,
+      saturation,
+      relightIntensity,
+      borderWidth,
+      borderColor,
+      frameStyle,
+      rotationDeg,
+      cornerRadiusPx,
+    } = placement
+    set({
+      toneClipboard: {
+        opacity,
+        warmth,
+        brightness,
+        contrast,
+        saturation,
+        relightIntensity,
+        borderWidth,
+        borderColor,
+        frameStyle,
+        rotationDeg,
+        cornerRadiusPx,
+      },
+    })
+  },
+
+  pasteToneAdjustments: (spreadId, placeholderIds) => {
+    const clip = get().toneClipboard
+    if (!clip) return
+    get().updateMultiplePlacements(spreadId, placeholderIds, clip)
+  },
 
   addTextBox: (spreadId, box) =>
     withHistory(set, (p) => ({
@@ -371,6 +511,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       enabledTemplateIds: file.project.enabledTemplateIds ?? null,
       size: { ...file.project.size, safeZoneIn: file.project.size.safeZoneIn ?? 0.25 },
       photos: file.project.photos.map((photo) => ({ ...photo, bins: photo.bins ?? [] })),
+      spreads: file.project.spreads.map((spread) => ({
+        ...spread,
+        flipped: spread.flipped ?? false,
+        placements: spread.placements.map((p) => ({ ...p, cornerRadiusPx: p.cornerRadiusPx ?? 24 })),
+      })),
     }
     set({
       project,
@@ -378,6 +523,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedSpreadId: null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
+      multiSelectedPlaceholderIds: [],
+      selectedPhotoIds: [],
       history: [],
       future: [],
     })
@@ -389,6 +536,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedSpreadId: null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
+      multiSelectedPlaceholderIds: [],
+      selectedPhotoIds: [],
       history: [],
       future: [],
     }),
@@ -399,6 +548,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedSpreadId: null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
+      multiSelectedPlaceholderIds: [],
+      selectedPhotoIds: [],
       history: [],
       future: [],
     }),

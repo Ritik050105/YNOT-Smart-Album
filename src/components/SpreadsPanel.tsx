@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
+import { exportSingleSpreadToPdf } from '@/engine/exportAlbum'
 import SpreadThumbnail from './SpreadThumbnail'
 import Icon from './Icon'
 
@@ -11,7 +12,10 @@ export default function SpreadsPanel() {
   const reorderSpreads = useProjectStore((s) => s.reorderSpreads)
   const splitSpread = useProjectStore((s) => s.splitSpread)
   const mergeWithNext = useProjectStore((s) => s.mergeWithNext)
+  const flipSpread = useProjectStore((s) => s.flipSpread)
+  const addBlankSpread = useProjectStore((s) => s.addBlankSpread)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [exportingId, setExportingId] = useState<string | null>(null)
 
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
   const spreads = [...project.spreads].sort((a, b) => a.order - b.order)
@@ -22,6 +26,10 @@ export default function SpreadsPanel() {
         <Icon name="grid" size={14} />
         Spreads ({spreads.length})
       </h3>
+      <button className="btn btn--tiny btn--block" onClick={() => addBlankSpread()}>
+        <Icon name="plus" size={11} />
+        Add Blank Spread
+      </button>
       <div className="spreads-panel__list">
         {spreads.map((spread, index) => (
           <div
@@ -66,6 +74,34 @@ export default function SpreadsPanel() {
                   Merge
                 </button>
               )}
+              <button
+                className="btn btn--tiny"
+                title="Flip spread horizontally"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  flipSpread(spread.id)
+                }}
+              >
+                <Icon name="flipHorizontal" size={11} />
+                Flip
+              </button>
+              <button
+                className="btn btn--tiny"
+                title="Export this spread as a single PDF page"
+                disabled={exportingId === spread.id}
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  setExportingId(spread.id)
+                  try {
+                    await exportSingleSpreadToPdf(project, spread)
+                  } finally {
+                    setExportingId(null)
+                  }
+                }}
+              >
+                <Icon name="download" size={11} />
+                {exportingId === spread.id ? 'Exporting…' : 'Export'}
+              </button>
             </div>
           </div>
         ))}

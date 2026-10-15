@@ -34,6 +34,7 @@ export function defaultPlacement(placeholderId: string, photoId: string | null):
     frameStyle: 'none',
     rotationDeg: 0,
     relightIntensity: 0,
+    cornerRadiusPx: 24,
   }
 }
 
@@ -103,6 +104,7 @@ export function autoBuildSpreads(
       backgroundColor: appearance.backgroundColor,
       gapPx: appearance.gapPx,
       marginPx: appearance.marginPx,
+      flipped: false,
     }
   })
 }
@@ -129,6 +131,31 @@ function buildSpreadFromPhotoIds(photoIds: (string | null)[], pageSide: Spread['
     backgroundColor: like.backgroundColor,
     gapPx: like.gapPx,
     marginPx: like.marginPx,
+    flipped: false,
+  }
+}
+
+/** Mirrors a spread's layout horizontally — doesn't touch the template definition, just flips
+ *  how it reads when rendered. */
+export function flipSpreadHorizontally(spread: Spread): Spread {
+  return { ...spread, flipped: !spread.flipped }
+}
+
+/** Creates an empty spread with the single full-bleed template, ready for photos to be dropped
+ *  in — "Add Blank Spread". */
+export function createBlankSpread(order: number, appearance: SpreadAppearanceDefaults): Spread {
+  const template = findTemplate('full-bleed')!
+  return {
+    id: uuid(),
+    order,
+    pageSide: template.pageSide,
+    templateId: template.id,
+    placements: template.placeholders.map((ph) => defaultPlacement(ph.id, null)),
+    textBoxes: [],
+    backgroundColor: appearance.backgroundColor,
+    gapPx: appearance.gapPx,
+    marginPx: appearance.marginPx,
+    flipped: false,
   }
 }
 

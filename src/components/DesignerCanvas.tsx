@@ -24,7 +24,9 @@ function PlaceholderImage({
   frameStyle,
   rotationDeg,
   relightIntensity,
+  cornerRadiusPx,
   selected,
+  multiSelected,
   onSelect,
   onSwapTo,
 }: {
@@ -38,8 +40,10 @@ function PlaceholderImage({
   frameStyle: FrameStyle
   rotationDeg: number
   relightIntensity: number
+  cornerRadiusPx: number
   selected: boolean
-  onSelect: () => void
+  multiSelected: boolean
+  onSelect: (e: Konva.KonvaEventObject<Event>) => void
   onSwapTo: (targetPlaceholderId: string) => void
 }) {
   const [img] = useImage(src)
@@ -93,7 +97,7 @@ function PlaceholderImage({
           height={photoH}
           crop={{ x: crop.cropX, y: crop.cropY, width: crop.cropWidth, height: crop.cropHeight }}
           opacity={opacity}
-          cornerRadius={frameStyle === 'rounded' ? Math.min(box.width, box.height) * 0.06 : 0}
+          cornerRadius={frameStyle === 'rounded' ? cornerRadiusPx : 0}
           shadowEnabled={frameStyle === 'shadow'}
           shadowColor="black"
           shadowOpacity={0.45}
@@ -101,6 +105,17 @@ function PlaceholderImage({
           shadowOffsetY={Math.max(box.width, box.height) * 0.015}
           onClick={onSelect}
           onTap={onSelect}
+        />
+      )}
+      {multiSelected && (
+        <Rect
+          x={localBoxX}
+          y={localBoxY}
+          width={box.width}
+          height={box.height}
+          stroke="#ff9f43"
+          strokeWidth={2.5}
+          listening={false}
         />
       )}
       {img && crop && relightIntensity !== 0 && (
@@ -147,6 +162,11 @@ export default function DesignerCanvas() {
   const selectTextBox = useProjectStore((s) => s.selectTextBox)
   const setPlacementPhoto = useProjectStore((s) => s.setPlacementPhoto)
   const swapPlacements = useProjectStore((s) => s.swapPlacements)
+  const multiSelectedPlaceholderIds = useProjectStore((s) => s.multiSelectedPlaceholderIds)
+  const toggleMultiSelectPlaceholder = useProjectStore((s) => s.toggleMultiSelectPlaceholder)
+  const clearMultiSelect = useProjectStore((s) => s.clearMultiSelect)
+  const selectedPhotoIds = useProjectStore((s) => s.selectedPhotoIds)
+  const setSelectedPhotoIds = useProjectStore((s) => s.setSelectedPhotoIds)
   const updateTextBox = useProjectStore((s) => s.updateTextBox)
   const addTextBox = useProjectStore((s) => s.addTextBox)
   const showGrid = useProjectStore((s) => s.showGrid)
@@ -178,6 +198,24 @@ export default function DesignerCanvas() {
 
   function findBoxAt(x: number, y: number) {
     return boxes.find((b) => x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height)
+  }
+
+  // Click a placeholder: shift/ctrl+click adds it to a multi-select for batch editing; a plain
+  // click with exactly one photo selected in the bottom dock "places" it (click-to-place, an
+  // easier alternative to drag-and-drop); otherwise it's a normal single-placeholder select.
+  function handlePlaceholderClick(placeholderId: string, evt: Event) {
+    const keyEvt = evt as MouseEvent
+    const isModified = 'shiftKey' in evt && (keyEvt.shiftKey || keyEvt.ctrlKey || keyEvt.metaKey)
+    if (isModified) {
+      toggleMultiSelectPlaceholder(placeholderId)
+      return
+    }
+    if (selectedPhotoIds.length === 1 && spread) {
+      setPlacementPhoto(spread.id, placeholderId, selectedPhotoIds[0])
+      setSelectedPhotoIds([], null)
+      return
+    }
+    selectPlaceholder(placeholderId)
   }
 
   function handleContainerDrop(e: React.DragEvent) {
@@ -285,6 +323,7 @@ export default function DesignerCanvas() {
           if (e.target === e.target.getStage()) {
             selectPlaceholder(null)
             selectTextBox(null)
+            clearMultiSelect()
           }
         }}
       >
@@ -302,10 +341,16 @@ export default function DesignerCanvas() {
                 width={box.width}
                 height={box.height}
                 fill={photo ? undefined : '#e5e7eb'}
-                stroke={selectedPlaceholderId === box.placeholderId ? '#4f8cff' : '#d0d4db'}
-                strokeWidth={1}
-                onClick={() => selectPlaceholder(box.placeholderId)}
-                onTap={() => selectPlaceholder(box.placeholderId)}
+                stroke={
+                  multiSelectedPlaceholderIds.includes(box.placeholderId)
+                    ? '#ff9f43'
+                    : selectedPlaceholderId === box.placeholderId
+                      ? '#4f8cff'
+                      : '#d0d4db'
+                }
+                strokeWidth={multiSelectedPlaceholderIds.includes(box.placeholderId) ? 2.5 : 1}
+                onClick={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
+                onTap={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
               />
             )
           })}
@@ -327,8 +372,10 @@ export default function DesignerCanvas() {
                 frameStyle={placement.frameStyle}
                 rotationDeg={placement.rotationDeg}
                 relightIntensity={placement.relightIntensity}
+                cornerRadiusPx={placement.cornerRadiusPx}
                 selected={selectedPlaceholderId === box.placeholderId}
-                onSelect={() => selectPlaceholder(box.placeholderId)}
+                multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
+                onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
                 onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}
               />
             )
