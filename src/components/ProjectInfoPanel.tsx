@@ -138,8 +138,8 @@ export default function ProjectInfoPanel() {
       <dl className="project-info__grid">
         <dt>Size</dt>
         <dd>
-          {project.size.label} ({inToDisplay(project.size.widthIn, project.units)}
-          {project.units} × {inToDisplay(project.size.heightIn, project.units)}
+          {project.size.label} ({inToDisplay(project.size.widthIn, project.units, project.size.dpi)}
+          {project.units} × {inToDisplay(project.size.heightIn, project.units, project.size.dpi)}
           {project.units}, {project.size.dpi} DPI, {project.colorProfile})
         </dd>
         <dt>Spreads / Pages</dt>

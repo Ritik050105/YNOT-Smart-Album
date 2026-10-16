@@ -150,7 +150,7 @@ export interface Project {
   /** Client / couple name for this job, shown on proofing galleries and exports. */
   clientName: string
   /** Display unit for size fields in the UI — storage stays in inches regardless. */
-  units: 'in' | 'cm'
+  units: 'in' | 'cm' | 'px'
   /** Metadata only (no real ICC conversion performed) — recorded so exports/handoff notes
    *  can say what color space the designer was working in, same as Pixellu's project setting. */
   colorProfile: string

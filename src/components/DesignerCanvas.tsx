@@ -505,18 +505,54 @@ export default function DesignerCanvas() {
                 y={box.y}
                 width={box.width}
                 height={box.height}
-                fill={photo ? undefined : '#e5e7eb'}
+                fill={photo ? undefined : '#eef0f4'}
                 stroke={
                   multiSelectedPlaceholderIds.includes(box.placeholderId)
                     ? '#ff9f43'
                     : selectedPlaceholderId === box.placeholderId
                       ? '#4f8cff'
-                      : '#d0d4db'
+                      : photo
+                        ? '#d0d4db'
+                        : '#a9b0bd'
                 }
                 strokeWidth={multiSelectedPlaceholderIds.includes(box.placeholderId) ? 2.5 : 1}
+                dash={photo ? undefined : [6, 5]}
                 onClick={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
                 onTap={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
               />
+            )
+          })}
+
+          {/* "Drop photo here" hint — matches the reference app's empty-frame dropzone affordance
+              instead of a bare gray rectangle, so it's obvious every empty box accepts a drop or
+              a click-to-place from the dock. Skipped on cells too small to hold the label. */}
+          {boxes.map((box) => {
+            const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
+            const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
+            if (photo || box.width < 70 || box.height < 50) return null
+            const cy = box.y + box.height / 2
+            return (
+              <Group key={`hint-${box.placeholderId}`} listening={false}>
+                <KonvaText
+                  x={box.x}
+                  y={cy - 16}
+                  width={box.width}
+                  align="center"
+                  text="+"
+                  fontSize={22}
+                  fontStyle="bold"
+                  fill="#a9b0bd"
+                />
+                <KonvaText
+                  x={box.x}
+                  y={cy + 8}
+                  width={box.width}
+                  align="center"
+                  text="Drop photo here"
+                  fontSize={11}
+                  fill="#9aa1b0"
+                />
+              </Group>
             )
           })}
 

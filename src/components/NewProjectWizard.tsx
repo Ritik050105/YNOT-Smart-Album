@@ -4,7 +4,7 @@ import Icon from './Icon'
 import { useProjectStore, NewProjectOptions } from '@/state/projectStore'
 import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES, DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
 import { BUILT_IN_TEMPLATES } from '@/engine/templates'
-import { inToDisplay, displayToIn } from '@/engine/units'
+import { inToDisplay, displayToIn, DisplayUnit } from '@/engine/units'
 import { AlbumSize, AlbumSizeCategory } from '@/types'
 
 const SHAPES: { category: AlbumSizeCategory; label: string; aspect: number }[] = [
@@ -30,7 +30,7 @@ export default function NewProjectWizard({ onClose }: { onClose: () => void }) {
   const [sizeTab, setSizeTab] = useState<'presets' | 'custom'>('presets')
   const [shape, setShape] = useState<AlbumSizeCategory>('Square')
   const [presetId, setPresetId] = useState(DEFAULT_ALBUM_SIZE.id)
-  const [units, setUnits] = useState<'in' | 'cm'>('in')
+  const [units, setUnits] = useState<DisplayUnit>('in')
   const [widthIn, setWidthIn] = useState(DEFAULT_ALBUM_SIZE.widthIn)
   const [heightIn, setHeightIn] = useState(DEFAULT_ALBUM_SIZE.heightIn)
   const [dpi, setDpi] = useState(DEFAULT_ALBUM_SIZE.dpi)

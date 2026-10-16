@@ -5,7 +5,43 @@ import { execFile } from 'child_process'
 
 const isDev = !app.isPackaged
 
-function createWindow() {
+/** A small frameless splash window shown the instant the app launches, while Electron spins up
+ *  the real window and (in dev) Vite/renderer boots — the same "app is opening" affordance the
+ *  reference app shows, built as an inline data: URL so there's no extra file to package. */
+function createSplash(): BrowserWindow {
+  const splash = new BrowserWindow({
+    width: 380,
+    height: 340,
+    frame: false,
+    resizable: false,
+    movable: false,
+    show: true,
+    center: true,
+    backgroundColor: '#0c0c0d',
+    webPreferences: { contextIsolation: true },
+  })
+  splash.setMenu(null)
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    html,body{margin:0;height:100%;display:flex;align-items:center;justify-content:center;background:#0c0c0d;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-user-select:none;}
+    .wrap{display:flex;flex-direction:column;align-items:center;gap:20px;}
+    .mark{width:68px;height:68px;border-radius:18px;background:linear-gradient(145deg,#2b2b2e,#0c0c0d);display:flex;align-items:center;justify-content:center;border:1px solid #333;}
+    .mark svg{width:36px;height:36px;}
+    .title{color:#eef0f6;font-size:19px;font-weight:700;letter-spacing:0.02em;text-align:center;}
+    .title span{display:block;color:#8d90a3;font-weight:400;font-size:12.5px;margin-top:3px;letter-spacing:0.08em;text-transform:uppercase;}
+    .spinner{width:26px;height:26px;border-radius:50%;border:3px solid #363a4a;border-top-color:#7c8cff;animation:spin 0.85s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style></head><body>
+    <div class="wrap">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l8 8 8-8M12 12v8"/></svg></div>
+      <div class="title">YNOT<span>Album Studio</span></div>
+      <div class="spinner"></div>
+    </div>
+  </body></html>`
+  splash.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+  return splash
+}
+
+function createWindow(splash?: BrowserWindow) {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -13,11 +49,17 @@ function createWindow() {
     minHeight: 680,
     backgroundColor: '#1e1f22',
     title: 'YNOT Album Studio',
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
+  })
+
+  win.once('ready-to-show', () => {
+    splash?.close()
+    win.show()
   })
 
   if (isDev) {
@@ -29,7 +71,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  createWindow()
+  const splash = createSplash()
+  createWindow(splash)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

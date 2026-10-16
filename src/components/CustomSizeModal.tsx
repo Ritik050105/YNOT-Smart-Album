@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Modal from './Modal'
 import Icon from './Icon'
 import { AlbumSize } from '@/types'
-import { inToDisplay, displayToIn } from '@/engine/units'
+import { inToDisplay, displayToIn, DisplayUnit } from '@/engine/units'
 import { loadSizePresets, addSizePreset, deleteSizePreset, SizePreset } from '@/engine/sizePresets'
 
 /** Full custom album size dialog — DPI, units, width/height, safe zone and bleed/trim, plus
@@ -15,11 +15,11 @@ export default function CustomSizeModal({
   onApply,
 }: {
   initial: AlbumSize
-  initialUnits: 'in' | 'cm'
+  initialUnits: DisplayUnit
   onCancel: () => void
-  onApply: (size: AlbumSize, units: 'in' | 'cm') => void
+  onApply: (size: AlbumSize, units: DisplayUnit) => void
 }) {
-  const [units, setUnits] = useState<'in' | 'cm'>(initialUnits)
+  const [units, setUnits] = useState<DisplayUnit>(initialUnits)
   const [widthIn, setWidthIn] = useState(initial.widthIn)
   const [heightIn, setHeightIn] = useState(initial.heightIn)
   const [dpi, setDpi] = useState(initial.dpi)
@@ -81,8 +81,8 @@ export default function CustomSizeModal({
     )
   }
 
-  const dimStep = units === 'cm' ? 0.5 : 0.25
-  const marginStep = units === 'cm' ? 0.1 : 0.0625
+  const dimStep = units === 'px' ? 10 : units === 'cm' ? 0.5 : 0.25
+  const marginStep = units === 'px' ? 5 : units === 'cm' ? 0.1 : 0.0625
 
   return (
     <Modal
@@ -125,6 +125,9 @@ export default function CustomSizeModal({
         <button className={units === 'cm' ? 'is-active' : ''} onClick={() => setUnits('cm')}>
           Centimeters
         </button>
+        <button className={units === 'px' ? 'is-active' : ''} onClick={() => setUnits('px')}>
+          Pixels
+        </button>
       </div>
 
       <div className="field-section">
@@ -135,8 +138,8 @@ export default function CustomSizeModal({
             <input
               type="number"
               step={dimStep}
-              value={inToDisplay(widthIn, units)}
-              onChange={(e) => setWidthIn(displayToIn(Number(e.target.value), units))}
+              value={inToDisplay(widthIn, units, dpi)}
+              onChange={(e) => setWidthIn(displayToIn(Number(e.target.value), units, dpi))}
             />
           </label>
           <label className="field">
@@ -144,8 +147,8 @@ export default function CustomSizeModal({
             <input
               type="number"
               step={dimStep}
-              value={inToDisplay(heightIn, units)}
-              onChange={(e) => setHeightIn(displayToIn(Number(e.target.value), units))}
+              value={inToDisplay(heightIn, units, dpi)}
+              onChange={(e) => setHeightIn(displayToIn(Number(e.target.value), units, dpi))}
             />
           </label>
         </div>
@@ -163,8 +166,8 @@ export default function CustomSizeModal({
             <input
               type="number"
               step={marginStep}
-              value={inToDisplay(bleedIn, units)}
-              onChange={(e) => setBleedIn(displayToIn(Number(e.target.value), units))}
+              value={inToDisplay(bleedIn, units, dpi)}
+              onChange={(e) => setBleedIn(displayToIn(Number(e.target.value), units, dpi))}
             />
           </label>
           <label className="field">
@@ -172,8 +175,8 @@ export default function CustomSizeModal({
             <input
               type="number"
               step={marginStep}
-              value={inToDisplay(safeZoneIn, units)}
-              onChange={(e) => setSafeZoneIn(displayToIn(Number(e.target.value), units))}
+              value={inToDisplay(safeZoneIn, units, dpi)}
+              onChange={(e) => setSafeZoneIn(displayToIn(Number(e.target.value), units, dpi))}
             />
           </label>
         </div>

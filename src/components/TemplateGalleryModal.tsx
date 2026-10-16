@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import Modal from './Modal'
 import Icon from './Icon'
 import { useProjectStore } from '@/state/projectStore'
+import { PhotoAsset, TemplateDefinition } from '@/types'
 import {
   BUILT_IN_TEMPLATES,
   templateFamilyLabel,
@@ -11,10 +12,36 @@ import {
   TEMPLATE_FAMILIES,
 } from '@/engine/templates'
 
+/** A single placeholder cell, filled with a real photo crop when one is available (so the
+ *  preview shows what the layout will actually look like with this spread's photos) or a plain
+ *  tinted box otherwise. Shared by the grid's small swatches and the large preview pane. */
+function PreviewCell({
+  ph,
+  photo,
+}: {
+  ph: TemplateDefinition['placeholders'][number]
+  photo?: PhotoAsset
+}) {
+  return (
+    <span
+      className="gallery-cell"
+      style={{
+        left: `${ph.x * 100}%`,
+        top: `${ph.y * 100}%`,
+        width: `${ph.width * 100}%`,
+        height: `${ph.height * 100}%`,
+        backgroundImage: photo ? `url(${photo.src})` : undefined,
+      }}
+    />
+  )
+}
+
 /** Full-library browser for the ~500+ built-in layouts plus any saved/imported templates — the
  *  Inspector's inline "Smart Grid Suggestions" only has room for a handful, so this is where you
- *  go to actually search the whole set (by photo count, family, and frame-ratio shape), the same
- *  role as the reference app's template browser window. */
+ *  go to actually search the whole set (by photo count, family, and frame-ratio shape). Selecting
+ *  a swatch (click or just hovering) updates a large preview pane rendered with this spread's own
+ *  photos — not an abstract outline — so it's clear what applying it will actually look like
+ *  before you commit, the same role as the reference app's template browser window. */
 export default function TemplateGalleryModal({
   initialCount,
   onClose,
@@ -23,12 +50,16 @@ export default function TemplateGalleryModal({
   onClose: () => void
 }) {
   const userTemplates = useProjectStore((s) => s.userTemplates)
+  const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const applyTemplateToSpread = useProjectStore((s) => s.applyTemplateToSpread)
+
+  const spread = project.spreads.find((s) => s.id === selectedSpreadId)
 
   const [count, setCount] = useState(Math.max(1, Math.min(30, initialCount || 1)))
   const [family, setFamily] = useState<(typeof TEMPLATE_FAMILIES)[number]>('All')
   const [frameFilter, setFrameFilter] = useState<TemplateFrameFilter>('all')
+  const [previewId, setPreviewId] = useState<string | null>(null)
 
   const allTemplates = useMemo(() => [...BUILT_IN_TEMPLATES, ...userTemplates], [userTemplates])
 
@@ -41,6 +72,19 @@ export default function TemplateGalleryModal({
     })
   }, [allTemplates, count, family, frameFilter])
 
+  // The spread's own placed photos, in slot order — reused to fill the preview so it shows real
+  // content instead of blank/gradient boxes. Falls back to the project's unplaced photos so the
+  // preview still has something to show even on a freshly auto-built or empty spread.
+  const previewPhotos = useMemo(() => {
+    const placed = (spread?.placements ?? [])
+      .map((p) => (p.photoId ? project.photos.find((ph) => ph.id === p.photoId) : undefined))
+      .filter((p): p is PhotoAsset => !!p)
+    if (placed.length > 0) return placed
+    return project.photos.slice(0, count)
+  }, [spread, project.photos, count])
+
+  const previewTemplate = filtered.find((t) => t.id === previewId) ?? filtered[0]
+
   function apply(templateId: string) {
     if (!selectedSpreadId) return
     applyTemplateToSpread(selectedSpreadId, templateId)
@@ -52,11 +96,18 @@ export default function TemplateGalleryModal({
       title="Template Gallery"
       subtitle={`${allTemplates.length} templates in your library · ${filtered.length} match ${count} photo${count === 1 ? '' : 's'}`}
       onClose={onClose}
-      width={880}
+      width={1040}
       footer={
-        <button className="btn" onClick={onClose}>
-          Close
-        </button>
+        <>
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <div className="footer-spacer" />
+          <button className="btn btn--primary" disabled={!previewTemplate} onClick={() => previewTemplate && apply(previewTemplate.id)}>
+            <Icon name="check" size={14} />
+            Apply {previewTemplate ? `"${previewTemplate.name}"` : 'Template'}
+          </button>
+        </>
       }
     >
       <div className="gallery-filters">
@@ -83,37 +134,55 @@ export default function TemplateGalleryModal({
           </button>
         ))}
       </div>
-      <div className="gallery-grid">
-        {filtered.map((t) => (
-          <button
-            key={t.id}
-            className="gallery-swatch"
-            style={templateSwatchStyle(t)}
-            onClick={() => apply(t.id)}
-            title={t.name}
-          >
-            <span className="gallery-swatch__grid" aria-hidden="true">
-              {t.placeholders.map((ph) => (
-                <span
-                  key={ph.id}
-                  style={{
-                    left: `${ph.x * 100}%`,
-                    top: `${ph.y * 100}%`,
-                    width: `${ph.width * 100}%`,
-                    height: `${ph.height * 100}%`,
-                  }}
-                />
-              ))}
-            </span>
-            <span className="gallery-swatch__name">{t.name}</span>
-          </button>
-        ))}
-        {filtered.length === 0 && (
-          <div className="empty-state">
-            <Icon name="grid" size={24} />
-            <p>No templates match these filters for {count} photos. Try a different count or family.</p>
-          </div>
-        )}
+
+      <div className="gallery-layout">
+        <div className="gallery-grid">
+          {filtered.map((t) => (
+            <button
+              key={t.id}
+              className={`gallery-swatch ${previewTemplate?.id === t.id ? 'is-previewing' : ''}`}
+              style={templateSwatchStyle(t)}
+              onMouseEnter={() => setPreviewId(t.id)}
+              onClick={() => setPreviewId(t.id)}
+              onDoubleClick={() => apply(t.id)}
+              title={`${t.name} — click to preview, double-click to apply`}
+            >
+              <span className="gallery-swatch__grid" aria-hidden="true">
+                {t.placeholders.map((ph, i) => (
+                  <PreviewCell key={ph.id} ph={ph} photo={previewPhotos[i]} />
+                ))}
+              </span>
+              <span className="gallery-swatch__name">{t.name}</span>
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <div className="empty-state">
+              <Icon name="grid" size={24} />
+              <p>No templates match these filters for {count} photos. Try a different count or family.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="gallery-preview">
+          <h4>Live Preview</h4>
+          {previewTemplate ? (
+            <>
+              <div className="gallery-preview__stage">
+                {previewTemplate.placeholders.map((ph, i) => (
+                  <PreviewCell key={ph.id} ph={ph} photo={previewPhotos[i]} />
+                ))}
+              </div>
+              <p className="gallery-preview__name">{previewTemplate.name}</p>
+              <p className="muted">
+                {previewPhotos.length < previewTemplate.photoCount
+                  ? 'Using your unplaced photos to preview — exact frames may differ once applied.'
+                  : "Rendered with this spread's own photos."}
+              </p>
+            </>
+          ) : (
+            <p className="muted">Hover or click a template on the left to preview it here.</p>
+          )}
+        </div>
       </div>
     </Modal>
   )

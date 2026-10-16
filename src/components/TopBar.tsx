@@ -3,6 +3,7 @@ import { useProjectStore } from '@/state/projectStore'
 import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES } from '@/engine/albumSizes'
 import { saveProjectToFile, openProjectFromFile } from '@/engine/projectFile'
 import { Theme, applyTheme, getStoredTheme } from '@/engine/theme'
+import { DisplayUnit } from '@/engine/units'
 import Icon from './Icon'
 import Modal from './Modal'
 import ExportModal from './ExportModal'
@@ -45,7 +46,7 @@ export default function TopBar() {
     if (size) useProjectStore.setState((s) => ({ project: { ...s.project, size } }))
   }
 
-  function applyCustomSize(size: typeof project.size, units: 'in' | 'cm') {
+  function applyCustomSize(size: typeof project.size, units: DisplayUnit) {
     useProjectStore.setState((s) => ({ project: { ...s.project, size, units } }))
     setCustomSizeOpen(false)
   }
