@@ -13,11 +13,11 @@
   --text-muted: #6b6e80;
   --text-faint: #9a9cac;
 
-  --accent: #6c63ff;
-  --accent-2: #8b5cf6;
+  --accent: #0f9b96;
+  --accent-2: #14b8a6;
   --accent-grad: linear-gradient(135deg, var(--accent), var(--accent-2));
-  --accent-soft: rgba(108, 99, 255, 0.1);
-  --accent-ring: rgba(108, 99, 255, 0.4);
+  --accent-soft: rgba(15, 155, 150, 0.1);
+  --accent-ring: rgba(15, 155, 150, 0.4);
 
   --success: #1b9c73;
   --warn: #c17300;
@@ -59,10 +59,10 @@
   --text-muted: #8d90a3;
   --text-faint: #5c6072;
 
-  --accent: #7c8cff;
-  --accent-2: #a78bfa;
-  --accent-soft: rgba(124, 140, 255, 0.14);
-  --accent-ring: rgba(124, 140, 255, 0.45);
+  --accent: #2dd4cf;
+  --accent-2: #5eead4;
+  --accent-soft: rgba(45, 212, 207, 0.14);
+  --accent-ring: rgba(45, 212, 207, 0.45);
 
   --success: #4fd6a0;
   --warn: #ffb347;
@@ -1537,6 +1537,23 @@ input[type='checkbox'] {
 @keyframes modal-pop-in {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* Fills its container with no floating-card chrome — used when the modal IS a dedicated
+   native OS window (e.g. the New Project window) rather than an overlay on the main app. */
+.modal-card--bare {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+.new-project-window {
+  height: 100%;
+  width: 100%;
+  display: flex;
 }
 .modal-card__header {
   display: flex;

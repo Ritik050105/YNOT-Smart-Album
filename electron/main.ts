@@ -46,6 +46,8 @@ function createSplash(): BrowserWindow {
   return splash
 }
 
+let mainWindow: BrowserWindow | null = null
+
 function createWindow(splash?: BrowserWindow) {
   const win = new BrowserWindow({
     width: 1440,
@@ -61,6 +63,10 @@ function createWindow(splash?: BrowserWindow) {
       nodeIntegration: false,
     },
   })
+  mainWindow = win
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null
+  })
 
   win.once('ready-to-show', () => {
     splash?.close()
@@ -73,6 +79,36 @@ function createWindow(splash?: BrowserWindow) {
   } else {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
+}
+
+/** Opens "New Project" as its own titled OS window (matching the reference app) instead of an
+ *  in-app modal. It loads the same renderer bundle with a `?view=new-project` flag, which
+ *  src/main.tsx uses to mount just the wizard instead of the full app shell. Since this window
+ *  has its own isolated JS context (and thus its own separate Zustand store instance), it can't
+ *  just call the store directly — it round-trips the finished options back to the main window via
+ *  IPC (see 'new-project:submit' below) instead. */
+function createNewProjectWindow() {
+  const win = new BrowserWindow({
+    width: 640,
+    height: 760,
+    minWidth: 560,
+    minHeight: 600,
+    title: 'New Project',
+    parent: mainWindow ?? undefined,
+    backgroundColor: '#f4f5f7',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+  win.setMenu(null)
+  if (isDev) {
+    win.loadURL('http://localhost:5173/?view=new-project')
+  } else {
+    win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { search: 'view=new-project' })
+  }
+  return win
 }
 
 app.whenReady().then(() => {
@@ -140,6 +176,23 @@ ipcMain.handle('project:openPath', async (_evt, filePath: string) => {
   } catch {
     return { ok: false as const }
   }
+})
+
+// Opens the dedicated "New Project" window (see createNewProjectWindow above).
+ipcMain.handle('window:openNewProject', () => {
+  createNewProjectWindow()
+})
+
+// The New Project window hands its finished options back here; relay them to the main window's
+// own store and close the New Project window, same as a modal's "Create" button would.
+ipcMain.handle('new-project:submit', (evt, opts) => {
+  mainWindow?.webContents.send('new-project:created', opts)
+  BrowserWindow.fromWebContents(evt.sender)?.close()
+})
+
+// Generic "close the window that asked" — used by the New Project window's Cancel/Back button.
+ipcMain.handle('window:closeSelf', (evt) => {
+  BrowserWindow.fromWebContents(evt.sender)?.close()
 })
 
 // Lists fonts actually installed on this machine, so the font picker reflects what's really

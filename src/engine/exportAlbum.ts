@@ -19,7 +19,7 @@ async function buildSingleSpreadPdfBytes(project: Project, spread: Spread): Prom
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
   const pdf = await PDFDocument.create()
   const canvas = await renderSpreadToCanvas(spread, photosById, project.size, project.size.dpi)
-  const jpegBytes = await canvasToBytes(canvas, 'image/jpeg', 0.92)
+  const jpegBytes = await canvasToBytes(canvas, 'image/jpeg', 0.97)
   const image = await pdf.embedJpg(jpegBytes)
   const page = pdf.addPage([project.size.widthIn * 72, project.size.heightIn * 72])
   page.drawImage(image, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() })
@@ -38,7 +38,7 @@ export async function exportAlbumToPdf(
 
   for (const spread of selectSpreads(project, spreadIndices)) {
     const canvas = await renderSpreadToCanvas(spread, photosById, project.size, pixelsPerInch)
-    const jpegBytes = await canvasToBytes(canvas, 'image/jpeg', 0.92)
+    const jpegBytes = await canvasToBytes(canvas, 'image/jpeg', 0.97)
     const image = await pdf.embedJpg(jpegBytes)
     const page = pdf.addPage([project.size.widthIn * 72, project.size.heightIn * 72])
     page.drawImage(image, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() })
@@ -135,7 +135,7 @@ async function exportSpreadsAsRaster(
   const files = []
   for (const spread of spreads) {
     const canvas = await renderSpreadToCanvas(spread, photosById, project.size, pixelsPerInch)
-    const bytes = await canvasToBytes(canvas, mime, 0.92)
+    const bytes = await canvasToBytes(canvas, mime, 0.97)
     const spreadNumber = spread.order + 1
     files.push({ fileName: `spread-${String(spreadNumber).padStart(2, '0')}.${ext}`, bytes, mime })
   }

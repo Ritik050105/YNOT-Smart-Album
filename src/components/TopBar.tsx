@@ -95,12 +95,23 @@ export default function TopBar() {
     }
   }
 
+  function openNewProjectUI() {
+    // In Electron this opens a genuinely separate OS window (matching the reference app); the
+    // in-page modal is kept only as a fallback for the browser dev preview, which can't open
+    // real OS windows.
+    if (window.albumStudio?.isElectron) {
+      void window.albumStudio.openNewProjectWindow()
+    } else {
+      setNewProjectOpen(true)
+    }
+  }
+
   function handleNewProjectClick() {
     if (project.spreads.length > 0 || project.photos.length > 0) {
       setConfirmDiscard(true)
       return
     }
-    setNewProjectOpen(true)
+    openNewProjectUI()
   }
 
   // Lets the global Ctrl/Cmd+S and Ctrl/Cmd+E keyboard shortcuts (KeyboardShortcuts.tsx) trigger
@@ -243,7 +254,7 @@ export default function TopBar() {
                 className="btn btn--danger"
                 onClick={() => {
                   setConfirmDiscard(false)
-                  setNewProjectOpen(true)
+                  openNewProjectUI()
                 }}
               >
                 Discard & Continue

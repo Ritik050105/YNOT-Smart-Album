@@ -27,6 +27,16 @@ export default function HomeScreen() {
     window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))
   }
 
+  function openNewProjectUI() {
+    // In Electron this opens a genuinely separate OS window (matching the reference app); the
+    // in-page modal is kept only as a fallback for the browser dev preview.
+    if (window.albumStudio?.isElectron) {
+      void window.albumStudio.openNewProjectWindow()
+    } else {
+      setNewProjectOpen(true)
+    }
+  }
+
   async function handleOpenAny() {
     setOpenError(null)
     const opened = await openProjectFromFile().catch((err) => {
@@ -86,7 +96,7 @@ export default function HomeScreen() {
             <Icon name="folder" size={14} />
             Open Project…
           </button>
-          <button className="btn btn--primary" onClick={() => setNewProjectOpen(true)}>
+          <button className="btn btn--primary" onClick={openNewProjectUI}>
             <Icon name="plus" size={14} />
             New Project
           </button>
@@ -100,7 +110,7 @@ export default function HomeScreen() {
           <Icon name="bookOpen" size={32} />
           <p>There are no albums yet.</p>
           <p className="muted">Create an album to start designing — it'll show up here next time.</p>
-          <button className="btn btn--primary" onClick={() => setNewProjectOpen(true)}>
+          <button className="btn btn--primary" onClick={openNewProjectUI}>
             <Icon name="plus" size={14} />
             Create Album
           </button>

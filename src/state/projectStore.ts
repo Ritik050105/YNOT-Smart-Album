@@ -177,10 +177,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       gapPx: project.defaultGapPx,
       marginPx: project.defaultMarginPx,
     }
-    withHistory(set, (p) => ({
-      ...p,
-      spreads: autoBuildSpreads(project.photos, autoLayoutOptions, appearance, project.enabledTemplateIds),
-    }))
+    const spreads = autoBuildSpreads(project.photos, autoLayoutOptions, appearance, project.enabledTemplateIds)
+    withHistory(set, (p) => ({ ...p, spreads }))
+    // Jump straight to the first built spread instead of leaving the canvas on its empty
+    // "select a spread" placeholder — otherwise the drop-to-build flow looks like it did
+    // nothing, and the Inspector's template-switching panel (which only renders for a
+    // selected spread) never appears.
+    const first = spreads.find((s) => !s.isCover) ?? spreads[0]
+    if (first) {
+      set({
+        selectedSpreadId: first.id,
+        selectedPlaceholderId: null,
+        selectedTextBoxId: null,
+        multiSelectedPlaceholderIds: [],
+      })
+    }
   },
 
   selectSpread: (id) =>

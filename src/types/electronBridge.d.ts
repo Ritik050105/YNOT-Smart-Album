@@ -1,3 +1,14 @@
+export interface NewProjectPayload {
+  name: string
+  size: unknown
+  units: unknown
+  colorProfile: string
+  defaultBackgroundColor: string
+  defaultGapPx: number
+  defaultMarginPx: number
+  enabledTemplateIds: string[] | null
+}
+
 export interface AlbumStudioBridge {
   isElectron: true
   saveFile: (args: {
@@ -10,6 +21,10 @@ export interface AlbumStudioBridge {
   openProjectFile: () => Promise<{ canceled: boolean; filePath?: string; contents?: string }>
   openProjectAtPath: (filePath: string) => Promise<{ ok: boolean; contents?: string }>
   listLocalFonts: () => Promise<{ fonts: string[] }>
+  openNewProjectWindow: () => Promise<void>
+  submitNewProject: (opts: NewProjectPayload) => Promise<void>
+  closeCurrentWindow: () => Promise<void>
+  onNewProjectCreated: (cb: (opts: NewProjectPayload) => void) => () => void
 }
 
 declare global {

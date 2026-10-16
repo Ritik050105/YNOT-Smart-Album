@@ -22,7 +22,22 @@ const COLOR_PROFILES = ['sRGB', 'Adobe RGB', 'ProPhoto RGB']
  * "Template Library and Appearance Settings" flow: pick a size (preset or fully custom),
  * then set the look new spreads start with and which templates Auto-Build is allowed to use.
  */
-export default function NewProjectWizard({ onClose, onCreated }: { onClose: () => void; onCreated?: () => void }) {
+export default function NewProjectWizard({
+  onClose,
+  onCreated,
+  onSubmit,
+  bare = false,
+}: {
+  onClose: () => void
+  onCreated?: () => void
+  /** When set (the dedicated New Project OS window), hands the finished options off instead of
+   *  creating the project directly — that window has its own isolated store, so the real project
+   *  creation happens back in the main window once the options round-trip there over IPC. */
+  onSubmit?: (opts: NewProjectOptions) => void
+  /** Renders without the modal backdrop/card chrome, filling the whole window — set when this
+   *  wizard IS the New Project window's entire content. */
+  bare?: boolean
+}) {
   const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
 
   const [step, setStep] = useState<1 | 2>(1)
@@ -79,6 +94,10 @@ export default function NewProjectWizard({ onClose, onCreated }: { onClose: () =
       defaultMarginPx: marginPx,
       enabledTemplateIds: enabledIds.size === BUILT_IN_TEMPLATES.length ? null : Array.from(enabledIds),
     }
+    if (onSubmit) {
+      onSubmit(opts)
+      return
+    }
     createProjectFromWizard(opts)
     onCreated?.()
     onClose()
@@ -91,6 +110,7 @@ export default function NewProjectWizard({ onClose, onCreated }: { onClose: () =
       title="New Album"
       onClose={onClose}
       width={560}
+      bare={bare}
       footer={
         <>
           {step === 2 ? (

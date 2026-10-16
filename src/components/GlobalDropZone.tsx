@@ -15,6 +15,7 @@ function dragHasFiles(e: DragEvent): boolean {
  *  dragleave on its parent. */
 export default function GlobalDropZone() {
   const addPhotos = useProjectStore((s) => s.addPhotos)
+  const runAutoBuild = useProjectStore((s) => s.runAutoBuild)
   const [active, setActive] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [summary, setSummary] = useState<ImportSummary | null>(null)
@@ -61,7 +62,12 @@ export default function GlobalDropZone() {
         useProjectStore.getState().project.photos,
         (done, total) => setProgress({ done, total })
       )
-      if (newAssets.length > 0) addPhotos(newAssets)
+      if (newAssets.length > 0) {
+        addPhotos(newAssets)
+        // First-ever drop with nothing laid out yet — go straight to a spread instead of leaving
+        // the photos sitting in the pool waiting for a separate "Auto-Build" click.
+        if (useProjectStore.getState().project.spreads.length === 0) runAutoBuild()
+      }
       setProgress(null)
       setSummary(result)
       window.setTimeout(() => setSummary(null), 5000)
@@ -78,7 +84,7 @@ export default function GlobalDropZone() {
       window.removeEventListener('drop', onDropCapture, true)
       window.removeEventListener('drop', onDrop)
     }
-  }, [addPhotos])
+  }, [addPhotos, runAutoBuild])
 
   const hasIssues = !!summary && (summary.failures.length > 0 || summary.rejected.length > 0)
 

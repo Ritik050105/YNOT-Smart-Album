@@ -11,9 +11,11 @@ import WorkflowStepper from './components/WorkflowStepper'
 import KeyboardShortcuts from './components/KeyboardShortcuts'
 import GlobalDropZone from './components/GlobalDropZone'
 import HomeScreen from './components/HomeScreen'
+import { useProjectStore } from '@/state/projectStore'
 
 export default function App() {
   const [showHome, setShowHome] = useState(true)
+  const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
 
   useEffect(() => {
     function onEnterEditor() {
@@ -29,6 +31,16 @@ export default function App() {
       window.removeEventListener('album-studio:go-home', onGoHome)
     }
   }, [])
+
+  // The main window is the one true store — a separate "New Project" OS window hands its
+  // finished options back here over IPC instead of creating the project in its own isolated store.
+  useEffect(() => {
+    if (!window.albumStudio) return
+    return window.albumStudio.onNewProjectCreated((opts) => {
+      createProjectFromWizard(opts as never)
+      window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))
+    })
+  }, [createProjectFromWizard])
 
   if (showHome) return <HomeScreen />
 

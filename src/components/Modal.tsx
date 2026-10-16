@@ -15,6 +15,7 @@ export default function Modal({
   children,
   footer,
   width = 480,
+  bare = false,
 }: {
   title: string
   subtitle?: string
@@ -22,6 +23,10 @@ export default function Modal({
   children: ReactNode
   footer?: ReactNode
   width?: number
+  /** Renders the card alone, filling its container, with no dark backdrop — for when this modal
+   *  IS the entire window (a dedicated native "New Project" window, matching the reference app)
+   *  rather than an overlay on top of the main editor. */
+  bare?: boolean
 }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -31,21 +36,35 @@ export default function Modal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-card" style={{ width }} role="dialog" aria-modal="true" aria-label={title}>
-        <div className="modal-card__header">
-          <div>
-            <h2>{title}</h2>
-            {subtitle && <p>{subtitle}</p>}
-          </div>
+  const card = (
+    <div
+      className={`modal-card ${bare ? 'modal-card--bare' : ''}`}
+      style={bare ? undefined : { width }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div className="modal-card__header">
+        <div>
+          <h2>{title}</h2>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
+        {!bare && (
           <button className="btn btn--icon btn--ghost" onClick={onClose} aria-label="Close">
             <Icon name="x" size={16} />
           </button>
-        </div>
-        <div className="modal-card__body">{children}</div>
-        {footer && <div className="modal-card__footer">{footer}</div>}
+        )}
       </div>
+      <div className="modal-card__body">{children}</div>
+      {footer && <div className="modal-card__footer">{footer}</div>}
+    </div>
+  )
+
+  if (bare) return card
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      {card}
     </div>
   )
 }

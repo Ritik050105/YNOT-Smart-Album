@@ -8,6 +8,7 @@ export default function ImportPanel() {
   const addPhotos = useProjectStore((s) => s.addPhotos)
   const runAutoBuild = useProjectStore((s) => s.runAutoBuild)
   const photos = useProjectStore((s) => s.project.photos)
+  const spreadCount = useProjectStore((s) => s.project.spreads.length)
   const options = useProjectStore((s) => s.autoLayoutOptions)
   const setOptions = useProjectStore((s) => s.setAutoLayoutOptions)
   const [isDragging, setIsDragging] = useState(false)
@@ -24,7 +25,12 @@ export default function ImportPanel() {
     const { newAssets, summary } = await importAndDedupe(Array.from(fileList), photos, (done, total) =>
       setProgress({ done, total })
     )
-    if (newAssets.length > 0) addPhotos(newAssets)
+    if (newAssets.length > 0) {
+      addPhotos(newAssets)
+      // The very first drop/import, with nothing laid out yet — go straight to a spread instead
+      // of leaving the photos sitting in the pool waiting for a separate "Auto-Build" click.
+      if (spreadCount === 0) runAutoBuild()
+    }
     setProgress(null)
     setLastSummary(summary)
   }
