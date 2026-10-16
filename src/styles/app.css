@@ -765,12 +765,23 @@ input[type='checkbox'] {
   border-radius: 999px;
   padding: 7px 10px;
 }
+.toolbar-zoom {
+  min-width: 48px;
+  justify-content: center;
+}
 
 .designer-canvas {
   position: relative;
   background: #fff;
   border-radius: 2px;
   box-shadow: var(--shadow-lg);
+  cursor: default;
+}
+.designer-canvas--pan {
+  cursor: grab;
+}
+.designer-canvas--pan:active {
+  cursor: grabbing;
 }
 .designer-canvas--empty {
   width: 600px;
@@ -1193,6 +1204,43 @@ input[type='checkbox'] {
   letter-spacing: 0.06em;
   color: var(--text-muted);
   margin-bottom: 8px;
+}
+
+.shortcuts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.shortcuts-grid h4 {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.shortcut-row kbd {
+  flex-shrink: 0;
+  min-width: 108px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+}
+.shortcut-row span {
+  color: var(--text-muted);
 }
 
 .tab-row {

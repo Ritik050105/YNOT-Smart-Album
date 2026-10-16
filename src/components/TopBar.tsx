@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES } from '@/engine/albumSizes'
 import { saveProjectToFile, openProjectFromFile } from '@/engine/projectFile'
@@ -71,6 +71,23 @@ export default function TopBar() {
     setNewProjectOpen(true)
   }
 
+  // Lets the global Ctrl/Cmd+S and Ctrl/Cmd+E keyboard shortcuts (KeyboardShortcuts.tsx) trigger
+  // the same save/export flows as their toolbar buttons, without lifting this component's state.
+  useEffect(() => {
+    function onSave() {
+      if (projectBusy === null) void handleSaveProject()
+    }
+    function onOpenExport() {
+      if (project.spreads.length > 0) setExportOpen(true)
+    }
+    window.addEventListener('album-studio:save-project', onSave)
+    window.addEventListener('album-studio:open-export', onOpenExport)
+    return () => {
+      window.removeEventListener('album-studio:save-project', onSave)
+      window.removeEventListener('album-studio:open-export', onOpenExport)
+    }
+  })
+
   return (
     <header className="topbar">
       <div className="topbar__brand">
@@ -124,6 +141,13 @@ export default function TopBar() {
       </button>
       <button className="btn btn--icon" title="Redo" disabled={future.length === 0} onClick={redo}>
         <Icon name="redo" />
+      </button>
+      <button
+        className="btn btn--icon"
+        title="Keyboard & Mouse Shortcuts (?)"
+        onClick={() => window.dispatchEvent(new CustomEvent('album-studio:toggle-shortcuts-help'))}
+      >
+        <Icon name="info" />
       </button>
 
       <div className="topbar__divider" />

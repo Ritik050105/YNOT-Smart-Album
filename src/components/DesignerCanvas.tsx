@@ -8,6 +8,7 @@ import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { computeCoverCrop } from '@/engine/cropFit'
 import { ensureFontLoaded } from '@/engine/fonts'
 import { quotesForEventType } from '@/engine/textSuggestions'
+import { isEditableTarget } from '@/engine/keyboard'
 import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
 
@@ -92,7 +93,9 @@ function PlaceholderImage({
       draggable
       onDragStart={(e) => e.target.moveToTop()}
       onDragEnd={(e) => {
-        const pointer = e.target.getStage()?.getPointerPosition()
+        // Relative (not raw) pointer position — accounts for the canvas's own zoom/pan transform
+        // so box-hit-testing still lines up once the stage is scaled or panned.
+        const pointer = e.target.getStage()?.getRelativePointerPosition()
         e.target.position({ x: centerX, y: centerY })
         e.target.getLayer()?.batchDraw()
         if (!pointer) return
@@ -223,6 +226,102 @@ export default function DesignerCanvas() {
     spread?.textBoxes.forEach((t) => void ensureFontLoaded(t.fontFamily))
   }, [spread])
 
+  // Canvas zoom/pan — mirrors Figma-style conventions: plain scroll pans, Ctrl/Cmd+scroll zooms
+  // toward the cursor, Space/middle-click+drag pans, Ctrl/Cmd+0/+/- control zoom from the
+  // keyboard. State resets whenever the selected spread changes so switching pages doesn't carry
+  // over a stale zoomed-in view.
+  const [stageScale, setStageScale] = useState(1)
+  const [stagePos, setStagePos] = useState({ x: 0, y: 0 })
+  const [isSpaceDown, setIsSpaceDown] = useState(false)
+  const isPanningRef = useRef(false)
+  const panStartRef = useRef<{ x: number; y: number; stageX: number; stageY: number } | null>(null)
+
+  useEffect(() => {
+    setStageScale(1)
+    setStagePos({ x: 0, y: 0 })
+  }, [spread?.id])
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.code === 'Space' && !isEditableTarget(e.target)) {
+        e.preventDefault()
+        setIsSpaceDown(true)
+      }
+      if ((e.ctrlKey || e.metaKey) && !isEditableTarget(e.target)) {
+        if (e.key === '0') {
+          e.preventDefault()
+          setStageScale(1)
+          setStagePos({ x: 0, y: 0 })
+        } else if (e.key === '=' || e.key === '+') {
+          e.preventDefault()
+          setStageScale((s) => Math.min(3, s * 1.15))
+        } else if (e.key === '-') {
+          e.preventDefault()
+          setStageScale((s) => Math.max(0.4, s / 1.15))
+        }
+      }
+    }
+    function onKeyUp(e: KeyboardEvent) {
+      if (e.code === 'Space') setIsSpaceDown(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
+  }, [])
+
+  function handleWheel(e: Konva.KonvaEventObject<WheelEvent>) {
+    e.evt.preventDefault()
+    const stage = e.target.getStage()
+    if (!stage) return
+    if (e.evt.ctrlKey || e.evt.metaKey) {
+      const pointer = stage.getPointerPosition()
+      if (!pointer) return
+      const oldScale = stageScale
+      const mousePointTo = {
+        x: (pointer.x - stagePos.x) / oldScale,
+        y: (pointer.y - stagePos.y) / oldScale,
+      }
+      const direction = e.evt.deltaY > 0 ? -1 : 1
+      const scaleBy = 1.08
+      const newScale = Math.max(0.4, Math.min(3, direction > 0 ? oldScale * scaleBy : oldScale / scaleBy))
+      setStageScale(newScale)
+      setStagePos({
+        x: pointer.x - mousePointTo.x * newScale,
+        y: pointer.y - mousePointTo.y * newScale,
+      })
+    } else {
+      setStagePos((pos) => ({ x: pos.x - e.evt.deltaX, y: pos.y - e.evt.deltaY }))
+    }
+  }
+
+  function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
+    if (isSpaceDown || e.evt.button === 1) {
+      e.evt.preventDefault()
+      isPanningRef.current = true
+      panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY, stageX: stagePos.x, stageY: stagePos.y }
+      return
+    }
+    if (e.target === e.target.getStage()) {
+      selectPlaceholder(null)
+      selectTextBox(null)
+      clearMultiSelect()
+    }
+  }
+
+  function handleStageMouseMove(e: Konva.KonvaEventObject<MouseEvent>) {
+    if (!isPanningRef.current || !panStartRef.current) return
+    const start = panStartRef.current
+    setStagePos({ x: start.stageX + (e.evt.clientX - start.x), y: start.stageY + (e.evt.clientY - start.y) })
+  }
+
+  function handleStageMouseUp() {
+    isPanningRef.current = false
+    panStartRef.current = null
+  }
+
   function findBoxAt(x: number, y: number) {
     return boxes.find((b) => x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height)
   }
@@ -252,8 +351,10 @@ export default function DesignerCanvas() {
     if (!photoId) return
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    // Invert the canvas's own zoom/pan transform — drop coordinates arrive in container CSS
+    // pixels, but box positions are in the Stage's unscaled content space.
+    const x = (e.clientX - rect.left - stagePos.x) / stageScale
+    const y = (e.clientY - rect.top - stagePos.y) / stageScale
     const target = findBoxAt(x, y)
     if (target) setPlacementPhoto(spread.id, target.placeholderId, photoId)
   }
@@ -335,9 +436,19 @@ export default function DesignerCanvas() {
           <input type="checkbox" checked={showPrintGuides} onChange={togglePrintGuides} />
           Print guides (<span style={{ color: '#ffb347' }}>bleed</span> / <span style={{ color: '#4fd6c0' }}>safety</span>)
         </label>
+        <button
+          className="btn btn--tiny toolbar-zoom"
+          title="Reset zoom (Ctrl/Cmd+0)"
+          onClick={() => {
+            setStageScale(1)
+            setStagePos({ x: 0, y: 0 })
+          }}
+        >
+          {Math.round(stageScale * 100)}%
+        </button>
       </div>
       <div
-        className="designer-canvas"
+        className={`designer-canvas ${isSpaceDown ? 'designer-canvas--pan' : ''}`}
         ref={containerRef}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleContainerDrop}
@@ -346,13 +457,15 @@ export default function DesignerCanvas() {
         ref={stageRef}
         width={STAGE_WIDTH}
         height={stageHeight}
-        onMouseDown={(e) => {
-          if (e.target === e.target.getStage()) {
-            selectPlaceholder(null)
-            selectTextBox(null)
-            clearMultiSelect()
-          }
-        }}
+        scaleX={stageScale}
+        scaleY={stageScale}
+        x={stagePos.x}
+        y={stagePos.y}
+        onWheel={handleWheel}
+        onMouseDown={handleStageMouseDown}
+        onMouseMove={handleStageMouseMove}
+        onMouseUp={handleStageMouseUp}
+        onMouseLeave={handleStageMouseUp}
       >
         <Layer>
           <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fill={spread.backgroundColor} />
