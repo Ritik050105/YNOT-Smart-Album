@@ -22,7 +22,7 @@ const COLOR_PROFILES = ['sRGB', 'Adobe RGB', 'ProPhoto RGB']
  * "Template Library and Appearance Settings" flow: pick a size (preset or fully custom),
  * then set the look new spreads start with and which templates Auto-Build is allowed to use.
  */
-export default function NewProjectWizard({ onClose }: { onClose: () => void }) {
+export default function NewProjectWizard({ onClose, onCreated }: { onClose: () => void; onCreated?: () => void }) {
   const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
 
   const [step, setStep] = useState<1 | 2>(1)
@@ -80,6 +80,7 @@ export default function NewProjectWizard({ onClose }: { onClose: () => void }) {
       enabledTemplateIds: enabledIds.size === BUILT_IN_TEMPLATES.length ? null : Array.from(enabledIds),
     }
     createProjectFromWizard(opts)
+    onCreated?.()
     onClose()
   }
 

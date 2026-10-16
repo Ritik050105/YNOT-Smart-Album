@@ -1,9 +1,14 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { execFile } from 'child_process'
 
 const isDev = !app.isPackaged
+
+// Electron shows its own default File/Edit/View/Window/Help menu unless the app sets one
+// explicitly — that was rendering as a second, redundant menu bar above the app's own in-page
+// File/Edit/Spread/Templates/View/Help bar. The app owns all of that, so the native one is unset.
+Menu.setApplicationMenu(null)
 
 /** A small frameless splash window shown the instant the app launches, while Electron spins up
  *  the real window and (in dev) Vite/renderer boots — the same "app is opening" affordance the
@@ -123,6 +128,18 @@ ipcMain.handle('project:open', async () => {
   if (canceled || filePaths.length === 0) return { canceled: true as const }
   const contents = fs.readFileSync(filePaths[0], 'utf-8')
   return { canceled: false as const, filePath: filePaths[0], contents }
+})
+
+// Re-opens a project at an exact path with no dialog — used by the Home screen's recent-albums
+// list. Falls back to "missing" (rather than throwing) if the file was moved/deleted since it was
+// last opened, so a stale recent entry degrades gracefully instead of crashing the renderer.
+ipcMain.handle('project:openPath', async (_evt, filePath: string) => {
+  try {
+    const contents = fs.readFileSync(filePath, 'utf-8')
+    return { ok: true as const, contents }
+  } catch {
+    return { ok: false as const }
+  }
 })
 
 // Lists fonts actually installed on this machine, so the font picker reflects what's really

@@ -130,6 +130,179 @@ body {
   border-radius: var(--radius-sm);
 }
 
+/* ---------- Home screen ---------- */
+
+.home-screen {
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--bg);
+  padding: 40px 48px 60px;
+}
+.home-screen__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 36px;
+}
+.home-screen__mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #2b2b2e, #0c0c0d);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.home-screen__mark img {
+  width: 58%;
+  height: 58%;
+  object-fit: contain;
+}
+.home-screen__header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+.home-screen__toolbar {
+  max-width: 1040px;
+  margin: 0 auto 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.home-screen__toolbar h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.home-screen__toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+.home-screen__error {
+  max-width: 1040px;
+  margin: 0 auto 8px;
+  padding: 8px 12px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+.home-screen__empty {
+  max-width: 1040px;
+  margin: 60px auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 50px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.home-screen__empty svg {
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+.home-screen__empty p {
+  margin: 0;
+}
+.home-screen__empty .btn {
+  margin-top: 12px;
+}
+.home-screen__grid {
+  max-width: 1040px;
+  margin: 16px auto 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.home-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s var(--ease), transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.home-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.home-card:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.home-card__thumb {
+  width: 100%;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-grad);
+  color: rgba(255, 255, 255, 0.85);
+}
+.home-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 12px;
+  width: 100%;
+}
+.home-card__name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-card__client {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.home-card__meta,
+.home-card__date {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.home-card__remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.home-card__remove:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+.home-card__loading {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 21, 28, 0.6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 /* ---------- App shell ---------- */
 
 .app-shell {
@@ -304,10 +477,19 @@ body {
   gap: 8px;
   font-weight: 700;
   letter-spacing: 0.01em;
-  padding-right: 8px;
+  padding: 0 8px 0 0;
   margin-right: 4px;
+  border: none;
   border-right: 1px solid var(--border-soft);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
   flex-shrink: 0;
+}
+.topbar__brand:hover .topbar__brand-name {
+  color: var(--accent);
 }
 .topbar__brand-mark {
   width: 28px;

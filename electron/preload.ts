@@ -10,6 +10,7 @@ export interface AlbumStudioBridge {
   pickDirectory: () => Promise<{ canceled: boolean; dirPath?: string }>
   writeFileInDir: (args: { dirPath: string; fileName: string; data: Uint8Array }) => Promise<{ filePath: string }>
   openProjectFile: () => Promise<{ canceled: boolean; filePath?: string; contents?: string }>
+  openProjectAtPath: (filePath: string) => Promise<{ ok: boolean; contents?: string }>
   listLocalFonts: () => Promise<{ fonts: string[] }>
 }
 
@@ -19,6 +20,7 @@ const bridge: AlbumStudioBridge = {
   pickDirectory: () => ipcRenderer.invoke('export:pickDirectory'),
   writeFileInDir: (args) => ipcRenderer.invoke('export:writeFileInDir', args),
   openProjectFile: () => ipcRenderer.invoke('project:open'),
+  openProjectAtPath: (filePath) => ipcRenderer.invoke('project:openPath', filePath),
   listLocalFonts: () => ipcRenderer.invoke('fonts:listLocal'),
 }
 

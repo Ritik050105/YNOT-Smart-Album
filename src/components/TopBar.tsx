@@ -4,11 +4,13 @@ import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES } from '@/engine/albumSizes'
 import { saveProjectToFile, openProjectFromFile } from '@/engine/projectFile'
 import { Theme, applyTheme, getStoredTheme } from '@/engine/theme'
 import { DisplayUnit } from '@/engine/units'
+import { recordRecentProject } from '@/engine/recentProjects'
 import Icon from './Icon'
 import Modal from './Modal'
 import ExportModal from './ExportModal'
 import CustomSizeModal from './CustomSizeModal'
 import NewProjectWizard from './NewProjectWizard'
+import ProjectInfoPanel from './ProjectInfoPanel'
 import ynotMark from '@/assets/ynot-mark-white.png'
 
 const CUSTOM_SIZE_OPTION = '__custom__'
@@ -27,6 +29,7 @@ export default function TopBar() {
   const [exportOpen, setExportOpen] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
 
   function toggleTheme() {
@@ -54,7 +57,17 @@ export default function TopBar() {
   async function handleSaveProject() {
     setProjectBusy('save')
     try {
-      await saveProjectToFile(project, userTemplates)
+      const result = await saveProjectToFile(project, userTemplates)
+      if (result.saved) {
+        recordRecentProject({
+          projectId: project.id,
+          name: project.name,
+          clientName: project.clientName,
+          sizeLabel: project.size.label,
+          filePath: result.filePath,
+          spreadCount: project.spreads.filter((s) => !s.isCover).length,
+        })
+      }
     } finally {
       setProjectBusy(null)
     }
@@ -63,8 +76,18 @@ export default function TopBar() {
   async function handleOpenProject() {
     setProjectBusy('open')
     try {
-      const file = await openProjectFromFile()
-      if (file) loadProjectFile(file)
+      const opened = await openProjectFromFile()
+      if (opened) {
+        loadProjectFile(opened.file)
+        recordRecentProject({
+          projectId: opened.file.project.id,
+          name: opened.file.project.name,
+          clientName: opened.file.project.clientName,
+          sizeLabel: opened.file.project.size.label,
+          filePath: opened.filePath,
+          spreadCount: opened.file.project.spreads.filter((s) => !s.isCover).length,
+        })
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Could not open that project file.')
     } finally {
@@ -109,14 +132,18 @@ export default function TopBar() {
 
   return (
     <header className="topbar">
-      <div className="topbar__brand">
+      <button
+        className="topbar__brand"
+        title="Back to Home"
+        onClick={() => window.dispatchEvent(new CustomEvent('album-studio:go-home'))}
+      >
         <span className="topbar__brand-mark">
           <img src={ynotMark} alt="YNOT Photography" />
         </span>
         <span className="topbar__brand-name">
           YNOT <span className="topbar__brand-sub">Album Studio</span>
         </span>
-      </div>
+      </button>
 
       <button className="btn btn--icon" title="New Album" onClick={handleNewProjectClick}>
         <Icon name="plus" />
@@ -152,6 +179,9 @@ export default function TopBar() {
         ))}
         <option value={CUSTOM_SIZE_OPTION}>{isCustomSize ? project.size.label : 'Custom size…'}</option>
       </select>
+      <button className="btn btn--icon" title="Project Details" onClick={() => setInfoOpen(true)}>
+        <Icon name="info" size={14} />
+      </button>
 
       <div className="topbar__spacer" />
 
@@ -197,6 +227,7 @@ export default function TopBar() {
       )}
       {exportOpen && <ExportModal onClose={() => setExportOpen(false)} />}
       {newProjectOpen && <NewProjectWizard onClose={() => setNewProjectOpen(false)} />}
+      {infoOpen && <ProjectInfoPanel onClose={() => setInfoOpen(false)} />}
       {confirmDiscard && (
         <Modal
           title="Start a new album?"

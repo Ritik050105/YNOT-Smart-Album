@@ -4,13 +4,16 @@ import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { computeCoverCrop, effectiveDpi } from '@/engine/cropFit'
 import { EVENT_TYPES, WEDDING_COMMUNITIES } from '@/engine/eventCategories'
 import { inToDisplay } from '@/engine/units'
-import Icon from './Icon'
+import Modal from './Modal'
 
 const PROBE_SIZE = 900
 
-/** Project-wide "Details & grid & info" summary: page/photo counts and a DPI compliance
- *  check across every placed photo, so quality issues surface before export instead of after. */
-export default function ProjectInfoPanel() {
+/** Project-wide "Details & grid & info" summary: page/photo counts and a DPI compliance check
+ *  across every placed photo, so quality issues surface before export instead of after. Lives in
+ *  a modal (opened from the TopBar's info button) rather than a permanently docked sidebar panel
+ *  — it's reference material you check occasionally, not something that needs screen space while
+ *  you're actively designing a spread. */
+export default function ProjectInfoPanel({ onClose }: { onClose: () => void }) {
   const project = useProjectStore((s) => s.project)
   const updateProjectMeta = useProjectStore((s) => s.updateProjectMeta)
 
@@ -78,12 +81,16 @@ export default function ProjectInfoPanel() {
   const isCustomCommunity = project.community !== '' && !(WEDDING_COMMUNITIES as readonly string[]).includes(project.community)
 
   return (
-    <div className="panel project-info">
-      <h3>
-        <Icon name="info" size={14} />
-        Project Details
-      </h3>
-
+    <Modal
+      title="Project Details"
+      onClose={onClose}
+      width={460}
+      footer={
+        <button className="btn btn--primary" onClick={onClose}>
+          Done
+        </button>
+      }
+    >
       <div className="job-meta">
         <input
           className="job-meta__client"
@@ -179,6 +186,6 @@ export default function ProjectInfoPanel() {
             : `${stats.belowTargetCount} photo${stats.belowTargetCount === 1 ? '' : 's'} below target DPI (worst: ${stats.worstDpi})`}
         </dd>
       </dl>
-    </div>
+    </Modal>
   )
 }

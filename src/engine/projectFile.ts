@@ -54,12 +54,13 @@ export async function saveProjectToFile(
 }
 
 /** Opens a project file via the native dialog (Electron) or a browser file picker, returning
- *  the parsed project — or null if the user canceled. */
-export function openProjectFromFile(): Promise<ProjectFile | null> {
+ *  the parsed project (plus its on-disk path, when known, so callers can remember it for the
+ *  Home screen's recent-albums list) — or null if the user canceled. */
+export function openProjectFromFile(): Promise<{ file: ProjectFile; filePath?: string } | null> {
   if (window.albumStudio?.isElectron) {
     return window.albumStudio.openProjectFile().then((result) => {
       if (result.canceled || !result.contents) return null
-      return deserializeProjectFile(result.contents)
+      return { file: deserializeProjectFile(result.contents), filePath: result.filePath }
     })
   }
 
@@ -71,10 +72,24 @@ export function openProjectFromFile(): Promise<ProjectFile | null> {
       const file = input.files?.[0]
       if (!file) return resolve(null)
       const reader = new FileReader()
-      reader.onload = () => resolve(deserializeProjectFile(reader.result as string))
+      reader.onload = () => resolve({ file: deserializeProjectFile(reader.result as string) })
       reader.onerror = () => resolve(null)
       reader.readAsText(file)
     }
     input.click()
   })
+}
+
+/** Re-opens a project at an exact file path with no dialog — the Home screen's recent-albums
+ *  list. Electron-only (a browser file picker can't silently re-read an arbitrary path); returns
+ *  null if unsupported or the file is missing/unreadable (e.g. moved or deleted since). */
+export async function openProjectFromPath(filePath: string): Promise<ProjectFile | null> {
+  if (!window.albumStudio?.isElectron) return null
+  const result = await window.albumStudio.openProjectAtPath(filePath)
+  if (!result.ok || !result.contents) return null
+  try {
+    return deserializeProjectFile(result.contents)
+  } catch {
+    return null
+  }
 }
