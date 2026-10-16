@@ -80,11 +80,21 @@ export default function TopBar() {
     function onOpenExport() {
       if (project.spreads.length > 0) setExportOpen(true)
     }
+    function onNewProject() {
+      handleNewProjectClick()
+    }
+    function onOpenProject() {
+      if (projectBusy === null) void handleOpenProject()
+    }
     window.addEventListener('album-studio:save-project', onSave)
     window.addEventListener('album-studio:open-export', onOpenExport)
+    window.addEventListener('album-studio:new-project', onNewProject)
+    window.addEventListener('album-studio:open-project', onOpenProject)
     return () => {
       window.removeEventListener('album-studio:save-project', onSave)
       window.removeEventListener('album-studio:open-export', onOpenExport)
+      window.removeEventListener('album-studio:new-project', onNewProject)
+      window.removeEventListener('album-studio:open-project', onOpenProject)
     }
   })
 

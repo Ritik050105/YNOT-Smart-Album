@@ -1,3 +1,4 @@
+import MenuBar from './components/MenuBar'
 import TopBar from './components/TopBar'
 import ImportPanel from './components/ImportPanel'
 import PhotoBin from './components/PhotoBin'
@@ -13,6 +14,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <KeyboardShortcuts />
+      <MenuBar />
       <TopBar />
       <div className="app-body">
         <aside className="app-sidebar app-sidebar--left">

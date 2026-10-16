@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { PlacedPhoto } from '@/types'
 import { templatesForCount, generateCustomGrid, TemplateFrameFilter } from '@/engine/templates'
+import TemplateGalleryModal from './TemplateGalleryModal'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { LOCAL_FONTS, CLOUD_FONTS, FontOption, getLocalFonts, ensureFontLoaded } from '@/engine/fonts'
@@ -36,6 +37,14 @@ export default function Inspector() {
   const [customRows, setCustomRows] = useState(3)
   const [customCols, setCustomCols] = useState(3)
   const [frameFilter, setFrameFilter] = useState<TemplateFrameFilter>('all')
+  const [galleryOpen, setGalleryOpen] = useState(false)
+  useEffect(() => {
+    function onOpenGallery() {
+      setGalleryOpen(true)
+    }
+    window.addEventListener('album-studio:open-template-gallery', onOpenGallery)
+    return () => window.removeEventListener('album-studio:open-template-gallery', onOpenGallery)
+  }, [])
 
   const spread = project.spreads.find((s) => s.id === selectedSpreadId)
   if (!spread) {
@@ -104,21 +113,27 @@ export default function Inspector() {
         </label>
         <p className="template-match-count">{suggestions.length} matching templates found</p>
         <div className="template-grid">
-          {[...suggestions, ...userTemplates.filter((t) => t.photoCount === spread.placements.length)].map((t) => (
-            <button
-              key={t.id}
-              className={`template-swatch ${spread.templateId === t.id ? 'is-active' : ''}`}
-              style={{
-                background: t.thumbnailImage ? undefined : t.thumbnailColor,
-                backgroundImage: t.thumbnailImage ? `url(${t.thumbnailImage})` : undefined,
-              }}
-              onClick={() => applyTemplateToSpread(spread.id, t.id)}
-              title={t.name}
-            >
-              {t.name}
-            </button>
-          ))}
+          {[...suggestions, ...userTemplates.filter((t) => t.photoCount === spread.placements.length)]
+            .slice(0, 9)
+            .map((t) => (
+              <button
+                key={t.id}
+                className={`template-swatch ${spread.templateId === t.id ? 'is-active' : ''}`}
+                style={{
+                  background: t.thumbnailImage ? undefined : t.thumbnailColor,
+                  backgroundImage: t.thumbnailImage ? `url(${t.thumbnailImage})` : undefined,
+                }}
+                onClick={() => applyTemplateToSpread(spread.id, t.id)}
+                title={t.name}
+              >
+                {t.name}
+              </button>
+            ))}
         </div>
+        <button className="btn btn--tiny btn--block" onClick={() => setGalleryOpen(true)}>
+          <Icon name="grid" size={11} />
+          Browse All Templates ({suggestions.length})
+        </button>
         <div className="save-template-row">
           <input
             placeholder="Template name"
@@ -474,6 +489,9 @@ export default function Inspector() {
             Delete Text Box
           </button>
         </section>
+      )}
+      {galleryOpen && (
+        <TemplateGalleryModal initialCount={spread.placements.length} onClose={() => setGalleryOpen(false)} />
       )}
     </div>
   )

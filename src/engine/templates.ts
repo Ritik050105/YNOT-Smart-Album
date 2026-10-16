@@ -1,4 +1,6 @@
 import { TemplateDefinition, PlaceholderRect } from '@/types'
+import { GAP, distributeEvenly, placeGridInRect } from './templateLayout'
+import { GENERATED_TEMPLATES } from './templateGenerator'
 
 function rect(
   x: number,
@@ -9,8 +11,6 @@ function rect(
 ): PlaceholderRect {
   return { id: crypto.randomUUID(), x, y, width, height, preferredOrientation }
 }
-
-const GAP = 0.02
 
 /** Full-bleed single photo spread. */
 const full: TemplateDefinition = {
@@ -362,41 +362,6 @@ const sixFilmstrip: TemplateDefinition = {
   thumbnailColor: '#96acc9',
 }
 
-/** Splits `total` into `parts` buckets as evenly as possible (e.g. 10 into 3 -> [4,3,3]). */
-function distributeEvenly(total: number, parts: number): number[] {
-  const base = Math.floor(total / parts)
-  const remainder = total % parts
-  return Array.from({ length: parts }, (_, i) => base + (i < remainder ? 1 : 0))
-}
-
-/** Lays `count` placeholders into a "justified" grid (balanced rows, no ragged gaps — the same
- *  approach photo apps like Google/Apple Photos use) inside the sub-rectangle (x0,y0,w,h).
- *  `idOffset` keeps placeholder ids unique when this is combined with other placeholders (e.g.
- *  a hero cell). Row count is chosen from the rect's own aspect ratio, not assumed square. */
-function placeGridInRect(idOffset: number, count: number, x0: number, y0: number, w: number, h: number): PlaceholderRect[] {
-  const rows = Math.max(1, Math.round(Math.sqrt((count * h) / w)))
-  const rowCounts = distributeEvenly(count, rows)
-  const rowH = h / rows
-  const placeholders: PlaceholderRect[] = []
-  let idx = idOffset
-  for (let r = 0; r < rows; r++) {
-    const cols = rowCounts[r]
-    const colW = w / cols
-    for (let c = 0; c < cols; c++) {
-      placeholders.push({
-        id: `p${idx}`,
-        x: x0 + c * colW + GAP / 2,
-        y: y0 + r * rowH + GAP / 2,
-        width: colW - GAP,
-        height: rowH - GAP,
-        preferredOrientation: 'any',
-      })
-      idx++
-    }
-  }
-  return placeholders
-}
-
 /** Auto-generated balanced grid for photo counts beyond the hand-designed templates (7-30).
  *  Deterministic id/placeholder-ids so re-deriving the same template on every render (via
  *  findTemplate) keeps matching the photo placements already stored on the spread. */
@@ -456,7 +421,7 @@ export function generateCustomGrid(rows: number, cols: number): TemplateDefiniti
   }
 }
 
-export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [
+const HAND_CRAFTED_TEMPLATES: TemplateDefinition[] = [
   full,
   framedSingle,
   twoVertical,
@@ -482,6 +447,12 @@ export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [
   sixFilmstrip,
   sixFeatureFive,
 ]
+
+/** The full built-in library: ~24 hand-designed layouts plus the procedurally generated set
+ *  (grids/hero/split/filmstrip/mosaic/collage families swept across 1-30 photos) — see
+ *  templateGenerator.ts for how the generated ~480 are built. Hand-crafted entries are listed
+ *  first so they win ties when a photo count has both (e.g. "Quad Grid" before "Grid 2×2"). */
+export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [...HAND_CRAFTED_TEMPLATES, ...GENERATED_TEMPLATES]
 
 export type TemplateFrameFilter = 'all' | 'no-square' | 'only-3x2'
 
@@ -553,6 +524,23 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
   if (custom) return generateCustomGrid(Number(custom[1]), Number(custom[2]))
   return undefined
 }
+
+/** Coarse family label derived from a template's id — used only to group the Template Gallery
+ *  browser into tabs (Classic / Grid / Hero / Split / Mosaic / Collage / Filmstrip / Custom /
+ *  My Templates), since the generated library doesn't carry a separate "family" field. */
+export function templateFamilyLabel(t: TemplateDefinition): string {
+  if (t.id.startsWith('gen-grid-')) return 'Grid'
+  if (t.id.startsWith('gen-hero-')) return 'Hero'
+  if (t.id.startsWith('gen-split-')) return 'Split'
+  if (t.id.startsWith('gen-mosaic-')) return 'Mosaic'
+  if (t.id.startsWith('gen-collage-')) return 'Collage'
+  if (t.id.startsWith('gen-filmstrip-')) return 'Filmstrip'
+  if (t.id.startsWith('auto-') || t.id.startsWith('custom-grid-')) return 'Custom'
+  if (!t.isBuiltIn) return 'My Templates'
+  return 'Classic'
+}
+
+export const TEMPLATE_FAMILIES = ['All', 'Classic', 'Grid', 'Hero', 'Split', 'Mosaic', 'Collage', 'Filmstrip', 'My Templates'] as const
 
 /** Picks a reasonable default template for a count, varying the choice so consecutive spreads don't repeat. */
 export function suggestTemplate(count: number, avoidId?: string, enabledTemplateIds: string[] | null = null): TemplateDefinition {
