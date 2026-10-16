@@ -178,7 +178,7 @@ function PlaceholderImage({
           y={localBoxY}
           width={box.width}
           height={box.height}
-          stroke="#4f8cff"
+          stroke="#9c6b49"
           strokeWidth={2}
           dash={[6, 4]}
           listening={false}
@@ -225,6 +225,11 @@ export default function DesignerCanvas() {
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
   const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId: string } | null>(null)
   const stageRef = useRef<Konva.Stage>(null)
+  // Double-clicking an empty frame opens a native file picker and drops the chosen photo straight
+  // into that exact frame — the canvas-side counterpart to the dock's double-click-to-place,
+  // for when a photo hasn't been imported yet.
+  const framePickerInputRef = useRef<HTMLInputElement>(null)
+  const framePickerTargetRef = useRef<string | null>(null)
 
   // Web fonts (quote suggestions, custom Inspector font picks) can finish loading after Konva
   // already painted text in a fallback typeface — redraw once the real font is ready.
@@ -421,6 +426,26 @@ export default function DesignerCanvas() {
     }
   }
 
+  // Empty-frame double-click: remember which placeholder was double-clicked, then open the file
+  // picker. The actual import + placement happens in handleFramePicked once a file is chosen.
+  function handleEmptyFrameDoubleClick(placeholderId: string) {
+    framePickerTargetRef.current = placeholderId
+    framePickerInputRef.current?.click()
+  }
+
+  async function handleFramePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    const targetId = framePickerTargetRef.current
+    e.target.value = ''
+    framePickerTargetRef.current = null
+    if (!files || files.length === 0 || !spread || !targetId) return
+    const { newAssets } = await importAndDedupe(Array.from(files), project.photos)
+    if (newAssets.length > 0) {
+      addPhotos(newAssets)
+      setPlacementPhoto(spread.id, targetId, newAssets[0].id)
+    }
+  }
+
   if (!spread) {
     return (
       <div className="designer-canvas designer-canvas--empty">
@@ -549,20 +574,22 @@ export default function DesignerCanvas() {
                 y={box.y}
                 width={box.width}
                 height={box.height}
-                fill={photo ? undefined : '#eef0f4'}
+                fill={photo ? undefined : '#f1e8da'}
                 stroke={
                   multiSelectedPlaceholderIds.includes(box.placeholderId)
                     ? '#ff9f43'
                     : selectedPlaceholderId === box.placeholderId
-                      ? '#4f8cff'
+                      ? '#9c6b49'
                       : photo
-                        ? '#d0d4db'
-                        : '#a9b0bd'
+                        ? '#ddd0bf'
+                        : '#c7b8a2'
                 }
                 strokeWidth={multiSelectedPlaceholderIds.includes(box.placeholderId) ? 2.5 : 1}
                 dash={photo ? undefined : [6, 5]}
                 onClick={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
                 onTap={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
+                onDblClick={() => !photo && handleEmptyFrameDoubleClick(box.placeholderId)}
+                onDblTap={() => !photo && handleEmptyFrameDoubleClick(box.placeholderId)}
               />
             )
           })}
@@ -585,16 +612,16 @@ export default function DesignerCanvas() {
                   text="+"
                   fontSize={22}
                   fontStyle="bold"
-                  fill="#a9b0bd"
+                  fill="#b5a68f"
                 />
                 <KonvaText
                   x={box.x}
                   y={cy + 8}
                   width={box.width}
                   align="center"
-                  text="Drop photo here"
+                  text="Drop or double-click"
                   fontSize={11}
-                  fill="#9aa1b0"
+                  fill="#a89b86"
                 />
               </Group>
             )
@@ -674,7 +701,7 @@ export default function DesignerCanvas() {
                     y: e.target.y() / stageHeight,
                   })
                 }}
-                stroke={selectedTextBoxId === box.id ? '#4f8cff' : undefined}
+                stroke={selectedTextBoxId === box.id ? '#9c6b49' : undefined}
                 strokeWidth={selectedTextBoxId === box.id ? 0.6 : 0}
               />
             )
@@ -717,6 +744,7 @@ export default function DesignerCanvas() {
           onClose={() => setPhotoContextMenu(null)}
         />
       )}
+      <input ref={framePickerInputRef} type="file" accept="image/*" hidden onChange={(e) => void handleFramePicked(e)} />
     </div>
   )
 }

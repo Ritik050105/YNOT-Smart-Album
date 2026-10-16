@@ -29,11 +29,11 @@ function createSplash(): BrowserWindow {
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     html,body{margin:0;height:100%;display:flex;align-items:center;justify-content:center;background:#0c0c0d;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-user-select:none;}
     .wrap{display:flex;flex-direction:column;align-items:center;gap:20px;}
-    .mark{width:68px;height:68px;border-radius:18px;background:linear-gradient(145deg,#2b2b2e,#0c0c0d);display:flex;align-items:center;justify-content:center;border:1px solid #333;}
+    .mark{width:68px;height:68px;border-radius:18px;background:linear-gradient(145deg,#2b231a,#0c0c0d);display:flex;align-items:center;justify-content:center;border:1px solid #433a29;}
     .mark svg{width:36px;height:36px;}
-    .title{color:#eef0f6;font-size:19px;font-weight:700;letter-spacing:0.02em;text-align:center;}
-    .title span{display:block;color:#8d90a3;font-weight:400;font-size:12.5px;margin-top:3px;letter-spacing:0.08em;text-transform:uppercase;}
-    .spinner{width:26px;height:26px;border-radius:50%;border:3px solid #363a4a;border-top-color:#7c8cff;animation:spin 0.85s linear infinite;}
+    .title{color:#f3ebe1;font-size:19px;font-weight:700;letter-spacing:0.02em;text-align:center;}
+    .title span{display:block;color:#b2a493;font-weight:400;font-size:12.5px;margin-top:3px;letter-spacing:0.08em;text-transform:uppercase;}
+    .spinner{width:26px;height:26px;border-radius:50%;border:3px solid #433a29;border-top-color:#d4a574;animation:spin 0.85s linear infinite;}
     @keyframes spin{to{transform:rotate(360deg)}}
   </style></head><body>
     <div class="wrap">

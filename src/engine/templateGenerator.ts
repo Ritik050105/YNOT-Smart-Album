@@ -33,7 +33,19 @@ const MAX_COUNT = 30
 const results: TemplateDefinition[] = []
 const seenSignatures = new Set<string>()
 
+const MIN_CELL = 0.01
+
+/** Guards against degenerate geometry from deep/uneven recursive splits (e.g. a tight mosaic
+ *  ratio compounded across many levels can push a leaf cell's width below the gap it needs to
+ *  subtract, going negative) — those templates are silently dropped rather than shipped broken. */
+function isValidGeometry(placeholders: PlaceholderRect[]): boolean {
+  return placeholders.every(
+    (p) => p.width >= MIN_CELL && p.height >= MIN_CELL && p.x >= -0.001 && p.y >= -0.001 && p.x + p.width <= 1.001 && p.y + p.height <= 1.001
+  )
+}
+
 function addTemplate(id: string, name: string, count: number, placeholders: PlaceholderRect[]) {
+  if (!isValidGeometry(placeholders)) return
   const sig = `${count}:${geometrySignature(placeholders)}`
   if (seenSignatures.has(sig)) return
   seenSignatures.add(sig)
@@ -59,11 +71,45 @@ function mirror(placeholders: PlaceholderRect[]): PlaceholderRect[] {
 // Family 1: Grid — every valid balanced row-count for a given photo count.
 // ---------------------------------------------------------------------------
 function genGrids(count: number) {
-  const candidates = new Set([1, 2, 3, 4, Math.round(Math.sqrt(count)), count])
+  const candidates = new Set([1, 2, 3, 4, 5, 6, Math.round(Math.sqrt(count)), count])
   for (const rows of candidates) {
     if (rows < 1 || rows > count) continue
     const placeholders = placeGridInRect(0, count, 0, 0, 1, 1, rows)
     addTemplate(`gen-grid-${count}-${rows}`, `Grid ${rows}×${Math.ceil(count / rows)}`, count, placeholders)
+  }
+}
+
+/** Same balanced-grid idea as placeGridInRect, but forcing a column count instead of a row count
+ *  — a genuinely different cell arrangement (e.g. 5 photos as 2 columns reads differently than 2
+ *  rows), doubling the grid family's variety at no extra conceptual cost. */
+function placeGridInRectByCols(idOffset: number, count: number, x0: number, y0: number, w: number, h: number, cols: number): PlaceholderRect[] {
+  const colCount = Math.max(1, Math.min(count, cols))
+  const colCounts = distributeEvenly(count, colCount)
+  const colW = w / colCount
+  const placeholders: PlaceholderRect[] = []
+  let idx = idOffset
+  for (let c = 0; c < colCount; c++) {
+    const rows = colCounts[c]
+    if (rows === 0) continue
+    const rowH = h / rows
+    for (let r = 0; r < rows; r++) {
+      const px = x0 + c * colW + GAP / 2
+      const py = y0 + r * rowH + GAP / 2
+      const pw = colW - GAP
+      const ph = rowH - GAP
+      placeholders.push({ id: `p${idx}`, x: px, y: py, width: pw, height: ph, preferredOrientation: orientationFor(pw, ph) })
+      idx++
+    }
+  }
+  return placeholders
+}
+
+function genGridsByColumn(count: number) {
+  const candidates = new Set([2, 3, 4, 5, 6, Math.round(Math.sqrt(count))])
+  for (const cols of candidates) {
+    if (cols < 1 || cols > count) continue
+    const placeholders = placeGridInRectByCols(0, count, 0, 0, 1, 1, cols)
+    addTemplate(`gen-gridcol-${count}-${cols}`, `Grid ${Math.ceil(count / cols)}×${cols}`, count, placeholders)
   }
 }
 
@@ -73,7 +119,7 @@ function genGrids(count: number) {
 function genHero(count: number) {
   if (count < 2) return
   const positions: Array<'left' | 'right' | 'top' | 'bottom'> = ['left', 'right', 'top', 'bottom']
-  const sizes = [0.6]
+  const sizes = [0.35, 0.45, 0.55, 0.65, 0.75]
   for (const pos of positions) {
     for (const size of sizes) {
       const vertical = pos === 'left' || pos === 'right'
@@ -101,7 +147,7 @@ function genHero(count: number) {
 // ---------------------------------------------------------------------------
 function genSplit(count: number) {
   if (count < 3) return
-  const ratios = [0.4]
+  const ratios = [0.25, 0.3, 0.35, 0.4, 0.45]
   for (const ratio of ratios) {
     for (const vertical of [true, false]) {
       const firstCount = Math.max(1, Math.round(count * ratio))
@@ -138,7 +184,7 @@ function genSplit(count: number) {
 // Family 4: Filmstrip — equal strips, only while they stay wide enough to be usable.
 // ---------------------------------------------------------------------------
 function genFilmstrip(count: number) {
-  if (count > 10) return
+  if (count > 16) return
   const h = Array.from({ length: count }, (_, i) =>
     rect(`p${i}`, i * (1 / count), 0, 1 / count - GAP, 1 - GAP, 'portrait')
   )
@@ -156,8 +202,15 @@ function genFilmstrip(count: number) {
 const MOSAIC_PROFILES: Record<string, number[]> = {
   balanced: [0.5],
   golden: [0.382, 0.618],
+  'golden-rev': [0.618, 0.382],
   thirds: [0.333, 0.667],
+  'thirds-rev': [0.667, 0.333],
   dynamic: [0.42, 0.58, 0.35, 0.65],
+  'dynamic-rev': [0.58, 0.42, 0.65, 0.35],
+  quarters: [0.25, 0.75],
+  'quarters-rev': [0.75, 0.25],
+  cascade: [0.3, 0.5, 0.7, 0.4],
+  sweep: [0.45, 0.55, 0.65, 0.35, 0.6],
 }
 
 function mosaicSplit(
@@ -204,32 +257,71 @@ function genMosaic(count: number) {
 // style) alongside the rest of the set in a supporting grid. Only for small counts, where a
 // deliberate overlap still reads as a design choice rather than a mistake.
 // ---------------------------------------------------------------------------
+type CollageCorner = 'tl' | 'tr' | 'bl' | 'br'
+const COLLAGE_CORNER_LABELS: Record<CollageCorner, string> = {
+  tl: 'Top-Left',
+  tr: 'Top-Right',
+  bl: 'Bottom-Left',
+  br: 'Bottom-Right',
+}
+const COLLAGE_SIZE_PROFILES: { name: string; back: number; front: number }[] = [
+  { name: 'reg', back: 0.6, front: 0.42 },
+  { name: 'lg', back: 0.68, front: 0.36 },
+]
+
+/** Where the back/front overlapping pair sit for a given corner, and the "peek" offset for the
+ *  front photo so it overlaps the back's innermost (diagonally opposite) corner either direction. */
+function collageGeometry(corner: CollageCorner, backW: number, backH: number, frontW: number, frontH: number) {
+  const pad = 0.04
+  const leftPinned = corner === 'tl' || corner === 'bl'
+  const topPinned = corner === 'tl' || corner === 'tr'
+  const backX = leftPinned ? pad : 1 - backW - pad
+  const backY = topPinned ? pad : 1 - backH - pad
+  const frontX = leftPinned ? backX + backW - frontW * 0.55 : backX - frontW * 0.45
+  const frontY = topPinned ? backY + backH - frontH * 0.55 : backY - frontH * 0.45
+  return { backX, backY, frontX, frontY }
+}
+
 function genCollage(count: number) {
   if (count < 3 || count > 8) return
-  for (const corner of ['tl', 'br'] as const) {
-    const backW = 0.6
-    const backH = 0.6
-    const backX = corner === 'tl' ? 0.04 : 1 - backW - 0.04
-    const backY = corner === 'tl' ? 0.04 : 1 - backH - 0.04
-    const frontW = 0.42
-    const frontH = 0.42
-    const frontX = corner === 'tl' ? backX + backW - frontW * 0.55 : backX - frontW * 0.45
-    const frontY = corner === 'tl' ? backY + backH - frontH * 0.55 : backY - frontH * 0.45
-    const back = rect('p0', backX, backY, backW, backH, orientationFor(backW, backH))
-    const front = rect('p1', Math.max(0.02, Math.min(1 - frontW - 0.02, frontX)), Math.max(0.02, Math.min(1 - frontH - 0.02, frontY)), frontW, frontH, orientationFor(frontW, frontH))
-    // Remaining photos tile a strip opposite the collage pair.
-    const stripVertical = corner === 'tl'
-    const restRect = stripVertical
-      ? { x0: 0.68, y0: 0, w: 0.32, h: 1 }
-      : { x0: 0, y0: 0.68, w: 1, h: 0.32 }
-    const rest = placeGridInRect(2, count - 2, restRect.x0, restRect.y0, restRect.w, restRect.h)
-    const placeholders = [back, front, ...rest]
-    addTemplate(`gen-collage-${count}-${corner}`, `Collage ${corner === 'tl' ? 'Top-Left' : 'Bottom-Right'}`, count, placeholders)
+  for (const corner of Object.keys(COLLAGE_CORNER_LABELS) as CollageCorner[]) {
+    const topPinned = corner === 'tl' || corner === 'tr'
+    const leftPinned = corner === 'tl' || corner === 'bl'
+    for (const size of COLLAGE_SIZE_PROFILES) {
+      const backW = size.back
+      const backH = size.back
+      const frontW = size.front
+      const frontH = size.front
+      const { backX, backY, frontX, frontY } = collageGeometry(corner, backW, backH, frontW, frontH)
+      const back = rect('p0', backX, backY, backW, backH, orientationFor(backW, backH))
+      const front = rect(
+        'p1',
+        Math.max(0.02, Math.min(1 - frontW - 0.02, frontX)),
+        Math.max(0.02, Math.min(1 - frontH - 0.02, frontY)),
+        frontW,
+        frontH,
+        orientationFor(frontW, frontH)
+      )
+      // Remaining photos tile a strip in the free region opposite the collage pair — vertical for
+      // top corners (the pair doesn't reach full height), horizontal above bottom corners.
+      const restRect = topPinned
+        ? { x0: leftPinned ? 0.68 : 0, y0: 0, w: 0.32, h: 1 }
+        : { x0: 0, y0: 0, w: 1, h: 0.32 }
+      const rest = placeGridInRect(2, count - 2, restRect.x0, restRect.y0, restRect.w, restRect.h)
+      const placeholders = [back, front, ...rest]
+      addTemplate(
+        `gen-collage-${count}-${corner}-${size.name}`,
+        `Collage ${COLLAGE_CORNER_LABELS[corner]}${size.name === 'lg' ? ' Large' : ''}`,
+        count,
+        placeholders
+      )
+    }
   }
 }
 
 for (let count = 1; count <= MAX_COUNT; count++) {
   genGrids(count)
+  genGridsByColumn(count)
   genHero(count)
   genSplit(count)
   genFilmstrip(count)

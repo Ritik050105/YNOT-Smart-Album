@@ -24,6 +24,12 @@ export default function TopBar() {
   const redo = useProjectStore((s) => s.redo)
   const history = useProjectStore((s) => s.history)
   const future = useProjectStore((s) => s.future)
+  const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
+  const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
+  const bottomPanelOpen = useProjectStore((s) => s.bottomPanelOpen)
+  const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
+  const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
+  const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
   const [projectBusy, setProjectBusy] = useState<'save' | 'open' | null>(null)
   const [customSizeOpen, setCustomSizeOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
@@ -215,6 +221,30 @@ export default function TopBar() {
         onClick={toggleTheme}
       >
         <Icon name={theme === 'light' ? 'moon' : 'sun'} />
+      </button>
+
+      <div className="topbar__divider" />
+
+      <button
+        className={`btn btn--icon ${leftPanelOpen ? 'is-active' : ''}`}
+        title={leftPanelOpen ? 'Hide left panel' : 'Show left panel'}
+        onClick={toggleLeftPanel}
+      >
+        <Icon name="panelLeft" size={14} />
+      </button>
+      <button
+        className={`btn btn--icon ${rightPanelOpen ? 'is-active' : ''}`}
+        title={rightPanelOpen ? 'Hide right panel' : 'Show right panel'}
+        onClick={toggleRightPanel}
+      >
+        <Icon name="panelRight" size={14} />
+      </button>
+      <button
+        className={`btn btn--icon ${bottomPanelOpen ? 'is-active' : ''}`}
+        title={bottomPanelOpen ? 'Hide photo dock' : 'Show photo dock'}
+        onClick={toggleBottomPanel}
+      >
+        <Icon name="panelBottom" size={14} />
       </button>
 
       <div className="topbar__divider" />

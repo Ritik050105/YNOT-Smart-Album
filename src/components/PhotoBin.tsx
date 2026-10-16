@@ -1,6 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
+import { Spread } from '@/types'
 import Icon from './Icon'
+
+/** Picks where a double-clicked photo (with nothing pre-selected) should land: the current
+ *  spread's first empty frame if there is one, otherwise the first empty frame in album order. */
+function findFirstEmptyPlaceholder(
+  spreads: Spread[],
+  preferredSpreadId: string | null
+): { spreadId: string; placeholderId: string } | null {
+  const ordered = preferredSpreadId
+    ? [...spreads].sort((a, b) => (a.id === preferredSpreadId ? -1 : b.id === preferredSpreadId ? 1 : 0))
+    : spreads
+  for (const spread of ordered) {
+    const empty = spread.placements.find((p) => !p.photoId)
+    if (empty) return { spreadId: spread.id, placeholderId: empty.placeholderId }
+  }
+  return null
+}
 
 /** Full-width photo dock at the bottom of the app — easiest spot to drag from onto the canvas
  *  above, and wide enough to show every imported photo in one scrollable row. Used photos (ones
@@ -16,6 +33,8 @@ export default function PhotoBin() {
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
   const selectedPhotoIds = useProjectStore((s) => s.selectedPhotoIds)
   const togglePhotoSelection = useProjectStore((s) => s.togglePhotoSelection)
+  const selectSpread = useProjectStore((s) => s.selectSpread)
+  const selectPlaceholder = useProjectStore((s) => s.selectPlaceholder)
 
   const [binFilter, setBinFilter] = useState('')
   const [tagPopoverFor, setTagPopoverFor] = useState<string | null>(null)
@@ -100,12 +119,21 @@ export default function PhotoBin() {
                 togglePhotoSelection(photo.id, visible.map((p) => p.id), mode)
               }}
               onDoubleClick={() => {
-                // Quick-place: double-click drops this photo into the currently selected slot.
+                // Quick-place: double-click drops this photo into the selected slot, or — if
+                // nothing's selected yet — the first empty frame (current spread first, then the
+                // album's next spread with room), so double-click "just works" without first
+                // having to click a frame.
                 if (selectedSpreadId && selectedPlaceholderId) {
                   setPlacementPhoto(selectedSpreadId, selectedPlaceholderId, photo.id)
+                  return
                 }
+                const target = findFirstEmptyPlaceholder(spreads, selectedSpreadId)
+                if (!target) return
+                setPlacementPhoto(target.spreadId, target.placeholderId, photo.id)
+                selectSpread(target.spreadId)
+                selectPlaceholder(target.placeholderId)
               }}
-              title={`${photo.fileName} — ${new Date(photo.capturedAt).toLocaleString()}${used ? ' (placed)' : ''} — click to select, shift/ctrl+click to multi-select, then click a canvas frame to place`}
+              title={`${photo.fileName} — ${new Date(photo.capturedAt).toLocaleString()}${used ? ' (placed)' : ''} — double-click to quick-place, click to select then click a canvas frame, shift/ctrl+click to multi-select`}
             >
               <img src={photo.src} alt={photo.fileName} />
               <button
