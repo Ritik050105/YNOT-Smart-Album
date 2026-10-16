@@ -454,6 +454,22 @@ const HAND_CRAFTED_TEMPLATES: TemplateDefinition[] = [
  *  first so they win ties when a photo count has both (e.g. "Quad Grid" before "Grid 2×2"). */
 export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [...HAND_CRAFTED_TEMPLATES, ...GENERATED_TEMPLATES]
 
+/** CSS style for a template swatch's background — a thumbnail image, a flat color, or a CSS
+ *  gradient string (the generated library's `thumbnailColor` values are gradients, e.g.
+ *  "linear-gradient(...)"). Deliberately keeps `backgroundColor`/`backgroundImage` as the only
+ *  keys touched (never the `background` shorthand) and never sets both at once — mixing the
+ *  shorthand with `backgroundImage` in the same inline style object is a classic React footgun:
+ *  whichever one is processed second silently clears the background-image the other just set,
+ *  since they share that underlying CSS longhand. */
+export function templateSwatchStyle(t: Pick<TemplateDefinition, 'thumbnailColor' | 'thumbnailImage'>): {
+  backgroundColor?: string
+  backgroundImage?: string
+} {
+  if (t.thumbnailImage) return { backgroundImage: `url(${t.thumbnailImage})` }
+  if (t.thumbnailColor.includes('gradient')) return { backgroundImage: t.thumbnailColor }
+  return { backgroundColor: t.thumbnailColor }
+}
+
 export type TemplateFrameFilter = 'all' | 'no-square' | 'only-3x2'
 
 const RATIO_TOLERANCE = 0.08

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { importPhotoFiles } from '@/engine/importPhotos'
+import { importAndDedupe, describeImportSummary, ImportSummary } from '@/engine/importWorkflow'
 import Icon from './Icon'
 import SliderField from './SliderField'
 
@@ -11,17 +11,26 @@ export default function ImportPanel() {
   const options = useProjectStore((s) => s.autoLayoutOptions)
   const setOptions = useProjectStore((s) => s.setAutoLayoutOptions)
   const [isDragging, setIsDragging] = useState(false)
-  const [importing, setImporting] = useState(false)
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const [lastSummary, setLastSummary] = useState<ImportSummary | null>(null)
+  const dragDepth = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
-    setImporting(true)
-    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'))
-    const assets = await importPhotoFiles(files)
-    addPhotos(assets)
-    setImporting(false)
+    setLastSummary(null)
+    setProgress({ done: 0, total: fileList.length })
+    const { newAssets, summary } = await importAndDedupe(Array.from(fileList), photos, (done, total) =>
+      setProgress({ done, total })
+    )
+    if (newAssets.length > 0) addPhotos(newAssets)
+    setProgress(null)
+    setLastSummary(summary)
   }
+
+  const importing = progress !== null
+  const hasIssues = !!lastSummary && (lastSummary.failures.length > 0 || lastSummary.rejected.length > 0)
 
   return (
     <div className="panel import-panel">
@@ -30,18 +39,33 @@ export default function ImportPanel() {
         Import Photos
       </h3>
       <div
-        className={`dropzone ${isDragging ? 'dropzone--active' : ''}`}
+        className={`dropzone ${isDragging ? 'dropzone--active' : ''} ${importing ? 'dropzone--busy' : ''}`}
+        // Counting enter/leave (instead of a plain boolean) avoids the classic flicker bug where
+        // dragging over a child element inside the dropzone fires dragleave on the parent.
+        onDragEnter={(e) => {
+          e.preventDefault()
+          e.stopPropagation() // owns this drag — keeps GlobalDropZone's window-wide overlay out of the way
+          dragDepth.current++
+          if (!importing) setIsDragging(true)
+        }}
         onDragOver={(e) => {
           e.preventDefault()
-          setIsDragging(true)
+          e.stopPropagation()
         }}
-        onDragLeave={() => setIsDragging(false)}
+        onDragLeave={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          dragDepth.current = Math.max(0, dragDepth.current - 1)
+          if (dragDepth.current === 0) setIsDragging(false)
+        }}
         onDrop={(e) => {
           e.preventDefault()
+          e.stopPropagation()
+          dragDepth.current = 0
           setIsDragging(false)
-          void handleFiles(e.dataTransfer.files)
+          if (!importing) void handleFiles(e.dataTransfer.files)
         }}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => !importing && inputRef.current?.click()}
       >
         <input
           ref={inputRef}
@@ -49,11 +73,59 @@ export default function ImportPanel() {
           accept="image/*"
           multiple
           hidden
-          onChange={(e) => void handleFiles(e.target.files)}
+          onChange={(e) => {
+            void handleFiles(e.target.files)
+            e.target.value = ''
+          }}
+        />
+        <input
+          ref={folderInputRef}
+          type="file"
+          // @ts-expect-error -- non-standard but widely supported attribute for folder picking
+          webkitdirectory=""
+          multiple
+          hidden
+          onChange={(e) => {
+            void handleFiles(e.target.files)
+            e.target.value = ''
+          }}
         />
         <Icon name="upload" size={22} />
-        {importing ? 'Reading photos…' : 'Drop photos here or click to browse'}
+        {importing ? (
+          <>
+            Importing {progress!.done} of {progress!.total}…
+            <div className="dropzone__progress">
+              <div className="dropzone__progress-bar" style={{ width: `${(progress!.done / Math.max(1, progress!.total)) * 100}%` }} />
+            </div>
+          </>
+        ) : (
+          'Drop photos (or a whole folder) here, or click to browse'
+        )}
       </div>
+      <button
+        className="btn btn--tiny btn--block"
+        style={{ marginTop: 6 }}
+        disabled={importing}
+        onClick={() => folderInputRef.current?.click()}
+      >
+        <Icon name="folder" size={11} />
+        Import Entire Folder
+      </button>
+
+      {lastSummary && (
+        <p className={`import-summary ${hasIssues ? 'import-summary--warn' : 'import-summary--ok'}`}>
+          <Icon name={hasIssues ? 'info' : 'check'} size={12} />
+          {describeImportSummary(lastSummary)}
+          {lastSummary.failures.length > 0 && (
+            <span className="import-summary__detail">
+              {' '}
+              ({lastSummary.failures.slice(0, 3).map((f) => f.fileName).join(', ')}
+              {lastSummary.failures.length > 3 ? '…' : ''})
+            </span>
+          )}
+        </p>
+      )}
+
       <p className="muted" style={{ marginTop: 8 }}>
         {photos.length} photo{photos.length === 1 ? '' : 's'} imported
       </p>

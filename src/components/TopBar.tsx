@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES } from '@/engine/albumSizes'
 import { saveProjectToFile, openProjectFromFile } from '@/engine/projectFile'
+import { Theme, applyTheme, getStoredTheme } from '@/engine/theme'
 import Icon from './Icon'
 import Modal from './Modal'
 import ExportModal from './ExportModal'
@@ -25,6 +26,13 @@ export default function TopBar() {
   const [exportOpen, setExportOpen] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [theme, setTheme] = useState<Theme>(getStoredTheme)
+
+  function toggleTheme() {
+    const next: Theme = theme === 'light' ? 'dark' : 'light'
+    applyTheme(next)
+    setTheme(next)
+  }
 
   const isCustomSize = !ALBUM_SIZES.some((s) => s.id === project.size.id)
 
@@ -158,6 +166,13 @@ export default function TopBar() {
         onClick={() => window.dispatchEvent(new CustomEvent('album-studio:toggle-shortcuts-help'))}
       >
         <Icon name="info" />
+      </button>
+      <button
+        className="btn btn--icon"
+        title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
+        onClick={toggleTheme}
+      >
+        <Icon name={theme === 'light' ? 'moon' : 'sun'} />
       </button>
 
       <div className="topbar__divider" />

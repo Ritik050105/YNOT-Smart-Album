@@ -1,4 +1,53 @@
+/* Light is the app's default theme (matches the reference app and is easier to read in a studio
+ * with ambient light); dark remains available via the toolbar toggle and is layered on top with
+ * [data-theme='dark'] so every component that already consumes these variables gets it for free. */
 :root {
+  --bg: #f3f4f8;
+  --bg-canvas: #e7e8f0;
+  --panel: #ffffff;
+  --panel-alt: #f1f2f7;
+  --panel-raised: #e7e9f0;
+  --border: #d9dbe6;
+  --border-soft: #e9eaf2;
+  --text: #1b1c24;
+  --text-muted: #6b6e80;
+  --text-faint: #9a9cac;
+
+  --accent: #6c63ff;
+  --accent-2: #8b5cf6;
+  --accent-grad: linear-gradient(135deg, var(--accent), var(--accent-2));
+  --accent-soft: rgba(108, 99, 255, 0.1);
+  --accent-ring: rgba(108, 99, 255, 0.4);
+
+  --success: #1b9c73;
+  --warn: #c17300;
+  --danger: #dd3a53;
+  --danger-soft: rgba(221, 58, 83, 0.1);
+
+  --canvas-dot: rgba(20, 22, 35, 0.055);
+  --slider-thumb-ring: #ffffff;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.08);
+  --shadow-md: 0 6px 20px rgba(16, 24, 40, 0.1);
+  --shadow-lg: 0 16px 48px rgba(16, 24, 40, 0.16);
+  --shadow-glow: 0 0 0 3px var(--accent-ring);
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  font-family: -apple-system, 'Segoe UI Variable', 'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif;
+}
+
+:root[data-theme='dark'] {
   --bg: #16171c;
   --bg-canvas: #0e0f13;
   --panel: #1d1f27;
@@ -12,7 +61,6 @@
 
   --accent: #7c8cff;
   --accent-2: #a78bfa;
-  --accent-grad: linear-gradient(135deg, var(--accent), var(--accent-2));
   --accent-soft: rgba(124, 140, 255, 0.14);
   --accent-ring: rgba(124, 140, 255, 0.45);
 
@@ -21,24 +69,12 @@
   --danger: #ff6b7a;
   --danger-soft: rgba(255, 107, 122, 0.12);
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
+  --canvas-dot: rgba(255, 255, 255, 0.045);
+  --slider-thumb-ring: #1a1b22;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.45);
-  --shadow-glow: 0 0 0 3px var(--accent-ring);
-
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-
-  font-family: -apple-system, 'Segoe UI Variable', 'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif;
 }
 
 * {
@@ -131,7 +167,7 @@ body {
   overflow: auto;
   padding: 32px;
   background:
-    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.045) 1px, transparent 0) 0 0 / 22px 22px,
+    radial-gradient(circle at 1px 1px, var(--canvas-dot) 1px, transparent 0) 0 0 / 22px 22px,
     var(--bg-canvas);
 }
 
@@ -416,7 +452,7 @@ input[type='range']::-webkit-slider-thumb {
   border-radius: 50%;
   background: var(--accent-grad);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  border: 2px solid #1a1b22;
+  border: 2px solid var(--slider-thumb-ring);
   transition: transform 0.12s var(--ease);
 }
 input[type='range']::-webkit-slider-thumb:hover {
@@ -427,7 +463,7 @@ input[type='range']::-moz-range-thumb {
   height: 13px;
   border-radius: 50%;
   background: var(--accent);
-  border: 2px solid #1a1b22;
+  border: 2px solid var(--slider-thumb-ring);
   cursor: pointer;
 }
 
@@ -532,6 +568,44 @@ input[type='checkbox'] {
 .dropzone--active svg {
   color: var(--accent);
   transform: scale(1.1) translateY(-2px);
+}
+.dropzone--busy {
+  cursor: default;
+  border-style: solid;
+}
+.dropzone__progress {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--panel-alt);
+  overflow: hidden;
+}
+.dropzone__progress-bar {
+  height: 100%;
+  background: var(--accent-grad);
+  transition: width 0.15s var(--ease);
+}
+
+.import-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.import-summary--ok {
+  background: rgba(31, 156, 115, 0.1);
+  color: var(--success);
+}
+.import-summary--warn {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.import-summary__detail {
+  color: var(--text-muted);
 }
 
 .auto-layout-controls {
@@ -1135,6 +1209,58 @@ input[type='checkbox'] {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ---------- Global drop zone ---------- */
+
+.global-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(108, 99, 255, 0.08);
+  backdrop-filter: blur(1px);
+  animation: modal-fade-in 0.12s var(--ease);
+}
+.global-drop-overlay__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 36px 48px;
+  background: var(--panel);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+.global-drop-overlay__card svg {
+  color: var(--accent);
+}
+.global-drop-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: 12.5px;
+  color: var(--success);
+  animation: modal-pop-in 0.15s var(--ease);
+}
+.global-drop-toast--warn {
+  color: var(--danger);
 }
 
 /* ---------- Modal dialogs ---------- */

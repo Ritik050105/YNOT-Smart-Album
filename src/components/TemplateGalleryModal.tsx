@@ -5,6 +5,7 @@ import { useProjectStore } from '@/state/projectStore'
 import {
   BUILT_IN_TEMPLATES,
   templateFamilyLabel,
+  templateSwatchStyle,
   matchesFrameFilter,
   TemplateFrameFilter,
   TEMPLATE_FAMILIES,
@@ -87,10 +88,7 @@ export default function TemplateGalleryModal({
           <button
             key={t.id}
             className="gallery-swatch"
-            style={{
-              background: t.thumbnailImage ? undefined : t.thumbnailColor,
-              backgroundImage: t.thumbnailImage ? `url(${t.thumbnailImage})` : undefined,
-            }}
+            style={templateSwatchStyle(t)}
             onClick={() => apply(t.id)}
             title={t.name}
           >

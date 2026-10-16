@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { PlacedPhoto } from '@/types'
-import { templatesForCount, generateCustomGrid, TemplateFrameFilter } from '@/engine/templates'
+import { templatesForCount, generateCustomGrid, templateSwatchStyle, TemplateFrameFilter } from '@/engine/templates'
 import TemplateGalleryModal from './TemplateGalleryModal'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
@@ -119,10 +119,7 @@ export default function Inspector() {
               <button
                 key={t.id}
                 className={`template-swatch ${spread.templateId === t.id ? 'is-active' : ''}`}
-                style={{
-                  background: t.thumbnailImage ? undefined : t.thumbnailColor,
-                  backgroundImage: t.thumbnailImage ? `url(${t.thumbnailImage})` : undefined,
-                }}
+                style={templateSwatchStyle(t)}
                 onClick={() => applyTemplateToSpread(spread.id, t.id)}
                 title={t.name}
               >

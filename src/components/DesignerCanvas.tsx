@@ -9,6 +9,7 @@ import { computeCoverCrop } from '@/engine/cropFit'
 import { ensureFontLoaded } from '@/engine/fonts'
 import { quotesForEventType } from '@/engine/textSuggestions'
 import { isEditableTarget } from '@/engine/keyboard'
+import { importAndDedupe } from '@/engine/importWorkflow'
 import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
 
@@ -191,6 +192,7 @@ export default function DesignerCanvas() {
   const selectPlaceholder = useProjectStore((s) => s.selectPlaceholder)
   const selectTextBox = useProjectStore((s) => s.selectTextBox)
   const setPlacementPhoto = useProjectStore((s) => s.setPlacementPhoto)
+  const addPhotos = useProjectStore((s) => s.addPhotos)
   const swapPlacements = useProjectStore((s) => s.swapPlacements)
   const multiSelectedPlaceholderIds = useProjectStore((s) => s.multiSelectedPlaceholderIds)
   const toggleMultiSelectPlaceholder = useProjectStore((s) => s.toggleMultiSelectPlaceholder)
@@ -344,11 +346,10 @@ export default function DesignerCanvas() {
     selectPlaceholder(placeholderId)
   }
 
-  function handleContainerDrop(e: React.DragEvent) {
+  async function handleContainerDrop(e: React.DragEvent) {
     e.preventDefault()
+    e.stopPropagation() // handled here (import + place in one step) — don't also let GlobalDropZone import these
     if (!spread) return
-    const photoId = e.dataTransfer.getData('application/x-photo-id')
-    if (!photoId) return
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
     // Invert the canvas's own zoom/pan transform — drop coordinates arrive in container CSS
@@ -356,7 +357,24 @@ export default function DesignerCanvas() {
     const x = (e.clientX - rect.left - stagePos.x) / stageScale
     const y = (e.clientY - rect.top - stagePos.y) / stageScale
     const target = findBoxAt(x, y)
-    if (target) setPlacementPhoto(spread.id, target.placeholderId, photoId)
+
+    // Dragging a photo from the bottom dock onto a frame — the existing "place" path.
+    const photoId = e.dataTransfer.getData('application/x-photo-id')
+    if (photoId) {
+      if (target) setPlacementPhoto(spread.id, target.placeholderId, photoId)
+      return
+    }
+
+    // Dragging image files straight from the OS onto a frame — import them into the pool AND
+    // drop the first one directly into the frame it landed on, so it's a single action instead
+    // of "import, then find it in the dock, then drag it again."
+    if (e.dataTransfer.files.length > 0) {
+      const { newAssets } = await importAndDedupe(Array.from(e.dataTransfer.files), project.photos)
+      if (newAssets.length > 0) {
+        addPhotos(newAssets)
+        if (target) setPlacementPhoto(spread.id, target.placeholderId, newAssets[0].id)
+      }
+    }
   }
 
   if (!spread) {
@@ -450,8 +468,15 @@ export default function DesignerCanvas() {
       <div
         className={`designer-canvas ${isSpaceDown ? 'designer-canvas--pan' : ''}`}
         ref={containerRef}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleContainerDrop}
+        // stopPropagation on every drag stage (not just drop) keeps GlobalDropZone's window-wide
+        // "drop anywhere" overlay from popping up and covering the exact frame the user is
+        // trying to drop onto — this container already has its own, more specific handling.
+        onDragEnter={(e) => e.stopPropagation()}
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
+        onDrop={(e) => void handleContainerDrop(e)}
       >
       <Stage
         ref={stageRef}

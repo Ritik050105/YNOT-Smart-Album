@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { BUILT_IN_TEMPLATES } from '@/engine/templates'
+import { BUILT_IN_TEMPLATES, templateSwatchStyle } from '@/engine/templates'
 import { blobUrlToDataUrl } from '@/engine/projectFile'
 import Icon from './Icon'
 
@@ -93,10 +93,7 @@ export default function TemplateLibraryPanel() {
             <div key={t.id} className="template-library__item">
               <div
                 className="template-library__swatch"
-                style={{
-                  background: t.thumbnailImage ? undefined : t.thumbnailColor,
-                  backgroundImage: t.thumbnailImage ? `url(${t.thumbnailImage})` : undefined,
-                }}
+                style={templateSwatchStyle(t)}
               />
               <span className="template-library__name">{t.name}</span>
               <button className="btn btn--tiny btn--danger" onClick={() => deleteUserTemplate(t.id)}>

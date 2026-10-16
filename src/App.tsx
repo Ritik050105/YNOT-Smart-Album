@@ -9,11 +9,13 @@ import Inspector from './components/Inspector'
 import TemplateLibraryPanel from './components/TemplateLibraryPanel'
 import WorkflowStepper from './components/WorkflowStepper'
 import KeyboardShortcuts from './components/KeyboardShortcuts'
+import GlobalDropZone from './components/GlobalDropZone'
 
 export default function App() {
   return (
     <div className="app-shell">
       <KeyboardShortcuts />
+      <GlobalDropZone />
       <MenuBar />
       <TopBar />
       <div className="app-body">
