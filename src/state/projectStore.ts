@@ -89,6 +89,12 @@ interface ProjectState {
   toneClipboard: ToneAdjustments | null
   showGrid: boolean
   showPrintGuides: boolean
+  /** Left (Import/Spreads), right (Inspector/Templates), and bottom (Photo Dock) panel
+   *  visibility — pure UI chrome, not project data, but kept here alongside showGrid/
+   *  showPrintGuides since the same components (MenuBar's View menu) need to read/toggle it. */
+  leftPanelOpen: boolean
+  rightPanelOpen: boolean
+  bottomPanelOpen: boolean
   autoLayoutOptions: AutoLayoutOptions
   history: Project[]
   future: Project[]
@@ -104,6 +110,9 @@ interface ProjectState {
   togglePhotoSelection: (photoId: string, allPhotoIdsInOrder: string[], mode: 'single' | 'toggle' | 'range') => void
   toggleGrid: () => void
   togglePrintGuides: () => void
+  toggleLeftPanel: () => void
+  toggleRightPanel: () => void
+  toggleBottomPanel: () => void
   reorderSpreads: (fromIndex: number, toIndex: number) => void
   splitSpread: (spreadId: string) => void
   mergeWithNext: (spreadId: string) => void
@@ -163,6 +172,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toneClipboard: null,
   showGrid: false,
   showPrintGuides: true,
+  leftPanelOpen: true,
+  rightPanelOpen: true,
+  bottomPanelOpen: true,
   autoLayoutOptions: DEFAULT_AUTO_LAYOUT_OPTIONS,
   history: [],
   future: [],
@@ -238,6 +250,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   togglePrintGuides: () => set((s) => ({ showPrintGuides: !s.showPrintGuides })),
+  toggleLeftPanel: () => set((s) => ({ leftPanelOpen: !s.leftPanelOpen })),
+  toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
+  toggleBottomPanel: () => set((s) => ({ bottomPanelOpen: !s.bottomPanelOpen })),
 
   // The cover (if any) is excluded from all three of these — it's pinned at order -1 and never
   // renumbered or moved by interior-page operations. Indices here are positions within the

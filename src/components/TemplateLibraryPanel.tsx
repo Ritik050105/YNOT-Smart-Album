@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { BUILT_IN_TEMPLATES, templateSwatchStyle } from '@/engine/templates'
+import { BUILT_IN_TEMPLATES } from '@/engine/templates'
 import { blobUrlToDataUrl } from '@/engine/projectFile'
+import TemplateThumb from './TemplatePreview'
 import Icon from './Icon'
 
 /** Browse the full template library (built-in + user-saved/imported) and register new templates
@@ -13,6 +14,7 @@ export default function TemplateLibraryPanel() {
   const userTemplates = useProjectStore((s) => s.userTemplates)
   const importTemplateFromPhoto = useProjectStore((s) => s.importTemplateFromPhoto)
   const deleteUserTemplate = useProjectStore((s) => s.deleteUserTemplate)
+  const spreadAspect = useProjectStore((s) => s.project.size.widthIn / s.project.size.heightIn)
 
   const [pendingPhoto, setPendingPhoto] = useState<string | null>(null)
   const [importName, setImportName] = useState('')
@@ -91,10 +93,7 @@ export default function TemplateLibraryPanel() {
         <div className="template-library__grid">
           {userTemplates.map((t) => (
             <div key={t.id} className="template-library__item">
-              <div
-                className="template-library__swatch"
-                style={templateSwatchStyle(t)}
-              />
+              <TemplateThumb template={t} aspect={spreadAspect} className="template-library__swatch" />
               <span className="template-library__name">{t.name}</span>
               <button className="btn btn--tiny btn--danger" onClick={() => deleteUserTemplate(t.id)}>
                 <Icon name="trash" size={10} />

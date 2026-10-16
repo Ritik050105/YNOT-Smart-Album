@@ -39,6 +39,12 @@ export default function MenuBar() {
   const toggleGrid = useProjectStore((s) => s.toggleGrid)
   const showPrintGuides = useProjectStore((s) => s.showPrintGuides)
   const togglePrintGuides = useProjectStore((s) => s.togglePrintGuides)
+  const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
+  const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
+  const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
+  const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
+  const bottomPanelOpen = useProjectStore((s) => s.bottomPanelOpen)
+  const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
 
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -136,6 +142,9 @@ export default function MenuBar() {
       items: [
         { label: `${showGrid ? '✓ ' : ''}Rule-of-Thirds Grid`, onClick: toggleGrid },
         { label: `${showPrintGuides ? '✓ ' : ''}Print Guides (Bleed / Safety)`, onClick: togglePrintGuides },
+        { label: `${leftPanelOpen ? '✓ ' : ''}Left Panel`, onClick: toggleLeftPanel },
+        { label: `${rightPanelOpen ? '✓ ' : ''}Right Panel`, onClick: toggleRightPanel },
+        { label: `${bottomPanelOpen ? '✓ ' : ''}Photo Dock (Bottom Panel)`, onClick: toggleBottomPanel },
       ],
     },
     {

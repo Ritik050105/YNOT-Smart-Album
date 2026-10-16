@@ -334,6 +334,58 @@ body {
   border-left: 1px solid var(--border-soft);
 }
 
+/* Thin always-visible strip at each sidebar's edge that collapses/expands it — stays clickable
+   even when the panel itself is hidden, so there's always a way to bring it back. */
+.panel-toggle {
+  flex-shrink: 0;
+  width: 14px;
+  border: none;
+  border-right: 1px solid var(--border-soft);
+  border-left: 1px solid var(--border-soft);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+.panel-toggle:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.panel-toggle--left {
+  border-right: none;
+}
+.panel-toggle--right {
+  border-left: none;
+}
+
+.bottom-panel {
+  flex-shrink: 0;
+  position: relative;
+  border-top: 1px solid var(--border-soft);
+}
+.panel-toggle--bottom {
+  width: 100%;
+  height: 14px;
+  border: none;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+.panel-toggle--bottom:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .app-main {
   flex: 1;
   display: flex;
@@ -1261,23 +1313,66 @@ input[type='checkbox'] {
 .template-swatch {
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 12px 4px;
   cursor: pointer;
-  background-size: cover;
-  background-position: center;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  padding: 4px;
+  background: var(--panel-alt);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   transition: transform 0.12s var(--ease), border-color 0.12s var(--ease);
-  min-height: 48px;
 }
 .template-swatch:hover {
   transform: translateY(-1px);
+  border-color: var(--accent-ring);
 }
 .template-swatch.is-active {
   border-color: var(--accent);
   box-shadow: var(--shadow-glow);
+}
+.template-swatch__shape {
+  width: 100%;
+}
+.template-swatch__name {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A template's actual placeholder shape, scaled to the album's real aspect ratio — shared by the
+   quick-pick swatches, their hover preview, and the Template Gallery modal. */
+.template-thumb {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--panel-raised);
+}
+.template-thumb .gallery-cell {
+  background-color: var(--panel-raised);
+  border-color: var(--border);
+}
+
+.template-hover-preview {
+  position: fixed;
+  z-index: 9999;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  pointer-events: none;
+}
+.template-hover-preview__name {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
 }
 
 .save-template-row {
@@ -1439,11 +1534,7 @@ input[type='checkbox'] {
   gap: 5px;
 }
 .template-library__swatch {
-  height: 64px;
   border-radius: var(--radius-sm);
-  background-size: cover;
-  background-position: center;
-  background-color: var(--panel-alt);
   box-shadow: var(--shadow-sm);
 }
 .template-library__name {
@@ -1762,7 +1853,7 @@ input[type='checkbox'] {
 }
 .gallery-swatch {
   position: relative;
-  aspect-ratio: 1;
+  aspect-ratio: 1; /* fallback; actual template swatches set this inline to the album's own aspect ratio */
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -1824,7 +1915,7 @@ input[type='checkbox'] {
 }
 .gallery-preview__stage {
   position: relative;
-  aspect-ratio: 1;
+  aspect-ratio: 1; /* fallback; set inline to the album's own aspect ratio */
   background: var(--panel-alt);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

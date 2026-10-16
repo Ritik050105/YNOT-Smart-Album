@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import Modal from './Modal'
 import Icon from './Icon'
+import { PreviewCell } from './TemplatePreview'
 import { useProjectStore } from '@/state/projectStore'
-import { PhotoAsset, TemplateDefinition } from '@/types'
+import { PhotoAsset } from '@/types'
 import {
   BUILT_IN_TEMPLATES,
   templateFamilyLabel,
@@ -11,30 +12,6 @@ import {
   TemplateFrameFilter,
   TEMPLATE_FAMILIES,
 } from '@/engine/templates'
-
-/** A single placeholder cell, filled with a real photo crop when one is available (so the
- *  preview shows what the layout will actually look like with this spread's photos) or a plain
- *  tinted box otherwise. Shared by the grid's small swatches and the large preview pane. */
-function PreviewCell({
-  ph,
-  photo,
-}: {
-  ph: TemplateDefinition['placeholders'][number]
-  photo?: PhotoAsset
-}) {
-  return (
-    <span
-      className="gallery-cell"
-      style={{
-        left: `${ph.x * 100}%`,
-        top: `${ph.y * 100}%`,
-        width: `${ph.width * 100}%`,
-        height: `${ph.height * 100}%`,
-        backgroundImage: photo ? `url(${photo.src})` : undefined,
-      }}
-    />
-  )
-}
 
 /** Full-library browser for the ~500+ built-in layouts plus any saved/imported templates — the
  *  Inspector's inline "Smart Grid Suggestions" only has room for a handful, so this is where you
@@ -84,6 +61,9 @@ export default function TemplateGalleryModal({
   }, [spread, project.photos, count])
 
   const previewTemplate = filtered.find((t) => t.id === previewId) ?? filtered[0]
+  // Spreads are two pages wide — this is the real shape templates get rendered into, so swatches
+  // and the preview pane are sized to match it instead of assuming square.
+  const spreadAspect = project.size.widthIn / project.size.heightIn
 
   function apply(templateId: string) {
     if (!selectedSpreadId) return
@@ -141,7 +121,7 @@ export default function TemplateGalleryModal({
             <button
               key={t.id}
               className={`gallery-swatch ${previewTemplate?.id === t.id ? 'is-previewing' : ''}`}
-              style={templateSwatchStyle(t)}
+              style={{ ...templateSwatchStyle(t), aspectRatio: spreadAspect }}
               onMouseEnter={() => setPreviewId(t.id)}
               onClick={() => setPreviewId(t.id)}
               onDoubleClick={() => apply(t.id)}
@@ -167,7 +147,7 @@ export default function TemplateGalleryModal({
           <h4>Live Preview</h4>
           {previewTemplate ? (
             <>
-              <div className="gallery-preview__stage">
+              <div className="gallery-preview__stage" style={{ aspectRatio: spreadAspect }}>
                 {previewTemplate.placeholders.map((ph, i) => (
                   <PreviewCell key={ph.id} ph={ph} photo={previewPhotos[i]} />
                 ))}

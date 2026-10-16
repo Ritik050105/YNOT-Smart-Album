@@ -11,11 +11,19 @@ import WorkflowStepper from './components/WorkflowStepper'
 import KeyboardShortcuts from './components/KeyboardShortcuts'
 import GlobalDropZone from './components/GlobalDropZone'
 import HomeScreen from './components/HomeScreen'
+import Icon from './components/Icon'
 import { useProjectStore } from '@/state/projectStore'
 
 export default function App() {
   const [showHome, setShowHome] = useState(true)
   const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
+  const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
+  const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
+  const bottomPanelOpen = useProjectStore((s) => s.bottomPanelOpen)
+  const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
+  const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
+  const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
+  const hasPhotos = useProjectStore((s) => s.project.photos.length > 0)
 
   useEffect(() => {
     function onEnterEditor() {
@@ -51,22 +59,51 @@ export default function App() {
       <MenuBar />
       <TopBar />
       <div className="app-body">
-        <aside className="app-sidebar app-sidebar--left">
-          <div className="panel">
-            <WorkflowStepper />
-          </div>
-          <ImportPanel />
-          <SpreadsPanel />
-        </aside>
+        {leftPanelOpen && (
+          <aside className="app-sidebar app-sidebar--left">
+            <div className="panel">
+              <WorkflowStepper />
+            </div>
+            <ImportPanel />
+            <SpreadsPanel />
+          </aside>
+        )}
+        <button
+          className="panel-toggle panel-toggle--left"
+          onClick={toggleLeftPanel}
+          title={leftPanelOpen ? 'Collapse left panel' : 'Expand left panel'}
+        >
+          <Icon name={leftPanelOpen ? 'chevronLeft' : 'chevronRight'} size={12} />
+        </button>
         <main className="app-main">
           <DesignerCanvas />
         </main>
-        <aside className="app-sidebar app-sidebar--right">
-          <Inspector />
-          <TemplateLibraryPanel />
-        </aside>
+        <button
+          className="panel-toggle panel-toggle--right"
+          onClick={toggleRightPanel}
+          title={rightPanelOpen ? 'Collapse right panel' : 'Expand right panel'}
+        >
+          <Icon name={rightPanelOpen ? 'chevronRight' : 'chevronLeft'} size={12} />
+        </button>
+        {rightPanelOpen && (
+          <aside className="app-sidebar app-sidebar--right">
+            <Inspector />
+            <TemplateLibraryPanel />
+          </aside>
+        )}
       </div>
-      <PhotoBin />
+      {hasPhotos && (
+        <div className="bottom-panel">
+          <button
+            className="panel-toggle panel-toggle--bottom"
+            onClick={toggleBottomPanel}
+            title={bottomPanelOpen ? 'Collapse photo dock' : 'Expand photo dock'}
+          >
+            <Icon name={bottomPanelOpen ? 'chevronDown' : 'chevronUp'} size={12} />
+          </button>
+          {bottomPanelOpen && <PhotoBin />}
+        </div>
+      )}
     </div>
   )
 }

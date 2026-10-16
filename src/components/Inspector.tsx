@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useProjectStore } from '@/state/projectStore'
-import { PlacedPhoto } from '@/types'
-import { templatesForCount, generateCustomGrid, templateSwatchStyle, TemplateFrameFilter } from '@/engine/templates'
+import { PlacedPhoto, PhotoAsset, TemplateDefinition } from '@/types'
+import { templatesForCount, generateCustomGrid, TemplateFrameFilter } from '@/engine/templates'
 import TemplateGalleryModal from './TemplateGalleryModal'
+import TemplateThumb from './TemplatePreview'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { LOCAL_FONTS, CLOUD_FONTS, FontOption, getLocalFonts, ensureFontLoaded } from '@/engine/fonts'
@@ -45,6 +47,11 @@ export default function Inspector() {
     window.addEventListener('album-studio:open-template-gallery', onOpenGallery)
     return () => window.removeEventListener('album-studio:open-template-gallery', onOpenGallery)
   }, [])
+  // Hover preview for the quick-pick swatches below — portaled to <body> (not just absolutely
+  // positioned in place) so it isn't clipped by the sidebar's own scroll container, and sized to
+  // the album's real spread aspect ratio instead of a generic square so it shows the layout's
+  // true proportions.
+  const [hoverPreview, setHoverPreview] = useState<{ template: TemplateDefinition; rect: DOMRect } | null>(null)
 
   const spread = project.spreads.find((s) => s.id === selectedSpreadId)
   if (!spread) {
@@ -78,9 +85,19 @@ export default function Inspector() {
   const isCustomFont = !!textBox && !knownFontNames.has(textBox.fontFamily)
   const photo = placement?.photoId ? project.photos.find((p) => p.id === placement.photoId) : undefined
   const suggestions = templatesForCount(spread.placements.length, null, frameFilter)
-  const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / (project.size.widthIn / project.size.heightIn)).find(
+  const spreadAspect = project.size.widthIn / project.size.heightIn
+  const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / spreadAspect).find(
     (b) => b.placeholderId === selectedPlaceholderId
   )
+  // This spread's own placed photos, in slot order, so quick-pick swatches/hover previews show
+  // real content — falling back to unplaced photos so there's still something to preview on a
+  // freshly auto-built or empty spread.
+  const quickPickPhotos: (PhotoAsset | undefined)[] = (() => {
+    const placed = spread.placements
+      .map((p) => (p.photoId ? project.photos.find((ph) => ph.id === p.photoId) : undefined))
+      .filter((p): p is PhotoAsset => !!p)
+    return placed.length > 0 ? placed : project.photos.slice(0, spread.placements.length)
+  })()
 
   let dpi: number | null = null
   if (photo && boxForSelected && placement) {
@@ -92,6 +109,7 @@ export default function Inspector() {
   }
 
   return (
+    <>
     <div className="panel inspector">
       <h3>
         <Icon name="palette" size={14} />
@@ -119,11 +137,13 @@ export default function Inspector() {
               <button
                 key={t.id}
                 className={`template-swatch ${spread.templateId === t.id ? 'is-active' : ''}`}
-                style={templateSwatchStyle(t)}
                 onClick={() => applyTemplateToSpread(spread.id, t.id)}
+                onMouseEnter={(e) => setHoverPreview({ template: t, rect: e.currentTarget.getBoundingClientRect() })}
+                onMouseLeave={() => setHoverPreview((cur) => (cur?.template.id === t.id ? null : cur))}
                 title={t.name}
               >
-                {t.name}
+                <TemplateThumb template={t} aspect={spreadAspect} className="template-swatch__shape" />
+                <span className="template-swatch__name">{t.name}</span>
               </button>
             ))}
         </div>
@@ -490,6 +510,42 @@ export default function Inspector() {
       {galleryOpen && (
         <TemplateGalleryModal initialCount={spread.placements.length} onClose={() => setGalleryOpen(false)} />
       )}
+    </div>
+    {hoverPreview &&
+      createPortal(
+        <TemplateHoverPreview template={hoverPreview.template} rect={hoverPreview.rect} aspect={spreadAspect} photos={quickPickPhotos} />,
+        document.body
+      )}
+    </>
+  )
+}
+
+/** The larger, true-shape preview shown while hovering a quick-pick swatch — portaled to <body>
+ *  so it floats above everything (not clipped by the sidebar's scroll container) and positioned
+ *  next to the swatch that triggered it. */
+function TemplateHoverPreview({
+  template,
+  rect,
+  aspect,
+  photos,
+}: {
+  template: TemplateDefinition
+  rect: DOMRect
+  aspect: number
+  photos: (PhotoAsset | undefined)[]
+}) {
+  const width = 220
+  const gap = 10
+  // Prefer floating to the left of the swatch (sidebar is on the right edge of the window), but
+  // fall back to the right if there's not enough room — e.g. a narrower window.
+  const left = rect.left - width - gap >= 0 ? rect.left - width - gap : rect.right + gap
+  const estHeight = width / aspect + 36
+  const top = Math.min(Math.max(8, rect.top + rect.height / 2 - estHeight / 2), window.innerHeight - estHeight - 8)
+
+  return (
+    <div className="template-hover-preview" style={{ left, top, width }}>
+      <TemplateThumb template={template} photos={photos} aspect={aspect} />
+      <span className="template-hover-preview__name">{template.name}</span>
     </div>
   )
 }
