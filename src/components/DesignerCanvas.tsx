@@ -12,6 +12,7 @@ import { isEditableTarget } from '@/engine/keyboard'
 import { importAndDedupe } from '@/engine/importWorkflow'
 import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
+import ContextMenu, { ContextMenuItem } from './ContextMenu'
 
 const STAGE_WIDTH = 900
 
@@ -34,6 +35,7 @@ function PlaceholderImage({
   multiSelected,
   onSelect,
   onSwapTo,
+  onContextMenu,
 }: {
   src: string
   box: { placeholderId: string; x: number; y: number; width: number; height: number }
@@ -56,6 +58,7 @@ function PlaceholderImage({
   multiSelected: boolean
   onSelect: (e: Konva.KonvaEventObject<Event>) => void
   onSwapTo: (targetPlaceholderId: string) => void
+  onContextMenu: (e: Konva.KonvaEventObject<Event>) => void
 }) {
   const [img] = useImage(src)
   const imageRef = useRef<Konva.Image>(null)
@@ -136,6 +139,7 @@ function PlaceholderImage({
           shadowOffsetY={Math.max(box.width, box.height) * 0.015}
           onClick={onSelect}
           onTap={onSelect}
+          onContextMenu={onContextMenu}
         />
       )}
       {multiSelected && (
@@ -205,6 +209,11 @@ export default function DesignerCanvas() {
   const toggleGrid = useProjectStore((s) => s.toggleGrid)
   const showPrintGuides = useProjectStore((s) => s.showPrintGuides)
   const togglePrintGuides = useProjectStore((s) => s.togglePrintGuides)
+  const updatePlacement = useProjectStore((s) => s.updatePlacement)
+  const resetPlacementToOriginal = useProjectStore((s) => s.resetPlacementToOriginal)
+  const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
+  const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
+  const toneClipboard = useProjectStore((s) => s.toneClipboard)
 
   const spread: Spread | undefined = project.spreads.find((s) => s.id === selectedSpreadId)
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
@@ -214,6 +223,7 @@ export default function DesignerCanvas() {
   const boxes = spread ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight) : []
 
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
+  const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId: string } | null>(null)
   const stageRef = useRef<Konva.Stage>(null)
 
   // Web fonts (quote suggestions, custom Inspector font picks) can finish loading after Konva
@@ -344,6 +354,40 @@ export default function DesignerCanvas() {
       return
     }
     selectPlaceholder(placeholderId)
+  }
+
+  function handlePlaceholderContextMenu(placeholderId: string, evt: Event) {
+    evt.preventDefault()
+    const mouseEvt = evt as MouseEvent
+    setPhotoContextMenu({ x: mouseEvt.clientX, y: mouseEvt.clientY, placeholderId })
+  }
+
+  function photoContextMenuItems(placeholderId: string): ContextMenuItem[] {
+    if (!spread) return []
+    const placement = spread.placements.find((p) => p.placeholderId === placeholderId)
+    if (!placement) return []
+    const isBW = placement.saturation <= -100
+    return [
+      {
+        label: 'Reload from Original',
+        onClick: () => resetPlacementToOriginal(spread.id, placeholderId),
+      },
+      {
+        label: isBW ? 'Remove Black & White' : 'Black & White',
+        onClick: () => updatePlacement(spread.id, placeholderId, { saturation: isBW ? 0 : -100 }),
+      },
+      { label: 'Copy Tone Adjustments', onClick: () => copyToneAdjustments(spread.id, placeholderId) },
+      {
+        label: 'Paste Tone Adjustments',
+        disabled: !toneClipboard,
+        onClick: () => pasteToneAdjustments(spread.id, [placeholderId]),
+      },
+      {
+        label: 'Clear Photo',
+        danger: true,
+        onClick: () => setPlacementPhoto(spread.id, placeholderId, null),
+      },
+    ]
   }
 
   async function handleContainerDrop(e: React.DragEvent) {
@@ -581,6 +625,7 @@ export default function DesignerCanvas() {
                 multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
                 onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
                 onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}
+                onContextMenu={(e) => handlePlaceholderContextMenu(box.placeholderId, e.evt)}
               />
             )
           })}
@@ -664,6 +709,14 @@ export default function DesignerCanvas() {
           )
         })()}
       </div>
+      {photoContextMenu && (
+        <ContextMenu
+          x={photoContextMenu.x}
+          y={photoContextMenu.y}
+          items={photoContextMenuItems(photoContextMenu.placeholderId)}
+          onClose={() => setPhotoContextMenu(null)}
+        />
+      )}
     </div>
   )
 }

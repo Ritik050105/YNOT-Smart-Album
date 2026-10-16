@@ -10,6 +10,7 @@ import {
   mergeSpreads,
   flipSpreadHorizontally,
   createBlankSpread,
+  createCoverSpread,
 } from '@/engine/autoLayout'
 import { BUILT_IN_TEMPLATES, findTemplate, setUserTemplateRegistry } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
@@ -108,6 +109,9 @@ interface ProjectState {
   mergeWithNext: (spreadId: string) => void
   flipSpread: (spreadId: string) => void
   addBlankSpread: () => void
+  addCoverSpread: () => void
+  duplicateSpread: (spreadId: string) => void
+  deleteSpread: (spreadId: string) => void
   applyTemplateToSpread: (spreadId: string, templateId: string) => void
   applyTemplateToAllSpreads: (templateId: string) => void
   updateSpread: (spreadId: string, patch: Partial<Spread>) => void
@@ -224,32 +228,41 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   togglePrintGuides: () => set((s) => ({ showPrintGuides: !s.showPrintGuides })),
 
+  // The cover (if any) is excluded from all three of these — it's pinned at order -1 and never
+  // renumbered or moved by interior-page operations. Indices here are positions within the
+  // interior (non-cover) list, matching what the Spreads panel's own draggable list shows.
   reorderSpreads: (fromIndex, toIndex) =>
     withHistory(set, (p) => {
-      const spreads = [...p.spreads]
-      const [moved] = spreads.splice(fromIndex, 1)
-      spreads.splice(toIndex, 0, moved)
-      return { ...p, spreads: spreads.map((s, i) => ({ ...s, order: i })) }
+      const cover = p.spreads.find((s) => s.isCover)
+      const interior = p.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
+      const [moved] = interior.splice(fromIndex, 1)
+      interior.splice(toIndex, 0, moved)
+      const reordered = interior.map((s, i) => ({ ...s, order: i }))
+      return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
     }),
 
   splitSpread: (spreadId) =>
     withHistory(set, (p) => {
-      const index = p.spreads.findIndex((s) => s.id === spreadId)
+      const cover = p.spreads.find((s) => s.isCover)
+      const interior = p.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
+      const index = interior.findIndex((s) => s.id === spreadId)
       if (index === -1) return p
-      const [left, right] = splitSpreadIntoPages(p.spreads[index])
-      const spreads = [...p.spreads]
-      spreads.splice(index, 1, left, right)
-      return { ...p, spreads: spreads.map((s, i) => ({ ...s, order: i })) }
+      const [left, right] = splitSpreadIntoPages(interior[index])
+      interior.splice(index, 1, left, right)
+      const reordered = interior.map((s, i) => ({ ...s, order: i }))
+      return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
     }),
 
   mergeWithNext: (spreadId) =>
     withHistory(set, (p) => {
-      const index = p.spreads.findIndex((s) => s.id === spreadId)
-      if (index === -1 || index === p.spreads.length - 1) return p
-      const merged = mergeSpreads(p.spreads[index], p.spreads[index + 1])
-      const spreads = [...p.spreads]
-      spreads.splice(index, 2, merged)
-      return { ...p, spreads: spreads.map((s, i) => ({ ...s, order: i })) }
+      const cover = p.spreads.find((s) => s.isCover)
+      const interior = p.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
+      const index = interior.findIndex((s) => s.id === spreadId)
+      if (index === -1 || index === interior.length - 1) return p
+      const merged = mergeSpreads(interior[index], interior[index + 1])
+      interior.splice(index, 2, merged)
+      const reordered = interior.map((s, i) => ({ ...s, order: i }))
+      return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
     }),
 
   flipSpread: (spreadId) =>
@@ -265,9 +278,54 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         gapPx: p.defaultGapPx,
         marginPx: p.defaultMarginPx,
       }
-      const spread = createBlankSpread(p.spreads.length, appearance)
+      const interiorCount = p.spreads.filter((s) => !s.isCover).length
+      const spread = createBlankSpread(interiorCount, appearance)
       return { ...p, spreads: [...p.spreads, spread] }
     }),
+
+  addCoverSpread: () =>
+    withHistory(set, (p) => {
+      if (p.spreads.some((s) => s.isCover)) return p
+      const appearance = {
+        backgroundColor: p.defaultBackgroundColor,
+        gapPx: p.defaultGapPx,
+        marginPx: p.defaultMarginPx,
+      }
+      return { ...p, spreads: [createCoverSpread(appearance), ...p.spreads] }
+    }),
+
+  duplicateSpread: (spreadId) =>
+    withHistory(set, (p) => {
+      const source = p.spreads.find((s) => s.id === spreadId)
+      if (!source || source.isCover) return p
+      const interior = p.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
+      const index = interior.findIndex((s) => s.id === spreadId)
+      const copy: Spread = {
+        ...source,
+        id: uuid(),
+        placements: source.placements.map((pl) => ({ ...pl })),
+        textBoxes: source.textBoxes.map((t) => ({ ...t, id: uuid() })),
+      }
+      interior.splice(index + 1, 0, copy)
+      const reordered = interior.map((s, i) => ({ ...s, order: i }))
+      const cover = p.spreads.find((s) => s.isCover)
+      return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
+    }),
+
+  deleteSpread: (spreadId) => {
+    withHistory(set, (p) => {
+      const target = p.spreads.find((s) => s.id === spreadId)
+      if (!target) return p
+      if (target.isCover) return { ...p, spreads: p.spreads.filter((s) => s.id !== spreadId) }
+      const interior = p.spreads.filter((s) => !s.isCover && s.id !== spreadId).sort((a, b) => a.order - b.order)
+      const reordered = interior.map((s, i) => ({ ...s, order: i }))
+      const cover = p.spreads.find((s) => s.isCover)
+      return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
+    })
+    if (get().selectedSpreadId === spreadId) {
+      set({ selectedSpreadId: null, selectedPlaceholderId: null, selectedTextBoxId: null, multiSelectedPlaceholderIds: [] })
+    }
+  },
 
   applyTemplateToSpread: (spreadId, templateId) =>
     withHistory(set, (p) => ({
@@ -548,6 +606,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       spreads: file.project.spreads.map((spread) => ({
         ...spread,
         flipped: spread.flipped ?? false,
+        isCover: spread.isCover ?? false,
         placements: spread.placements.map((p) => ({ ...p, cornerRadiusPx: p.cornerRadiusPx ?? 24 })),
       })),
     }

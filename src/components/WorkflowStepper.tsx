@@ -8,7 +8,7 @@ const STEPS = ['Import', 'Build', 'Design', 'Export']
  *  is built around, so the interface doesn't rely on the user already knowing the steps. */
 export default function WorkflowStepper() {
   const photosCount = useProjectStore((s) => s.project.photos.length)
-  const spreadsCount = useProjectStore((s) => s.project.spreads.length)
+  const spreadsCount = useProjectStore((s) => s.project.spreads.filter((sp) => !sp.isCover).length)
 
   const done = [photosCount > 0, spreadsCount > 0, false, false]
   const currentIndex = done.findIndex((d) => !d)

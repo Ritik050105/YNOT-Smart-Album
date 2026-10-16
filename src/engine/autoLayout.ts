@@ -105,6 +105,7 @@ export function autoBuildSpreads(
       gapPx: appearance.gapPx,
       marginPx: appearance.marginPx,
       flipped: false,
+      isCover: false,
     }
   })
 }
@@ -132,6 +133,7 @@ function buildSpreadFromPhotoIds(photoIds: (string | null)[], pageSide: Spread['
     gapPx: like.gapPx,
     marginPx: like.marginPx,
     flipped: false,
+    isCover: false,
   }
 }
 
@@ -156,6 +158,26 @@ export function createBlankSpread(order: number, appearance: SpreadAppearanceDef
     gapPx: appearance.gapPx,
     marginPx: appearance.marginPx,
     flipped: false,
+    isCover: false,
+  }
+}
+
+/** Creates the album's front/spine/back cover — a separate, pinned-first spread (order -1) using
+ *  a dedicated cover template so it's visually distinct from interior pages from the start. */
+export function createCoverSpread(appearance: SpreadAppearanceDefaults): Spread {
+  const template = findTemplate('cover-front-spine-back')!
+  return {
+    id: uuid(),
+    order: -1,
+    pageSide: 'spread',
+    templateId: template.id,
+    placements: template.placeholders.map((ph) => defaultPlacement(ph.id, null)),
+    textBoxes: [],
+    backgroundColor: appearance.backgroundColor,
+    gapPx: appearance.gapPx,
+    marginPx: appearance.marginPx,
+    flipped: false,
+    isCover: true,
   }
 }
 

@@ -118,6 +118,11 @@ export interface Spread {
   /** Mirrors the template horizontally (x' = 1 - x - width) without needing a second copy of
    *  every template definition — "Flip Spread Horizontally". */
   flipped: boolean
+  /** The album's front/spine/back cover, as opposed to an interior page spread — kept in the
+   *  same `spreads` array (so every existing per-spread action just works on it unchanged) but
+   *  shown in its own section of the Spreads panel, pinned first (order -1), and excluded from
+   *  the interior page count. */
+  isCover: boolean
 }
 
 export type AlbumSizeCategory = 'Square' | 'Portrait' | 'Landscape' | 'Panoramic' | 'Magazine' | 'Custom'

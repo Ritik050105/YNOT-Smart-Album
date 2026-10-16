@@ -2,6 +2,12 @@ import { TemplateDefinition, PlaceholderRect } from '@/types'
 import { GAP, distributeEvenly, placeGridInRect } from './templateLayout'
 import { GENERATED_TEMPLATES } from './templateGenerator'
 
+// A plain incrementing counter (not crypto.randomUUID()) — module evaluation order is the same
+// on every app launch, so this produces the exact same placeholder ids every time. That stability
+// matters: a saved .ablm project stores `placement.placeholderId` strings that have to keep
+// matching this template's placeholder ids after the app restarts, or its photos would silently
+// stop lining up with their slots.
+let nextHandCraftedId = 0
 function rect(
   x: number,
   y: number,
@@ -9,7 +15,7 @@ function rect(
   height: number,
   preferredOrientation: PlaceholderRect['preferredOrientation'] = 'any'
 ): PlaceholderRect {
-  return { id: crypto.randomUUID(), x, y, width, height, preferredOrientation }
+  return { id: `hc${nextHandCraftedId++}`, x, y, width, height, preferredOrientation }
 }
 
 /** Full-bleed single photo spread. */
@@ -421,9 +427,23 @@ export function generateCustomGrid(rows: number, cols: number): TemplateDefiniti
   }
 }
 
+/** Album cover: back + front panels with a blank spine gap between them for a title text box —
+ *  spines are almost always text/logo, not a photo, so it isn't modeled as a placeholder. */
+const coverFrontSpineBack: TemplateDefinition = {
+  id: 'cover-front-spine-back',
+  name: 'Front + Spine + Back',
+  photoCount: 2,
+  pageSide: 'spread',
+  placeholders: [rect(0, 0, 0.46, 1, 'portrait'), rect(0.54, 0, 0.46, 1, 'portrait')],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#2b2b2e',
+}
+
 const HAND_CRAFTED_TEMPLATES: TemplateDefinition[] = [
   full,
   framedSingle,
+  coverFrontSpineBack,
   twoVertical,
   twoHorizontal,
   leftRightPair,

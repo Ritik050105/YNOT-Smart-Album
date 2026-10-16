@@ -71,7 +71,8 @@ export default function ProjectInfoPanel() {
     }
   }, [project])
 
-  const pageCount = project.spreads.reduce((sum, s) => sum + (s.pageSide === 'spread' ? 2 : 1), 0)
+  const interiorSpreads = project.spreads.filter((s) => !s.isCover)
+  const pageCount = interiorSpreads.reduce((sum, s) => sum + (s.pageSide === 'spread' ? 2 : 1), 0)
 
   const isCustomEventType = !(EVENT_TYPES as readonly string[]).includes(project.eventType)
   const isCustomCommunity = project.community !== '' && !(WEDDING_COMMUNITIES as readonly string[]).includes(project.community)
@@ -144,7 +145,8 @@ export default function ProjectInfoPanel() {
         </dd>
         <dt>Spreads / Pages</dt>
         <dd>
-          {project.spreads.length} spread{project.spreads.length === 1 ? '' : 's'} · {pageCount} page{pageCount === 1 ? '' : 's'}
+          {interiorSpreads.length} spread{interiorSpreads.length === 1 ? '' : 's'} · {pageCount} page{pageCount === 1 ? '' : 's'}
+          {project.spreads.some((s) => s.isCover) && ' · cover'}
         </dd>
         <dt>Photos</dt>
         <dd>

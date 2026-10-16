@@ -31,6 +31,9 @@ export default function MenuBar() {
   const splitSpread = useProjectStore((s) => s.splitSpread)
   const mergeWithNext = useProjectStore((s) => s.mergeWithNext)
   const addBlankSpread = useProjectStore((s) => s.addBlankSpread)
+  const addCoverSpread = useProjectStore((s) => s.addCoverSpread)
+  const duplicateSpread = useProjectStore((s) => s.duplicateSpread)
+  const deleteSpread = useProjectStore((s) => s.deleteSpread)
   const applyTemplateToAllSpreads = useProjectStore((s) => s.applyTemplateToAllSpreads)
   const showGrid = useProjectStore((s) => s.showGrid)
   const toggleGrid = useProjectStore((s) => s.toggleGrid)
@@ -49,9 +52,12 @@ export default function MenuBar() {
     return () => window.removeEventListener('mousedown', onClickOutside)
   }, [openMenu])
 
-  const spreadIndex = project.spreads.findIndex((s) => s.id === selectedSpreadId)
-  const spread = spreadIndex >= 0 ? project.spreads[spreadIndex] : undefined
+  const interior = project.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
+  const hasCover = project.spreads.some((s) => s.isCover)
+  const spread = project.spreads.find((s) => s.id === selectedSpreadId)
+  const interiorIndex = spread ? interior.findIndex((s) => s.id === spread.id) : -1
   const hasSpread = !!spread
+  const hasInteriorSpread = !!spread && !spread.isCover
 
   function run(fn: () => void) {
     fn()
@@ -84,17 +90,29 @@ export default function MenuBar() {
       label: 'Spread',
       items: [
         { label: 'Add Blank Spread', onClick: addBlankSpread },
+        { label: 'Add Cover', disabled: hasCover, onClick: addCoverSpread },
         { label: 'Flip Spread Horizontally', disabled: !hasSpread, onClick: () => spread && flipSpread(spread.id) },
-        { label: 'Split Spread', disabled: !hasSpread || spread?.pageSide !== 'spread', onClick: () => spread && splitSpread(spread.id) },
+        {
+          label: 'Split Spread',
+          disabled: !hasInteriorSpread || spread?.pageSide !== 'spread',
+          onClick: () => spread && splitSpread(spread.id),
+        },
         {
           label: 'Merge With Next',
-          disabled: !hasSpread || spreadIndex === project.spreads.length - 1,
+          disabled: !hasInteriorSpread || interiorIndex === interior.length - 1,
           onClick: () => spread && mergeWithNext(spread.id),
         },
+        { label: 'Duplicate Spread', disabled: !hasInteriorSpread, onClick: () => spread && duplicateSpread(spread.id) },
         {
           label: 'Export This Spread…',
           disabled: !hasSpread,
           onClick: () => spread && void exportSingleSpreadToPdf(project, spread),
+        },
+        {
+          label: hasCover && spread?.isCover ? 'Delete Cover' : 'Delete Spread',
+          disabled: !hasSpread,
+          danger: true,
+          onClick: () => spread && deleteSpread(spread.id),
         },
       ],
     },
