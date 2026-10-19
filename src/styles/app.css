@@ -811,9 +811,14 @@ body {
 
 /* ---------- Form controls ---------- */
 
+/* `input:not([type])` covers a plain <input> with no type attribute — the DOM still treats it as
+ * text, but the attribute selector `input[type='text']` only matches when that attribute is
+ * actually present, so an untyped text field (several exist, e.g. the New Project wizard's Album
+ * name) would otherwise fall through to the browser's unstyled default control. */
 select,
 input[type='text'],
-input[type='number'] {
+input[type='number'],
+input:not([type]) {
   background: var(--panel-alt);
   color: var(--text);
   border: 1px solid var(--border);
@@ -826,12 +831,14 @@ input[type='number'] {
 }
 select:hover,
 input[type='text']:hover,
-input[type='number']:hover {
+input[type='number']:hover,
+input:not([type]):hover {
   border-color: var(--text-faint);
 }
 select:focus,
 input[type='text']:focus,
-input[type='number']:focus {
+input[type='number']:focus,
+input:not([type]):focus {
   border-color: var(--accent);
   box-shadow: inset 0 1px 2px rgba(42, 32, 20, 0.05), 0 0 0 3px var(--accent-ring);
 }
