@@ -6,7 +6,12 @@ export interface NewProjectPayload {
   defaultBackgroundColor: string
   defaultGapPx: number
   defaultMarginPx: number
+  defaultBorderWidth: number
+  defaultBorderColor: string
   enabledTemplateIds: string[] | null
+  layoutStart: 'spread' | 'single'
+  layoutEnd: 'spread' | 'single'
+  includeFullSpreadTemplates: boolean
 }
 
 export interface AlbumStudioBridge {

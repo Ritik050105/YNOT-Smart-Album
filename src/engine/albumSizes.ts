@@ -1,11 +1,15 @@
-import { AlbumSize } from '@/types'
+import { AlbumSize, EdgeInset } from '@/types'
 
 const BLEED_IN = 0.125
 const SAFE_ZONE_IN = 0.25
 const DPI = 300
 
+export function uniformInset(valueIn: number): EdgeInset {
+  return { leftRight: valueIn, topBottom: valueIn, inside: valueIn }
+}
+
 function size(id: string, label: string, category: AlbumSize['category'], widthIn: number, heightIn: number): AlbumSize {
-  return { id, label, category, widthIn, heightIn, bleedIn: BLEED_IN, safeZoneIn: SAFE_ZONE_IN, dpi: DPI }
+  return { id, label, category, widthIn, heightIn, trim: uniformInset(BLEED_IN), safeZone: uniformInset(SAFE_ZONE_IN), dpi: DPI }
 }
 
 /**

@@ -13,8 +13,18 @@ import {
   createCoverSpread,
 } from '@/engine/autoLayout'
 import { BUILT_IN_TEMPLATES, findTemplate, setUserTemplateRegistry } from '@/engine/templates'
-import { DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
+import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
 import { blobUrlToDataUrl } from '@/engine/projectFile'
+import { AlbumSize, EdgeInset } from '@/types'
+
+/** Older saved project files stored a single `bleedIn`/`safeZoneIn` number per album size instead
+ *  of today's per-edge `trim`/`safeZone` — this reads either shape and always returns the new one,
+ *  so opening an old `.ablm` file doesn't crash the UI that reads `size.trim.leftRight` etc. */
+function migrateAlbumSize(raw: AlbumSize & { bleedIn?: number; safeZoneIn?: number }): AlbumSize {
+  const trim: EdgeInset = raw.trim ?? uniformInset(raw.bleedIn ?? 0.125)
+  const safeZone: EdgeInset = raw.safeZone ?? uniformInset(raw.safeZoneIn ?? 0.25)
+  return { ...raw, trim, safeZone }
+}
 
 const TEMPLATE_LIBRARY_KEY = 'albumstudio.templateLibrary'
 
@@ -49,7 +59,12 @@ export interface NewProjectOptions {
   defaultBackgroundColor: string
   defaultGapPx: number
   defaultMarginPx: number
+  defaultBorderWidth: number
+  defaultBorderColor: string
   enabledTemplateIds: string[] | null
+  layoutStart: Project['layoutStart']
+  layoutEnd: Project['layoutEnd']
+  includeFullSpreadTemplates: boolean
 }
 
 function newProject(opts: Partial<NewProjectOptions> & { name: string }): Project {
@@ -70,7 +85,12 @@ function newProject(opts: Partial<NewProjectOptions> & { name: string }): Projec
     defaultBackgroundColor: opts.defaultBackgroundColor ?? '#ffffff',
     defaultGapPx: opts.defaultGapPx ?? 8,
     defaultMarginPx: opts.defaultMarginPx ?? 24,
+    defaultBorderWidth: opts.defaultBorderWidth ?? 0,
+    defaultBorderColor: opts.defaultBorderColor ?? '#ffffff',
     enabledTemplateIds: opts.enabledTemplateIds ?? null,
+    layoutStart: opts.layoutStart ?? 'spread',
+    layoutEnd: opts.layoutEnd ?? 'spread',
+    includeFullSpreadTemplates: opts.includeFullSpreadTemplates ?? true,
   }
 }
 
@@ -95,6 +115,13 @@ interface ProjectState {
   leftPanelOpen: boolean
   rightPanelOpen: boolean
   bottomPanelOpen: boolean
+  /** True for the brief "Preparing template libraries…" beat between finishing the New Project
+   *  wizard and landing in the editor — matches the reference app's own loading transition. */
+  preparingProject: boolean
+  /** Canvas interaction mode — "pan" sticks the canvas in pan-and-drag mode (the TopBar's hand-tool
+   *  button) as an alternative to holding Space, matching the reference app's Select/Pan toolbar
+   *  icons. */
+  canvasTool: 'select' | 'pan'
   autoLayoutOptions: AutoLayoutOptions
   history: Project[]
   future: Project[]
@@ -113,6 +140,8 @@ interface ProjectState {
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
   toggleBottomPanel: () => void
+  setPreparingProject: (v: boolean) => void
+  setCanvasTool: (tool: 'select' | 'pan') => void
   reorderSpreads: (fromIndex: number, toIndex: number) => void
   splitSpread: (spreadId: string) => void
   mergeWithNext: (spreadId: string) => void
@@ -143,10 +172,12 @@ interface ProjectState {
   redo: () => void
   renameProject: (name: string) => void
   updateProjectMeta: (patch: Partial<Pick<Project, 'eventType' | 'community' | 'clientName'>>) => void
+  updateProjectSettings: (patch: Partial<Pick<Project, 'colorProfile' | 'units'>>) => void
   loadProjectFile: (file: ProjectFile) => void
   newProjectFile: () => void
   createProjectFromWizard: (opts: NewProjectOptions) => void
   setPhotoBins: (photoId: string, bins: string[]) => void
+  setPhotoFavorite: (photoId: string, favorite: boolean) => void
 }
 
 function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project) {
@@ -175,6 +206,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   leftPanelOpen: true,
   rightPanelOpen: true,
   bottomPanelOpen: true,
+  preparingProject: false,
+  canvasTool: 'select',
   autoLayoutOptions: DEFAULT_AUTO_LAYOUT_OPTIONS,
   history: [],
   future: [],
@@ -188,8 +221,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       backgroundColor: project.defaultBackgroundColor,
       gapPx: project.defaultGapPx,
       marginPx: project.defaultMarginPx,
+      borderWidth: project.defaultBorderWidth,
+      borderColor: project.defaultBorderColor,
     }
-    const spreads = autoBuildSpreads(project.photos, autoLayoutOptions, appearance, project.enabledTemplateIds)
+    const layout = {
+      start: project.layoutStart,
+      end: project.layoutEnd,
+      includeFullSpreadTemplates: project.includeFullSpreadTemplates,
+    }
+    const spreads = autoBuildSpreads(project.photos, autoLayoutOptions, appearance, project.enabledTemplateIds, layout)
     withHistory(set, (p) => ({ ...p, spreads }))
     // Jump straight to the first built spread instead of leaving the canvas on its empty
     // "select a spread" placeholder — otherwise the drop-to-build flow looks like it did
@@ -253,6 +293,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toggleLeftPanel: () => set((s) => ({ leftPanelOpen: !s.leftPanelOpen })),
   toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
   toggleBottomPanel: () => set((s) => ({ bottomPanelOpen: !s.bottomPanelOpen })),
+  setPreparingProject: (v) => set({ preparingProject: v }),
+  setCanvasTool: (tool) => set({ canvasTool: tool }),
 
   // The cover (if any) is excluded from all three of these — it's pinned at order -1 and never
   // renumbered or moved by interior-page operations. Indices here are positions within the
@@ -303,6 +345,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         backgroundColor: p.defaultBackgroundColor,
         gapPx: p.defaultGapPx,
         marginPx: p.defaultMarginPx,
+        borderWidth: p.defaultBorderWidth,
+        borderColor: p.defaultBorderColor,
       }
       const interiorCount = p.spreads.filter((s) => !s.isCover).length
       const spread = createBlankSpread(interiorCount, appearance)
@@ -316,6 +360,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         backgroundColor: p.defaultBackgroundColor,
         gapPx: p.defaultGapPx,
         marginPx: p.defaultMarginPx,
+        borderWidth: p.defaultBorderWidth,
+        borderColor: p.defaultBorderColor,
       }
       return { ...p, spreads: [createCoverSpread(appearance), ...p.spreads] }
     }),
@@ -611,6 +657,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   renameProject: (name) => withHistory(set, (p) => ({ ...p, name })),
   updateProjectMeta: (patch) => withHistory(set, (p) => ({ ...p, ...patch })),
+  updateProjectSettings: (patch) => withHistory(set, (p) => ({ ...p, ...patch })),
 
   loadProjectFile: (file) => {
     saveUserTemplates(file.userTemplates)
@@ -626,9 +673,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       defaultBackgroundColor: file.project.defaultBackgroundColor ?? '#ffffff',
       defaultGapPx: file.project.defaultGapPx ?? 8,
       defaultMarginPx: file.project.defaultMarginPx ?? 24,
+      defaultBorderWidth: file.project.defaultBorderWidth ?? 0,
+      defaultBorderColor: file.project.defaultBorderColor ?? '#ffffff',
       enabledTemplateIds: file.project.enabledTemplateIds ?? null,
-      size: { ...file.project.size, safeZoneIn: file.project.size.safeZoneIn ?? 0.25 },
-      photos: file.project.photos.map((photo) => ({ ...photo, bins: photo.bins ?? [] })),
+      layoutStart: file.project.layoutStart ?? 'spread',
+      layoutEnd: file.project.layoutEnd ?? 'spread',
+      includeFullSpreadTemplates: file.project.includeFullSpreadTemplates ?? true,
+      size: migrateAlbumSize(file.project.size),
+      photos: file.project.photos.map((photo) => ({ ...photo, bins: photo.bins ?? [], favorite: photo.favorite ?? false })),
       spreads: file.project.spreads.map((spread) => ({
         ...spread,
         flipped: spread.flipped ?? false,
@@ -677,5 +729,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     withHistory(set, (p) => ({
       ...p,
       photos: p.photos.map((photo) => (photo.id === photoId ? { ...photo, bins } : photo)),
+    })),
+
+  setPhotoFavorite: (photoId, favorite) =>
+    withHistory(set, (p) => ({
+      ...p,
+      photos: p.photos.map((photo) => (photo.id === photoId ? { ...photo, favorite } : photo)),
     })),
 }))

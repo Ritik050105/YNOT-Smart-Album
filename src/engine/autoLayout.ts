@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { PhotoAsset, Spread, PlacedPhoto, TextBox } from '@/types'
-import { suggestTemplate, findTemplate } from './templates'
+import { suggestTemplate, findTemplate, BUILT_IN_TEMPLATES } from './templates'
 
 export interface AutoLayoutOptions {
   /**
@@ -17,15 +17,19 @@ export const DEFAULT_AUTO_LAYOUT_OPTIONS: AutoLayoutOptions = {
   maxPhotosPerSpread: 6,
 }
 
-export function defaultPlacement(placeholderId: string, photoId: string | null): PlacedPhoto {
+export function defaultPlacement(
+  placeholderId: string,
+  photoId: string | null,
+  border: { width: number; color: string } = { width: 0, color: '#ffffff' }
+): PlacedPhoto {
   return {
     placeholderId,
     photoId,
     focalX: 0.5,
     focalY: 0.5,
     zoom: 1,
-    borderWidth: 0,
-    borderColor: '#ffffff',
+    borderWidth: border.width,
+    borderColor: border.color,
     opacity: 1,
     warmth: 0,
     brightness: 0,
@@ -68,30 +72,63 @@ export interface SpreadAppearanceDefaults {
   backgroundColor: string
   gapPx: number
   marginPx: number
+  borderWidth: number
+  borderColor: string
 }
 
 export const FALLBACK_APPEARANCE_DEFAULTS: SpreadAppearanceDefaults = {
   backgroundColor: '#ffffff',
   gapPx: 8,
   marginPx: 24,
+  borderWidth: 0,
+  borderColor: '#ffffff',
+}
+
+/** New Project wizard's "Layout Type: Starts with / Ends with / Include full spread templates". */
+export interface AutoBuildLayoutOptions {
+  start: 'spread' | 'single'
+  end: 'spread' | 'single'
+  includeFullSpreadTemplates: boolean
+}
+
+export const DEFAULT_AUTO_BUILD_LAYOUT: AutoBuildLayoutOptions = {
+  start: 'spread',
+  end: 'spread',
+  includeFullSpreadTemplates: true,
+}
+
+/** Narrows a template id pool down to single-page (non-"spread") templates — falls back to the
+ *  original pool if that would leave nothing to choose from, same "don't produce zero candidates"
+ *  rule `templatesForCount` already follows. */
+function narrowToSinglePage(ids: string[] | null): string[] | null {
+  const base = ids ?? BUILT_IN_TEMPLATES.map((t) => t.id)
+  const singlePage = base.filter((id) => findTemplate(id)?.pageSide !== 'spread')
+  return singlePage.length > 0 ? singlePage : ids
 }
 
 /** Builds full Spread records (template + placements) from timeline-grouped photos. "Auto-Build"
  *  entry point. `enabledTemplateIds` narrows the 1-6 photo template pool to whatever was chosen
- *  in the New Project wizard's Template Library step (null/omitted = every built-in available). */
+ *  in the New Project wizard's Template Library step (null/omitted = every built-in available).
+ *  `layout` is that same wizard's "Layout Type" setting — whether the album's first/last interior
+ *  spread must stay a single page, and whether two-page templates are offered at all. */
 export function autoBuildSpreads(
   photos: PhotoAsset[],
   options: AutoLayoutOptions = DEFAULT_AUTO_LAYOUT_OPTIONS,
   appearance: SpreadAppearanceDefaults = FALLBACK_APPEARANCE_DEFAULTS,
-  enabledTemplateIds: string[] | null = null
+  enabledTemplateIds: string[] | null = null,
+  layout: AutoBuildLayoutOptions = DEFAULT_AUTO_BUILD_LAYOUT
 ): Spread[] {
   const groups = groupPhotosIntoMoments(photos, options)
+  const pool = layout.includeFullSpreadTemplates ? enabledTemplateIds : narrowToSinglePage(enabledTemplateIds)
+  const border = { width: appearance.borderWidth, color: appearance.borderColor }
   let lastTemplateId: string | undefined
   return groups.map((group, index) => {
-    const template = suggestTemplate(group.length, lastTemplateId, enabledTemplateIds)
+    const forceSingle = (index === 0 && layout.start === 'single') || (index === groups.length - 1 && layout.end === 'single')
+    const candidatePool = forceSingle ? narrowToSinglePage(pool) : pool
+    const template = suggestTemplate(group.length, lastTemplateId, candidatePool)
     lastTemplateId = template.id
     const placements: PlacedPhoto[] = template.placeholders.map((ph, i) =>
-      defaultPlacement(ph.id, group[i]?.id ?? null)
+      defaultPlacement(ph.id, group[i]?.id ?? null, border)
     )
     const textBoxes: TextBox[] = []
     return {
@@ -147,12 +184,13 @@ export function flipSpreadHorizontally(spread: Spread): Spread {
  *  in — "Add Blank Spread". */
 export function createBlankSpread(order: number, appearance: SpreadAppearanceDefaults): Spread {
   const template = findTemplate('full-bleed')!
+  const border = { width: appearance.borderWidth, color: appearance.borderColor }
   return {
     id: uuid(),
     order,
     pageSide: template.pageSide,
     templateId: template.id,
-    placements: template.placeholders.map((ph) => defaultPlacement(ph.id, null)),
+    placements: template.placeholders.map((ph) => defaultPlacement(ph.id, null, border)),
     textBoxes: [],
     backgroundColor: appearance.backgroundColor,
     gapPx: appearance.gapPx,
@@ -166,12 +204,13 @@ export function createBlankSpread(order: number, appearance: SpreadAppearanceDef
  *  a dedicated cover template so it's visually distinct from interior pages from the start. */
 export function createCoverSpread(appearance: SpreadAppearanceDefaults): Spread {
   const template = findTemplate('cover-front-spine-back')!
+  const border = { width: appearance.borderWidth, color: appearance.borderColor }
   return {
     id: uuid(),
     order: -1,
     pageSide: 'spread',
     templateId: template.id,
-    placements: template.placeholders.map((ph) => defaultPlacement(ph.id, null)),
+    placements: template.placeholders.map((ph) => defaultPlacement(ph.id, null, border)),
     textBoxes: [],
     backgroundColor: appearance.backgroundColor,
     gapPx: appearance.gapPx,

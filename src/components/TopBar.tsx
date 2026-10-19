@@ -5,6 +5,7 @@ import { saveProjectToFile, openProjectFromFile } from '@/engine/projectFile'
 import { Theme, applyTheme, getStoredTheme } from '@/engine/theme'
 import { DisplayUnit } from '@/engine/units'
 import { recordRecentProject } from '@/engine/recentProjects'
+import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import Icon from './Icon'
 import Modal from './Modal'
 import ExportModal from './ExportModal'
@@ -30,6 +31,9 @@ export default function TopBar() {
   const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
+  const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
+  const canvasTool = useProjectStore((s) => s.canvasTool)
+  const setCanvasTool = useProjectStore((s) => s.setCanvasTool)
   const [projectBusy, setProjectBusy] = useState<'save' | 'open' | null>(null)
   const [customSizeOpen, setCustomSizeOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
@@ -112,6 +116,13 @@ export default function TopBar() {
     }
   }
 
+  async function handleAlbumCreated() {
+    setPreparingProject(true)
+    const { project, userTemplates } = useProjectStore.getState()
+    await finishNewProjectSetup(project, userTemplates)
+    setPreparingProject(false)
+  }
+
   function handleNewProjectClick() {
     if (project.spreads.length > 0 || project.photos.length > 0) {
       setConfirmDiscard(true)
@@ -170,6 +181,23 @@ export default function TopBar() {
       </button>
       <button className="btn btn--icon" title="Save Project" disabled={projectBusy !== null} onClick={handleSaveProject}>
         <Icon name="save" />
+      </button>
+
+      <div className="topbar__divider" />
+
+      <button
+        className={`btn btn--icon ${canvasTool === 'select' ? 'is-active' : ''}`}
+        title="Select tool (V)"
+        onClick={() => setCanvasTool('select')}
+      >
+        <Icon name="cursor" size={14} />
+      </button>
+      <button
+        className={`btn btn--icon ${canvasTool === 'pan' ? 'is-active' : ''}`}
+        title="Pan tool (H) — or just hold Space"
+        onClick={() => setCanvasTool('pan')}
+      >
+        <Icon name="hand" size={14} />
       </button>
 
       <div className="topbar__divider" />
@@ -267,7 +295,9 @@ export default function TopBar() {
         />
       )}
       {exportOpen && <ExportModal onClose={() => setExportOpen(false)} />}
-      {newProjectOpen && <NewProjectWizard onClose={() => setNewProjectOpen(false)} />}
+      {newProjectOpen && (
+        <NewProjectWizard onClose={() => setNewProjectOpen(false)} onCreated={() => void handleAlbumCreated()} />
+      )}
       {infoOpen && <ProjectInfoPanel onClose={() => setInfoOpen(false)} />}
       {confirmDiscard && (
         <Modal

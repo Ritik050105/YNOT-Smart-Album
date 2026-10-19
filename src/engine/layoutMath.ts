@@ -1,4 +1,4 @@
-import { Spread } from '@/types'
+import { EdgeInset, PageSide, Spread } from '@/types'
 import { findTemplate } from './templates'
 
 export interface PlaceholderBox {
@@ -35,4 +35,31 @@ export function computePlaceholderBoxes(
       height: ph.height * innerH - gap,
     }
   })
+}
+
+/** Resolves a per-edge trim/safe-zone inset (inches, already converted to px) into independent
+ *  left/right/top/bottom distances for a single page-side's print guide — "inside" applies to
+ *  the edge next to the spine/fold instead of "leftRight" there, since a bound page's gutter edge
+ *  reasonably needs a different (usually larger) clearance than its outer edge. A standalone
+ *  'single' page has no fold, so both its edges use leftRight. A 'spread' page's fold runs down
+ *  its own horizontal center rather than along either outer edge — see `centerGutterInsetPx`. */
+export function resolvePageInsetsPx(
+  pageSide: PageSide,
+  insetPx: { leftRight: number; topBottom: number; inside: number }
+): { left: number; right: number; top: number; bottom: number } {
+  const { leftRight, topBottom, inside } = insetPx
+  if (pageSide === 'left') return { left: leftRight, right: inside, top: topBottom, bottom: topBottom }
+  if (pageSide === 'right') return { left: inside, right: leftRight, top: topBottom, bottom: topBottom }
+  return { left: leftRight, right: leftRight, top: topBottom, bottom: topBottom }
+}
+
+/** For a two-page 'spread', the "inside" clearance straddles the fold at the canvas's horizontal
+ *  center rather than either outer edge — this is the half-width of that center gutter band, in
+ *  px, for drawing the two extra guide lines flanking it (see DesignerCanvas / exportAlbum). */
+export function centerGutterInsetPx(insetPx: { inside: number }): number {
+  return insetPx.inside
+}
+
+export function edgeInsetToPx(inset: EdgeInset, pxPerIn: number): { leftRight: number; topBottom: number; inside: number } {
+  return { leftRight: inset.leftRight * pxPerIn, topBottom: inset.topBottom * pxPerIn, inside: inset.inside * pxPerIn }
 }

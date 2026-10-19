@@ -1,7 +1,7 @@
 import { PDFDocument } from 'pdf-lib'
 import { Project, Spread, PhotoAsset } from '@/types'
 import { renderSpreadToCanvas } from './renderSpread'
-import { computePlaceholderBoxes } from './layoutMath'
+import { computePlaceholderBoxes, resolvePageInsetsPx, centerGutterInsetPx, edgeInsetToPx } from './layoutMath'
 import { buildSpreadPsdBytes } from './exportPsd'
 import { buildProofingGalleryHtml } from './exportProofing'
 import { canvasToBytes, saveOneFile, saveManyFiles, projectFileBaseName } from './exportUtil'
@@ -190,16 +190,44 @@ function drawManualProofingOverlays(
   const pxPerIn = width / project.size.widthIn
 
   if (options.includeTrimArea) {
-    const bleed = project.size.bleedIn * pxPerIn
-    const safety = bleed + project.size.safeZoneIn * pxPerIn
+    const trimPx = edgeInsetToPx(project.size.trim, pxPerIn)
+    const safetyEdgeInset = {
+      leftRight: project.size.trim.leftRight + project.size.safeZone.leftRight,
+      topBottom: project.size.trim.topBottom + project.size.safeZone.topBottom,
+      inside: project.size.trim.inside + project.size.safeZone.inside,
+    }
+    const safetyPx = edgeInsetToPx(safetyEdgeInset, pxPerIn)
+    const trim = resolvePageInsetsPx(spread.pageSide, trimPx)
+    const safety = resolvePageInsetsPx(spread.pageSide, safetyPx)
     ctx.save()
     ctx.strokeStyle = '#ffb347'
     ctx.setLineDash([6, 4])
     ctx.lineWidth = 1.5
-    ctx.strokeRect(bleed, bleed, width - bleed * 2, height - bleed * 2)
+    ctx.strokeRect(trim.left, trim.top, width - trim.left - trim.right, height - trim.top - trim.bottom)
     ctx.strokeStyle = '#4fd6c0'
     ctx.setLineDash([3, 5])
-    ctx.strokeRect(safety, safety, width - safety * 2, height - safety * 2)
+    ctx.strokeRect(safety.left, safety.top, width - safety.left - safety.right, height - safety.top - safety.bottom)
+    if (spread.pageSide === 'spread') {
+      const centerX = width / 2
+      const trimGutter = centerGutterInsetPx(trimPx)
+      const safetyGutter = centerGutterInsetPx(safetyPx)
+      ctx.strokeStyle = '#ffb347'
+      ctx.setLineDash([6, 4])
+      ;[centerX - trimGutter, centerX + trimGutter].forEach((x) => {
+        ctx.beginPath()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, height)
+        ctx.stroke()
+      })
+      ctx.strokeStyle = '#4fd6c0'
+      ctx.setLineDash([3, 5])
+      ;[centerX - safetyGutter, centerX + safetyGutter].forEach((x) => {
+        ctx.beginPath()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, height)
+        ctx.stroke()
+      })
+    }
     ctx.restore()
   }
 

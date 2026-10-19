@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { openProjectFromFile, openProjectFromPath } from '@/engine/projectFile'
 import { loadRecentProjects, recordRecentProject, removeRecentProject, RecentProjectEntry } from '@/engine/recentProjects'
+import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import NewProjectWizard from './NewProjectWizard'
 import Icon from './Icon'
 import ynotMark from '@/assets/ynot-mark-white.png'
@@ -11,20 +12,49 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+type HomeTab = 'albums' | 'galleries' | 'slideshows'
+const HOME_TABS: { id: HomeTab; label: string }[] = [
+  { id: 'albums', label: 'Albums' },
+  { id: 'galleries', label: 'Galleries' },
+  { id: 'slideshows', label: 'Slideshows' },
+]
+
 /** The app's landing screen — shown first on launch (and reachable any time via the brand mark),
- *  matching the reference app's own "pick an album or start a new one" dashboard instead of
- *  dropping straight into an empty, unnamed editor. Deliberately doesn't replicate the reference
- *  app's Galleries/Slideshows tabs or its trial/upgrade banner — those aren't real features or
- *  policies of this app, so a tab/banner for them would just be decoration pretending otherwise. */
+ *  matching the reference app's own "pick an album or start a new one" dashboard: the
+ *  Albums/Galleries/Slideshows tab row and the "+ New Project" split menu, even though this app
+ *  only actually designs albums — Galleries and Slideshows stay as inert tabs/menu entries for
+ *  structural parity rather than being hidden outright. */
 export default function HomeScreen() {
   const loadProjectFile = useProjectStore((s) => s.loadProjectFile)
+  const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
+  const [tab, setTab] = useState<HomeTab>('albums')
   const [recent, setRecent] = useState<RecentProjectEntry[]>(() => loadRecentProjects())
+  const [search, setSearch] = useState('')
+  const [newProjectMenuOpen, setNewProjectMenuOpen] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [opening, setOpening] = useState<string | null>(null)
   const [openError, setOpenError] = useState<string | null>(null)
+  const newProjectMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!newProjectMenuOpen) return
+    function onClickOutside(e: MouseEvent) {
+      if (newProjectMenuRef.current && !newProjectMenuRef.current.contains(e.target as Node)) setNewProjectMenuOpen(false)
+    }
+    window.addEventListener('mousedown', onClickOutside)
+    return () => window.removeEventListener('mousedown', onClickOutside)
+  }, [newProjectMenuOpen])
 
   function enterEditor() {
     window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))
+  }
+
+  async function handleAlbumCreated() {
+    setPreparingProject(true)
+    const { project, userTemplates } = useProjectStore.getState()
+    await finishNewProjectSetup(project, userTemplates)
+    setPreparingProject(false)
+    enterEditor()
   }
 
   function openNewProjectUI() {
@@ -80,6 +110,14 @@ export default function HomeScreen() {
     setRecent(removeRecentProject(projectId))
   }
 
+  const visibleRecent = search.trim()
+    ? recent.filter(
+        (e) =>
+          e.name.toLowerCase().includes(search.trim().toLowerCase()) ||
+          e.clientName?.toLowerCase().includes(search.trim().toLowerCase())
+      )
+    : recent
+
   return (
     <div className="home-screen">
       <header className="home-screen__header">
@@ -89,35 +127,78 @@ export default function HomeScreen() {
         <h1>YNOT Album Studio</h1>
       </header>
 
+      <div className="home-tabs">
+        {HOME_TABS.map((t) => (
+          <button key={t.id} className={tab === t.id ? 'is-active' : ''} onClick={() => setTab(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       <div className="home-screen__toolbar">
-        <h2>Albums</h2>
+        <div className="home-screen__search">
+          <Icon name="search" size={14} />
+          <input
+            placeholder="Search…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            disabled={tab !== 'albums'}
+          />
+        </div>
         <div className="home-screen__toolbar-actions">
-          <button className="btn" onClick={() => void handleOpenAny()}>
+          <button className="btn btn--icon" title="Open Project…" onClick={() => void handleOpenAny()}>
             <Icon name="folder" size={14} />
-            Open Project…
           </button>
-          <button className="btn btn--primary" onClick={openNewProjectUI}>
-            <Icon name="plus" size={14} />
-            New Project
-          </button>
+          <div className="split-button" ref={newProjectMenuRef}>
+            <button className="btn btn--primary" onClick={() => setNewProjectMenuOpen((o) => !o)}>
+              <Icon name="plus" size={14} />
+              New Project
+              <Icon name="chevronDown" size={12} />
+            </button>
+            {newProjectMenuOpen && (
+              <div className="split-button__menu">
+                <button
+                  onClick={() => {
+                    setNewProjectMenuOpen(false)
+                    openNewProjectUI()
+                  }}
+                >
+                  Album
+                </button>
+                <button disabled title="Not available in this app">
+                  Gallery
+                </button>
+                <button disabled title="Not available in this app">
+                  Slideshow
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {openError && <p className="home-screen__error">{openError}</p>}
 
-      {recent.length === 0 ? (
+      {tab !== 'albums' ? (
         <div className="home-screen__empty">
           <Icon name="bookOpen" size={32} />
-          <p>There are no albums yet.</p>
-          <p className="muted">Create an album to start designing — it'll show up here next time.</p>
+          <p>There are no {tab}.</p>
+          <p className="muted">
+            {tab === 'galleries' ? 'Galleries' : 'Slideshows'} aren't available in this app — it designs albums only.
+          </p>
+        </div>
+      ) : visibleRecent.length === 0 ? (
+        <div className="home-screen__empty">
+          <Icon name="bookOpen" size={32} />
+          <p>There are no albums</p>
+          <p className="muted">Create an album and share it with your clients.</p>
           <button className="btn btn--primary" onClick={openNewProjectUI}>
-            <Icon name="plus" size={14} />
             Create Album
           </button>
         </div>
       ) : (
         <div className="home-screen__grid">
-          {recent.map((entry) => (
+          {visibleRecent.map((entry) => (
             <button
               key={entry.projectId}
               className="home-card"
@@ -145,7 +226,7 @@ export default function HomeScreen() {
       )}
 
       {newProjectOpen && (
-        <NewProjectWizard onClose={() => setNewProjectOpen(false)} onCreated={enterEditor} />
+        <NewProjectWizard onClose={() => setNewProjectOpen(false)} onCreated={() => void handleAlbumCreated()} />
       )}
     </div>
   )

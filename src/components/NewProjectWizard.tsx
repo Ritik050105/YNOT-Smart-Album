@@ -1,11 +1,13 @@
-import { useState, Fragment } from 'react'
+import { useMemo, useState, Fragment } from 'react'
 import Modal from './Modal'
 import Icon from './Icon'
 import { useProjectStore, NewProjectOptions } from '@/state/projectStore'
 import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES, DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
-import { BUILT_IN_TEMPLATES } from '@/engine/templates'
+import { templatesForCount, matchesFrameFilter, TemplateFrameFilter, BUILT_IN_TEMPLATES } from '@/engine/templates'
+import { loadSizePresets, addSizePreset, deleteSizePreset, SizePreset } from '@/engine/sizePresets'
 import { inToDisplay, displayToIn, DisplayUnit } from '@/engine/units'
-import { AlbumSize, AlbumSizeCategory } from '@/types'
+import { AlbumSize, AlbumSizeCategory, EdgeInset } from '@/types'
+import TemplateThumb from './TemplatePreview'
 
 const SHAPES: { category: AlbumSizeCategory; label: string; aspect: number }[] = [
   { category: 'Square', label: 'Square', aspect: 1 },
@@ -17,10 +19,83 @@ const SHAPES: { category: AlbumSizeCategory; label: string; aspect: number }[] =
 
 const COLOR_PROFILES = ['sRGB', 'Adobe RGB', 'ProPhoto RGB']
 
+const LIBRARY_FILTERS: { value: TemplateFrameFilter; label: string }[] = [
+  { value: 'all', label: 'All Templates' },
+  { value: 'no-square', label: 'Templates without square frames' },
+  { value: 'only-3x2', label: 'Templates only with 3:2 frame ratios' },
+]
+
+const BORDER_STYLES = [
+  { label: 'None', px: 0 },
+  { label: 'Thin', px: 2 },
+  { label: 'Medium', px: 5 },
+  { label: 'Thick', px: 10 },
+]
+
+const GAP_STYLES = [
+  { label: 'None', px: 0 },
+  { label: 'Thin', px: 8 },
+  { label: 'Medium', px: 16 },
+  { label: 'Thick', px: 28 },
+]
+
+function stylePickFor(px: number, options: { label: string; px: number }[]): string {
+  return options.find((o) => o.px === px)?.label ?? 'Custom'
+}
+
+/** Three linked number fields for one `EdgeInset` (Left/right, Top/bottom, Inside) — shared by the
+ *  Safe Zone and Trim sections, matching the reference app's own field layout exactly. */
+function EdgeInsetFields({
+  value,
+  onChange,
+  units,
+  dpi,
+  step,
+}: {
+  value: EdgeInset
+  onChange: (next: EdgeInset) => void
+  units: DisplayUnit
+  dpi: number
+  step: number
+}) {
+  return (
+    <>
+      <label className="field">
+        Left/right ({units})
+        <input
+          type="number"
+          step={step}
+          value={inToDisplay(value.leftRight, units, dpi)}
+          onChange={(e) => onChange({ ...value, leftRight: displayToIn(Number(e.target.value), units, dpi) })}
+        />
+      </label>
+      <label className="field">
+        Top/bottom ({units})
+        <input
+          type="number"
+          step={step}
+          value={inToDisplay(value.topBottom, units, dpi)}
+          onChange={(e) => onChange({ ...value, topBottom: displayToIn(Number(e.target.value), units, dpi) })}
+        />
+      </label>
+      <label className="field">
+        Inside ({units})
+        <input
+          type="number"
+          step={step}
+          value={inToDisplay(value.inside, units, dpi)}
+          onChange={(e) => onChange({ ...value, inside: displayToIn(Number(e.target.value), units, dpi) })}
+        />
+      </label>
+    </>
+  )
+}
+
 /**
  * New Project wizard, modeled on the reference app's "Choose Project Specifications" ->
- * "Template Library and Appearance Settings" flow: pick a size (preset or fully custom),
- * then set the look new spreads start with and which templates Auto-Build is allowed to use.
+ * "Template Library and Appearance Settings" flow: pick a size (an album-company-style preset, or
+ * fully custom specs with saved presets), then narrow the template library and set the look new
+ * spreads start with.
  */
 export default function NewProjectWizard({
   onClose,
@@ -42,44 +117,106 @@ export default function NewProjectWizard({
 
   const [step, setStep] = useState<1 | 2>(1)
   const [name, setName] = useState('Untitled Album')
-  const [sizeTab, setSizeTab] = useState<'presets' | 'custom'>('presets')
+  const [specTab, setSpecTab] = useState<'company' | 'custom'>('company')
   const [shape, setShape] = useState<AlbumSizeCategory>('Square')
   const [presetId, setPresetId] = useState(DEFAULT_ALBUM_SIZE.id)
+
+  const [presets, setPresets] = useState<SizePreset[]>(() => loadSizePresets())
+  const [selectedPreset, setSelectedPreset] = useState('')
+  const [presetName, setPresetName] = useState('')
   const [units, setUnits] = useState<DisplayUnit>('in')
   const [widthIn, setWidthIn] = useState(DEFAULT_ALBUM_SIZE.widthIn)
   const [heightIn, setHeightIn] = useState(DEFAULT_ALBUM_SIZE.heightIn)
   const [dpi, setDpi] = useState(DEFAULT_ALBUM_SIZE.dpi)
-  const [bleedIn, setBleedIn] = useState(DEFAULT_ALBUM_SIZE.bleedIn)
-  const [safeZoneIn, setSafeZoneIn] = useState(DEFAULT_ALBUM_SIZE.safeZoneIn)
+  const [trim, setTrim] = useState<EdgeInset>(DEFAULT_ALBUM_SIZE.trim)
+  const [safeZone, setSafeZone] = useState<EdgeInset>(DEFAULT_ALBUM_SIZE.safeZone)
+  const [layoutStart, setLayoutStart] = useState<'spread' | 'single'>('spread')
+  const [layoutEnd, setLayoutEnd] = useState<'spread' | 'single'>('spread')
+  const [includeFullSpreadTemplates, setIncludeFullSpreadTemplates] = useState(true)
   const [colorProfile, setColorProfile] = useState('sRGB')
 
   const [backgroundColor, setBackgroundColor] = useState('#ffffff')
   const [gapPx, setGapPx] = useState(8)
-  const [marginPx, setMarginPx] = useState(24)
-  const [enabledIds, setEnabledIds] = useState<Set<string>>(new Set(BUILT_IN_TEMPLATES.map((t) => t.id)))
+  const [borderWidth, setBorderWidth] = useState(0)
+  const [borderColor, setBorderColor] = useState('#000000')
+  const [libraryFilter, setLibraryFilter] = useState<TemplateFrameFilter>('all')
 
-  function toggleTemplate(id: string) {
-    setEnabledIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  function applyPreset(presetName: string) {
+    const preset = presets.find((p) => p.presetName === presetName)
+    if (!preset) return
+    setSelectedPreset(presetName)
+    setWidthIn(preset.widthIn)
+    setHeightIn(preset.heightIn)
+    setDpi(preset.dpi)
+    setTrim(preset.trim)
+    setSafeZone(preset.safeZone)
   }
 
-  function resolveSize(): AlbumSize {
-    if (sizeTab === 'presets') {
-      return ALBUM_SIZES.find((s) => s.id === presetId) ?? DEFAULT_ALBUM_SIZE
-    }
-    return {
-      id: 'custom',
-      label: `Custom ${widthIn}" x ${heightIn}"`,
+  function saveCurrentAsPreset() {
+    const trimmed = presetName.trim()
+    if (!trimmed) return
+    const preset: SizePreset = {
+      id: `preset-${trimmed}`,
+      presetName: trimmed,
+      label: trimmed,
       category: 'Custom',
       widthIn,
       heightIn,
       dpi,
-      bleedIn,
-      safeZoneIn,
+      trim,
+      safeZone,
+    }
+    setPresets(addSizePreset(preset))
+    setSelectedPreset(trimmed)
+    setPresetName('')
+  }
+
+  function removeSelectedPreset() {
+    if (!selectedPreset) return
+    setPresets(deleteSizePreset(selectedPreset))
+    setSelectedPreset('')
+  }
+
+  // A small, fixed-size preview of what the chosen library filter leaves available — one
+  // representative layout per common photo count — instead of a 500+ item checkbox list, matching
+  // the reference app's own small gallery-style preview (it doesn't offer per-template toggles here
+  // either; that level of curation still lives in the Inspector's per-spread template picker).
+  const previewTemplates = useMemo(
+    () =>
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15]
+        .map((count) => templatesForCount(count, null, libraryFilter)[0])
+        .filter((t): t is NonNullable<typeof t> => !!t),
+    [libraryFilter]
+  )
+
+  const enabledTemplateIds = useMemo(() => {
+    if (libraryFilter === 'all') return null
+    const narrowed = BUILT_IN_TEMPLATES.filter((t) => matchesFrameFilter(t, libraryFilter)).map((t) => t.id)
+    return narrowed.length > 0 ? narrowed : null
+  }, [libraryFilter])
+
+  function toggleShape(category: AlbumSizeCategory) {
+    setSelectedPreset('')
+    setShape(category)
+    const first = ALBUM_SIZES.find((a) => a.category === category)
+    if (first) setPresetId(first.id)
+  }
+
+  function resolveSize(): AlbumSize {
+    // A saved preset (loaded via `applyPreset`, reachable from either tab) always wins — it's
+    // already populated width/height/dpi/trim/safeZone below, same shape as a fully custom size.
+    if (specTab === 'company' && !selectedPreset) {
+      return ALBUM_SIZES.find((s) => s.id === presetId) ?? DEFAULT_ALBUM_SIZE
+    }
+    return {
+      id: selectedPreset ? `preset-${selectedPreset}` : 'custom',
+      label: selectedPreset || `Custom ${widthIn}" x ${heightIn}"`,
+      category: 'Custom',
+      widthIn,
+      heightIn,
+      dpi,
+      trim,
+      safeZone,
     }
   }
 
@@ -91,8 +228,13 @@ export default function NewProjectWizard({
       colorProfile,
       defaultBackgroundColor: backgroundColor,
       defaultGapPx: gapPx,
-      defaultMarginPx: marginPx,
-      enabledTemplateIds: enabledIds.size === BUILT_IN_TEMPLATES.length ? null : Array.from(enabledIds),
+      defaultMarginPx: 24,
+      defaultBorderWidth: borderWidth,
+      defaultBorderColor: borderColor,
+      enabledTemplateIds,
+      layoutStart,
+      layoutEnd,
+      includeFullSpreadTemplates,
     }
     if (onSubmit) {
       onSubmit(opts)
@@ -103,13 +245,14 @@ export default function NewProjectWizard({
     onClose()
   }
 
-  const dimStep = units === 'cm' ? 0.5 : 0.25
+  const dimStep = units === 'cm' ? 0.5 : units === 'px' ? 10 : 0.25
+  const marginStep = units === 'cm' ? 0.1 : units === 'px' ? 5 : 0.0625
 
   return (
     <Modal
       title="New Album"
       onClose={onClose}
-      width={560}
+      width={620}
       bare={bare}
       footer={
         <>
@@ -130,14 +273,14 @@ export default function NewProjectWizard({
           ) : (
             <button className="btn btn--primary" onClick={handleCreate}>
               <Icon name="sparkles" size={14} />
-              Create Album
+              Start
             </button>
           )}
         </>
       }
     >
       <div className="wizard-steps">
-        {(['Specifications', 'Templates & Appearance'] as const).map((label, i) => (
+        {(['Choose Project Specifications', 'Template Library and Appearance Settings'] as const).map((label, i) => (
           <Fragment key={label}>
             <div className={`wizard-steps__step ${step === i + 1 ? 'is-active' : ''} ${step > i + 1 ? 'is-done' : ''}`}>
               <span className="wizard-steps__dot">{step > i + 1 ? <Icon name="check" size={10} /> : i + 1}</span>
@@ -156,101 +299,175 @@ export default function NewProjectWizard({
           </label>
 
           <div className="tab-row">
-            <button className={sizeTab === 'presets' ? 'is-active' : ''} onClick={() => setSizeTab('presets')}>
-              Size Presets
+            <button className={specTab === 'company' ? 'is-active' : ''} onClick={() => setSpecTab('company')}>
+              Album Company Preset
             </button>
-            <button className={sizeTab === 'custom' ? 'is-active' : ''} onClick={() => setSizeTab('custom')}>
+            <button className={specTab === 'custom' ? 'is-active' : ''} onClick={() => setSpecTab('custom')}>
               Custom
             </button>
           </div>
 
-          {sizeTab === 'presets' ? (
+          {specTab === 'company' ? (
             <>
-              <div className="shape-picker">
-                {SHAPES.map((s) => (
-                  <button
-                    key={s.category}
-                    className={`shape-option ${shape === s.category ? 'is-selected' : ''}`}
-                    onClick={() => {
-                      setShape(s.category)
-                      const first = ALBUM_SIZES.find((a) => a.category === s.category)
-                      if (first) setPresetId(first.id)
-                    }}
-                  >
-                    <span
-                      className="shape-option__swatch"
-                      style={{ width: 28, height: 28 / s.aspect }}
-                    />
-                    {s.label}
-                  </button>
-                ))}
-              </div>
               <label className="field">
-                Exact size
-                <select value={presetId} onChange={(e) => setPresetId(e.target.value)}>
-                  {ALBUM_SIZE_CATEGORIES.filter((c) => c === shape).map((category) => (
-                    <optgroup key={category} label={category}>
-                      {ALBUM_SIZES.filter((s) => s.category === category).map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
+                Album Company:
+                <select value="ynot" onChange={() => undefined}>
+                  <option value="ynot">YNOT Photography</option>
                 </select>
               </label>
+
+              {presets.length > 0 && (
+                <div className="field-section" style={{ marginTop: 10 }}>
+                  <div className="field-section__title">Saved Presets</div>
+                  <div className="preset-row">
+                    <select value={selectedPreset} onChange={(e) => applyPreset(e.target.value)}>
+                      <option value="">Use a standard size below instead…</option>
+                      {presets.map((p) => (
+                        <option key={p.presetName} value={p.presetName}>
+                          {p.presetName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div className="field-section">
+                <div className="field-section__title">Album Format and Size</div>
+                <div className="shape-picker">
+                  {SHAPES.map((s) => (
+                    <button
+                      key={s.category}
+                      className={`shape-option ${!selectedPreset && shape === s.category ? 'is-selected' : ''}`}
+                      onClick={() => toggleShape(s.category)}
+                    >
+                      <span className="shape-option__swatch" style={{ width: 28, height: 28 / s.aspect }} />
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                <label className="field">
+                  Exact size
+                  <select
+                    value={presetId}
+                    onChange={(e) => {
+                      setSelectedPreset('')
+                      setPresetId(e.target.value)
+                    }}
+                  >
+                    {ALBUM_SIZE_CATEGORIES.filter((c) => c === shape).map((category) => (
+                      <optgroup key={category} label={category}>
+                        {ALBUM_SIZES.filter((s) => s.category === category).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </label>
+              </div>
             </>
           ) : (
             <>
-              <div className="tab-row">
-                <button className={units === 'in' ? 'is-active' : ''} onClick={() => setUnits('in')}>
-                  Inches
-                </button>
-                <button className={units === 'cm' ? 'is-active' : ''} onClick={() => setUnits('cm')}>
-                  Centimeters
+              {presets.length > 0 && (
+                <div className="preset-row">
+                  <select value={selectedPreset} onChange={(e) => applyPreset(e.target.value)}>
+                    <option value="">[New Preset]</option>
+                    {presets.map((p) => (
+                      <option key={p.presetName} value={p.presetName}>
+                        {p.presetName}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="btn btn--tiny" disabled={!presetName.trim()} onClick={saveCurrentAsPreset}>
+                    Save Preset
+                  </button>
+                  <button className="btn btn--tiny btn--danger" disabled={!selectedPreset} onClick={removeSelectedPreset}>
+                    Delete Preset
+                  </button>
+                </div>
+              )}
+              <div className="save-template-row" style={{ marginBottom: 14 }}>
+                <input placeholder="Preset name" value={presetName} onChange={(e) => setPresetName(e.target.value)} />
+                <button className="btn btn--tiny" disabled={!presetName.trim()} onClick={saveCurrentAsPreset}>
+                  Save Preset
                 </button>
               </div>
+
               <div className="field-grid">
-                <label className="field">
-                  Width ({units})
-                  <input
-                    type="number"
-                    step={dimStep}
-                    value={inToDisplay(widthIn, units)}
-                    onChange={(e) => setWidthIn(displayToIn(Number(e.target.value), units))}
-                  />
-                </label>
-                <label className="field">
-                  Height ({units})
-                  <input
-                    type="number"
-                    step={dimStep}
-                    value={inToDisplay(heightIn, units)}
-                    onChange={(e) => setHeightIn(displayToIn(Number(e.target.value), units))}
-                  />
-                </label>
                 <label className="field">
                   DPI
                   <input type="number" min={72} max={600} value={dpi} onChange={(e) => setDpi(Number(e.target.value))} />
                 </label>
                 <label className="field">
-                  Bleed / Trim ({units})
-                  <input
-                    type="number"
-                    step={0.0625}
-                    value={inToDisplay(bleedIn, units)}
-                    onChange={(e) => setBleedIn(displayToIn(Number(e.target.value), units))}
-                  />
+                  Units
+                  <select value={units} onChange={(e) => setUnits(e.target.value as DisplayUnit)}>
+                    <option value="in">in</option>
+                    <option value="cm">cm</option>
+                    <option value="px">px</option>
+                  </select>
                 </label>
-                <label className="field">
-                  Safe Zone ({units})
-                  <input
-                    type="number"
-                    step={0.0625}
-                    value={inToDisplay(safeZoneIn, units)}
-                    onChange={(e) => setSafeZoneIn(displayToIn(Number(e.target.value), units))}
-                  />
-                </label>
+              </div>
+
+              <div className="field-section-row">
+                <div className="field-section">
+                  <div className="field-section__title">Output Dimensions</div>
+                  <label className="field">
+                    Spread width ({units})
+                    <input
+                      type="number"
+                      step={dimStep}
+                      value={inToDisplay(widthIn, units, dpi)}
+                      onChange={(e) => setWidthIn(displayToIn(Number(e.target.value), units, dpi))}
+                    />
+                  </label>
+                  <label className="field">
+                    Spread height ({units})
+                    <input
+                      type="number"
+                      step={dimStep}
+                      value={inToDisplay(heightIn, units, dpi)}
+                      onChange={(e) => setHeightIn(displayToIn(Number(e.target.value), units, dpi))}
+                    />
+                  </label>
+                </div>
+                <div className="field-section">
+                  <div className="field-section__title">Layout Type</div>
+                  <label className="field">
+                    Starts with
+                    <select value={layoutStart} onChange={(e) => setLayoutStart(e.target.value as 'spread' | 'single')}>
+                      <option value="spread">Full spread</option>
+                      <option value="single">Single page</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    Ends with
+                    <select value={layoutEnd} onChange={(e) => setLayoutEnd(e.target.value as 'spread' | 'single')}>
+                      <option value="spread">Full spread</option>
+                      <option value="single">Single page</option>
+                    </select>
+                  </label>
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={includeFullSpreadTemplates}
+                      onChange={(e) => setIncludeFullSpreadTemplates(e.target.checked)}
+                    />
+                    Include full spread templates
+                  </label>
+                </div>
+              </div>
+
+              <div className="field-section-row">
+                <div className="field-section">
+                  <div className="field-section__title">Safe Zone</div>
+                  <EdgeInsetFields value={safeZone} onChange={setSafeZone} units={units} dpi={dpi} step={marginStep} />
+                </div>
+                <div className="field-section">
+                  <div className="field-section__title">Trim</div>
+                  <EdgeInsetFields value={trim} onChange={setTrim} units={units} dpi={dpi} step={marginStep} />
+                </div>
               </div>
             </>
           )}
@@ -270,45 +487,79 @@ export default function NewProjectWizard({
         </>
       ) : (
         <>
-          <div className="field-section" style={{ marginTop: 0 }}>
-            <div className="field-section__title">Spread Appearance Defaults</div>
-            <div className="field-grid field-grid--4">
-              <label className="field">
-                Background
-                <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} />
-              </label>
-              <label className="field">
-                Gap (px)
-                <input type="number" min={0} max={200} value={gapPx} onChange={(e) => setGapPx(Number(e.target.value))} />
-              </label>
-              <label className="field">
-                Margin (px)
-                <input type="number" min={0} max={400} value={marginPx} onChange={(e) => setMarginPx(Number(e.target.value))} />
-              </label>
-            </div>
+          <label className="field" style={{ marginBottom: 14 }}>
+            Template Library Filter
+            <select value={libraryFilter} onChange={(e) => setLibraryFilter(e.target.value as TemplateFrameFilter)}>
+              {LIBRARY_FILTERS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="template-preview-grid">
+            {previewTemplates.map((t) => (
+              <TemplateThumb key={t.id} template={t} aspect={widthIn / heightIn} className="template-preview-grid__swatch" />
+            ))}
           </div>
 
           <div className="field-section">
-            <div className="field-section__title">
-              Template Library ({enabledIds.size}/{BUILT_IN_TEMPLATES.length} enabled for Auto-Build)
+            <div className="field-section__title">Appearance</div>
+            <label className="field">
+              Background color
+              <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} />
+            </label>
+
+            <div className="style-field">
+              <span className="style-field__label">Border around images</span>
+              <select
+                value={stylePickFor(borderWidth, BORDER_STYLES)}
+                onChange={(e) => {
+                  const found = BORDER_STYLES.find((s) => s.label === e.target.value)
+                  if (found) setBorderWidth(found.px)
+                }}
+              >
+                {BORDER_STYLES.map((s) => (
+                  <option key={s.label} value={s.label}>
+                    {s.label}
+                  </option>
+                ))}
+                <option value="Custom" disabled hidden>
+                  Custom
+                </option>
+              </select>
+              <input
+                type="number"
+                min={0}
+                max={200}
+                value={borderWidth}
+                onChange={(e) => setBorderWidth(Number(e.target.value))}
+              />
+              <span className="style-field__unit">pt</span>
+              <input type="color" value={borderColor} onChange={(e) => setBorderColor(e.target.value)} />
             </div>
-            <div className="template-pick-grid">
-              {BUILT_IN_TEMPLATES.map((t) => (
-                <div
-                  key={t.id}
-                  className={`template-pick-item ${enabledIds.has(t.id) ? 'is-enabled' : ''}`}
-                  onClick={() => toggleTemplate(t.id)}
-                >
-                  <div className="template-pick-item__swatch" style={{ background: t.thumbnailColor }}>
-                    {enabledIds.has(t.id) && (
-                      <span className="template-pick-item__check">
-                        <Icon name="check" size={9} />
-                      </span>
-                    )}
-                  </div>
-                  <span className="template-pick-item__label">{t.name}</span>
-                </div>
-              ))}
+
+            <div className="style-field">
+              <span className="style-field__label">Gap between images</span>
+              <select
+                value={stylePickFor(gapPx, GAP_STYLES)}
+                onChange={(e) => {
+                  const found = GAP_STYLES.find((s) => s.label === e.target.value)
+                  if (found) setGapPx(found.px)
+                }}
+              >
+                {GAP_STYLES.map((s) => (
+                  <option key={s.label} value={s.label}>
+                    {s.label}
+                  </option>
+                ))}
+                <option value="Custom" disabled hidden>
+                  Custom
+                </option>
+              </select>
+              <input type="number" min={0} max={200} value={gapPx} onChange={(e) => setGapPx(Number(e.target.value))} />
+              <span className="style-field__unit">pt</span>
             </div>
           </div>
         </>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { CSSProperties, useEffect, useMemo, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { Spread } from '@/types'
 import Icon from './Icon'
@@ -19,16 +19,32 @@ function findFirstEmptyPlaceholder(
   return null
 }
 
+type QuickFilter = 'all' | 'unplaced' | 'placed' | 'favorites' | 'adjusted'
+const QUICK_FILTERS: { id: QuickFilter; icon: 'image' | 'grid' | 'download' | 'heart' | 'wand'; title: string }[] = [
+  { id: 'all', icon: 'image', title: 'All images' },
+  { id: 'unplaced', icon: 'grid', title: 'Not yet placed' },
+  { id: 'placed', icon: 'download', title: 'Placed in the album' },
+  { id: 'favorites', icon: 'heart', title: 'Favorites' },
+  { id: 'adjusted', icon: 'wand', title: 'Tone adjusted' },
+]
+
+type SortMode = 'time' | 'name' | 'bin'
+
 /** Full-width photo dock at the bottom of the app — easiest spot to drag from onto the canvas
  *  above, and wide enough to show every imported photo in one scrollable row. Used photos (ones
  *  placed in a spread) are dimmed with a check badge; unplaced ones stay bright so what still
  *  needs placing is obvious at a glance. Photos can also be tagged into named "Bins" (Pixellu's
- *  term for custom photo collections — e.g. "Ceremony", "Getting Ready") and filtered by one. */
+ *  term for custom photo collections — e.g. "Ceremony", "Getting Ready") and filtered by one.
+ *
+ *  The toolbar's five icon tabs (All / Unplaced / Placed / Favorites / Tone Adjusted) mirror the
+ *  reference app's own quick-filter row — its exact tab semantics aren't documented anywhere we
+ *  could check, so this is our best-effort mapping onto filters this app can actually compute. */
 export default function PhotoBin() {
   const photos = useProjectStore((s) => s.project.photos)
   const spreads = useProjectStore((s) => s.project.spreads)
   const setPlacementPhoto = useProjectStore((s) => s.setPlacementPhoto)
   const setPhotoBins = useProjectStore((s) => s.setPhotoBins)
+  const setPhotoFavorite = useProjectStore((s) => s.setPhotoFavorite)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
   const selectedPhotoIds = useProjectStore((s) => s.selectedPhotoIds)
@@ -36,21 +52,38 @@ export default function PhotoBin() {
   const selectSpread = useProjectStore((s) => s.selectSpread)
   const selectPlaceholder = useProjectStore((s) => s.selectPlaceholder)
 
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
   const [binFilter, setBinFilter] = useState('')
+  const [extraBins, setExtraBins] = useState<string[]>([])
+  const [addingBin, setAddingBin] = useState(false)
+  const [newBinDraft, setNewBinDraft] = useState('')
+  const [sortBy, setSortBy] = useState<SortMode>('time')
+  const [search, setSearch] = useState('')
+  const [zoom, setZoom] = useState(84)
   const [tagPopoverFor, setTagPopoverFor] = useState<string | null>(null)
   const [newBinName, setNewBinName] = useState('')
-
-  const sorted = useMemo(
-    () => [...photos].sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime()),
-    [photos]
-  )
 
   const usedPhotoIds = useMemo(
     () => new Set(spreads.flatMap((s) => s.placements.map((p) => p.photoId).filter((id): id is string => !!id))),
     [spreads]
   )
 
-  const allBins = useMemo(() => Array.from(new Set(photos.flatMap((p) => p.bins))).sort(), [photos])
+  const adjustedPhotoIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const spread of spreads) {
+      for (const p of spread.placements) {
+        if (p.photoId && (p.warmth !== 0 || p.brightness !== 0 || p.contrast !== 0 || p.saturation !== 0 || p.relightIntensity !== 0)) {
+          ids.add(p.photoId)
+        }
+      }
+    }
+    return ids
+  }, [spreads])
+
+  const allBins = useMemo(
+    () => Array.from(new Set([...photos.flatMap((p) => p.bins), ...extraBins])).sort(),
+    [photos, extraBins]
+  )
 
   useEffect(() => {
     if (!tagPopoverFor) return
@@ -59,10 +92,26 @@ export default function PhotoBin() {
     return () => window.removeEventListener('click', close)
   }, [tagPopoverFor])
 
-  if (sorted.length === 0) return null
+  if (photos.length === 0) return null
 
-  const visible = binFilter ? sorted.filter((p) => p.bins.includes(binFilter)) : sorted
-  const unplacedCount = sorted.length - usedPhotoIds.size
+  const filtered = photos
+    .filter((p) => {
+      if (quickFilter === 'unplaced') return !usedPhotoIds.has(p.id)
+      if (quickFilter === 'placed') return usedPhotoIds.has(p.id)
+      if (quickFilter === 'favorites') return p.favorite
+      if (quickFilter === 'adjusted') return adjustedPhotoIds.has(p.id)
+      return true
+    })
+    .filter((p) => (binFilter ? p.bins.includes(binFilter) : true))
+    .filter((p) => (search.trim() ? p.fileName.toLowerCase().includes(search.trim().toLowerCase()) : true))
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === 'name') return a.fileName.localeCompare(b.fileName)
+    if (sortBy === 'bin') return (a.bins[0] ?? '').localeCompare(b.bins[0] ?? '')
+    return new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime()
+  })
+
+  const unplacedCount = photos.length - usedPhotoIds.size
 
   function toggleBin(photoId: string, bin: string) {
     const photo = photos.find((p) => p.id === photoId)
@@ -80,29 +129,87 @@ export default function PhotoBin() {
     setNewBinName('')
   }
 
+  function confirmAddBin() {
+    const name = newBinDraft.trim()
+    if (name && !allBins.includes(name)) setExtraBins((prev) => [...prev, name])
+    setNewBinDraft('')
+    setAddingBin(false)
+  }
+
   return (
     <div className="photo-dock">
-      <div className="photo-dock__header">
-        <Icon name="layers" size={14} />
-        <span>Photos</span>
-        <div className="bin-select-row">
-          <select value={binFilter} onChange={(e) => setBinFilter(e.target.value)}>
-            <option value="">All bins</option>
-            {allBins.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
+      <div className="photo-dock__toolbar">
+        <div className="photo-dock__tabs">
+          {QUICK_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              className={quickFilter === f.id ? 'is-active' : ''}
+              title={f.title}
+              onClick={() => setQuickFilter(f.id)}
+            >
+              <Icon name={f.icon} size={14} />
+            </button>
+          ))}
         </div>
-        <span className="muted">
-          {sorted.length} total · {unplacedCount} unplaced
+
+        <div className="photo-dock__bins">
+          <span className="muted">Bins:</span>
+          <button className={!binFilter ? 'is-active' : ''} onClick={() => setBinFilter('')}>
+            All
+          </button>
+          {allBins.map((b) => (
+            <button key={b} className={binFilter === b ? 'is-active' : ''} onClick={() => setBinFilter(b)}>
+              {b}
+            </button>
+          ))}
+          {addingBin ? (
+            <input
+              autoFocus
+              className="photo-dock__bin-input"
+              value={newBinDraft}
+              placeholder="Bin name…"
+              onChange={(e) => setNewBinDraft(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && confirmAddBin()}
+              onBlur={confirmAddBin}
+            />
+          ) : (
+            <button className="btn btn--icon btn--tiny" title="Add bin" onClick={() => setAddingBin(true)}>
+              <Icon name="plus" size={11} />
+            </button>
+          )}
+        </div>
+
+        <label className="photo-dock__sort">
+          <span className="muted">Filter:</span>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortMode)}>
+            <option value="time">Sort by time taken</option>
+            <option value="name">Sort by file name</option>
+            <option value="bin">Sort by bin</option>
+          </select>
+        </label>
+
+        <div className="photo-dock__search">
+          <Icon name="search" size={13} />
+          <input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+
+        <input
+          className="photo-dock__zoom"
+          type="range"
+          min={56}
+          max={140}
+          value={zoom}
+          onChange={(e) => setZoom(Number(e.target.value))}
+          title="Thumbnail size"
+        />
+
+        <span className="muted photo-dock__count">
+          {photos.length} total · {unplacedCount} unplaced
           {selectedPhotoIds.length > 0 && ` · ${selectedPhotoIds.length} selected`}
         </span>
-        {selectedPhotoIds.length === 1 && <span className="muted photo-dock__hint">Click a frame on the canvas to place it</span>}
       </div>
-      <div className="photo-dock__strip">
-        {visible.map((photo) => {
+      <div className="photo-dock__strip" style={{ '--photo-size': `${zoom}px` } as CSSProperties}>
+        {sorted.map((photo) => {
           const used = usedPhotoIds.has(photo.id)
           const selected = selectedPhotoIds.includes(photo.id)
           return (
@@ -116,7 +223,7 @@ export default function PhotoBin() {
               }}
               onClick={(e) => {
                 const mode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
-                togglePhotoSelection(photo.id, visible.map((p) => p.id), mode)
+                togglePhotoSelection(photo.id, sorted.map((p) => p.id), mode)
               }}
               onDoubleClick={() => {
                 // Quick-place: double-click drops this photo into the selected slot, or — if
@@ -136,6 +243,16 @@ export default function PhotoBin() {
               title={`${photo.fileName} — ${new Date(photo.capturedAt).toLocaleString()}${used ? ' (placed)' : ''} — double-click to quick-place, click to select then click a canvas frame, shift/ctrl+click to multi-select`}
             >
               <img src={photo.src} alt={photo.fileName} />
+              <button
+                className={`photo-dock__fav-btn ${photo.favorite ? 'is-favorite' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setPhotoFavorite(photo.id, !photo.favorite)
+                }}
+                title={photo.favorite ? 'Remove from favorites' : 'Mark as favorite'}
+              >
+                <Icon name="heart" size={11} />
+              </button>
               <button
                 className="photo-dock__tag-btn"
                 onClick={(e) => {
@@ -179,6 +296,7 @@ export default function PhotoBin() {
             </div>
           )
         })}
+        {sorted.length === 0 && <p className="muted photo-dock__empty">No photos match this filter.</p>}
       </div>
     </div>
   )

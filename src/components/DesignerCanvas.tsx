@@ -4,7 +4,7 @@ import { Stage, Layer, Rect, Group, Image as KonvaImage, Text as KonvaText, Line
 import Konva from 'konva'
 import useImage from 'use-image'
 import { useProjectStore } from '@/state/projectStore'
-import { computePlaceholderBoxes } from '@/engine/layoutMath'
+import { computePlaceholderBoxes, resolvePageInsetsPx, centerGutterInsetPx, edgeInsetToPx } from '@/engine/layoutMath'
 import { computeCoverCrop } from '@/engine/cropFit'
 import { ensureFontLoaded } from '@/engine/fonts'
 import { quotesForEventType } from '@/engine/textSuggestions'
@@ -214,6 +214,7 @@ export default function DesignerCanvas() {
   const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
   const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
   const toneClipboard = useProjectStore((s) => s.toneClipboard)
+  const canvasTool = useProjectStore((s) => s.canvasTool)
 
   const spread: Spread | undefined = project.spreads.find((s) => s.id === selectedSpreadId)
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
@@ -315,7 +316,7 @@ export default function DesignerCanvas() {
   }
 
   function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
-    if (isSpaceDown || e.evt.button === 1) {
+    if (isSpaceDown || canvasTool === 'pan' || e.evt.button === 1) {
       e.evt.preventDefault()
       isPanningRef.current = true
       panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY, stageX: stagePos.x, stageY: stagePos.y }
@@ -535,7 +536,7 @@ export default function DesignerCanvas() {
         </button>
       </div>
       <div
-        className={`designer-canvas ${isSpaceDown ? 'designer-canvas--pan' : ''}`}
+        className={`designer-canvas ${isSpaceDown || canvasTool === 'pan' ? 'designer-canvas--pan' : ''}`}
         ref={containerRef}
         // stopPropagation on every drag stage (not just drop) keeps GlobalDropZone's window-wide
         // "drop anywhere" overlay from popping up and covering the exact frame the user is
@@ -666,12 +667,48 @@ export default function DesignerCanvas() {
           {showPrintGuides &&
             (() => {
               const pxPerIn = STAGE_WIDTH / project.size.widthIn
-              const bleed = project.size.bleedIn * pxPerIn
-              const safety = bleed + project.size.safeZoneIn * pxPerIn
+              const trimPx = edgeInsetToPx(project.size.trim, pxPerIn)
+              const safetyEdgeInset = {
+                leftRight: project.size.trim.leftRight + project.size.safeZone.leftRight,
+                topBottom: project.size.trim.topBottom + project.size.safeZone.topBottom,
+                inside: project.size.trim.inside + project.size.safeZone.inside,
+              }
+              const safetyPx = edgeInsetToPx(safetyEdgeInset, pxPerIn)
+              const trim = resolvePageInsetsPx(spread.pageSide, trimPx)
+              const safety = resolvePageInsetsPx(spread.pageSide, safetyPx)
+              const centerX = STAGE_WIDTH / 2
+              const trimGutter = centerGutterInsetPx(trimPx)
+              const safetyGutter = centerGutterInsetPx(safetyPx)
               return (
                 <>
-                  <Rect x={bleed} y={bleed} width={STAGE_WIDTH - bleed * 2} height={stageHeight - bleed * 2} stroke="#ffb347" strokeWidth={1} dash={[5, 3]} listening={false} />
-                  <Rect x={safety} y={safety} width={STAGE_WIDTH - safety * 2} height={stageHeight - safety * 2} stroke="#4fd6c0" strokeWidth={1} dash={[2, 4]} listening={false} />
+                  <Rect
+                    x={trim.left}
+                    y={trim.top}
+                    width={STAGE_WIDTH - trim.left - trim.right}
+                    height={stageHeight - trim.top - trim.bottom}
+                    stroke="#ffb347"
+                    strokeWidth={1}
+                    dash={[5, 3]}
+                    listening={false}
+                  />
+                  <Rect
+                    x={safety.left}
+                    y={safety.top}
+                    width={STAGE_WIDTH - safety.left - safety.right}
+                    height={stageHeight - safety.top - safety.bottom}
+                    stroke="#4fd6c0"
+                    strokeWidth={1}
+                    dash={[2, 4]}
+                    listening={false}
+                  />
+                  {spread.pageSide === 'spread' && (
+                    <>
+                      <Line points={[centerX - trimGutter, 0, centerX - trimGutter, stageHeight]} stroke="#ffb347" strokeWidth={1} dash={[5, 3]} listening={false} />
+                      <Line points={[centerX + trimGutter, 0, centerX + trimGutter, stageHeight]} stroke="#ffb347" strokeWidth={1} dash={[5, 3]} listening={false} />
+                      <Line points={[centerX - safetyGutter, 0, centerX - safetyGutter, stageHeight]} stroke="#4fd6c0" strokeWidth={1} dash={[2, 4]} listening={false} />
+                      <Line points={[centerX + safetyGutter, 0, centerX + safetyGutter, stageHeight]} stroke="#4fd6c0" strokeWidth={1} dash={[2, 4]} listening={false} />
+                    </>
+                  )}
                 </>
               )
             })()}

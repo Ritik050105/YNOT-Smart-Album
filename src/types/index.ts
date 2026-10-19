@@ -17,6 +17,8 @@ export interface PhotoAsset {
   /** Named collections ("Bins" in Pixellu SmartAlbums) for organizing a big shoot — e.g.
    *  "Ceremony", "Reception", "Getting Ready". A photo can belong to any number of bins. */
   bins: string[]
+  /** "Mark as Favorite" — the Photo Dock's heart-icon quick filter. */
+  favorite: boolean
 }
 
 export interface PlaceholderRect {
@@ -127,6 +129,15 @@ export interface Spread {
 
 export type AlbumSizeCategory = 'Square' | 'Portrait' | 'Landscape' | 'Panoramic' | 'Magazine' | 'Custom'
 
+/** A margin that can differ between a spread's outer edges and the "inside" edge next to its
+ *  spine/fold — the New Project wizard's Custom tab shows exactly these three fields for both
+ *  Safe Zone and Trim ("Left/right, top/bottom, inside"). */
+export interface EdgeInset {
+  leftRight: number
+  topBottom: number
+  inside: number
+}
+
 export interface AlbumSize {
   id: string
   label: string
@@ -134,9 +145,9 @@ export interface AlbumSize {
   widthIn: number
   heightIn: number
   /** Bleed/trim — how far past the trim line artwork should extend. */
-  bleedIn: number
+  trim: EdgeInset
   /** Safe zone — how far in from the trim line important content should stay clear of. */
-  safeZoneIn: number
+  safeZone: EdgeInset
   dpi: number
 }
 
@@ -163,9 +174,21 @@ export interface Project {
   defaultBackgroundColor: string
   defaultGapPx: number
   defaultMarginPx: number
+  /** Defaults applied to newly placed photos (auto-build) — "Border around images" in the New
+   *  Project wizard's Appearance step. */
+  defaultBorderWidth: number
+  defaultBorderColor: string
   /** When set, Smart Grid Suggestions only offers templates from this list (chosen when the
    *  project was created) — null means "all templates available". */
   enabledTemplateIds: string[] | null
+  /** Whether Auto-Build may use two-page-wide ("full spread") templates for the album's very
+   *  first / last interior spread, or must keep those as single pages — the New Project wizard's
+   *  "Layout Type: Starts with / Ends with" setting. */
+  layoutStart: 'spread' | 'single'
+  layoutEnd: 'spread' | 'single'
+  /** Whether Auto-Build's template pool includes full-spread (two-page) templates at all —
+   *  the wizard's "Include full spread templates" checkbox. */
+  includeFullSpreadTemplates: boolean
 }
 
 /** On-disk project file format — self-contained (photos embedded as data URLs) so it opens

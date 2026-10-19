@@ -7,16 +7,21 @@ import SpreadsPanel from './components/SpreadsPanel'
 import DesignerCanvas from './components/DesignerCanvas'
 import Inspector from './components/Inspector'
 import TemplateLibraryPanel from './components/TemplateLibraryPanel'
+import AlbumInfoPanel from './components/AlbumInfoPanel'
 import WorkflowStepper from './components/WorkflowStepper'
 import KeyboardShortcuts from './components/KeyboardShortcuts'
 import GlobalDropZone from './components/GlobalDropZone'
 import HomeScreen from './components/HomeScreen'
 import Icon from './components/Icon'
+import NewProjectLoadingOverlay from './components/NewProjectLoadingOverlay'
 import { useProjectStore } from '@/state/projectStore'
+import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 
 export default function App() {
   const [showHome, setShowHome] = useState(true)
   const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
+  const preparingProject = useProjectStore((s) => s.preparingProject)
+  const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
   const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
   const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
   const bottomPanelOpen = useProjectStore((s) => s.bottomPanelOpen)
@@ -46,9 +51,16 @@ export default function App() {
     if (!window.albumStudio) return
     return window.albumStudio.onNewProjectCreated((opts) => {
       createProjectFromWizard(opts as never)
-      window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))
+      setPreparingProject(true)
+      const { project, userTemplates } = useProjectStore.getState()
+      void finishNewProjectSetup(project, userTemplates).then(() => {
+        setPreparingProject(false)
+        window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))
+      })
     })
-  }, [createProjectFromWizard])
+  }, [createProjectFromWizard, setPreparingProject])
+
+  if (preparingProject) return <NewProjectLoadingOverlay />
 
   if (showHome) return <HomeScreen />
 
@@ -87,6 +99,7 @@ export default function App() {
         </button>
         {rightPanelOpen && (
           <aside className="app-sidebar app-sidebar--right">
+            <AlbumInfoPanel />
             <Inspector />
             <TemplateLibraryPanel />
           </aside>

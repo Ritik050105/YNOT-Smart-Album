@@ -57,6 +57,7 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
     megapixels: Math.round((width * height) / 1_000_000),
     mimeType: file.type || 'image/jpeg',
     bins: [],
+    favorite: false,
   }
 }
 

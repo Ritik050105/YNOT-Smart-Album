@@ -23,6 +23,9 @@ interface MenuSpec {
 export default function MenuBar() {
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
+  const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
+  const multiSelectedPlaceholderIds = useProjectStore((s) => s.multiSelectedPlaceholderIds)
+  const toneClipboard = useProjectStore((s) => s.toneClipboard)
   const undo = useProjectStore((s) => s.undo)
   const redo = useProjectStore((s) => s.redo)
   const history = useProjectStore((s) => s.history)
@@ -35,6 +38,10 @@ export default function MenuBar() {
   const duplicateSpread = useProjectStore((s) => s.duplicateSpread)
   const deleteSpread = useProjectStore((s) => s.deleteSpread)
   const applyTemplateToAllSpreads = useProjectStore((s) => s.applyTemplateToAllSpreads)
+  const updateMultiplePlacements = useProjectStore((s) => s.updateMultiplePlacements)
+  const resetPlacementToOriginal = useProjectStore((s) => s.resetPlacementToOriginal)
+  const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
+  const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
   const showGrid = useProjectStore((s) => s.showGrid)
   const toggleGrid = useProjectStore((s) => s.toggleGrid)
   const showPrintGuides = useProjectStore((s) => s.showPrintGuides)
@@ -64,10 +71,21 @@ export default function MenuBar() {
   const interiorIndex = spread ? interior.findIndex((s) => s.id === spread.id) : -1
   const hasSpread = !!spread
   const hasInteriorSpread = !!spread && !spread.isCover
+  const framePlaceholderIds = multiSelectedPlaceholderIds.length > 0
+    ? multiSelectedPlaceholderIds
+    : selectedPlaceholderId
+      ? [selectedPlaceholderId]
+      : []
+  const hasFrameSelection = framePlaceholderIds.length > 0
 
   function run(fn: () => void) {
     fn()
     setOpenMenu(null)
+  }
+
+  function setFrameStyle(style: 'none' | 'rounded' | 'polaroid' | 'shadow') {
+    if (!spread || framePlaceholderIds.length === 0) return
+    updateMultiplePlacements(spread.id, framePlaceholderIds, { frameStyle: style })
   }
 
   const menus: MenuSpec[] = [
@@ -93,10 +111,40 @@ export default function MenuBar() {
       ],
     },
     {
+      label: 'Frame',
+      items: [
+        { label: 'No Frame', disabled: !hasFrameSelection, onClick: () => setFrameStyle('none') },
+        { label: 'Rounded Frame', disabled: !hasFrameSelection, onClick: () => setFrameStyle('rounded') },
+        { label: 'Polaroid Frame', disabled: !hasFrameSelection, onClick: () => setFrameStyle('polaroid') },
+        { label: 'Shadow Frame', disabled: !hasFrameSelection, onClick: () => setFrameStyle('shadow') },
+        {
+          label: 'Copy Tone Adjustments',
+          disabled: !spread || framePlaceholderIds.length !== 1,
+          onClick: () => spread && copyToneAdjustments(spread.id, framePlaceholderIds[0]),
+        },
+        {
+          label: 'Paste Tone Adjustments',
+          disabled: !spread || !toneClipboard || !hasFrameSelection,
+          onClick: () => spread && pasteToneAdjustments(spread.id, framePlaceholderIds),
+        },
+        {
+          label: 'Reset Frame to Original',
+          disabled: !spread || framePlaceholderIds.length !== 1,
+          onClick: () => spread && resetPlacementToOriginal(spread.id, framePlaceholderIds[0]),
+        },
+      ],
+    },
+    {
+      label: 'Cover',
+      items: [
+        { label: 'Add Cover', disabled: hasCover, onClick: addCoverSpread },
+        { label: 'Delete Cover', disabled: !hasCover, danger: true, onClick: () => { const cover = project.spreads.find((s) => s.isCover); if (cover) deleteSpread(cover.id) } },
+      ],
+    },
+    {
       label: 'Spread',
       items: [
         { label: 'Add Blank Spread', onClick: addBlankSpread },
-        { label: 'Add Cover', disabled: hasCover, onClick: addCoverSpread },
         { label: 'Flip Spread Horizontally', disabled: !hasSpread, onClick: () => spread && flipSpread(spread.id) },
         {
           label: 'Split Spread',
@@ -115,8 +163,8 @@ export default function MenuBar() {
           onClick: () => spread && void exportSingleSpreadToPdf(project, spread),
         },
         {
-          label: hasCover && spread?.isCover ? 'Delete Cover' : 'Delete Spread',
-          disabled: !hasSpread,
+          label: 'Delete Spread',
+          disabled: !hasInteriorSpread,
           danger: true,
           onClick: () => spread && deleteSpread(spread.id),
         },
@@ -134,6 +182,25 @@ export default function MenuBar() {
           label: 'Apply Template to All Spreads',
           disabled: !hasSpread,
           onClick: () => spread && applyTemplateToAllSpreads(spread.templateId),
+        },
+      ],
+    },
+    {
+      label: 'Tools',
+      items: [
+        {
+          label: 'Reset Panel Layout',
+          onClick: () => {
+            if (!leftPanelOpen) toggleLeftPanel()
+            if (!rightPanelOpen) toggleRightPanel()
+            if (!bottomPanelOpen) toggleBottomPanel()
+          },
+        },
+        {
+          label: 'Clear Undo History',
+          disabled: history.length === 0 && future.length === 0,
+          danger: true,
+          onClick: () => useProjectStore.setState({ history: [], future: [] }),
         },
       ],
     },

@@ -1,11 +1,58 @@
 import { useState } from 'react'
 import Modal from './Modal'
 import Icon from './Icon'
-import { AlbumSize } from '@/types'
+import { AlbumSize, EdgeInset } from '@/types'
 import { inToDisplay, displayToIn, DisplayUnit } from '@/engine/units'
 import { loadSizePresets, addSizePreset, deleteSizePreset, SizePreset } from '@/engine/sizePresets'
 
-/** Full custom album size dialog — DPI, units, width/height, safe zone and bleed/trim, plus
+/** Three linked number fields for one `EdgeInset` (Left/right, Top/bottom, Inside) — shared by the
+ *  Safe Zone and Trim sections, matching the reference app's own field layout exactly. */
+function EdgeInsetFields({
+  value,
+  onChange,
+  units,
+  dpi,
+}: {
+  value: EdgeInset
+  onChange: (next: EdgeInset) => void
+  units: DisplayUnit
+  dpi: number
+}) {
+  const step = units === 'px' ? 5 : units === 'cm' ? 0.1 : 0.0625
+  return (
+    <>
+      <label className="field">
+        Left/right ({units})
+        <input
+          type="number"
+          step={step}
+          value={inToDisplay(value.leftRight, units, dpi)}
+          onChange={(e) => onChange({ ...value, leftRight: displayToIn(Number(e.target.value), units, dpi) })}
+        />
+      </label>
+      <label className="field">
+        Top/bottom ({units})
+        <input
+          type="number"
+          step={step}
+          value={inToDisplay(value.topBottom, units, dpi)}
+          onChange={(e) => onChange({ ...value, topBottom: displayToIn(Number(e.target.value), units, dpi) })}
+        />
+      </label>
+      <label className="field">
+        Inside ({units})
+        <input
+          type="number"
+          step={step}
+          value={inToDisplay(value.inside, units, dpi)}
+          onChange={(e) => onChange({ ...value, inside: displayToIn(Number(e.target.value), units, dpi) })}
+        />
+      </label>
+    </>
+  )
+}
+
+/** Full custom album size dialog — DPI, units, width/height, per-edge safe zone and trim, plus
  *  named presets you can save and reapply later. A modal (not an inline popover) because it's
  *  a focused multi-field task, the same reasoning Pixellu's own "Custom" specs screen follows. */
 export default function CustomSizeModal({
@@ -23,8 +70,8 @@ export default function CustomSizeModal({
   const [widthIn, setWidthIn] = useState(initial.widthIn)
   const [heightIn, setHeightIn] = useState(initial.heightIn)
   const [dpi, setDpi] = useState(initial.dpi)
-  const [bleedIn, setBleedIn] = useState(initial.bleedIn)
-  const [safeZoneIn, setSafeZoneIn] = useState(initial.safeZoneIn)
+  const [trim, setTrim] = useState<EdgeInset>(initial.trim)
+  const [safeZone, setSafeZone] = useState<EdgeInset>(initial.safeZone)
   const [presets, setPresets] = useState<SizePreset[]>(() => loadSizePresets())
   const [selectedPreset, setSelectedPreset] = useState('')
   const [presetName, setPresetName] = useState('')
@@ -36,8 +83,8 @@ export default function CustomSizeModal({
     setWidthIn(preset.widthIn)
     setHeightIn(preset.heightIn)
     setDpi(preset.dpi)
-    setBleedIn(preset.bleedIn)
-    setSafeZoneIn(preset.safeZoneIn)
+    setTrim(preset.trim)
+    setSafeZone(preset.safeZone)
   }
 
   function savePreset() {
@@ -51,8 +98,8 @@ export default function CustomSizeModal({
       widthIn,
       heightIn,
       dpi,
-      bleedIn,
-      safeZoneIn,
+      trim,
+      safeZone,
     }
     setPresets(addSizePreset(preset))
     setSelectedPreset(name)
@@ -74,15 +121,14 @@ export default function CustomSizeModal({
         widthIn,
         heightIn,
         dpi,
-        bleedIn,
-        safeZoneIn,
+        trim,
+        safeZone,
       },
       units
     )
   }
 
   const dimStep = units === 'px' ? 10 : units === 'cm' ? 0.5 : 0.25
-  const marginStep = units === 'px' ? 5 : units === 'cm' ? 0.1 : 0.0625
 
   return (
     <Modal
@@ -151,34 +197,21 @@ export default function CustomSizeModal({
               onChange={(e) => setHeightIn(displayToIn(Number(e.target.value), units, dpi))}
             />
           </label>
-        </div>
-      </div>
-
-      <div className="field-section">
-        <div className="field-section__title">Print Settings</div>
-        <div className="field-grid">
           <label className="field">
             DPI
             <input type="number" step={1} min={72} max={600} value={dpi} onChange={(e) => setDpi(Number(e.target.value))} />
           </label>
-          <label className="field">
-            Bleed / Trim ({units})
-            <input
-              type="number"
-              step={marginStep}
-              value={inToDisplay(bleedIn, units, dpi)}
-              onChange={(e) => setBleedIn(displayToIn(Number(e.target.value), units, dpi))}
-            />
-          </label>
-          <label className="field">
-            Safe Zone ({units})
-            <input
-              type="number"
-              step={marginStep}
-              value={inToDisplay(safeZoneIn, units, dpi)}
-              onChange={(e) => setSafeZoneIn(displayToIn(Number(e.target.value), units, dpi))}
-            />
-          </label>
+        </div>
+      </div>
+
+      <div className="field-section-row">
+        <div className="field-section">
+          <div className="field-section__title">Safe Zone</div>
+          <EdgeInsetFields value={safeZone} onChange={setSafeZone} units={units} dpi={dpi} />
+        </div>
+        <div className="field-section">
+          <div className="field-section__title">Trim</div>
+          <EdgeInsetFields value={trim} onChange={setTrim} units={units} dpi={dpi} />
         </div>
       </div>
 
