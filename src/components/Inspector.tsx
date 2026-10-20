@@ -251,6 +251,35 @@ export default function Inspector() {
         </label>
       </section>
 
+      <section>
+        <h4>
+          <Icon name="info" size={13} />
+          Usage Information
+        </h4>
+        {(() => {
+          const spreadPhotos = spread.placements
+            .map((p) => (p.photoId ? project.photos.find((ph) => ph.id === p.photoId) : undefined))
+            .filter((p): p is NonNullable<typeof p> => !!p)
+          const squareCount = spreadPhotos.filter((p) => p.orientation === 'square').length
+          const horizontalCount = spreadPhotos.filter((p) => p.orientation === 'landscape').length
+          const verticalCount = spreadPhotos.filter((p) => p.orientation === 'portrait').length
+          const templateUses = project.spreads.filter((s) => s.templateId === spread.templateId).length
+          const parts = [
+            horizontalCount > 0 ? `${horizontalCount} horizontal` : null,
+            verticalCount > 0 ? `${verticalCount} vertical` : null,
+            squareCount > 0 ? `${squareCount} square` : null,
+          ].filter((p): p is string => !!p)
+          return (
+            <p className="muted">
+              {spreadPhotos.length} image{spreadPhotos.length === 1 ? '' : 's'}
+              {parts.length > 0 && `: ${parts.join(', ')}`}
+              <br />
+              Template used {templateUses} time{templateUses === 1 ? '' : 's'} in the project
+            </p>
+          )
+        })()}
+      </section>
+
       {placement && (
         <section>
           <h4>

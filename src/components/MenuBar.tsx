@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { importPhotoFiles } from '@/engine/importPhotos'
 import { TemplateFrameFilter } from '@/engine/templates'
+import { Theme, applyTheme, getStoredTheme } from '@/engine/theme'
 import Icon from './Icon'
 
 interface MenuItem {
@@ -83,6 +84,8 @@ export default function MenuBar() {
 
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [preferencesOpen, setPreferencesOpen] = useState(false)
+  const [theme, setTheme] = useState<Theme>(getStoredTheme)
   const rootRef = useRef<HTMLDivElement>(null)
   const replaceInputRef = useRef<HTMLInputElement>(null)
 
@@ -284,6 +287,14 @@ export default function MenuBar() {
           danger: true,
           onClick: () => useProjectStore.setState({ history: [], future: [] }),
         },
+        {
+          label: 'Preferences…',
+          shortcut: 'Ctrl+Shift+P',
+          onClick: () => {
+            setTheme(getStoredTheme())
+            setPreferencesOpen(true)
+          },
+        },
       ],
     },
     {
@@ -350,6 +361,34 @@ export default function MenuBar() {
           e.target.value = ''
         }}
       />
+      {preferencesOpen && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setPreferencesOpen(false)}>
+          <div className="modal-card" style={{ width: 360 }} role="dialog" aria-modal="true" aria-label="Preferences">
+            <div className="modal-card__header">
+              <div>
+                <h2>Preferences</h2>
+              </div>
+              <button className="btn btn--icon btn--ghost" onClick={() => setPreferencesOpen(false)} aria-label="Close">
+                <Icon name="x" size={16} />
+              </button>
+            </div>
+            <div className="modal-card__body">
+              <label className="field">
+                Theme
+                <select value={theme} onChange={(e) => { applyTheme(e.target.value as Theme); setTheme(e.target.value as Theme) }}>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </label>
+            </div>
+            <div className="modal-card__footer">
+              <button className="btn btn--primary" onClick={() => setPreferencesOpen(false)}>
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {aboutOpen && (
         <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setAboutOpen(false)}>
           <div className="modal-card" style={{ width: 360 }} role="dialog" aria-modal="true" aria-label="About YNOT Album Studio">
