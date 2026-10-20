@@ -73,6 +73,10 @@ export interface PlacedPhoto {
   /** Corner radius in px, used when frameStyle is 'rounded' (continuous control rather than a
    *  single fixed radius). */
   cornerRadiusPx: number
+  /** Frame menu's "Flip Image Horizontally/Vertically" — mirrors the photo within its own crop,
+   *  independent of the spread-level "Flip Spread Horizontally". */
+  flipHorizontal: boolean
+  flipVertical: boolean
 }
 
 /** The subset of PlacedPhoto that "Copy/Paste Tone Adjustments" and multi-select batch editing
@@ -149,6 +153,11 @@ export interface AlbumSize {
   /** Safe zone — how far in from the trim line important content should stay clear of. */
   safeZone: EdgeInset
   dpi: number
+  /** Optional page-count range (an "album company" product's own printing constraints) — Export
+   *  warns ("...the album needs to have between X and Y pages...") when the current interior page
+   *  count falls outside it. Undefined/0 means no limit. Set from the Custom tab or a saved preset. */
+  minPages?: number
+  maxPages?: number
 }
 
 export interface Project {

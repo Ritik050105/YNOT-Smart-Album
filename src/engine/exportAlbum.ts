@@ -6,12 +6,26 @@ import { buildSpreadPsdBytes } from './exportPsd'
 import { buildProofingGalleryHtml } from './exportProofing'
 import { canvasToBytes, saveOneFile, saveManyFiles, projectFileBaseName } from './exportUtil'
 
+/** Checks the album's interior page count against its size's optional min/max page range (an
+ *  "album company" product's own printing constraints, set on a saved Custom preset) — the
+ *  reference app's "According to the album company limitations, the album needs to have between
+ *  X and Y pages..." export-time warning. */
+export function checkPageLimits(project: Project): { violated: boolean; pageCount: number; min?: number; max?: number } {
+  const interiorSpreads = project.spreads.filter((s) => !s.isCover)
+  const pageCount = interiorSpreads.reduce((sum, s) => sum + (s.pageSide === 'spread' ? 2 : 1), 0)
+  const { minPages, maxPages } = project.size
+  const violated = (!!minPages && pageCount < minPages) || (!!maxPages && pageCount > maxPages)
+  return { violated, pageCount, min: minPages, max: maxPages }
+}
+
 /** Returns spreads in album order, optionally narrowed to an "Output Range" selection of
  *  0-based indices (e.g. a parsed "1, 2, 5-7" field) — shared by every export path so range
- *  selection behaves identically for PDF, raster, PSD, and manual-proofing exports. */
-function selectSpreads(project: Project, spreadIndices?: number[]): Spread[] {
+ *  selection behaves identically for PDF, raster, PSD, and manual-proofing exports.
+ *  `includeCover` (only meaningful in "all spreads" mode — an explicit range is already exact)
+ *  is the "For Printing" tab's "Include cover" checkbox, off by default like the reference app's. */
+function selectSpreads(project: Project, spreadIndices?: number[], includeCover = true): Spread[] {
   const sorted = [...project.spreads].sort((a, b) => a.order - b.order)
-  if (!spreadIndices) return sorted
+  if (!spreadIndices) return includeCover ? sorted : sorted.filter((s) => !s.isCover)
   return spreadIndices.map((i) => sorted[i]).filter((s): s is Spread => !!s)
 }
 
@@ -30,13 +44,14 @@ async function buildSingleSpreadPdfBytes(project: Project, spread: Spread): Prom
  *  narrowed to an Output Range. */
 export async function exportAlbumToPdf(
   project: Project,
-  spreadIndices?: number[]
+  spreadIndices?: number[],
+  includeCover = true
 ): Promise<{ saved: boolean; filePath?: string }> {
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
   const pdf = await PDFDocument.create()
   const pixelsPerInch = project.size.dpi
 
-  for (const spread of selectSpreads(project, spreadIndices)) {
+  for (const spread of selectSpreads(project, spreadIndices, includeCover)) {
     const canvas = await renderSpreadToCanvas(spread, photosById, project.size, pixelsPerInch)
     const jpegBytes = await canvasToBytes(canvas, 'image/jpeg', 0.97)
     const image = await pdf.embedJpg(jpegBytes)
@@ -53,9 +68,10 @@ export async function exportAlbumToPdf(
  *  saved into a chosen directory in one go. */
 export async function exportAlbumToPdfPages(
   project: Project,
-  spreadIndices?: number[]
+  spreadIndices?: number[],
+  includeCover = true
 ): Promise<{ saved: boolean; dirPath?: string }> {
-  const spreads = selectSpreads(project, spreadIndices)
+  const spreads = selectSpreads(project, spreadIndices, includeCover)
   const files = []
   for (const spread of spreads) {
     const bytes = await buildSingleSpreadPdfBytes(project, spread)
@@ -72,28 +88,31 @@ export async function exportAlbumToPdfPages(
 /** Exports each spread as an individual high-res JPEG, e.g. for lab upload or per-spread proofing. */
 export async function exportAlbumToJpegs(
   project: Project,
-  spreadIndices?: number[]
+  spreadIndices?: number[],
+  includeCover = true
 ): Promise<{ saved: boolean; dirPath?: string }> {
-  return exportSpreadsAsRaster(project, 'image/jpeg', 'jpg', spreadIndices)
+  return exportSpreadsAsRaster(project, 'image/jpeg', 'jpg', spreadIndices, includeCover)
 }
 
 /** Exports each spread as a lossless PNG (useful when a lab or print broker requires it). */
 export async function exportAlbumToPngs(
   project: Project,
-  spreadIndices?: number[]
+  spreadIndices?: number[],
+  includeCover = true
 ): Promise<{ saved: boolean; dirPath?: string }> {
-  return exportSpreadsAsRaster(project, 'image/png', 'png', spreadIndices)
+  return exportSpreadsAsRaster(project, 'image/png', 'png', spreadIndices, includeCover)
 }
 
 /** Exports each spread as a layered PSD (background + per-photo + per-text layers) for
  *  finishing in Photoshop — the "export as PSD" / deeper-customization workflow. */
 export async function exportAlbumToPsds(
   project: Project,
-  spreadIndices?: number[]
+  spreadIndices?: number[],
+  includeCover = true
 ): Promise<{ saved: boolean; dirPath?: string }> {
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
   const pixelsPerInch = project.size.dpi
-  const spreads = selectSpreads(project, spreadIndices)
+  const spreads = selectSpreads(project, spreadIndices, includeCover)
 
   const files = []
   for (const spread of spreads) {
@@ -126,11 +145,12 @@ async function exportSpreadsAsRaster(
   project: Project,
   mime: string,
   ext: string,
-  spreadIndices?: number[]
+  spreadIndices?: number[],
+  includeCover = true
 ): Promise<{ saved: boolean; dirPath?: string }> {
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
   const pixelsPerInch = project.size.dpi
-  const spreads = selectSpreads(project, spreadIndices)
+  const spreads = selectSpreads(project, spreadIndices, includeCover)
 
   const files = []
   for (const spread of spreads) {

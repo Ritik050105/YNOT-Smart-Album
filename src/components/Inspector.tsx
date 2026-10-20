@@ -35,10 +35,13 @@ export default function Inspector() {
   const toneClipboard = useProjectStore((s) => s.toneClipboard)
   const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
   const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
+  // Shared with the menu bar's Templates menu (All Templates / Templates without square frames /
+  // Templates only with 3:2 frame ratios), so picking it from either place stays in sync.
+  const frameFilter = useProjectStore((s) => s.templateFrameFilter)
+  const setFrameFilter = useProjectStore((s) => s.setTemplateFrameFilter)
   const [templateName, setTemplateName] = useState('')
   const [customRows, setCustomRows] = useState(3)
   const [customCols, setCustomCols] = useState(3)
-  const [frameFilter, setFrameFilter] = useState<TemplateFrameFilter>('all')
   const [galleryOpen, setGalleryOpen] = useState(false)
   useEffect(() => {
     function onOpenGallery() {

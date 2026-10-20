@@ -136,6 +136,10 @@ export default function KeyboardShortcuts() {
         s.setCanvasTool('pan')
         return
       }
+      if (!editable && !mod && e.key.toLowerCase() === 'z') {
+        s.setCanvasTool('zoom')
+        return
+      }
       if (!editable && e.key === 'Escape') {
         s.selectPlaceholder(null)
         s.selectTextBox(null)
@@ -212,7 +216,7 @@ function ShortcutsHelpModal({ onClose }: { onClose: () => void }) {
           <Row keys={`${modKeyLabel}+Scroll`} label="Zoom in / out, centered on the cursor" />
           <Row keys="Scroll" label="Pan the canvas" />
           <Row keys="Space+Drag / Middle-click Drag" label="Pan the canvas" />
-          <Row keys="V / H" label="Switch to the Select / Pan tool" />
+          <Row keys="V / H / Z" label="Switch to the Select / Pan / Zoom tool" />
           <Row keys={`${modKeyLabel}+0`} label="Reset zoom" />
           <Row keys="Drag a photo onto another" label="Swap their positions" />
           <Row keys="Double-click text" label="Edit text" />

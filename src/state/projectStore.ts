@@ -12,7 +12,7 @@ import {
   createBlankSpread,
   createCoverSpread,
 } from '@/engine/autoLayout'
-import { BUILT_IN_TEMPLATES, findTemplate, setUserTemplateRegistry } from '@/engine/templates'
+import { BUILT_IN_TEMPLATES, findTemplate, setUserTemplateRegistry, TemplateFrameFilter } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
 import { blobUrlToDataUrl } from '@/engine/projectFile'
 import { AlbumSize, EdgeInset } from '@/types'
@@ -121,7 +121,15 @@ interface ProjectState {
   /** Canvas interaction mode — "pan" sticks the canvas in pan-and-drag mode (the TopBar's hand-tool
    *  button) as an alternative to holding Space, matching the reference app's Select/Pan toolbar
    *  icons. */
-  canvasTool: 'select' | 'pan'
+  canvasTool: 'select' | 'pan' | 'frame' | 'text' | 'zoom'
+  /** The Templates menu's frame-ratio filter (All/no-square/only-3x2) — shared between the menu
+   *  bar and the Inspector's "Smart Grid Suggestions" picker so both reflect the same choice. */
+  templateFrameFilter: TemplateFrameFilter
+  /** Edit menu's Copy/Cut/Paste — holds the copied placement's photoId (and its full tone/crop,
+   *  so Paste restores a real copy, not just the bare photo reference). */
+  photoClipboard: { photoId: string; placement: Omit<Spread['placements'][number], 'placeholderId'> } | null
+  /** View menu's "Show File Names in Image Browser" — shows each Photo Dock thumbnail's filename. */
+  showPhotoFileNames: boolean
   autoLayoutOptions: AutoLayoutOptions
   history: Project[]
   future: Project[]
@@ -141,7 +149,12 @@ interface ProjectState {
   toggleRightPanel: () => void
   toggleBottomPanel: () => void
   setPreparingProject: (v: boolean) => void
-  setCanvasTool: (tool: 'select' | 'pan') => void
+  setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'text' | 'zoom') => void
+  setTemplateFrameFilter: (f: TemplateFrameFilter) => void
+  toggleShowPhotoFileNames: () => void
+  copyPlacement: (spreadId: string, placeholderId: string) => void
+  pastePlacement: (spreadId: string, placeholderIds: string[]) => void
+  cutPlacement: (spreadId: string, placeholderId: string) => void
   reorderSpreads: (fromIndex: number, toIndex: number) => void
   splitSpread: (spreadId: string) => void
   mergeWithNext: (spreadId: string) => void
@@ -208,6 +221,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   bottomPanelOpen: true,
   preparingProject: false,
   canvasTool: 'select',
+  templateFrameFilter: 'all',
+  photoClipboard: null,
+  showPhotoFileNames: false,
   autoLayoutOptions: DEFAULT_AUTO_LAYOUT_OPTIONS,
   history: [],
   future: [],
@@ -295,6 +311,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toggleBottomPanel: () => set((s) => ({ bottomPanelOpen: !s.bottomPanelOpen })),
   setPreparingProject: (v) => set({ preparingProject: v }),
   setCanvasTool: (tool) => set({ canvasTool: tool }),
+  setTemplateFrameFilter: (f) => set({ templateFrameFilter: f }),
+  toggleShowPhotoFileNames: () => set((s) => ({ showPhotoFileNames: !s.showPhotoFileNames })),
+
+  copyPlacement: (spreadId, placeholderId) => {
+    const spread = get().project.spreads.find((s) => s.id === spreadId)
+    const placement = spread?.placements.find((p) => p.placeholderId === placeholderId)
+    if (!placement || !placement.photoId) return
+    const { placeholderId: _ignored, ...rest } = placement
+    set({ photoClipboard: { photoId: placement.photoId, placement: rest } })
+  },
+
+  pastePlacement: (spreadId, placeholderIds) => {
+    const clip = get().photoClipboard
+    if (!clip) return
+    get().updateMultiplePlacements(spreadId, placeholderIds, { ...clip.placement, photoId: clip.photoId })
+  },
+
+  cutPlacement: (spreadId, placeholderId) => {
+    get().copyPlacement(spreadId, placeholderId)
+    get().setPlacementPhoto(spreadId, placeholderId, null)
+  },
 
   // The cover (if any) is excluded from all three of these — it's pinned at order -1 and never
   // renumbered or moved by interior-page operations. Indices here are positions within the
@@ -491,6 +528,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                       rotationDeg: 0,
                       relightIntensity: 0,
                       cornerRadiusPx: 24,
+                      flipHorizontal: false,
+                      flipVertical: false,
                     }
               ),
             }
@@ -685,7 +724,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ...spread,
         flipped: spread.flipped ?? false,
         isCover: spread.isCover ?? false,
-        placements: spread.placements.map((p) => ({ ...p, cornerRadiusPx: p.cornerRadiusPx ?? 24 })),
+        placements: spread.placements.map((p) => ({
+          ...p,
+          cornerRadiusPx: p.cornerRadiusPx ?? 24,
+          flipHorizontal: p.flipHorizontal ?? false,
+          flipVertical: p.flipVertical ?? false,
+        })),
       })),
     }
     set({

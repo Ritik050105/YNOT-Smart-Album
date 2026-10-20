@@ -130,6 +130,8 @@ export default function NewProjectWizard({
   const [dpi, setDpi] = useState(DEFAULT_ALBUM_SIZE.dpi)
   const [trim, setTrim] = useState<EdgeInset>(DEFAULT_ALBUM_SIZE.trim)
   const [safeZone, setSafeZone] = useState<EdgeInset>(DEFAULT_ALBUM_SIZE.safeZone)
+  const [minPages, setMinPages] = useState(0)
+  const [maxPages, setMaxPages] = useState(0)
   const [layoutStart, setLayoutStart] = useState<'spread' | 'single'>('spread')
   const [layoutEnd, setLayoutEnd] = useState<'spread' | 'single'>('spread')
   const [includeFullSpreadTemplates, setIncludeFullSpreadTemplates] = useState(true)
@@ -150,6 +152,8 @@ export default function NewProjectWizard({
     setDpi(preset.dpi)
     setTrim(preset.trim)
     setSafeZone(preset.safeZone)
+    setMinPages(preset.minPages ?? 0)
+    setMaxPages(preset.maxPages ?? 0)
   }
 
   function saveCurrentAsPreset() {
@@ -165,6 +169,8 @@ export default function NewProjectWizard({
       dpi,
       trim,
       safeZone,
+      minPages: minPages || undefined,
+      maxPages: maxPages || undefined,
     }
     setPresets(addSizePreset(preset))
     setSelectedPreset(trimmed)
@@ -217,6 +223,8 @@ export default function NewProjectWizard({
       dpi,
       trim,
       safeZone,
+      minPages: minPages || undefined,
+      maxPages: maxPages || undefined,
     }
   }
 
@@ -407,6 +415,14 @@ export default function NewProjectWizard({
                     <option value="cm">cm</option>
                     <option value="px">px</option>
                   </select>
+                </label>
+                <label className="field">
+                  Min pages (0 = no limit)
+                  <input type="number" min={0} max={999} value={minPages} onChange={(e) => setMinPages(Math.max(0, Number(e.target.value)))} />
+                </label>
+                <label className="field">
+                  Max pages (0 = no limit)
+                  <input type="number" min={0} max={999} value={maxPages} onChange={(e) => setMaxPages(Math.max(0, Number(e.target.value)))} />
                 </label>
               </div>
 

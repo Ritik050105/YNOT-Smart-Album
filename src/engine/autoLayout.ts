@@ -39,6 +39,8 @@ export function defaultPlacement(
     rotationDeg: 0,
     relightIntensity: 0,
     cornerRadiusPx: 24,
+    flipHorizontal: false,
+    flipVertical: false,
   }
 }
 

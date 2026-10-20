@@ -45,6 +45,7 @@ export default function PhotoBin() {
   const setPlacementPhoto = useProjectStore((s) => s.setPlacementPhoto)
   const setPhotoBins = useProjectStore((s) => s.setPhotoBins)
   const setPhotoFavorite = useProjectStore((s) => s.setPhotoFavorite)
+  const showFileNames = useProjectStore((s) => s.showPhotoFileNames)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
   const selectedPhotoIds = useProjectStore((s) => s.selectedPhotoIds)
@@ -243,6 +244,7 @@ export default function PhotoBin() {
               title={`${photo.fileName} — ${new Date(photo.capturedAt).toLocaleString()}${used ? ' (placed)' : ''} — double-click to quick-place, click to select then click a canvas frame, shift/ctrl+click to multi-select`}
             >
               <img src={photo.src} alt={photo.fileName} />
+              {showFileNames && <span className="photo-dock__filename">{photo.fileName}</span>}
               <button
                 className={`photo-dock__fav-btn ${photo.favorite ? 'is-favorite' : ''}`}
                 onClick={(e) => {

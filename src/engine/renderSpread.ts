@@ -106,7 +106,18 @@ export async function renderSpreadToCanvas(
       ctx.filter = `brightness(${brightness}) contrast(${contrast}) saturate(${saturate})`
       ctx.globalAlpha = placement?.opacity ?? 1
 
+      const flipH = placement?.flipHorizontal ?? false
+      const flipV = placement?.flipVertical ?? false
+      if (flipH || flipV) {
+        ctx.save()
+        const cx = photoX + photoW / 2
+        const cy = photoY + photoH / 2
+        ctx.translate(cx, cy)
+        ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1)
+        ctx.translate(-cx, -cy)
+      }
       ctx.drawImage(img, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, photoX, photoY, photoW, photoH)
+      if (flipH || flipV) ctx.restore()
       ctx.filter = 'none'
       ctx.globalAlpha = 1
 

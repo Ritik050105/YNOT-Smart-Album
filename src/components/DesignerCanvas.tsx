@@ -28,6 +28,8 @@ function PlaceholderImage({
   rotationDeg,
   relightIntensity,
   cornerRadiusPx,
+  flipHorizontal,
+  flipVertical,
   brightness,
   contrast,
   saturation,
@@ -48,6 +50,8 @@ function PlaceholderImage({
   rotationDeg: number
   relightIntensity: number
   cornerRadiusPx: number
+  flipHorizontal: boolean
+  flipVertical: boolean
   /** -100..100, same scale as the Inspector sliders — mapped onto Konva's own filter ranges
    *  below so the live canvas matches the export renderer's look instead of only showing tone
    *  adjustments after export. */
@@ -126,6 +130,10 @@ function PlaceholderImage({
           width={photoW}
           height={photoH}
           crop={{ x: crop.cropX, y: crop.cropY, width: crop.cropWidth, height: crop.cropHeight }}
+          offsetX={flipHorizontal ? photoW : 0}
+          offsetY={flipVertical ? photoH : 0}
+          scaleX={flipHorizontal ? -1 : 1}
+          scaleY={flipVertical ? -1 : 1}
           opacity={opacity}
           filters={hasToneFilters ? [Konva.Filters.Brighten, Konva.Filters.Contrast, Konva.Filters.HSL] : []}
           brightness={brightness / 100}
@@ -259,6 +267,22 @@ export default function DesignerCanvas() {
     setStagePos({ x: 0, y: 0 })
   }, [spread?.id])
 
+  // View menu's "Fit Spread View" / "Zoom to Fit" / "Zoom to 100%" — this canvas only has one
+  // natural default view (its own 900px-wide coordinate space at scale 1), so all three reset to
+  // that same state rather than faking separate "fit" vs "100%" scales that don't really exist here.
+  useEffect(() => {
+    function resetZoom() {
+      setStageScale(1)
+      setStagePos({ x: 0, y: 0 })
+    }
+    window.addEventListener('album-studio:zoom-fit', resetZoom)
+    window.addEventListener('album-studio:zoom-100', resetZoom)
+    return () => {
+      window.removeEventListener('album-studio:zoom-fit', resetZoom)
+      window.removeEventListener('album-studio:zoom-100', resetZoom)
+    }
+  }, [])
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.code === 'Space' && !isEditableTarget(e.target)) {
@@ -320,6 +344,19 @@ export default function DesignerCanvas() {
       e.evt.preventDefault()
       isPanningRef.current = true
       panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY, stageX: stagePos.x, stageY: stagePos.y }
+      return
+    }
+    if (canvasTool === 'zoom') {
+      const stage = e.target.getStage()
+      const pointer = stage?.getPointerPosition()
+      if (!stage || !pointer) return
+      const oldScale = stageScale
+      const mousePointTo = { x: (pointer.x - stagePos.x) / oldScale, y: (pointer.y - stagePos.y) / oldScale }
+      const scaleBy = 1.3
+      // Shift+click zooms out, matching the reference app's Zoom Tool modifier convention.
+      const newScale = Math.max(0.4, Math.min(3, e.evt.shiftKey ? oldScale / scaleBy : oldScale * scaleBy))
+      setStageScale(newScale)
+      setStagePos({ x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale })
       return
     }
     if (e.target === e.target.getStage()) {
@@ -536,7 +573,7 @@ export default function DesignerCanvas() {
         </button>
       </div>
       <div
-        className={`designer-canvas ${isSpaceDown || canvasTool === 'pan' ? 'designer-canvas--pan' : ''}`}
+        className={`designer-canvas ${isSpaceDown || canvasTool === 'pan' ? 'designer-canvas--pan' : ''} ${canvasTool === 'zoom' ? 'designer-canvas--zoom' : ''}`}
         ref={containerRef}
         // stopPropagation on every drag stage (not just drop) keeps GlobalDropZone's window-wide
         // "drop anywhere" overlay from popping up and covering the exact frame the user is
@@ -646,6 +683,8 @@ export default function DesignerCanvas() {
                 rotationDeg={placement.rotationDeg}
                 relightIntensity={placement.relightIntensity}
                 cornerRadiusPx={placement.cornerRadiusPx}
+                flipHorizontal={placement.flipHorizontal}
+                flipVertical={placement.flipVertical}
                 brightness={placement.brightness}
                 contrast={placement.contrast}
                 saturation={placement.saturation}

@@ -1320,6 +1320,21 @@ input[type='checkbox'] {
   border: 1.5px solid transparent;
   transition: border-color 0.15s var(--ease), opacity 0.15s var(--ease);
 }
+.photo-dock__filename {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2px 4px;
+  font-size: 9px;
+  color: #fff;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  pointer-events: none;
+}
 .photo-dock__fav-btn {
   position: absolute;
   top: 4px;
@@ -1517,6 +1532,9 @@ input[type='checkbox'] {
 }
 .designer-canvas--pan:active {
   cursor: grabbing;
+}
+.designer-canvas--zoom {
+  cursor: zoom-in;
 }
 .designer-canvas--empty {
   width: 600px;

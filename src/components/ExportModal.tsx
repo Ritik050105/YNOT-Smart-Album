@@ -10,12 +10,13 @@ import {
   exportAlbumToPsds,
   exportAlbumToProofingGallery,
   exportAlbumForManualProofing,
+  checkPageLimits,
   ManualProofingOptions,
 } from '@/engine/exportAlbum'
 import { parseSpreadRange } from '@/engine/exportUtil'
 
 type ExportFormat = 'pdf' | 'jpg' | 'png' | 'psd' | 'proofing'
-type ExportTab = 'print' | 'proofing'
+type ExportTab = 'cloud' | 'print' | 'proofing'
 
 const FORMATS: { id: ExportFormat; title: string; desc: string; icon: Parameters<typeof Icon>[0]['name'] }[] = [
   { id: 'pdf', title: 'PDF', desc: 'One print-ready, multi-page PDF for the whole album.', icon: 'frame' },
@@ -37,12 +38,14 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<ExportTab>('print')
   const [exporting, setExporting] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const [pendingPageLimit, setPendingPageLimit] = useState<{ pageCount: number; min?: number; max?: number } | null>(null)
 
   // "For Printing" state
   const [format, setFormat] = useState<ExportFormat>('pdf')
   const [rangeMode, setRangeMode] = useState<'all' | 'range'>('all')
   const [rangeText, setRangeText] = useState('')
   const [singlePages, setSinglePages] = useState(false)
+  const [includeCover, setIncludeCover] = useState(false)
 
   // "Manual Proofing" state
   const [proofWidth, setProofWidth] = useState(1600)
@@ -66,10 +69,12 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     const spreadIndices = resolveRange()
     let outcome: { saved: boolean; filePath?: string; dirPath?: string } = { saved: false }
     if (format === 'pdf') {
-      outcome = singlePages ? await exportAlbumToPdfPages(project, spreadIndices) : await exportAlbumToPdf(project, spreadIndices)
-    } else if (format === 'jpg') outcome = await exportAlbumToJpegs(project, spreadIndices)
-    else if (format === 'png') outcome = await exportAlbumToPngs(project, spreadIndices)
-    else if (format === 'psd') outcome = await exportAlbumToPsds(project, spreadIndices)
+      outcome = singlePages
+        ? await exportAlbumToPdfPages(project, spreadIndices, includeCover)
+        : await exportAlbumToPdf(project, spreadIndices, includeCover)
+    } else if (format === 'jpg') outcome = await exportAlbumToJpegs(project, spreadIndices, includeCover)
+    else if (format === 'png') outcome = await exportAlbumToPngs(project, spreadIndices, includeCover)
+    else if (format === 'psd') outcome = await exportAlbumToPsds(project, spreadIndices, includeCover)
     else if (format === 'proofing') outcome = await exportAlbumToProofingGallery(project)
     return outcome
   }
@@ -89,7 +94,14 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     return exportAlbumForManualProofing(project, options, resolveRange())
   }
 
-  async function handleExport() {
+  async function handleExport(ignoreLimits = false) {
+    if (tab === 'print' && !ignoreLimits) {
+      const limits = checkPageLimits(project)
+      if (limits.violated) {
+        setPendingPageLimit(limits)
+        return
+      }
+    }
     setExporting(true)
     setResult(null)
     try {
@@ -114,14 +126,21 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
             {result ? 'Done' : 'Cancel'}
           </button>
           <div className="footer-spacer" />
-          <button className="btn btn--primary" disabled={exporting || rangeInvalid} onClick={() => void handleExport()}>
+          <button
+            className="btn btn--primary"
+            disabled={exporting || rangeInvalid || tab === 'cloud'}
+            onClick={() => void handleExport()}
+          >
             <Icon name="download" size={14} />
-            {exporting ? 'Exporting…' : tab === 'print' ? 'Export' : 'Export for Manual Proofing'}
+            {exporting ? 'Exporting…' : tab === 'print' ? 'Export for Print' : tab === 'proofing' ? 'Export for Manual Proofing' : 'Export for Cloud Proofing'}
           </button>
         </>
       }
     >
       <div className="tab-row">
+        <button className={tab === 'cloud' ? 'is-active' : ''} onClick={() => { setTab('cloud'); setResult(null) }}>
+          Cloud Proofing
+        </button>
         <button className={tab === 'print' ? 'is-active' : ''} onClick={() => { setTab('print'); setResult(null) }}>
           For Printing
         </button>
@@ -129,6 +148,17 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
           Manual Proofing
         </button>
       </div>
+
+      {tab === 'cloud' && (
+        <section className="export-options">
+          <p className="muted" style={{ marginTop: 0 }}>
+            Cloud Proofing (hosting a review gallery on SmartAlbums' own servers) needs a hosted
+            backend this app doesn't have. Use <strong>Manual Proofing</strong> instead — it builds
+            the same kind of annotated review images, which you then share however you like (email,
+            a drive link, etc).
+          </p>
+        </section>
+      )}
 
       {tab === 'print' && (
         <>
@@ -174,6 +204,10 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
               </label>
               {rangeInvalid && <p className="muted" style={{ color: '#ff6b6b' }}>No valid spreads in that range.</p>}
 
+              <label className="checkbox-row">
+                <input type="checkbox" checked={includeCover} onChange={(e) => setIncludeCover(e.target.checked)} />
+                Include cover
+              </label>
               {format === 'pdf' && (
                 <label className="checkbox-row">
                   <input type="checkbox" checked={singlePages} onChange={(e) => setSinglePages(e.target.checked)} />
@@ -283,6 +317,43 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
         <p className="muted" style={{ marginTop: 14 }}>
           Saved to: {result}
         </p>
+      )}
+
+      {pendingPageLimit && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setPendingPageLimit(null)}>
+          <div className="modal-card" style={{ width: 420 }} role="dialog" aria-modal="true" aria-label="Page count outside limits">
+            <div className="modal-card__header">
+              <div>
+                <h2>
+                  {project.name} · {project.size.label}
+                </h2>
+              </div>
+            </div>
+            <div className="modal-card__body">
+              <p>
+                According to the album size's page limits, the album needs to have between{' '}
+                {pendingPageLimit.min ?? 0} and {pendingPageLimit.max ?? '∞'} pages.
+              </p>
+              <p>Current page count: {pendingPageLimit.pageCount}</p>
+              <p>Are you sure you want to continue?</p>
+            </div>
+            <div className="modal-card__footer">
+              <button className="btn" onClick={() => setPendingPageLimit(null)}>
+                Cancel
+              </button>
+              <div className="footer-spacer" />
+              <button
+                className="btn btn--primary"
+                onClick={() => {
+                  setPendingPageLimit(null)
+                  void handleExport(true)
+                }}
+              >
+                Ignore Limitations
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </Modal>
   )
