@@ -368,6 +368,77 @@ const sixFilmstrip: TemplateDefinition = {
   thumbnailColor: '#96acc9',
 }
 
+// ---------------------------------------------------------------------------
+// "Seamless" family — edge-to-edge rectangular frames with zero gap between them, modeled on
+// the client's own site (ynot.website): full-bleed portrait photos with no border or spacing,
+// never overlapping. Distinct from the rest of the hand-crafted set, which all use GAP spacing.
+// ---------------------------------------------------------------------------
+
+/** Full-bleed single portrait photo, edge-to-edge — the tall, borderless hero shot used
+ *  throughout the client's site rather than a generic "any orientation" frame. */
+const seamlessPortrait: TemplateDefinition = {
+  id: 'seamless-portrait',
+  name: 'Seamless Portrait',
+  photoCount: 1,
+  pageSide: 'spread',
+  placeholders: [rect(0, 0, 1, 1, 'portrait')],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#2d3b57',
+}
+
+/** Two full-bleed photos, side by side, touching with no gap between them. */
+const seamlessTwoUp: TemplateDefinition = {
+  id: 'seamless-two-up',
+  name: 'Seamless Two Up',
+  photoCount: 2,
+  pageSide: 'spread',
+  placeholders: [rect(0, 0, 0.5, 1, 'portrait'), rect(0.5, 0, 0.5, 1, 'portrait')],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#334568',
+}
+
+/** Two full-bleed photos, stacked top/bottom with no gap. */
+const seamlessStackTwo: TemplateDefinition = {
+  id: 'seamless-stack-two',
+  name: 'Seamless Stack',
+  photoCount: 2,
+  pageSide: 'spread',
+  placeholders: [rect(0, 0, 1, 0.5, 'landscape'), rect(0, 0.5, 1, 0.5, 'landscape')],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#3a4d73',
+}
+
+/** Three full-bleed columns, touching with no gap. */
+const seamlessThreeUp: TemplateDefinition = {
+  id: 'seamless-three-up',
+  name: 'Seamless Three Up',
+  photoCount: 3,
+  pageSide: 'spread',
+  placeholders: [
+    rect(0, 0, 1 / 3, 1, 'portrait'),
+    rect(1 / 3, 0, 1 / 3, 1, 'portrait'),
+    rect(2 / 3, 0, 1 / 3, 1, 'portrait'),
+  ],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#415680',
+}
+
+/** Four full-bleed photos, 2x2, no gap. */
+const seamlessFourGrid: TemplateDefinition = {
+  id: 'seamless-four-grid',
+  name: 'Seamless Quad',
+  photoCount: 4,
+  pageSide: 'spread',
+  placeholders: [rect(0, 0, 0.5, 0.5), rect(0.5, 0, 0.5, 0.5), rect(0, 0.5, 0.5, 0.5), rect(0.5, 0.5, 0.5, 0.5)],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#4a618c',
+}
+
 /** Auto-generated balanced grid for photo counts beyond the hand-designed templates (7-30).
  *  Deterministic id/placeholder-ids so re-deriving the same template on every render (via
  *  findTemplate) keeps matching the photo placements already stored on the spread. */
@@ -444,6 +515,11 @@ const HAND_CRAFTED_TEMPLATES: TemplateDefinition[] = [
   full,
   framedSingle,
   coverFrontSpineBack,
+  seamlessPortrait,
+  seamlessTwoUp,
+  seamlessStackTwo,
+  seamlessThreeUp,
+  seamlessFourGrid,
   twoVertical,
   twoHorizontal,
   leftRightPair,
@@ -529,6 +605,14 @@ export function templatesForCount(
     const narrowed = builtins.filter((t) => matchesFrameFilter(t, frameFilter))
     if (narrowed.length > 0) builtins = narrowed
   }
+  if (!enabledTemplateIds) {
+    // Default suggestions favor clean, non-overlapping rectangular layouts — matching the
+    // client's own site (ynot.website), which never overlaps photos. The "Collage" family
+    // (two photos deliberately drawn on top of each other) stays fully browsable from
+    // "Browse All Templates…", just not auto-suggested or picked by Auto-Build.
+    const nonOverlapping = builtins.filter((t) => templateFamilyLabel(t) !== 'Collage')
+    if (nonOverlapping.length > 0) builtins = nonOverlapping
+  }
   if (builtins.length > 0) return builtins
   // Beyond the hand-designed 1-6 photo templates, offer two auto-generated, balanced layouts.
   const clamped = Math.min(count, 30)
@@ -562,9 +646,10 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
 }
 
 /** Coarse family label derived from a template's id — used only to group the Template Gallery
- *  browser into tabs (Classic / Grid / Hero / Split / Mosaic / Collage / Filmstrip / Custom /
- *  My Templates), since the generated library doesn't carry a separate "family" field. */
+ *  browser into tabs (Classic / Seamless / Grid / Hero / Split / Mosaic / Collage / Filmstrip /
+ *  Custom / My Templates), since the generated library doesn't carry a separate "family" field. */
 export function templateFamilyLabel(t: TemplateDefinition): string {
+  if (t.id.startsWith('seamless-')) return 'Seamless'
   if (t.id.startsWith('gen-grid-')) return 'Grid'
   if (t.id.startsWith('gen-hero-')) return 'Hero'
   if (t.id.startsWith('gen-split-')) return 'Split'
@@ -576,7 +661,7 @@ export function templateFamilyLabel(t: TemplateDefinition): string {
   return 'Classic'
 }
 
-export const TEMPLATE_FAMILIES = ['All', 'Classic', 'Grid', 'Hero', 'Split', 'Mosaic', 'Collage', 'Filmstrip', 'My Templates'] as const
+export const TEMPLATE_FAMILIES = ['All', 'Classic', 'Seamless', 'Grid', 'Hero', 'Split', 'Mosaic', 'Collage', 'Filmstrip', 'My Templates'] as const
 
 /** Picks a reasonable default template for a count, varying the choice so consecutive spreads don't repeat. */
 export function suggestTemplate(count: number, avoidId?: string, enabledTemplateIds: string[] | null = null): TemplateDefinition {
