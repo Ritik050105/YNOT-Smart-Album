@@ -130,6 +130,9 @@ interface ProjectState {
   photoClipboard: { photoId: string; placement: Omit<Spread['placements'][number], 'placeholderId'> } | null
   /** View menu's "Show File Names in Image Browser" — shows each Photo Dock thumbnail's filename. */
   showPhotoFileNames: boolean
+  /** A spread's own Cut/Copy/Paste clipboard (the Spread context menu) — separate from
+   *  `photoClipboard`, which copies one placed photo rather than a whole spread's layout. */
+  spreadClipboard: Pick<Spread, 'templateId' | 'placements' | 'textBoxes' | 'backgroundColor' | 'gapPx' | 'marginPx' | 'pageSide'> | null
   /** Set while the reference app's focused single-spread "Designer View" is open (reached via
    *  Spread > Edit in Designer View, or a spread's context menu) — a dedicated zoomed-in editing
    *  mode with its own ruler and tool rail, as opposed to the normal multi-panel editor. */
@@ -168,6 +171,10 @@ interface ProjectState {
   copyPlacement: (spreadId: string, placeholderId: string) => void
   pastePlacement: (spreadId: string, placeholderIds: string[]) => void
   cutPlacement: (spreadId: string, placeholderId: string) => void
+  copySpread: (spreadId: string) => void
+  pasteSpreadAfter: (afterSpreadId: string) => void
+  cutSpread: (spreadId: string) => void
+  convertSpreadPageType: (spreadId: string) => void
   reorderSpreads: (fromIndex: number, toIndex: number) => void
   splitSpread: (spreadId: string) => void
   mergeWithNext: (spreadId: string) => void
@@ -236,6 +243,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   canvasTool: 'select',
   templateFrameFilter: 'all',
   photoClipboard: null,
+  spreadClipboard: null,
   showPhotoFileNames: false,
   designerViewSpreadId: null,
   canvasZoom: 1,
@@ -351,6 +359,55 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     get().copyPlacement(spreadId, placeholderId)
     get().setPlacementPhoto(spreadId, placeholderId, null)
   },
+
+  copySpread: (spreadId) => {
+    const spread = get().project.spreads.find((s) => s.id === spreadId)
+    if (!spread) return
+    const { templateId, placements, textBoxes, backgroundColor, gapPx, marginPx, pageSide } = spread
+    set({ spreadClipboard: { templateId, placements, textBoxes, backgroundColor, gapPx, marginPx, pageSide } })
+  },
+
+  pasteSpreadAfter: (afterSpreadId) =>
+    withHistory(set, (p) => {
+      const clip = get().spreadClipboard
+      const target = p.spreads.find((s) => s.id === afterSpreadId)
+      if (!clip || !target || target.isCover) return p
+      const interior = p.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
+      const index = interior.findIndex((s) => s.id === afterSpreadId)
+      const pasted: Spread = {
+        id: uuid(),
+        order: 0,
+        pageSide: clip.pageSide,
+        templateId: clip.templateId,
+        placements: clip.placements.map((pl) => ({ ...pl })),
+        textBoxes: clip.textBoxes.map((t) => ({ ...t, id: uuid() })),
+        backgroundColor: clip.backgroundColor,
+        gapPx: clip.gapPx,
+        marginPx: clip.marginPx,
+        flipped: false,
+        isCover: false,
+      }
+      interior.splice(index + 1, 0, pasted)
+      const reordered = interior.map((s, i) => ({ ...s, order: i }))
+      const cover = p.spreads.find((s) => s.isCover)
+      return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
+    }),
+
+  cutSpread: (spreadId) => {
+    get().copySpread(spreadId)
+    get().deleteSpread(spreadId)
+  },
+
+  // "Convert to Single Page/Side" in the reference app's Spread context menu — toggles between a
+  // two-page spread and treating it as one single page, reusing the Inspector's own "Page side"
+  // setting rather than being a separate feature.
+  convertSpreadPageType: (spreadId) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) =>
+        s.id === spreadId ? { ...s, pageSide: s.pageSide === 'spread' ? 'single' : 'spread' } : s
+      ),
+    })),
 
   // The cover (if any) is excluded from all three of these — it's pinned at order -1 and never
   // renumbered or moved by interior-page operations. Indices here are positions within the

@@ -21,6 +21,12 @@ export default function SpreadsPanel() {
   const duplicateSpread = useProjectStore((s) => s.duplicateSpread)
   const deleteSpread = useProjectStore((s) => s.deleteSpread)
   const enterDesignerView = useProjectStore((s) => s.enterDesignerView)
+  const spreadClipboard = useProjectStore((s) => s.spreadClipboard)
+  const copySpread = useProjectStore((s) => s.copySpread)
+  const cutSpread = useProjectStore((s) => s.cutSpread)
+  const pasteSpreadAfter = useProjectStore((s) => s.pasteSpreadAfter)
+  const convertSpreadPageType = useProjectStore((s) => s.convertSpreadPageType)
+  const applyTemplateToAllSpreads = useProjectStore((s) => s.applyTemplateToAllSpreads)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [exportingId, setExportingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -58,7 +64,22 @@ export default function SpreadsPanel() {
     }
     const index = spreads.findIndex((s) => s.id === spreadId)
     return [
+      { label: 'Cut', onClick: () => cutSpread(spreadId) },
+      { label: 'Copy', onClick: () => copySpread(spreadId) },
+      { label: 'Paste', disabled: !spreadClipboard, onClick: () => pasteSpreadAfter(spreadId) },
+      { label: 'Delete Spread', danger: true, onClick: () => setConfirmDeleteId(spreadId) },
+      {
+        label: spread.pageSide === 'spread' ? 'Convert to Single Page/Side' : 'Convert to Full Spread',
+        onClick: () => convertSpreadPageType(spreadId),
+      },
+      { label: 'Flip Spread Horizontally', onClick: () => flipSpread(spreadId) },
+      {
+        label: 'Apply Template to All Spreads',
+        onClick: () => applyTemplateToAllSpreads(spread.templateId),
+      },
       { label: 'Edit in Designer View', onClick: () => enterDesignerView(spreadId) },
+      { label: 'Add Blank Spread', onClick: () => addBlankSpread() },
+      { label: 'Export Spread…', onClick: () => void exportSpread(spread) },
       {
         label: 'Split Spread',
         disabled: spread.pageSide !== 'spread',
@@ -69,10 +90,7 @@ export default function SpreadsPanel() {
         disabled: index === -1 || index === spreads.length - 1,
         onClick: () => mergeWithNext(spreadId),
       },
-      { label: 'Flip Spread Horizontally', onClick: () => flipSpread(spreadId) },
       { label: 'Duplicate Spread', onClick: () => duplicateSpread(spreadId) },
-      { label: 'Export Spread…', onClick: () => void exportSpread(spread) },
-      { label: 'Delete Spread', danger: true, onClick: () => setConfirmDeleteId(spreadId) },
     ]
   }
 
