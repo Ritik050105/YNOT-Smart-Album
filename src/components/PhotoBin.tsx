@@ -93,7 +93,14 @@ export default function PhotoBin() {
     return () => window.removeEventListener('click', close)
   }, [tagPopoverFor])
 
-  if (photos.length === 0) return null
+  if (photos.length === 0) {
+    return (
+      <div className="photo-dock photo-dock--empty">
+        <Icon name="image" size={22} />
+        <p>No photos imported yet — drag photos here, or use Import Photos on the left.</p>
+      </div>
+    )
+  }
 
   const filtered = photos
     .filter((p) => {

@@ -35,6 +35,9 @@ export default function Inspector() {
   const toneClipboard = useProjectStore((s) => s.toneClipboard)
   const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
   const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
+  const autoAlignPlacement = useProjectStore((s) => s.autoAlignPlacement)
+  const autoAdjustPlacement = useProjectStore((s) => s.autoAdjustPlacement)
+  const [autoAdjusting, setAutoAdjusting] = useState(false)
   // Shared with the menu bar's Templates menu (All Templates / Templates without square frames /
   // Templates only with 3:2 frame ratios), so picking it from either place stays in sync.
   const frameFilter = useProjectStore((s) => s.templateFrameFilter)
@@ -315,6 +318,32 @@ export default function Inspector() {
               {placement.saturation <= -100 ? 'Color' : 'Black & White'}
             </button>
           </div>
+          <div className="text-style-row">
+            <button
+              className="btn btn--tiny"
+              title="Analyze this photo and correct its exposure, contrast, and saturation"
+              disabled={autoAdjusting}
+              onClick={async () => {
+                setAutoAdjusting(true)
+                try {
+                  await autoAdjustPlacement(spread.id, placement.placeholderId)
+                } finally {
+                  setAutoAdjusting(false)
+                }
+              }}
+            >
+              <Icon name="wand" size={11} />
+              {autoAdjusting ? 'Adjusting…' : 'Auto Adjust'}
+            </button>
+            <button
+              className="btn btn--tiny"
+              title="Recenter and fit the photo within its frame"
+              onClick={() => autoAlignPlacement(spread.id, placement.placeholderId)}
+            >
+              <Icon name="align" size={11} />
+              Auto Align
+            </button>
+          </div>
           <SliderField
             label="Zoom"
             value={placement.zoom}
@@ -593,6 +622,22 @@ function MultiSelectInspector({
   placeholderIds: string[]
   updateMultiplePlacements: (spreadId: string, placeholderIds: string[], patch: Partial<PlacedPhoto>) => void
 }) {
+  const autoAdjustPlacement = useProjectStore((s) => s.autoAdjustPlacement)
+  const [autoAdjusting, setAutoAdjusting] = useState(false)
+
+  async function autoAdjustAll() {
+    setAutoAdjusting(true)
+    try {
+      // Each photo analyzes separately (a batch patch can't apply — the correction differs per
+      // photo), so these run one at a time rather than as a single store update.
+      for (const placeholderId of placeholderIds) {
+        await autoAdjustPlacement(spreadId, placeholderId)
+      }
+    } finally {
+      setAutoAdjusting(false)
+    }
+  }
+
   return (
     <div className="panel inspector">
       <h3>
@@ -630,6 +675,19 @@ function MultiSelectInspector({
           <Icon name="undo" size={11} />
           Reload from Original
         </button>
+        <div className="text-style-row">
+          <button className="btn btn--tiny" disabled={autoAdjusting} onClick={() => void autoAdjustAll()}>
+            <Icon name="wand" size={11} />
+            {autoAdjusting ? 'Adjusting…' : 'Auto Adjust'}
+          </button>
+          <button
+            className="btn btn--tiny"
+            onClick={() => updateMultiplePlacements(spreadId, placeholderIds, { focalX: 0.5, focalY: 0.5, zoom: 1 })}
+          >
+            <Icon name="align" size={11} />
+            Auto Align
+          </button>
+        </div>
         <SliderField
           label="Opacity"
           value={1}

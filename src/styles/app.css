@@ -651,6 +651,7 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .timeline-panel {
@@ -1667,7 +1668,17 @@ input[type='checkbox'] {
   flex-direction: column;
   gap: 14px;
   align-items: center;
-  margin: auto;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
+.designer-canvas-viewport {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
 }
 .designer-toolbar {
   display: flex;
@@ -2744,4 +2755,196 @@ input[type='checkbox'] {
 .bin-popover input[type='text'] {
   width: 100%;
   margin-top: 4px;
+}
+
+/* ---------- Photo dock empty state / Auto-Build advanced disclosure ---------- */
+
+.photo-dock--empty {
+  align-items: center;
+  flex-direction: row;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-muted);
+  padding: 18px 16px;
+}
+.photo-dock--empty p {
+  margin: 0;
+  font-size: 12.5px;
+}
+.auto-layout-controls__advanced {
+  font-size: 12px;
+}
+.auto-layout-controls__advanced summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+.auto-layout-controls__advanced[open] summary {
+  margin-bottom: 8px;
+}
+
+/* ---------- Gallery / Slideshow screens ---------- */
+
+.gallery-screen,
+.slideshow-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-canvas);
+}
+.gallery-screen__topbar,
+.slideshow-screen__topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border-soft);
+}
+.gallery-screen__topbar h2,
+.slideshow-screen__topbar h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.gallery-screen__spacer,
+.slideshow-screen__spacer {
+  flex: 1;
+}
+.gallery-screen__tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--panel-alt);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+}
+.gallery-screen__tabs button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.gallery-screen__tabs button.is-active {
+  background: var(--accent-grad);
+  color: #fff;
+}
+.gallery-screen__body {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+.gallery-screen__body.is-dragging {
+  outline: 2px dashed var(--accent);
+  outline-offset: -8px;
+}
+.gallery-screen__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+.gallery-screen__item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--panel-alt);
+}
+.gallery-screen__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.gallery-screen__item .photo-dock__fav-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+
+.slideshow-screen__duration {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.slideshow-screen__body {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+.slideshow-screen__strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.slideshow-screen__item {
+  position: relative;
+  width: 140px;
+  height: 100px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--panel-alt);
+  cursor: grab;
+}
+.slideshow-screen__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.slideshow-screen__number {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.slideshow-player {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.slideshow-player__image {
+  max-width: 92vw;
+  max-height: 86vh;
+  object-fit: contain;
+  animation: slideshow-fade 0.4s ease;
+}
+@keyframes slideshow-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.slideshow-player__controls {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(20, 20, 20, 0.7);
+  border-radius: 999px;
+  padding: 6px 14px;
+  color: #fff;
+}
+.slideshow-player__controls .btn--icon {
+  color: #fff;
 }

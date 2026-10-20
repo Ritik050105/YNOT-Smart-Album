@@ -147,25 +147,28 @@ export default function ImportPanel() {
       </p>
 
       <div className="auto-layout-controls">
-        <SliderField
-          label="Story sensitivity"
-          value={options.gapMinutes}
-          min={1}
-          max={180}
-          suffix="m"
-          onChange={(v) => setOptions({ gapMinutes: v })}
-        />
-        <SliderField
-          label="Max photos per spread"
-          value={options.maxPhotosPerSpread}
-          min={1}
-          max={30}
-          onChange={(v) => setOptions({ maxPhotosPerSpread: v })}
-        />
         <button className="btn btn--primary btn--block" disabled={photos.length === 0} onClick={() => runAutoBuild()}>
           <Icon name="sparkles" size={14} />
           Auto-Build Album
         </button>
+        <details className="auto-layout-controls__advanced">
+          <summary>Auto-Build settings</summary>
+          <SliderField
+            label="Story sensitivity"
+            value={options.gapMinutes}
+            min={1}
+            max={180}
+            suffix="m"
+            onChange={(v) => setOptions({ gapMinutes: v })}
+          />
+          <SliderField
+            label="Max photos per spread"
+            value={options.maxPhotosPerSpread}
+            min={1}
+            max={30}
+            onChange={(v) => setOptions({ maxPhotosPerSpread: v })}
+          />
+        </details>
       </div>
     </div>
   )

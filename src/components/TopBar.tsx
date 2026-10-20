@@ -76,6 +76,7 @@ export default function TopBar() {
           sizeLabel: project.size.label,
           filePath: result.filePath,
           spreadCount: project.spreads.filter((s) => !s.isCover).length,
+          kind: project.kind,
         })
       }
     } finally {
@@ -96,6 +97,7 @@ export default function TopBar() {
           sizeLabel: opened.file.project.size.label,
           filePath: opened.filePath,
           spreadCount: opened.file.project.spreads.filter((s) => !s.isCover).length,
+          kind: opened.file.project.kind,
         })
       }
     } catch (err) {

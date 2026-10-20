@@ -13,6 +13,9 @@ export interface RecentProjectEntry {
   filePath?: string
   spreadCount: number
   updatedAt: string
+  /** Which Home-screen tab this belongs under — absent on entries recorded before this field
+   *  existed, which are treated as 'album'. */
+  kind?: 'album' | 'gallery' | 'slideshow'
 }
 
 export function loadRecentProjects(): RecentProjectEntry[] {

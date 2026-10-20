@@ -222,6 +222,8 @@ export default function DesignerCanvas() {
   const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
   const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
   const toneClipboard = useProjectStore((s) => s.toneClipboard)
+  const autoAlignPlacement = useProjectStore((s) => s.autoAlignPlacement)
+  const autoAdjustPlacement = useProjectStore((s) => s.autoAdjustPlacement)
   const canvasTool = useProjectStore((s) => s.canvasTool)
   const setCanvasViewportMirror = useProjectStore((s) => s.setCanvasViewportMirror)
   const showGuides = useProjectStore((s) => s.showGuides)
@@ -258,18 +260,69 @@ export default function DesignerCanvas() {
 
   // Canvas zoom/pan — mirrors Figma-style conventions: plain scroll pans, Ctrl/Cmd+scroll zooms
   // toward the cursor, Space/middle-click+drag pans, Ctrl/Cmd+0/+/- control zoom from the
-  // keyboard. State resets whenever the selected spread changes so switching pages doesn't carry
-  // over a stale zoomed-in view.
+  // keyboard.
   const [stageScale, setStageScale] = useState(1)
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 })
   const [isSpaceDown, setIsSpaceDown] = useState(false)
   const isPanningRef = useRef(false)
   const panStartRef = useRef<{ x: number; y: number; stageX: number; stageY: number } | null>(null)
 
+  // The Stage's actual on-screen pixel size — measured from the flex-filling viewport div that
+  // wraps it (not the fixed STAGE_WIDTH logical coordinate space templates/placements are laid
+  // out in) so the spread always has real room to fit into, however big or small the window and
+  // side panels currently leave it. Falls back to the logical size before the first measurement.
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [viewportSize, setViewportSize] = useState({ width: STAGE_WIDTH, height: stageHeight })
+
   useEffect(() => {
+    const el = viewportRef.current
+    // The viewport div only exists once a spread is selected (the "no spread" branch below
+    // renders a differently-sized placeholder instead) — re-run this effect whenever that
+    // mounts/unmounts so the observer actually gets attached once there's something to measure,
+    // rather than only trying once on the component's very first (spread-less) render.
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      const { width, height } = entry.contentRect
+      if (width > 0 && height > 0) setViewportSize({ width, height })
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [Boolean(spread)])
+
+  // "Fit Spread View" — scales the spread (preserving its own aspect ratio) to the largest size
+  // that still fits entirely inside the measured viewport, and centers it. This is a real
+  // computation off the actual available space, not a flat reset to some assumed-visible size.
+  function fitToView() {
+    const rawScale = Math.min(viewportSize.width / STAGE_WIDTH, viewportSize.height / stageHeight) * 0.94
+    const scale = Math.max(0.05, Math.min(3, rawScale || 1))
+    setStageScale(scale)
+    setStagePos({
+      x: (viewportSize.width - STAGE_WIDTH * scale) / 2,
+      y: (viewportSize.height - stageHeight * scale) / 2,
+    })
+  }
+
+  // "Zoom to 100%" — one logical pixel of the spread's own 900px-wide coordinate space per
+  // screen pixel, centered in the viewport (may need panning/scrolling to see every edge, same
+  // as any design tool's real "actual size").
+  function zoomTo100() {
     setStageScale(1)
-    setStagePos({ x: 0, y: 0 })
-  }, [spread?.id])
+    setStagePos({
+      x: (viewportSize.width - STAGE_WIDTH) / 2,
+      y: (viewportSize.height - stageHeight) / 2,
+    })
+  }
+
+  // Re-fit whenever the selected spread changes (switching pages shouldn't carry over a stale
+  // zoomed-in view) or the available viewport space itself changes (window resize, toggling a
+  // side panel, the bottom dock opening) — this is what keeps the spread auto-sized to whatever
+  // room it actually has instead of silently overflowing/needing a scrollbar.
+  useEffect(() => {
+    fitToView()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spread?.id, viewportSize.width, viewportSize.height])
 
   // Mirrors this canvas's own local zoom/pan state into the store, read-only, so Designer View's
   // ruler and zoom readout can reflect it without this component giving up ownership of the
@@ -278,21 +331,19 @@ export default function DesignerCanvas() {
     setCanvasViewportMirror(stageScale, stagePos)
   }, [stageScale, stagePos, setCanvasViewportMirror])
 
-  // View menu's "Fit Spread View" / "Zoom to Fit" / "Zoom to 100%" — this canvas only has one
-  // natural default view (its own 900px-wide coordinate space at scale 1), so all three reset to
-  // that same state rather than faking separate "fit" vs "100%" scales that don't really exist here.
+  // View menu's "Fit Spread View" / "Zoom to 100%" buttons and shortcuts dispatch these instead
+  // of calling the functions directly, since they're fired from outside this component
+  // (DesignerViewScreen's own zoom controls, MenuBar). Re-registered whenever the viewport or
+  // spread size changes so the listener always closes over the current fit/100% math.
   useEffect(() => {
-    function resetZoom() {
-      setStageScale(1)
-      setStagePos({ x: 0, y: 0 })
-    }
-    window.addEventListener('album-studio:zoom-fit', resetZoom)
-    window.addEventListener('album-studio:zoom-100', resetZoom)
+    window.addEventListener('album-studio:zoom-fit', fitToView)
+    window.addEventListener('album-studio:zoom-100', zoomTo100)
     return () => {
-      window.removeEventListener('album-studio:zoom-fit', resetZoom)
-      window.removeEventListener('album-studio:zoom-100', resetZoom)
+      window.removeEventListener('album-studio:zoom-fit', fitToView)
+      window.removeEventListener('album-studio:zoom-100', zoomTo100)
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewportSize.width, viewportSize.height, stageHeight])
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -303,14 +354,13 @@ export default function DesignerCanvas() {
       if ((e.ctrlKey || e.metaKey) && !isEditableTarget(e.target)) {
         if (e.key === '0') {
           e.preventDefault()
-          setStageScale(1)
-          setStagePos({ x: 0, y: 0 })
+          fitToView()
         } else if (e.key === '=' || e.key === '+') {
           e.preventDefault()
           setStageScale((s) => Math.min(3, s * 1.15))
         } else if (e.key === '-') {
           e.preventDefault()
-          setStageScale((s) => Math.max(0.4, s / 1.15))
+          setStageScale((s) => Math.max(0.1, s / 1.15))
         }
       }
     }
@@ -323,7 +373,8 @@ export default function DesignerCanvas() {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewportSize.width, viewportSize.height, stageHeight])
 
   function handleWheel(e: Konva.KonvaEventObject<WheelEvent>) {
     e.evt.preventDefault()
@@ -426,6 +477,8 @@ export default function DesignerCanvas() {
         label: 'Reload from Original',
         onClick: () => resetPlacementToOriginal(spread.id, placeholderId),
       },
+      { label: 'Auto Adjust', onClick: () => void autoAdjustPlacement(spread.id, placeholderId) },
+      { label: 'Auto Align', onClick: () => autoAlignPlacement(spread.id, placeholderId) },
       {
         label: isBW ? 'Remove Black & White' : 'Black & White',
         onClick: () => updatePlacement(spread.id, placeholderId, { saturation: isBW ? 0 : -100 }),
@@ -572,17 +625,11 @@ export default function DesignerCanvas() {
           <input type="checkbox" checked={showPrintGuides} onChange={togglePrintGuides} />
           Print guides (<span style={{ color: '#ffb347' }}>bleed</span> / <span style={{ color: '#4fd6c0' }}>safety</span>)
         </label>
-        <button
-          className="btn btn--tiny toolbar-zoom"
-          title="Reset zoom (Ctrl/Cmd+0)"
-          onClick={() => {
-            setStageScale(1)
-            setStagePos({ x: 0, y: 0 })
-          }}
-        >
+        <button className="btn btn--tiny toolbar-zoom" title="Fit spread to view (Ctrl/Cmd+0)" onClick={fitToView}>
           {Math.round(stageScale * 100)}%
         </button>
       </div>
+      <div className="designer-canvas-viewport" ref={viewportRef}>
       <div
         className={`designer-canvas ${isSpaceDown || canvasTool === 'pan' ? 'designer-canvas--pan' : ''} ${canvasTool === 'zoom' ? 'designer-canvas--zoom' : ''}`}
         ref={containerRef}
@@ -598,8 +645,8 @@ export default function DesignerCanvas() {
       >
       <Stage
         ref={stageRef}
-        width={STAGE_WIDTH}
-        height={stageHeight}
+        width={Math.max(1, Math.round(viewportSize.width))}
+        height={Math.max(1, Math.round(viewportSize.height))}
         scaleX={stageScale}
         scaleY={stageScale}
         x={stagePos.x}
@@ -861,6 +908,7 @@ export default function DesignerCanvas() {
             />
           )
         })()}
+      </div>
       </div>
       {photoContextMenu && (
         <ContextMenu

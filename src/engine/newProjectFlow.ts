@@ -19,6 +19,7 @@ export async function finishNewProjectSetup(project: Project, userTemplates: Tem
         sizeLabel: project.size.label,
         filePath: result.filePath,
         spreadCount: project.spreads.filter((s) => !s.isCover).length,
+        kind: project.kind,
       })
     }
   }

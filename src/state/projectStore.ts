@@ -15,6 +15,7 @@ import {
 import { BUILT_IN_TEMPLATES, findTemplate, setUserTemplateRegistry, TemplateFrameFilter } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
 import { blobUrlToDataUrl } from '@/engine/projectFile'
+import { computeAutoAdjust } from '@/engine/autoAdjust'
 import { AlbumSize, EdgeInset } from '@/types'
 
 /** Older saved project files stored a single `bleedIn`/`safeZoneIn` number per album size instead
@@ -67,7 +68,7 @@ export interface NewProjectOptions {
   includeFullSpreadTemplates: boolean
 }
 
-function newProject(opts: Partial<NewProjectOptions> & { name: string }): Project {
+function newProject(opts: Partial<NewProjectOptions> & { name: string; kind?: Project['kind']; clientName?: string }): Project {
   const now = new Date().toISOString()
   return {
     id: uuid(),
@@ -79,7 +80,7 @@ function newProject(opts: Partial<NewProjectOptions> & { name: string }): Projec
     updatedAt: now,
     eventType: 'Wedding',
     community: '',
-    clientName: '',
+    clientName: opts.clientName ?? '',
     units: opts.units ?? 'in',
     colorProfile: opts.colorProfile ?? 'sRGB',
     defaultBackgroundColor: opts.defaultBackgroundColor ?? '#ffffff',
@@ -91,6 +92,8 @@ function newProject(opts: Partial<NewProjectOptions> & { name: string }): Projec
     layoutStart: opts.layoutStart ?? 'spread',
     layoutEnd: opts.layoutEnd ?? 'spread',
     includeFullSpreadTemplates: opts.includeFullSpreadTemplates ?? true,
+    kind: opts.kind ?? 'album',
+    slideDurationMs: 4000,
   }
 }
 
@@ -204,6 +207,12 @@ interface ProjectState {
   updateMultiplePlacements: (spreadId: string, placeholderIds: string[], patch: Partial<Spread['placements'][number]>) => void
   copyToneAdjustments: (spreadId: string, placeholderId: string) => void
   pasteToneAdjustments: (spreadId: string, placeholderIds: string[]) => void
+  /** "Auto Align" — recenters the photo's focal point and resets its zoom, so it sits centered
+   *  and fully covering its frame with no manual panning needed. */
+  autoAlignPlacement: (spreadId: string, placeholderId: string) => void
+  /** "Auto Adjust" — analyzes the placed photo's own pixels and applies a corrective
+   *  brightness/contrast/saturation pass (see engine/autoAdjust.ts). */
+  autoAdjustPlacement: (spreadId: string, placeholderId: string) => Promise<void>
   addTextBox: (spreadId: string, box: TextBox) => void
   updateTextBox: (spreadId: string, textBoxId: string, patch: Partial<TextBox>) => void
   removeTextBox: (spreadId: string, textBoxId: string) => void
@@ -220,8 +229,16 @@ interface ProjectState {
   loadProjectFile: (file: ProjectFile) => void
   newProjectFile: () => void
   createProjectFromWizard: (opts: NewProjectOptions) => void
+  /** Creates a minimal Gallery or Slideshow project — these skip the Album wizard entirely
+   *  (no spreads/templates to configure) and just need a name/client before landing in their
+   *  own dedicated screen. */
+  createSimpleProject: (kind: 'gallery' | 'slideshow', name: string, clientName: string) => void
   setPhotoBins: (photoId: string, bins: string[]) => void
   setPhotoFavorite: (photoId: string, favorite: boolean) => void
+  /** Slideshow-only: reorders the flat `photos` array itself (there's no separate "slide" list —
+   *  the photo pool's own order IS the slide order). */
+  reorderPhotos: (fromIndex: number, toIndex: number) => void
+  setSlideDuration: (ms: number) => void
 }
 
 function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project) {
@@ -717,6 +734,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     get().updateMultiplePlacements(spreadId, placeholderIds, clip)
   },
 
+  autoAlignPlacement: (spreadId, placeholderId) =>
+    get().updatePlacement(spreadId, placeholderId, { focalX: 0.5, focalY: 0.5, zoom: 1 }),
+
+  autoAdjustPlacement: async (spreadId, placeholderId) => {
+    const spread = get().project.spreads.find((s) => s.id === spreadId)
+    const placement = spread?.placements.find((pl) => pl.placeholderId === placeholderId)
+    const photo = placement?.photoId ? get().project.photos.find((p) => p.id === placement.photoId) : undefined
+    if (!photo) return
+    const adjustment = await computeAutoAdjust(photo.src).catch(() => null)
+    if (!adjustment) return
+    get().updatePlacement(spreadId, placeholderId, adjustment)
+  },
+
   addTextBox: (spreadId, box) =>
     withHistory(set, (p) => ({
       ...p,
@@ -844,6 +874,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       layoutStart: file.project.layoutStart ?? 'spread',
       layoutEnd: file.project.layoutEnd ?? 'spread',
       includeFullSpreadTemplates: file.project.includeFullSpreadTemplates ?? true,
+      kind: file.project.kind ?? 'album',
+      slideDurationMs: file.project.slideDurationMs ?? 4000,
       size: migrateAlbumSize(file.project.size),
       photos: file.project.photos.map((photo) => ({ ...photo, bins: photo.bins ?? [], favorite: photo.favorite ?? false })),
       spreads: file.project.spreads.map((spread) => ({
@@ -895,6 +927,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       history: [],
       future: [],
     }),
+
+  createSimpleProject: (kind, name, clientName) =>
+    set({
+      project: newProject({ name, kind, clientName }),
+      selectedSpreadId: null,
+      selectedPlaceholderId: null,
+      selectedTextBoxId: null,
+      multiSelectedPlaceholderIds: [],
+      selectedPhotoIds: [],
+      history: [],
+      future: [],
+    }),
+
+  reorderPhotos: (fromIndex, toIndex) =>
+    withHistory(set, (p) => {
+      const photos = [...p.photos]
+      const [moved] = photos.splice(fromIndex, 1)
+      photos.splice(toIndex, 0, moved)
+      return { ...p, photos }
+    }),
+
+  setSlideDuration: (ms) => withHistory(set, (p) => ({ ...p, slideDurationMs: Math.max(500, ms) })),
 
   setPhotoBins: (photoId, bins) =>
     withHistory(set, (p) => ({

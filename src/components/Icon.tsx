@@ -40,6 +40,8 @@ const PATHS: Record<string, string> = {
   cursor: 'M4 3l16 8-7 1.5L11 20z',
   hand: 'M9 11.5V6a1.5 1.5 0 0 1 3 0v4.5 M12 10.3V4.5a1.5 1.5 0 0 1 3 0v6 M15 10.8V6.5a1.5 1.5 0 0 1 3 0V13c0 4-2.5 7-6.5 7s-6-2-7.5-5L3 12.5a1.4 1.4 0 0 1 2.2-1.7L7 13V7a1.5 1.5 0 0 1 3 0v4.5',
   fitToView: 'M8 3H5a2 2 0 0 0-2 2v3 M16 3h3a2 2 0 0 1 2 2v3 M21 16v3a2 2 0 0 1-2 2h-3 M3 16v3a2 2 0 0 0 2 2h3',
+  align: 'M12 2v4 M12 18v4 M2 12h4 M18 12h4 M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z',
+  play: 'M7 4l13 8-13 8V4Z',
 }
 
 export default function Icon({

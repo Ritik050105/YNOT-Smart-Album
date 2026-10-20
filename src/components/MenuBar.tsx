@@ -54,6 +54,8 @@ export default function MenuBar() {
   const updatePlacement = useProjectStore((s) => s.updatePlacement)
   const updateMultiplePlacements = useProjectStore((s) => s.updateMultiplePlacements)
   const resetPlacementToOriginal = useProjectStore((s) => s.resetPlacementToOriginal)
+  const autoAlignPlacement = useProjectStore((s) => s.autoAlignPlacement)
+  const autoAdjustPlacement = useProjectStore((s) => s.autoAdjustPlacement)
   const setPlacementPhoto = useProjectStore((s) => s.setPlacementPhoto)
   const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
   const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
@@ -241,6 +243,16 @@ export default function MenuBar() {
           shortcut: 'Ctrl+R',
           disabled: !singlePlacement,
           onClick: () => spread && singlePlacement && resetPlacementToOriginal(spread.id, singlePlacement.placeholderId),
+        },
+        {
+          label: 'Auto Adjust',
+          disabled: !hasPhotoInSelection,
+          onClick: () => spread && framePlaceholderIds.forEach((id) => void autoAdjustPlacement(spread.id, id)),
+        },
+        {
+          label: 'Auto Align',
+          disabled: !hasPhotoInSelection,
+          onClick: () => spread && framePlaceholderIds.forEach((id) => autoAlignPlacement(spread.id, id)),
         },
         {
           label: 'Replace Image…',

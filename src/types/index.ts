@@ -202,6 +202,13 @@ export interface Project {
   /** Whether Auto-Build's template pool includes full-spread (two-page) templates at all —
    *  the wizard's "Include full spread templates" checkbox. */
   includeFullSpreadTemplates: boolean
+  /** What kind of project this is — mirrors the Home screen's Albums/Galleries/Slideshows tabs.
+   *  Galleries and Slideshows skip the spread/template machinery entirely and use `photos`
+   *  directly (as a flat proofing grid, or an ordered slide sequence) instead. Defaults to
+   *  'album' so older saved projects (which predate this field) load unchanged. */
+  kind: 'album' | 'gallery' | 'slideshow'
+  /** Slideshow-only: how long each slide shows, in milliseconds, during Play preview. */
+  slideDurationMs: number
 }
 
 /** On-disk project file format — self-contained (photos embedded as data URLs) so it opens

@@ -8,7 +8,6 @@ import DesignerCanvas from './components/DesignerCanvas'
 import Inspector from './components/Inspector'
 import TemplateLibraryPanel from './components/TemplateLibraryPanel'
 import AlbumInfoPanel from './components/AlbumInfoPanel'
-import WorkflowStepper from './components/WorkflowStepper'
 import KeyboardShortcuts from './components/KeyboardShortcuts'
 import GlobalDropZone from './components/GlobalDropZone'
 import HomeScreen from './components/HomeScreen'
@@ -16,6 +15,8 @@ import Icon from './components/Icon'
 import NewProjectLoadingOverlay from './components/NewProjectLoadingOverlay'
 import DesignerViewScreen from './components/DesignerViewScreen'
 import TimelinePanel from './components/TimelinePanel'
+import GalleryScreen from './components/GalleryScreen'
+import SlideshowScreen from './components/SlideshowScreen'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 
@@ -31,7 +32,7 @@ export default function App() {
   const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
-  const hasPhotos = useProjectStore((s) => s.project.photos.length > 0)
+  const projectKind = useProjectStore((s) => s.project.kind)
 
   useEffect(() => {
     function onEnterEditor() {
@@ -67,6 +68,10 @@ export default function App() {
 
   if (showHome) return <HomeScreen />
 
+  if (projectKind === 'gallery') return <GalleryScreen />
+
+  if (projectKind === 'slideshow') return <SlideshowScreen />
+
   if (designerViewSpreadId) return <DesignerViewScreen />
 
   return (
@@ -78,9 +83,6 @@ export default function App() {
       <div className="app-body">
         {leftPanelOpen && (
           <aside className="app-sidebar app-sidebar--left">
-            <div className="panel">
-              <WorkflowStepper />
-            </div>
             <ImportPanel />
             <SpreadsPanel />
           </aside>
@@ -113,18 +115,16 @@ export default function App() {
           </aside>
         )}
       </div>
-      {hasPhotos && (
-        <div className="bottom-panel">
-          <button
-            className="panel-toggle panel-toggle--bottom"
-            onClick={toggleBottomPanel}
-            title={bottomPanelOpen ? 'Collapse photo dock' : 'Expand photo dock'}
-          >
-            <Icon name={bottomPanelOpen ? 'chevronDown' : 'chevronUp'} size={12} />
-          </button>
-          {bottomPanelOpen && <PhotoBin />}
-        </div>
-      )}
+      <div className="bottom-panel">
+        <button
+          className="panel-toggle panel-toggle--bottom"
+          onClick={toggleBottomPanel}
+          title={bottomPanelOpen ? 'Collapse photo dock' : 'Expand photo dock'}
+        >
+          <Icon name={bottomPanelOpen ? 'chevronDown' : 'chevronUp'} size={12} />
+        </button>
+        {bottomPanelOpen && <PhotoBin />}
+      </div>
     </div>
   )
 }
