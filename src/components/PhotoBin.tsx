@@ -1,4 +1,5 @@
 import { CSSProperties, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useProjectStore } from '@/state/projectStore'
 import { Spread } from '@/types'
 import Icon from './Icon'
@@ -52,6 +53,8 @@ export default function PhotoBin() {
   const togglePhotoSelection = useProjectStore((s) => s.togglePhotoSelection)
   const selectSpread = useProjectStore((s) => s.selectSpread)
   const selectPlaceholder = useProjectStore((s) => s.selectPlaceholder)
+  const zoom = useProjectStore((s) => s.photoDockZoom)
+  const setZoom = useProjectStore((s) => s.setPhotoDockZoom)
 
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
   const [binFilter, setBinFilter] = useState('')
@@ -60,8 +63,12 @@ export default function PhotoBin() {
   const [newBinDraft, setNewBinDraft] = useState('')
   const [sortBy, setSortBy] = useState<SortMode>('time')
   const [search, setSearch] = useState('')
-  const [zoom, setZoom] = useState(84)
   const [tagPopoverFor, setTagPopoverFor] = useState<string | null>(null)
+  // Where to portal the bin popover — this dock sits at the very bottom of the window with a
+  // horizontally-scrolling strip of thumbnails, so an in-place `position: absolute` popover gets
+  // clipped by that scroll container's own overflow (nearly invisible below the strip's edge).
+  // Portaling to <body> with a measured, fixed position avoids that entirely.
+  const [tagPopoverAnchor, setTagPopoverAnchor] = useState<{ left: number; bottom: number } | null>(null)
   const [newBinName, setNewBinName] = useState('')
 
   const usedPhotoIds = useMemo(
@@ -205,10 +212,10 @@ export default function PhotoBin() {
           className="photo-dock__zoom"
           type="range"
           min={56}
-          max={140}
+          max={160}
           value={zoom}
           onChange={(e) => setZoom(Number(e.target.value))}
-          title="Thumbnail size"
+          title="Thumbnail size — also adjustable by dragging the dock's top edge"
         />
 
         <span className="muted photo-dock__count">
@@ -266,7 +273,13 @@ export default function PhotoBin() {
                 className="photo-dock__tag-btn"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setTagPopoverFor(tagPopoverFor === photo.id ? null : photo.id)
+                  if (tagPopoverFor === photo.id) {
+                    setTagPopoverFor(null)
+                    return
+                  }
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  setTagPopoverAnchor({ left: rect.left, bottom: window.innerHeight - rect.top + 6 })
+                  setTagPopoverFor(photo.id)
                 }}
                 title="Assign to bin"
               >
@@ -282,26 +295,33 @@ export default function PhotoBin() {
                   <Icon name="check" size={10} />
                 </span>
               )}
-              {tagPopoverFor === photo.id && (
-                <div className="bin-popover" onClick={(e) => e.stopPropagation()}>
-                  {allBins.map((b) => (
-                    <label key={b}>
-                      <input type="checkbox" checked={photo.bins.includes(b)} onChange={() => toggleBin(photo.id, b)} />
-                      {b}
-                    </label>
-                  ))}
-                  <input
-                    type="text"
-                    placeholder="New bin name…"
-                    value={newBinName}
-                    onChange={(e) => setNewBinName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addNewBin(photo.id)}
-                  />
-                  <button className="btn btn--tiny" onClick={() => addNewBin(photo.id)}>
-                    Add Bin
-                  </button>
-                </div>
-              )}
+              {tagPopoverFor === photo.id &&
+                tagPopoverAnchor &&
+                createPortal(
+                  <div
+                    className="bin-popover"
+                    style={{ left: Math.min(tagPopoverAnchor.left, window.innerWidth - 196), bottom: tagPopoverAnchor.bottom }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {allBins.map((b) => (
+                      <label key={b}>
+                        <input type="checkbox" checked={photo.bins.includes(b)} onChange={() => toggleBin(photo.id, b)} />
+                        {b}
+                      </label>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder="New bin name…"
+                      value={newBinName}
+                      onChange={(e) => setNewBinName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addNewBin(photo.id)}
+                    />
+                    <button className="btn btn--tiny" onClick={() => addNewBin(photo.id)}>
+                      Add Bin
+                    </button>
+                  </div>,
+                  document.body
+                )}
             </div>
           )
         })}

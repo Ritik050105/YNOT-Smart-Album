@@ -350,7 +350,7 @@ export default function NewProjectWizard({
                       onClick={() => toggleShape(s.category)}
                     >
                       <span className="shape-option__swatch" style={{ width: 28, height: 28 / s.aspect }} />
-                      {s.label}
+                      <span className="shape-option__label">{s.label}</span>
                     </button>
                   ))}
                 </div>
@@ -522,10 +522,10 @@ export default function NewProjectWizard({
 
           <div className="field-section">
             <div className="field-section__title">Appearance</div>
-            <label className="field">
-              Background color
+            <div className="style-field">
+              <span className="style-field__label">Background color</span>
               <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} />
-            </label>
+            </div>
 
             <div className="style-field">
               <span className="style-field__label">Border around images</span>

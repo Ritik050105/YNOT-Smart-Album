@@ -143,7 +143,7 @@ export default function ImportPanel() {
       )}
 
       <p className="muted" style={{ marginTop: 8 }}>
-        {photos.length} photo{photos.length === 1 ? '' : 's'} imported
+        {photos.length} photo{photos.length === 1 ? '' : 's'} total in your pool
       </p>
 
       <div className="auto-layout-controls">

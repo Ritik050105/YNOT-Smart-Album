@@ -19,6 +19,7 @@ import GalleryScreen from './components/GalleryScreen'
 import SlideshowScreen from './components/SlideshowScreen'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
+import { useBottomDockResize } from '@/engine/useBottomDockResize'
 
 export default function App() {
   const [showHome, setShowHome] = useState(true)
@@ -28,11 +29,10 @@ export default function App() {
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
   const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
   const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
-  const bottomPanelOpen = useProjectStore((s) => s.bottomPanelOpen)
   const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
-  const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
   const projectKind = useProjectStore((s) => s.project.kind)
+  const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
 
   useEffect(() => {
     function onEnterEditor() {
@@ -118,8 +118,8 @@ export default function App() {
       <div className="bottom-panel">
         <button
           className="panel-toggle panel-toggle--bottom"
-          onClick={toggleBottomPanel}
-          title={bottomPanelOpen ? 'Collapse photo dock' : 'Expand photo dock'}
+          onMouseDown={handleBottomHandleMouseDown}
+          title={bottomPanelOpen ? 'Drag to resize, click to collapse the photo dock' : 'Expand photo dock'}
         >
           <Icon name={bottomPanelOpen ? 'chevronDown' : 'chevronUp'} size={12} />
         </button>

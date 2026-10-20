@@ -390,11 +390,19 @@ body {
 .home-card__client {
   font-size: 11.5px;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 .home-card__meta,
 .home-card__date {
   font-size: 10.5px;
   color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 .home-card__remove {
   position: absolute;
@@ -625,7 +633,9 @@ body {
   border-bottom: 1px solid var(--border-soft);
   background: var(--bg);
   color: var(--text-muted);
-  cursor: pointer;
+  /* Doubles as a resize handle (drag up/down to scale the dock's thumbnails) — ns-resize signals
+     that even though a plain click still just collapses/expands it. */
+  cursor: ns-resize;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -734,7 +744,9 @@ body {
   position: absolute;
   top: calc(100% + 2px);
   left: 0;
-  min-width: 220px;
+  /* 220px was just narrow enough to wrap a couple of the longer labels ("Copy Tone Adjustments" +
+     its Ctrl+Shift+C shortcut) onto two lines — comfortably fits every current item on one. */
+  min-width: 250px;
   background: var(--panel-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -1644,6 +1656,7 @@ input[type='checkbox'] {
 }
 .spreads-panel__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   margin-top: 6px;
 }
@@ -1672,11 +1685,16 @@ input[type='checkbox'] {
   min-width: 0;
   min-height: 0;
   width: 100%;
+  /* At extreme widths the toolbar can wrap onto several rows and grow taller than the column has
+     room for — scroll rather than silently crushing the canvas viewport below it to 0 height. */
+  overflow-y: auto;
 }
 .designer-canvas-viewport {
   flex: 1;
   min-width: 0;
-  min-height: 0;
+  /* Guarantees the canvas keeps some real, visible area even when the toolbar above it has
+     wrapped onto multiple rows and is competing for the same column's height. */
+  min-height: 120px;
   width: 100%;
   overflow: hidden;
 }
@@ -1688,9 +1706,18 @@ input[type='checkbox'] {
   justify-content: center;
   background: var(--panel);
   border: 1px solid var(--border-soft);
-  border-radius: 999px;
+  /* A 999px "pill" radius only reads right as one row of controls — once flex-wrap pushes items
+     onto a second/third row at narrow widths it turns into a lopsided blob, so this uses the
+     same moderate radius every panel card uses instead. */
+  border-radius: var(--radius-lg);
   padding: 6px 8px;
   box-shadow: var(--shadow-md);
+  /* Without a cap this can grow wider than the canvas column that centers it (narrow windows,
+     both side panels open) and spill over the canvas below it instead of wrapping its own
+     contents — box-sizing keeps the cap from clipping the padding itself. */
+  max-width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 .toolbar-toggle {
   font-size: 12px;
@@ -1699,12 +1726,13 @@ input[type='checkbox'] {
   align-items: center;
   gap: 6px;
   padding: 0 6px;
+  max-width: 100%;
 }
 .toolbar-toggle input {
   margin: 0;
 }
 .toolbar-quote-select {
-  max-width: 190px;
+  max-width: min(190px, 100%);
   font-size: 12px;
   border-radius: 999px;
   padding: 7px 10px;
@@ -1821,6 +1849,10 @@ input[type='checkbox'] {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* Grid items default to min-width: auto, which ignores the name label's own overflow:hidden
+     and lets a long template name (e.g. "Filmstrip Vertical") force this column — and the whole
+     grid/sidebar — wider than its 1fr share instead of actually truncating. */
+  min-width: 0;
   transition: transform 0.12s var(--ease), border-color 0.12s var(--ease);
 }
 .template-swatch:hover {
@@ -1883,6 +1915,9 @@ input[type='checkbox'] {
 }
 .save-template-row input {
   flex: 1;
+  /* Without this a flex item won't shrink below its default intrinsic input width, pushing the
+     "Save" button (and the sidebar) wider than the panel instead of actually sharing the row. */
+  min-width: 0;
 }
 
 .custom-grid-row {
@@ -1933,12 +1968,14 @@ input[type='checkbox'] {
 
 .text-style-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 10px;
   background: var(--panel-alt);
   border-radius: var(--radius-sm);
   padding: 3px;
   width: fit-content;
+  max-width: 100%;
   margin-left: auto;
 }
 .text-style-row .btn {
@@ -2034,6 +2071,10 @@ input[type='checkbox'] {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  /* Grid items default to min-width: auto, which ignores the name label's own overflow:hidden
+     and lets a long saved-template name force this column — and the whole sidebar — wider than
+     its 1fr share instead of actually truncating (same issue as .template-swatch). */
+  min-width: 0;
 }
 .template-library__swatch {
   border-radius: var(--radius-sm);
@@ -2607,6 +2648,11 @@ input[type='checkbox'] {
 }
 .shape-option {
   flex: 1;
+  /* The modal's own width is responsive (max-width: calc(100vw - 48px)), so on a small enough
+     window this row really can get squeezed narrower than its five labels' natural width —
+     min-width: 0 lets each option actually shrink instead of forcing the row to overflow, and
+     .shape-option__label (below) truncates the text itself once it does. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2626,6 +2672,12 @@ input[type='checkbox'] {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--text);
+}
+.shape-option__label {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .shape-option__swatch {
   background: var(--panel-raised);
@@ -2733,7 +2785,10 @@ input[type='checkbox'] {
   opacity: 1;
 }
 .bin-popover {
-  position: absolute;
+  /* Portaled to <body> and positioned from the trigger button's own measured rect (see
+     PhotoBin.tsx) — fixed, not absolute, since it now sits outside the photo dock's scrolling
+     strip entirely rather than relying on that strip not clipping it. */
+  position: fixed;
   z-index: 30;
   background: var(--panel-raised);
   border: 1px solid var(--border);

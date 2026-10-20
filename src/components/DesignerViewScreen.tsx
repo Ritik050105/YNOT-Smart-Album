@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { STAGE_WIDTH } from './DesignerCanvas'
 import { inToDisplay } from '@/engine/units'
+import { useBottomDockResize } from '@/engine/useBottomDockResize'
 import DesignerCanvas from './DesignerCanvas'
 import Inspector from './Inspector'
 import PhotoBin from './PhotoBin'
@@ -70,7 +71,7 @@ export default function DesignerViewScreen() {
   const canvasZoom = useProjectStore((s) => s.canvasZoom)
   const canvasPan = useProjectStore((s) => s.canvasPan)
   const saveSpreadAsTemplate = useProjectStore((s) => s.saveSpreadAsTemplate)
-  const hasPhotos = project.photos.length > 0
+  const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
 
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
@@ -193,11 +194,16 @@ export default function DesignerViewScreen() {
         </aside>
       </div>
 
-      {hasPhotos && (
-        <div className="bottom-panel">
-          <PhotoBin />
-        </div>
-      )}
+      <div className="bottom-panel">
+        <button
+          className="panel-toggle panel-toggle--bottom"
+          onMouseDown={handleBottomHandleMouseDown}
+          title={bottomPanelOpen ? 'Drag to resize, click to collapse the photo dock' : 'Expand photo dock'}
+        >
+          <Icon name={bottomPanelOpen ? 'chevronDown' : 'chevronUp'} size={12} />
+        </button>
+        {bottomPanelOpen && <PhotoBin />}
+      </div>
 
       {saveTemplateOpen && (
         <Modal

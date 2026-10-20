@@ -52,6 +52,20 @@ function saveUserTemplates(templates: TemplateDefinition[]) {
 
 setUserTemplateRegistry(loadUserTemplates())
 
+const PHOTO_DOCK_ZOOM_KEY = 'albumstudio.photoDockZoom'
+const PHOTO_DOCK_ZOOM_MIN = 56
+const PHOTO_DOCK_ZOOM_MAX = 160
+
+function loadPhotoDockZoom(): number {
+  try {
+    const raw = localStorage.getItem(PHOTO_DOCK_ZOOM_KEY)
+    const n = raw ? Number(raw) : NaN
+    return Number.isFinite(n) ? Math.max(PHOTO_DOCK_ZOOM_MIN, Math.min(PHOTO_DOCK_ZOOM_MAX, n)) : 84
+  } catch {
+    return 84
+  }
+}
+
 export interface NewProjectOptions {
   name: string
   size: Project['size']
@@ -124,6 +138,10 @@ interface ProjectState {
   leftPanelOpen: boolean
   rightPanelOpen: boolean
   bottomPanelOpen: boolean
+  /** The bottom Photo Dock's thumbnail size in px — shared between its own zoom slider and the
+   *  drag-to-resize handle on the panel's top edge (see `setPhotoDockZoom`), and persisted across
+   *  sessions so a resized dock stays the size the user left it. */
+  photoDockZoom: number
   /** True for the brief "Preparing template libraries…" beat between finishing the New Project
    *  wizard and landing in the editor — matches the reference app's own loading transition. */
   preparingProject: boolean
@@ -175,6 +193,7 @@ interface ProjectState {
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
   toggleBottomPanel: () => void
+  setPhotoDockZoom: (v: number) => void
   setPreparingProject: (v: boolean) => void
   setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'text' | 'zoom') => void
   setTemplateFrameFilter: (f: TemplateFrameFilter) => void
@@ -269,6 +288,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   leftPanelOpen: true,
   rightPanelOpen: true,
   bottomPanelOpen: true,
+  photoDockZoom: loadPhotoDockZoom(),
   preparingProject: false,
   canvasTool: 'select',
   templateFrameFilter: 'all',
@@ -399,6 +419,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toggleLeftPanel: () => set((s) => ({ leftPanelOpen: !s.leftPanelOpen })),
   toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
   toggleBottomPanel: () => set((s) => ({ bottomPanelOpen: !s.bottomPanelOpen })),
+  setPhotoDockZoom: (v) => {
+    const clamped = Math.max(PHOTO_DOCK_ZOOM_MIN, Math.min(PHOTO_DOCK_ZOOM_MAX, Math.round(v)))
+    set({ photoDockZoom: clamped })
+    try {
+      localStorage.setItem(PHOTO_DOCK_ZOOM_KEY, String(clamped))
+    } catch {
+      // Storage unavailable — the resized dock just won't persist across sessions.
+    }
+  },
   setPreparingProject: (v) => set({ preparingProject: v }),
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setTemplateFrameFilter: (f) => set({ templateFrameFilter: f }),
