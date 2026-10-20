@@ -14,6 +14,7 @@ import GlobalDropZone from './components/GlobalDropZone'
 import HomeScreen from './components/HomeScreen'
 import Icon from './components/Icon'
 import NewProjectLoadingOverlay from './components/NewProjectLoadingOverlay'
+import DesignerViewScreen from './components/DesignerViewScreen'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 
@@ -21,6 +22,7 @@ export default function App() {
   const [showHome, setShowHome] = useState(true)
   const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
   const preparingProject = useProjectStore((s) => s.preparingProject)
+  const designerViewSpreadId = useProjectStore((s) => s.designerViewSpreadId)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
   const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
   const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
@@ -63,6 +65,8 @@ export default function App() {
   if (preparingProject) return <NewProjectLoadingOverlay />
 
   if (showHome) return <HomeScreen />
+
+  if (designerViewSpreadId) return <DesignerViewScreen />
 
   return (
     <div className="app-shell">

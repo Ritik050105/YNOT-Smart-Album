@@ -20,6 +20,7 @@ export default function SpreadsPanel() {
   const addCoverSpread = useProjectStore((s) => s.addCoverSpread)
   const duplicateSpread = useProjectStore((s) => s.duplicateSpread)
   const deleteSpread = useProjectStore((s) => s.deleteSpread)
+  const enterDesignerView = useProjectStore((s) => s.enterDesignerView)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [exportingId, setExportingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -49,6 +50,7 @@ export default function SpreadsPanel() {
     if (!spread) return []
     if (spread.isCover) {
       return [
+        { label: 'Edit in Designer View', onClick: () => enterDesignerView(spreadId) },
         { label: 'Flip Cover Horizontally', onClick: () => flipSpread(spreadId) },
         { label: 'Export Cover…', onClick: () => void exportSpread(spread) },
         { label: 'Delete Cover', danger: true, onClick: () => deleteSpread(spreadId) },
@@ -56,6 +58,7 @@ export default function SpreadsPanel() {
     }
     const index = spreads.findIndex((s) => s.id === spreadId)
     return [
+      { label: 'Edit in Designer View', onClick: () => enterDesignerView(spreadId) },
       {
         label: 'Split Spread',
         disabled: spread.pageSide !== 'spread',

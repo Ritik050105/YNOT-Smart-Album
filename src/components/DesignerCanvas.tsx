@@ -14,7 +14,7 @@ import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
 import ContextMenu, { ContextMenuItem } from './ContextMenu'
 
-const STAGE_WIDTH = 900
+export const STAGE_WIDTH = 900
 
 function PlaceholderImage({
   src,
@@ -223,6 +223,7 @@ export default function DesignerCanvas() {
   const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
   const toneClipboard = useProjectStore((s) => s.toneClipboard)
   const canvasTool = useProjectStore((s) => s.canvasTool)
+  const setCanvasViewportMirror = useProjectStore((s) => s.setCanvasViewportMirror)
 
   const spread: Spread | undefined = project.spreads.find((s) => s.id === selectedSpreadId)
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
@@ -266,6 +267,13 @@ export default function DesignerCanvas() {
     setStageScale(1)
     setStagePos({ x: 0, y: 0 })
   }, [spread?.id])
+
+  // Mirrors this canvas's own local zoom/pan state into the store, read-only, so Designer View's
+  // ruler and zoom readout can reflect it without this component giving up ownership of the
+  // interaction-critical state itself (see the store field's own doc comment).
+  useEffect(() => {
+    setCanvasViewportMirror(stageScale, stagePos)
+  }, [stageScale, stagePos, setCanvasViewportMirror])
 
   // View menu's "Fit Spread View" / "Zoom to Fit" / "Zoom to 100%" — this canvas only has one
   // natural default view (its own 900px-wide coordinate space at scale 1), so all three reset to

@@ -76,6 +76,7 @@ export default function MenuBar() {
   const bottomPanelOpen = useProjectStore((s) => s.bottomPanelOpen)
   const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
   const canvasTool = useProjectStore((s) => s.canvasTool)
+  const enterDesignerView = useProjectStore((s) => s.enterDesignerView)
   const setCanvasTool = useProjectStore((s) => s.setCanvasTool)
   const templateFrameFilter = useProjectStore((s) => s.templateFrameFilter)
   const setTemplateFrameFilter = useProjectStore((s) => s.setTemplateFrameFilter)
@@ -257,6 +258,7 @@ export default function MenuBar() {
           disabled: !hasSpread,
           onClick: () => spread && applyTemplateToAllSpreads(spread.templateId),
         },
+        { label: 'Edit in Designer View', disabled: !hasSpread, onClick: () => spread && enterDesignerView(spread.id) },
         { label: 'Add Blank Spread', onClick: addBlankSpread },
       ],
     },

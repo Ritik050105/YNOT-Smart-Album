@@ -130,6 +130,16 @@ interface ProjectState {
   photoClipboard: { photoId: string; placement: Omit<Spread['placements'][number], 'placeholderId'> } | null
   /** View menu's "Show File Names in Image Browser" — shows each Photo Dock thumbnail's filename. */
   showPhotoFileNames: boolean
+  /** Set while the reference app's focused single-spread "Designer View" is open (reached via
+   *  Spread > Edit in Designer View, or a spread's context menu) — a dedicated zoomed-in editing
+   *  mode with its own ruler and tool rail, as opposed to the normal multi-panel editor. */
+  designerViewSpreadId: string | null
+  /** A read-only mirror of DesignerCanvas's own local zoom/pan state, written there on every
+   *  change — lets Designer View's ruler and "1:1" zoom readout reflect the live canvas view
+   *  without lifting that interaction-critical state (and its Figma-style wheel/keyboard
+   *  handling) out of the component that actually owns it. */
+  canvasZoom: number
+  canvasPan: { x: number; y: number }
   autoLayoutOptions: AutoLayoutOptions
   history: Project[]
   future: Project[]
@@ -152,6 +162,9 @@ interface ProjectState {
   setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'text' | 'zoom') => void
   setTemplateFrameFilter: (f: TemplateFrameFilter) => void
   toggleShowPhotoFileNames: () => void
+  enterDesignerView: (spreadId: string) => void
+  exitDesignerView: () => void
+  setCanvasViewportMirror: (zoom: number, pan: { x: number; y: number }) => void
   copyPlacement: (spreadId: string, placeholderId: string) => void
   pastePlacement: (spreadId: string, placeholderIds: string[]) => void
   cutPlacement: (spreadId: string, placeholderId: string) => void
@@ -224,6 +237,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   templateFrameFilter: 'all',
   photoClipboard: null,
   showPhotoFileNames: false,
+  designerViewSpreadId: null,
+  canvasZoom: 1,
+  canvasPan: { x: 0, y: 0 },
   autoLayoutOptions: DEFAULT_AUTO_LAYOUT_OPTIONS,
   history: [],
   future: [],
@@ -313,6 +329,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setTemplateFrameFilter: (f) => set({ templateFrameFilter: f }),
   toggleShowPhotoFileNames: () => set((s) => ({ showPhotoFileNames: !s.showPhotoFileNames })),
+  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId }),
+  exitDesignerView: () => set({ designerViewSpreadId: null }),
+  setCanvasViewportMirror: (zoom, pan) => set({ canvasZoom: zoom, canvasPan: pan }),
 
   copyPlacement: (spreadId, placeholderId) => {
     const spread = get().project.spreads.find((s) => s.id === spreadId)

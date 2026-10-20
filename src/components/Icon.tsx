@@ -39,6 +39,7 @@ const PATHS: Record<string, string> = {
   wand: 'M15 4V2 M15 16v-2 M8 9h2 M20 9h2 M17.8 6.2l1.4-1.4 M17.8 11.8l1.4 1.4 M3 21l9-9 M12.2 12.2 15 15',
   cursor: 'M4 3l16 8-7 1.5L11 20z',
   hand: 'M9 11.5V6a1.5 1.5 0 0 1 3 0v4.5 M12 10.3V4.5a1.5 1.5 0 0 1 3 0v6 M15 10.8V6.5a1.5 1.5 0 0 1 3 0V13c0 4-2.5 7-6.5 7s-6-2-7.5-5L3 12.5a1.4 1.4 0 0 1 2.2-1.7L7 13V7a1.5 1.5 0 0 1 3 0v4.5',
+  fitToView: 'M8 3H5a2 2 0 0 0-2 2v3 M16 3h3a2 2 0 0 1 2 2v3 M21 16v3a2 2 0 0 1-2 2h-3 M3 16v3a2 2 0 0 0 2 2h3',
 }
 
 export default function Icon({
