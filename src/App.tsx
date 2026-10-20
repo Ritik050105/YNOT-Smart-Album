@@ -15,6 +15,7 @@ import HomeScreen from './components/HomeScreen'
 import Icon from './components/Icon'
 import NewProjectLoadingOverlay from './components/NewProjectLoadingOverlay'
 import DesignerViewScreen from './components/DesignerViewScreen'
+import TimelinePanel from './components/TimelinePanel'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 
@@ -92,7 +93,10 @@ export default function App() {
           <Icon name={leftPanelOpen ? 'chevronLeft' : 'chevronRight'} size={12} />
         </button>
         <main className="app-main">
-          <DesignerCanvas />
+          <div className="app-main__stack">
+            <TimelinePanel />
+            <DesignerCanvas />
+          </div>
         </main>
         <button
           className="panel-toggle panel-toggle--right"

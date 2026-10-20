@@ -10,11 +10,42 @@ export interface AutoLayoutOptions {
    */
   gapMinutes: number
   maxPhotosPerSpread: number
+  /** The reference app's "Match Timeline Order" — on (the default) keeps each spread's photos in
+   *  strict chronological order even if that leaves a portrait photo in a landscape-preferred
+   *  slot; off lets Auto-Build reorder photos *within* a spread (only within it — spreads
+   *  themselves stay chronological) to better match each slot's preferred orientation. Only makes
+   *  a visible difference when a spread's photos are a mix of orientations. */
+  matchTimelineOrder: boolean
 }
 
 export const DEFAULT_AUTO_LAYOUT_OPTIONS: AutoLayoutOptions = {
   gapMinutes: 20,
   maxPhotosPerSpread: 6,
+  matchTimelineOrder: true,
+}
+
+/** Assigns `group`'s photos to `placeholders` greedily by each slot's `preferredOrientation`,
+ *  while otherwise keeping photos in their original (chronological) relative order — used when
+ *  "Match Timeline Order" is off. For each slot in turn, picks the earliest still-unassigned
+ *  photo whose orientation matches (or any orientation, for an 'any' slot); falls back to the
+ *  earliest unassigned photo of any orientation if none matches, so every slot still gets filled. */
+function matchGroupToPlaceholders<T extends { orientation: PhotoAsset['orientation'] }>(
+  group: T[],
+  placeholders: { preferredOrientation: 'landscape' | 'portrait' | 'any' }[]
+): (T | null)[] {
+  const remaining = group.map((photo, index) => ({ photo, index }))
+  return placeholders.map((ph) => {
+    if (remaining.length === 0) return null
+    const preferred = ph.preferredOrientation
+    const matchIndex =
+      preferred === 'any'
+        ? 0
+        : remaining.findIndex(
+            (r) => r.photo.orientation === preferred || (preferred === 'landscape' && r.photo.orientation === 'square')
+          )
+    const pick = remaining.splice(matchIndex === -1 ? 0 : matchIndex, 1)[0]
+    return pick.photo
+  })
 }
 
 export function defaultPlacement(
@@ -129,8 +160,9 @@ export function autoBuildSpreads(
     const candidatePool = forceSingle ? narrowToSinglePage(pool) : pool
     const template = suggestTemplate(group.length, lastTemplateId, candidatePool)
     lastTemplateId = template.id
+    const assigned = options.matchTimelineOrder ? group : matchGroupToPlaceholders(group, template.placeholders)
     const placements: PlacedPhoto[] = template.placeholders.map((ph, i) =>
-      defaultPlacement(ph.id, group[i]?.id ?? null, border)
+      defaultPlacement(ph.id, assigned[i]?.id ?? null, border)
     )
     const textBoxes: TextBox[] = []
     return {

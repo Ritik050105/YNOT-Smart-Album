@@ -112,6 +112,9 @@ interface ProjectState {
   /** View menu's "Guides" toggle — ruler guides (Spread.guides) are hidden when off, same as
    *  Illustrator/InDesign's own show/hide guides. */
   showGuides: boolean
+  /** View menu's "Timeline" toggle — the horizontal spread strip + "Match Timeline Order" panel
+   *  above the canvas. */
+  showTimelinePanel: boolean
   /** Left (Import/Spreads), right (Inspector/Templates), and bottom (Photo Dock) panel
    *  visibility — pure UI chrome, not project data, but kept here alongside showGrid/
    *  showPrintGuides since the same components (MenuBar's View menu) need to read/toggle it. */
@@ -162,6 +165,7 @@ interface ProjectState {
   toggleGrid: () => void
   togglePrintGuides: () => void
   toggleGuides: () => void
+  toggleTimelinePanel: () => void
   addGuide: (spreadId: string, axis: 'horizontal' | 'vertical', position: number) => void
   moveGuide: (spreadId: string, axis: 'horizontal' | 'vertical', index: number, position: number) => void
   removeGuide: (spreadId: string, axis: 'horizontal' | 'vertical', index: number) => void
@@ -244,6 +248,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   showGrid: false,
   showPrintGuides: true,
   showGuides: true,
+  showTimelinePanel: false,
   leftPanelOpen: true,
   rightPanelOpen: true,
   bottomPanelOpen: true,
@@ -339,6 +344,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   togglePrintGuides: () => set((s) => ({ showPrintGuides: !s.showPrintGuides })),
   toggleGuides: () => set((s) => ({ showGuides: !s.showGuides })),
+  toggleTimelinePanel: () => set((s) => ({ showTimelinePanel: !s.showTimelinePanel })),
 
   addGuide: (spreadId, axis, position) =>
     withHistory(set, (p) => ({
