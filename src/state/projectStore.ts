@@ -84,12 +84,33 @@ export interface NewProjectOptions {
 
 function newProject(opts: Partial<NewProjectOptions> & { name: string; kind?: Project['kind']; clientName?: string }): Project {
   const now = new Date().toISOString()
+  const kind = opts.kind ?? 'album'
+  const defaultBackgroundColor = opts.defaultBackgroundColor ?? '#ffffff'
+  const defaultGapPx = opts.defaultGapPx ?? 8
+  const defaultMarginPx = opts.defaultMarginPx ?? 24
+  const defaultBorderWidth = opts.defaultBorderWidth ?? 0
+  const defaultBorderColor = opts.defaultBorderColor ?? '#ffffff'
+  // Albums (not Galleries/Slideshows, which don't use spreads at all) start with one blank
+  // interior spread already in place, so the editor opens ready to work rather than on an empty
+  // "Select a spread…" placeholder the user has to clear by clicking "Add Blank Spread" first.
+  const spreads: Spread[] =
+    kind === 'album'
+      ? [
+          createBlankSpread(0, {
+            backgroundColor: defaultBackgroundColor,
+            gapPx: defaultGapPx,
+            marginPx: defaultMarginPx,
+            borderWidth: defaultBorderWidth,
+            borderColor: defaultBorderColor,
+          }),
+        ]
+      : []
   return {
     id: uuid(),
     name: opts.name,
     size: opts.size ?? DEFAULT_ALBUM_SIZE,
     photos: [],
-    spreads: [],
+    spreads,
     createdAt: now,
     updatedAt: now,
     eventType: 'Wedding',
@@ -97,16 +118,16 @@ function newProject(opts: Partial<NewProjectOptions> & { name: string; kind?: Pr
     clientName: opts.clientName ?? '',
     units: opts.units ?? 'in',
     colorProfile: opts.colorProfile ?? 'sRGB',
-    defaultBackgroundColor: opts.defaultBackgroundColor ?? '#ffffff',
-    defaultGapPx: opts.defaultGapPx ?? 8,
-    defaultMarginPx: opts.defaultMarginPx ?? 24,
-    defaultBorderWidth: opts.defaultBorderWidth ?? 0,
-    defaultBorderColor: opts.defaultBorderColor ?? '#ffffff',
+    defaultBackgroundColor,
+    defaultGapPx,
+    defaultMarginPx,
+    defaultBorderWidth,
+    defaultBorderColor,
     enabledTemplateIds: opts.enabledTemplateIds ?? null,
     layoutStart: opts.layoutStart ?? 'spread',
     layoutEnd: opts.layoutEnd ?? 'spread',
     includeFullSpreadTemplates: opts.includeFullSpreadTemplates ?? true,
-    kind: opts.kind ?? 'album',
+    kind,
     slideDurationMs: 4000,
   }
 }

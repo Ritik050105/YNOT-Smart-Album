@@ -20,10 +20,17 @@ import SlideshowScreen from './components/SlideshowScreen'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import { useBottomDockResize } from '@/engine/useBottomDockResize'
+import { loadRecentProjects } from '@/engine/recentProjects'
+import { openProjectFromPath } from '@/engine/projectFile'
 
 export default function App() {
+  // Electron only: stays true while we check for (and try to reopen) the last project that was
+  // open, so relaunching the app resumes where you left off instead of landing on a blank Home
+  // screen. The browser dev preview has no on-disk project to reopen, so it skips straight past.
+  const [restoringSession, setRestoringSession] = useState(() => !!window.albumStudio?.isElectron)
   const [showHome, setShowHome] = useState(true)
   const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
+  const loadProjectFile = useProjectStore((s) => s.loadProjectFile)
   const preparingProject = useProjectStore((s) => s.preparingProject)
   const designerViewSpreadId = useProjectStore((s) => s.designerViewSpreadId)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
@@ -63,6 +70,34 @@ export default function App() {
       })
     })
   }, [createProjectFromWizard, setPreparingProject])
+
+  // Resume the last project that was open, instead of always landing back on a blank Home
+  // screen — the most recently updated recent-project entry with a known on-disk path (only ever
+  // set in Electron) is reopened silently, same as clicking it from Home's Recent list.
+  useEffect(() => {
+    if (!window.albumStudio?.isElectron) return
+    const last = loadRecentProjects()
+      .filter((e) => e.filePath)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
+    if (!last?.filePath) {
+      setRestoringSession(false)
+      return
+    }
+    let cancelled = false
+    void openProjectFromPath(last.filePath).then((file) => {
+      if (cancelled) return
+      if (file) {
+        loadProjectFile(file)
+        setShowHome(false)
+      }
+      setRestoringSession(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [loadProjectFile])
+
+  if (restoringSession) return <NewProjectLoadingOverlay title="Restoring your last session…" subtitle="Reopening where you left off." />
 
   if (preparingProject) return <NewProjectLoadingOverlay />
 
