@@ -102,47 +102,19 @@ export default function SpreadsPanel() {
       </h3>
       {cover ? (
         <div
-          className={`spreads-panel__item ${selectedSpreadId === cover.id ? 'is-selected' : ''}`}
+          className={`spreads-panel__item spreads-panel__item--cover ${selectedSpreadId === cover.id ? 'is-selected' : ''}`}
           onClick={() => selectSpread(cover.id)}
           onContextMenu={(e) => openContextMenu(e, cover.id)}
+          title="Front / Spine / Back — right-click for more options"
         >
-          <SpreadThumbnail spread={cover} photosById={photosById} size={project.size} width={170} />
+          <SpreadThumbnail spread={cover} photosById={photosById} size={project.size} width={100} />
           <span className="spreads-panel__label">Front / Spine / Back</span>
-          <div className="spreads-panel__actions">
-            <button
-              className="btn btn--tiny"
-              title="Flip cover horizontally"
-              onClick={(e) => {
-                e.stopPropagation()
-                flipSpread(cover.id)
-              }}
-            >
-              <Icon name="flipHorizontal" size={11} />
-              Flip
-            </button>
-            <button
-              className="btn btn--tiny"
-              title="Export the cover as a single PDF page"
-              disabled={exportingId === cover.id}
-              onClick={(e) => {
-                e.stopPropagation()
-                void exportSpread(cover)
-              }}
-            >
-              <Icon name="download" size={11} />
-              {exportingId === cover.id ? 'Exporting…' : 'Export'}
-            </button>
-            <button
-              className="btn btn--tiny btn--danger"
-              title="Delete cover"
-              onClick={(e) => {
-                e.stopPropagation()
-                deleteSpread(cover.id)
-              }}
-            >
-              <Icon name="trash" size={11} />
-            </button>
-          </div>
+          {exportingId === cover.id && (
+            <div className="spreads-panel__exporting">
+              <Icon name="download" size={14} />
+              Exporting…
+            </div>
+          )}
         </div>
       ) : (
         <button className="btn btn--tiny btn--block" onClick={() => addCoverSpread()}>
@@ -174,81 +146,18 @@ export default function SpreadsPanel() {
             }}
             onClick={() => selectSpread(spread.id)}
             onContextMenu={(e) => openContextMenu(e, spread.id)}
+            title={`Spread ${index + 1} — right-click for more options`}
           >
-            <SpreadThumbnail spread={spread} photosById={photosById} size={project.size} width={170} />
+            <SpreadThumbnail spread={spread} photosById={photosById} size={project.size} responsive />
             <span className="spreads-panel__label">
-              {index + 1}. {spread.pageSide} · {spread.placements.length} photo{spread.placements.length === 1 ? '' : 's'}
+              {index + 1} · {spread.placements.length} photo{spread.placements.length === 1 ? '' : 's'}
             </span>
-            <div className="spreads-panel__actions">
-              {spread.pageSide === 'spread' && (
-                <button
-                  className="btn btn--tiny"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    splitSpread(spread.id)
-                  }}
-                >
-                  <Icon name="scissors" size={11} />
-                  Split
-                </button>
-              )}
-              {index < spreads.length - 1 && (
-                <button
-                  className="btn btn--tiny"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    mergeWithNext(spread.id)
-                  }}
-                >
-                  <Icon name="merge" size={11} />
-                  Merge
-                </button>
-              )}
-              <button
-                className="btn btn--tiny"
-                title="Flip spread horizontally"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  flipSpread(spread.id)
-                }}
-              >
-                <Icon name="flipHorizontal" size={11} />
-                Flip
-              </button>
-              <button
-                className="btn btn--tiny"
-                title="Duplicate this spread"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  duplicateSpread(spread.id)
-                }}
-              >
-                <Icon name="layers" size={11} />
-                Duplicate
-              </button>
-              <button
-                className="btn btn--tiny"
-                title="Export this spread as a single PDF page"
-                disabled={exportingId === spread.id}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  void exportSpread(spread)
-                }}
-              >
-                <Icon name="download" size={11} />
-                {exportingId === spread.id ? 'Exporting…' : 'Export'}
-              </button>
-              <button
-                className="btn btn--tiny btn--danger"
-                title="Delete this spread"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setConfirmDeleteId(spread.id)
-                }}
-              >
-                <Icon name="trash" size={11} />
-              </button>
-            </div>
+            {exportingId === spread.id && (
+              <div className="spreads-panel__exporting">
+                <Icon name="download" size={14} />
+                Exporting…
+              </div>
+            )}
             {confirmDeleteId === spread.id && (
               <div className="spreads-panel__confirm" onClick={(e) => e.stopPropagation()}>
                 <p>Delete spread {index + 1}? Its photos stay in your pool.</p>
