@@ -145,6 +145,7 @@ export function autoBuildSpreads(
       marginPx: appearance.marginPx,
       flipped: false,
       isCover: false,
+      guides: { horizontal: [], vertical: [] },
     }
   })
 }
@@ -173,6 +174,7 @@ function buildSpreadFromPhotoIds(photoIds: (string | null)[], pageSide: Spread['
     marginPx: like.marginPx,
     flipped: false,
     isCover: false,
+    guides: { horizontal: [], vertical: [] },
   }
 }
 
@@ -199,6 +201,7 @@ export function createBlankSpread(order: number, appearance: SpreadAppearanceDef
     marginPx: appearance.marginPx,
     flipped: false,
     isCover: false,
+    guides: { horizontal: [], vertical: [] },
   }
 }
 
@@ -219,6 +222,7 @@ export function createCoverSpread(appearance: SpreadAppearanceDefaults): Spread 
     marginPx: appearance.marginPx,
     flipped: false,
     isCover: true,
+    guides: { horizontal: [], vertical: [] },
   }
 }
 

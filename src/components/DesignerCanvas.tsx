@@ -224,6 +224,9 @@ export default function DesignerCanvas() {
   const toneClipboard = useProjectStore((s) => s.toneClipboard)
   const canvasTool = useProjectStore((s) => s.canvasTool)
   const setCanvasViewportMirror = useProjectStore((s) => s.setCanvasViewportMirror)
+  const showGuides = useProjectStore((s) => s.showGuides)
+  const moveGuide = useProjectStore((s) => s.moveGuide)
+  const removeGuide = useProjectStore((s) => s.removeGuide)
 
   const spread: Spread | undefined = project.spreads.find((s) => s.id === selectedSpreadId)
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
@@ -759,6 +762,45 @@ export default function DesignerCanvas() {
                 </>
               )
             })()}
+
+          {showGuides &&
+            spread.guides.vertical.map((pos, i) => (
+              <Line
+                key={`v-guide-${i}`}
+                points={[pos * STAGE_WIDTH, 0, pos * STAGE_WIDTH, stageHeight]}
+                stroke="#4aa3ff"
+                strokeWidth={1}
+                hitStrokeWidth={10}
+                draggable
+                dragBoundFunc={(pos2) => ({ x: pos2.x, y: 0 })}
+                onDragMove={(e) => {
+                  const x = Math.min(STAGE_WIDTH, Math.max(0, e.target.x()))
+                  e.target.x(x)
+                }}
+                onDragEnd={(e) => moveGuide(spread.id, 'vertical', i, e.target.x() / STAGE_WIDTH)}
+                onDblClick={() => removeGuide(spread.id, 'vertical', i)}
+                onDblTap={() => removeGuide(spread.id, 'vertical', i)}
+              />
+            ))}
+          {showGuides &&
+            spread.guides.horizontal.map((pos, i) => (
+              <Line
+                key={`h-guide-${i}`}
+                points={[0, pos * stageHeight, STAGE_WIDTH, pos * stageHeight]}
+                stroke="#4aa3ff"
+                strokeWidth={1}
+                hitStrokeWidth={10}
+                draggable
+                dragBoundFunc={(pos2) => ({ x: 0, y: pos2.y })}
+                onDragMove={(e) => {
+                  const y = Math.min(stageHeight, Math.max(0, e.target.y()))
+                  e.target.y(y)
+                }}
+                onDragEnd={(e) => moveGuide(spread.id, 'horizontal', i, e.target.y() / stageHeight)}
+                onDblClick={() => removeGuide(spread.id, 'horizontal', i)}
+                onDblTap={() => removeGuide(spread.id, 'horizontal', i)}
+              />
+            ))}
 
           {spread.textBoxes.map((box) => {
             const x = box.x * STAGE_WIDTH

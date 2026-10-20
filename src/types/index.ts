@@ -129,6 +129,10 @@ export interface Spread {
    *  shown in its own section of the Spreads panel, pinned first (order -1), and excluded from
    *  the interior page count. */
   isCover: boolean
+  /** Photoshop/InDesign-style ruler guides — the View menu's "New Guide"/"Guides" — draggable
+   *  reference lines that don't print, stored as 0-1 fractions of the canvas (horizontal = a
+   *  horizontal line at that Y fraction, vertical = a vertical line at that X fraction). */
+  guides: { horizontal: number[]; vertical: number[] }
 }
 
 export type AlbumSizeCategory = 'Square' | 'Portrait' | 'Landscape' | 'Panoramic' | 'Magazine' | 'Custom'

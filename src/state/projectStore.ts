@@ -109,6 +109,9 @@ interface ProjectState {
   toneClipboard: ToneAdjustments | null
   showGrid: boolean
   showPrintGuides: boolean
+  /** View menu's "Guides" toggle — ruler guides (Spread.guides) are hidden when off, same as
+   *  Illustrator/InDesign's own show/hide guides. */
+  showGuides: boolean
   /** Left (Import/Spreads), right (Inspector/Templates), and bottom (Photo Dock) panel
    *  visibility — pure UI chrome, not project data, but kept here alongside showGrid/
    *  showPrintGuides since the same components (MenuBar's View menu) need to read/toggle it. */
@@ -158,6 +161,10 @@ interface ProjectState {
   togglePhotoSelection: (photoId: string, allPhotoIdsInOrder: string[], mode: 'single' | 'toggle' | 'range') => void
   toggleGrid: () => void
   togglePrintGuides: () => void
+  toggleGuides: () => void
+  addGuide: (spreadId: string, axis: 'horizontal' | 'vertical', position: number) => void
+  moveGuide: (spreadId: string, axis: 'horizontal' | 'vertical', index: number, position: number) => void
+  removeGuide: (spreadId: string, axis: 'horizontal' | 'vertical', index: number) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
   toggleBottomPanel: () => void
@@ -236,6 +243,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toneClipboard: null,
   showGrid: false,
   showPrintGuides: true,
+  showGuides: true,
   leftPanelOpen: true,
   rightPanelOpen: true,
   bottomPanelOpen: true,
@@ -330,6 +338,41 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   togglePrintGuides: () => set((s) => ({ showPrintGuides: !s.showPrintGuides })),
+  toggleGuides: () => set((s) => ({ showGuides: !s.showGuides })),
+
+  addGuide: (spreadId, axis, position) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) =>
+        s.id !== spreadId
+          ? s
+          : { ...s, guides: { ...s.guides, [axis]: [...s.guides[axis], Math.min(1, Math.max(0, position))] } }
+      ),
+    })),
+
+  moveGuide: (spreadId, axis, index, position) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) =>
+        s.id !== spreadId
+          ? s
+          : {
+              ...s,
+              guides: {
+                ...s.guides,
+                [axis]: s.guides[axis].map((v, i) => (i === index ? Math.min(1, Math.max(0, position)) : v)),
+              },
+            }
+      ),
+    })),
+
+  removeGuide: (spreadId, axis, index) =>
+    withHistory(set, (p) => ({
+      ...p,
+      spreads: p.spreads.map((s) =>
+        s.id !== spreadId ? s : { ...s, guides: { ...s.guides, [axis]: s.guides[axis].filter((_, i) => i !== index) } }
+      ),
+    })),
   toggleLeftPanel: () => set((s) => ({ leftPanelOpen: !s.leftPanelOpen })),
   toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
   toggleBottomPanel: () => set((s) => ({ bottomPanelOpen: !s.bottomPanelOpen })),
@@ -386,6 +429,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         marginPx: clip.marginPx,
         flipped: false,
         isCover: false,
+        guides: { horizontal: [], vertical: [] },
       }
       interior.splice(index + 1, 0, pasted)
       const reordered = interior.map((s, i) => ({ ...s, order: i }))
@@ -800,6 +844,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ...spread,
         flipped: spread.flipped ?? false,
         isCover: spread.isCover ?? false,
+        guides: spread.guides ?? { horizontal: [], vertical: [] },
         placements: spread.placements.map((p) => ({
           ...p,
           cornerRadiusPx: p.cornerRadiusPx ?? 24,

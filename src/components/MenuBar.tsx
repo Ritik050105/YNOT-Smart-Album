@@ -69,6 +69,9 @@ export default function MenuBar() {
   const toggleGrid = useProjectStore((s) => s.toggleGrid)
   const showPrintGuides = useProjectStore((s) => s.showPrintGuides)
   const togglePrintGuides = useProjectStore((s) => s.togglePrintGuides)
+  const showGuides = useProjectStore((s) => s.showGuides)
+  const toggleGuides = useProjectStore((s) => s.toggleGuides)
+  const addGuide = useProjectStore((s) => s.addGuide)
   const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
   const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
   const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
@@ -87,6 +90,9 @@ export default function MenuBar() {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [preferencesOpen, setPreferencesOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
+  const [newGuideOpen, setNewGuideOpen] = useState(false)
+  const [newGuideAxis, setNewGuideAxis] = useState<'horizontal' | 'vertical'>('vertical')
+  const [newGuidePosition, setNewGuidePosition] = useState(50)
   const rootRef = useRef<HTMLDivElement>(null)
   const replaceInputRef = useRef<HTMLInputElement>(null)
 
@@ -304,6 +310,8 @@ export default function MenuBar() {
       items: [
         { label: `${showGrid ? '✓ ' : ''}Rule-of-Thirds Grid`, onClick: toggleGrid },
         { label: `${showPrintGuides ? '✓ ' : ''}Print Guides (Bleed / Safety)`, onClick: togglePrintGuides },
+        { label: `${showGuides ? '✓ ' : ''}Guides`, onClick: toggleGuides },
+        { label: 'New Guide…', disabled: !hasSpread, onClick: () => setNewGuideOpen(true) },
         { label: 'Fit Spread View', shortcut: 'Ctrl+0', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:zoom-fit')) },
         { label: 'Zoom to 100%', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:zoom-100')) },
         { label: `${showPhotoFileNames ? '✓ ' : ''}Show File Names in Image Browser`, onClick: toggleShowPhotoFileNames },
@@ -363,6 +371,56 @@ export default function MenuBar() {
           e.target.value = ''
         }}
       />
+      {newGuideOpen && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setNewGuideOpen(false)}>
+          <div className="modal-card" style={{ width: 340 }} role="dialog" aria-modal="true" aria-label="New Guide">
+            <div className="modal-card__header">
+              <div>
+                <h2>New Guide</h2>
+              </div>
+              <button className="btn btn--icon btn--ghost" onClick={() => setNewGuideOpen(false)} aria-label="Close">
+                <Icon name="x" size={16} />
+              </button>
+            </div>
+            <div className="modal-card__body">
+              <div className="tab-row">
+                <button className={newGuideAxis === 'horizontal' ? 'is-active' : ''} onClick={() => setNewGuideAxis('horizontal')}>
+                  Horizontal
+                </button>
+                <button className={newGuideAxis === 'vertical' ? 'is-active' : ''} onClick={() => setNewGuideAxis('vertical')}>
+                  Vertical
+                </button>
+              </div>
+              <label className="field">
+                Position (% of {newGuideAxis === 'horizontal' ? 'height' : 'width'})
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={newGuidePosition}
+                  onChange={(e) => setNewGuidePosition(Number(e.target.value))}
+                />
+              </label>
+            </div>
+            <div className="modal-card__footer">
+              <button className="btn" onClick={() => setNewGuideOpen(false)}>
+                Cancel
+              </button>
+              <div className="footer-spacer" />
+              <button
+                className="btn btn--primary"
+                disabled={!spread}
+                onClick={() => {
+                  if (spread) addGuide(spread.id, newGuideAxis, newGuidePosition / 100)
+                  setNewGuideOpen(false)
+                }}
+              >
+                Add Guide
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {preferencesOpen && (
         <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setPreferencesOpen(false)}>
           <div className="modal-card" style={{ width: 360 }} role="dialog" aria-modal="true" aria-label="Preferences">
