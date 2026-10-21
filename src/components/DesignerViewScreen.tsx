@@ -7,12 +7,14 @@ import DesignerCanvas from './DesignerCanvas'
 import Inspector from './Inspector'
 import AlbumInfoPanel from './AlbumInfoPanel'
 import TemplateLibraryPanel from './TemplateLibraryPanel'
+import TemplateSuggestionsStrip from './TemplateSuggestionsStrip'
 import ImportPanel from './ImportPanel'
 import PhotoBin from './PhotoBin'
 import TimelinePanel from './TimelinePanel'
 import MenuBar from './MenuBar'
 import TopBar from './TopBar'
 import GlobalDropZone from './GlobalDropZone'
+import MissingColorProfileDialog from './MissingColorProfileDialog'
 import Modal from './Modal'
 import Icon from './Icon'
 import KeyboardShortcuts from './KeyboardShortcuts'
@@ -121,6 +123,7 @@ export default function DesignerViewScreen() {
     <div className="app-shell designer-view">
       <KeyboardShortcuts />
       <GlobalDropZone />
+      <MissingColorProfileDialog />
       <MenuBar />
       <TopBar />
 
@@ -231,6 +234,7 @@ export default function DesignerViewScreen() {
       </div>
 
       <div className="designer-view__timeline">
+        <TemplateSuggestionsStrip />
         <TimelinePanel />
       </div>
 

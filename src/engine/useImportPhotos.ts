@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { importAndDedupe, ImportSummary } from './importWorkflow'
+import { hasColorProfile, isMissingColorProfileDialogHidden } from './colorProfile'
 
 /** Shared "pick/drop files, dedupe, add to the pool" logic behind every import entry point
  *  (the Import panel's dropzone, and the photo dock's own Import Images/Import Favorites
@@ -28,6 +29,21 @@ export function useImportPhotos() {
       // The very first drop/import, with nothing laid out yet — go straight to a spread instead
       // of leaving the photos sitting in the pool waiting for a separate "Auto-Build" click.
       if (spreadCount === 0) runAutoBuild()
+
+      if (!isMissingColorProfileDialogHidden()) {
+        const fileByName = new Map(files.map((f) => [f.name, f]))
+        const missing = (
+          await Promise.all(
+            newAssets.map(async (a) => {
+              const f = fileByName.get(a.fileName)
+              return f && !(await hasColorProfile(f)) ? a.fileName : null
+            })
+          )
+        ).filter((n): n is string => !!n)
+        if (missing.length > 0) {
+          window.dispatchEvent(new CustomEvent('album-studio:missing-color-profile', { detail: { fileNames: missing } }))
+        }
+      }
     }
     setProgress(null)
     setLastSummary(summary)
