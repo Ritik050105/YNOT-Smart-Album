@@ -157,13 +157,13 @@ interface ProjectState {
   /** View menu's "Timeline" toggle — the horizontal spread strip + "Match Timeline Order" panel
    *  above the canvas. */
   showTimelinePanel: boolean
-  /** Left (Import Photos) and bottom (Photo Dock) panel visibility — pure UI chrome, not project
-   *  data, but kept here alongside showGrid/showPrintGuides since the same components (MenuBar's
-   *  View menu) need to read/toggle it. There's no right-panel equivalent: the main view (the
-   *  all-spreads overview) has nothing for a right panel to show — Inspector/Album Info/Templates
-   *  only matter once a spread is opened in Designer View, which renders its own, always-visible
-   *  right panel independent of this flag. */
+  /** Left (Import Photos), right (Album Info / Inspector / Templates), and bottom (Photo Dock)
+   *  panel visibility — pure UI chrome, not project data, but kept here alongside
+   *  showGrid/showPrintGuides since the same components (MenuBar's View menu, TopBar) need to
+   *  read/toggle it. All three default closed and only auto-open once they're actually useful
+   *  (see revealLeftPanel/revealRightPanel) rather than eating canvas space from the start. */
   leftPanelOpen: boolean
+  rightPanelOpen: boolean
   bottomPanelOpen: boolean
   /** The bottom Photo Dock's thumbnail size in px — shared between its own zoom slider and the
    *  drag-to-resize handle on the panel's top edge (see `setPhotoDockZoom`), and persisted across
@@ -198,10 +198,6 @@ interface ProjectState {
   /** A spread's own Cut/Copy/Paste clipboard (the Spread context menu) — separate from
    *  `photoClipboard`, which copies one placed photo rather than a whole spread's layout. */
   spreadClipboard: Pick<Spread, 'templateId' | 'placements' | 'textBoxes' | 'backgroundColor' | 'gapPx' | 'marginPx' | 'pageSide'> | null
-  /** Set while the reference app's focused single-spread "Designer View" is open (reached via
-   *  Spread > Edit in Designer View, or a spread's context menu) — a dedicated zoomed-in editing
-   *  mode with its own ruler and tool rail, as opposed to the normal multi-panel editor. */
-  designerViewSpreadId: string | null
   /** A read-only mirror of DesignerCanvas's own local zoom/pan state, written there on every
    *  change — lets Designer View's ruler and "1:1" zoom readout reflect the live canvas view
    *  without lifting that interaction-critical state (and its Figma-style wheel/keyboard
@@ -234,6 +230,11 @@ interface ProjectState {
    *  useful (entering the editor, where Import Photos is the first thing you need), without
    *  fighting a manual collapse: this never *closes* a panel the user already collapsed. */
   revealLeftPanel: () => void
+  toggleRightPanel: () => void
+  /** Forces the right panel open (never closed) — used to auto-expand it the moment the user
+   *  starts actually editing a frame or text box, same "reveal, never close" pattern as the left
+   *  panel. */
+  revealRightPanel: () => void
   setPhotoDockZoom: (v: number) => void
   setPreparingProject: (v: boolean) => void
   /** Clears the dirty flag — called after a successful save, and after loading/creating a
@@ -243,8 +244,6 @@ interface ProjectState {
   setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'text' | 'zoom') => void
   setTemplateFrameFilter: (f: TemplateFrameFilter) => void
   toggleShowPhotoFileNames: () => void
-  enterDesignerView: (spreadId: string) => void
-  exitDesignerView: () => void
   setCanvasViewportMirror: (zoom: number, pan: { x: number; y: number }) => void
   copyPlacement: (spreadId: string, placeholderId: string) => void
   pastePlacement: (spreadId: string, placeholderIds: string[]) => void
@@ -330,10 +329,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   showGrid: false,
   showPrintGuides: true,
   showGuides: true,
-  showTimelinePanel: false,
+  // The spread filmstrip is core chrome in the reference app's single-canvas editor (it's the
+  // only place every spread is visible at once), not an opt-in extra — on by default.
+  showTimelinePanel: true,
   // Collapsed by default — App.tsx reveals it on entering the editor (Import Photos is the
   // first useful action), rather than always eating canvas width up front.
   leftPanelOpen: false,
+  rightPanelOpen: false,
   bottomPanelOpen: true,
   photoDockZoom: loadPhotoDockZoom(),
   preparingProject: false,
@@ -344,7 +346,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   photoClipboard: null,
   spreadClipboard: null,
   showPhotoFileNames: false,
-  designerViewSpreadId: null,
   canvasZoom: 1,
   canvasPan: { x: 0, y: 0 },
   autoLayoutOptions: DEFAULT_AUTO_LAYOUT_OPTIONS,
@@ -393,8 +394,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       multiSelectedPlaceholderIds: [],
     }),
   selectPlaceholder: (id) =>
-    set({ selectedPlaceholderId: id, selectedTextBoxId: null, multiSelectedPlaceholderIds: [] }),
-  selectTextBox: (id) => set({ selectedTextBoxId: id, selectedPlaceholderId: null, multiSelectedPlaceholderIds: [] }),
+    set((s) => ({
+      selectedPlaceholderId: id,
+      selectedTextBoxId: null,
+      multiSelectedPlaceholderIds: [],
+      rightPanelOpen: id ? true : s.rightPanelOpen,
+    })),
+  selectTextBox: (id) =>
+    set((s) => ({
+      selectedTextBoxId: id,
+      selectedPlaceholderId: null,
+      multiSelectedPlaceholderIds: [],
+      rightPanelOpen: id ? true : s.rightPanelOpen,
+    })),
 
   toggleMultiSelectPlaceholder: (id) =>
     set((s) => {
@@ -468,6 +480,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toggleLeftPanel: () => set((s) => ({ leftPanelOpen: !s.leftPanelOpen })),
   toggleBottomPanel: () => set((s) => ({ bottomPanelOpen: !s.bottomPanelOpen })),
   revealLeftPanel: () => set((s) => (s.leftPanelOpen ? s : { leftPanelOpen: true })),
+  toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
+  revealRightPanel: () => set((s) => (s.rightPanelOpen ? s : { rightPanelOpen: true })),
   setPhotoDockZoom: (v) => {
     const clamped = Math.max(PHOTO_DOCK_ZOOM_MIN, Math.min(PHOTO_DOCK_ZOOM_MAX, Math.round(v)))
     set({ photoDockZoom: clamped })
@@ -483,8 +497,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setTemplateFrameFilter: (f) => set({ templateFrameFilter: f }),
   toggleShowPhotoFileNames: () => set((s) => ({ showPhotoFileNames: !s.showPhotoFileNames })),
-  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId }),
-  exitDesignerView: () => set({ designerViewSpreadId: null }),
   setCanvasViewportMirror: (zoom, pan) => set({ canvasZoom: zoom, canvasPan: pan }),
 
   copyPlacement: (spreadId, placeholderId) => {

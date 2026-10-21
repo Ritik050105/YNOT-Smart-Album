@@ -1,21 +1,11 @@
 import { useEffect, useState } from 'react'
-import MenuBar from './components/MenuBar'
-import TopBar from './components/TopBar'
-import ImportPanel from './components/ImportPanel'
-import PhotoBin from './components/PhotoBin'
-import SpreadsPanel from './components/SpreadsPanel'
-import KeyboardShortcuts from './components/KeyboardShortcuts'
-import GlobalDropZone from './components/GlobalDropZone'
 import HomeScreen from './components/HomeScreen'
-import Icon from './components/Icon'
 import NewProjectLoadingOverlay from './components/NewProjectLoadingOverlay'
 import DesignerViewScreen from './components/DesignerViewScreen'
-import TimelinePanel from './components/TimelinePanel'
 import GalleryScreen from './components/GalleryScreen'
 import SlideshowScreen from './components/SlideshowScreen'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
-import { useBottomDockResize } from '@/engine/useBottomDockResize'
 import { openProjectFromPath } from '@/engine/projectFile'
 import { loadOpenSession, writeOpenSession, clearOpenSession, OpenSessionMarker } from '@/engine/sessionMarker'
 import ContinueSessionPrompt from './components/ContinueSessionPrompt'
@@ -33,18 +23,14 @@ export default function App() {
   const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
   const loadProjectFile = useProjectStore((s) => s.loadProjectFile)
   const preparingProject = useProjectStore((s) => s.preparingProject)
-  const designerViewSpreadId = useProjectStore((s) => s.designerViewSpreadId)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
   const markSaved = useProjectStore((s) => s.markSaved)
   const isDirty = useProjectStore((s) => s.isDirty)
   const currentFilePath = useProjectStore((s) => s.currentFilePath)
   const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
   const project = useProjectStore((s) => s.project)
-  const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
-  const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
   const revealLeftPanel = useProjectStore((s) => s.revealLeftPanel)
   const projectKind = project.kind
-  const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
 
   useEffect(() => {
     function onEnterEditor() {
@@ -147,44 +133,5 @@ export default function App() {
 
   if (projectKind === 'slideshow') return <SlideshowScreen />
 
-  if (designerViewSpreadId) return <DesignerViewScreen />
-
-  return (
-    <div className="app-shell">
-      <KeyboardShortcuts />
-      <GlobalDropZone />
-      <MenuBar />
-      <TopBar />
-      <div className="app-body">
-        {leftPanelOpen && (
-          <aside className="app-sidebar app-sidebar--left">
-            <ImportPanel />
-          </aside>
-        )}
-        <button
-          className="panel-toggle panel-toggle--left"
-          onClick={toggleLeftPanel}
-          title={leftPanelOpen ? 'Collapse left panel' : 'Expand left panel'}
-        >
-          <Icon name={leftPanelOpen ? 'chevronLeft' : 'chevronRight'} size={12} />
-        </button>
-        <main className="app-main">
-          <div className="app-main__stack">
-            <TimelinePanel />
-            <SpreadsPanel />
-          </div>
-        </main>
-      </div>
-      <div className="bottom-panel">
-        <button
-          className="panel-toggle panel-toggle--bottom"
-          onMouseDown={handleBottomHandleMouseDown}
-          title={bottomPanelOpen ? 'Drag to resize, click to collapse the photo dock' : 'Expand photo dock'}
-        >
-          <Icon name={bottomPanelOpen ? 'chevronDown' : 'chevronUp'} size={12} />
-        </button>
-        {bottomPanelOpen && <PhotoBin />}
-      </div>
-    </div>
-  )
+  return <DesignerViewScreen />
 }

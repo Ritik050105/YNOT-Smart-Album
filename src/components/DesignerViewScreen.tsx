@@ -7,8 +7,12 @@ import DesignerCanvas from './DesignerCanvas'
 import Inspector from './Inspector'
 import AlbumInfoPanel from './AlbumInfoPanel'
 import TemplateLibraryPanel from './TemplateLibraryPanel'
+import ImportPanel from './ImportPanel'
 import PhotoBin from './PhotoBin'
+import TimelinePanel from './TimelinePanel'
 import MenuBar from './MenuBar'
+import TopBar from './TopBar'
+import GlobalDropZone from './GlobalDropZone'
 import Modal from './Modal'
 import Icon from './Icon'
 import KeyboardShortcuts from './KeyboardShortcuts'
@@ -59,23 +63,24 @@ function Ruler({
   )
 }
 
-/** The focused single-spread editor — the only place actual spread editing happens now that the
- *  main view (SpreadsPanel) is an all-spreads overview rather than a single-spread canvas.
- *  Entered by double-clicking a spread in that overview, Spread > Edit in Designer View, or a
- *  spread's context menu; Escape (with nothing else selected) or this screen's own back button
- *  returns to the overview. Hosts the same canvas/inspector/album-info/template-library/photo-dock
- *  the app's features already use, inside a dedicated shell: a back/"Save as Template" top bar, a
- *  ruler, and a left tool rail for the Selection/Image Frame/Text/Hand/Zoom tools instead of the
- *  TopBar's own Select/Pan buttons. */
+/** The app's single main editor — a focused spread canvas (ruler + Selection/Image
+ *  Frame/Text/Hand/Zoom tool rail) with the album's full spread filmstrip always visible below
+ *  it, matching the reference app's own layout: one canvas, every spread one click away in the
+ *  strip, no separate "overview" screen to enter or leave. Left (Import Photos) and right (Album
+ *  Info/Inspector/Templates) panels default collapsed and reveal themselves the moment they
+ *  become useful (see revealLeftPanel/revealRightPanel), never eating canvas space up front. */
 export default function DesignerViewScreen() {
   const project = useProjectStore((s) => s.project)
-  const designerViewSpreadId = useProjectStore((s) => s.designerViewSpreadId)
-  const exitDesignerView = useProjectStore((s) => s.exitDesignerView)
+  const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const canvasTool = useProjectStore((s) => s.canvasTool)
   const setCanvasTool = useProjectStore((s) => s.setCanvasTool)
   const canvasZoom = useProjectStore((s) => s.canvasZoom)
   const canvasPan = useProjectStore((s) => s.canvasPan)
   const saveSpreadAsTemplate = useProjectStore((s) => s.saveSpreadAsTemplate)
+  const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
+  const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
+  const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
+  const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
 
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
@@ -83,18 +88,18 @@ export default function DesignerViewScreen() {
   const [saving, setSaving] = useState(false)
 
   const interior = project.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
-  const spread = project.spreads.find((s) => s.id === designerViewSpreadId)
-  const spreadLabel = spread?.isCover ? 'cover' : `spread ${interior.findIndex((s) => s.id === spread?.id) + 1}`
+  const spread = project.spreads.find((s) => s.id === selectedSpreadId)
+  const spreadLabel = spread ? (spread.isCover ? 'cover' : `spread ${interior.findIndex((s) => s.id === spread.id) + 1}`) : null
 
   useEffect(() => {
     const prevTitle = document.title
-    document.title = `${project.name} - designing ${spreadLabel} @ ${Math.round(canvasZoom * 100)}%`
+    document.title = spreadLabel
+      ? `${project.name} - designing ${spreadLabel} @ ${Math.round(canvasZoom * 100)}%`
+      : project.name
     return () => {
       document.title = prevTitle
     }
   }, [project.name, spreadLabel, canvasZoom])
-
-  if (!spread) return null
 
   const pxPerInWidth = STAGE_WIDTH / project.size.widthIn
   const stageHeight = STAGE_WIDTH / (project.size.widthIn / project.size.heightIn)
@@ -115,25 +120,40 @@ export default function DesignerViewScreen() {
   return (
     <div className="app-shell designer-view">
       <KeyboardShortcuts />
+      <GlobalDropZone />
       <MenuBar />
+      <TopBar />
+
       <header className="designer-view__topbar">
-        <button className="designer-view__back" title="Back to the album overview" onClick={exitDesignerView}>
-          <Icon name="chevronLeft" size={16} />
-        </button>
         <button
           className="btn"
-          disabled={spread.placements.every((p) => !p.photoId)}
+          disabled={!spread || spread.placements.every((p) => !p.photoId)}
           onClick={() => setSaveTemplateOpen(true)}
         >
           Save as Template
         </button>
         <div className="designer-view__spacer" />
-        <span className="muted">
-          {project.name} — designing {spreadLabel} @ {Math.round(canvasZoom * 100)}%
-        </span>
+        {spreadLabel && (
+          <span className="muted">
+            {project.name} — designing {spreadLabel} @ {Math.round(canvasZoom * 100)}%
+          </span>
+        )}
       </header>
 
       <div className="designer-view__body">
+        {leftPanelOpen && (
+          <aside className="app-sidebar app-sidebar--left">
+            <ImportPanel />
+          </aside>
+        )}
+        <button
+          className="panel-toggle panel-toggle--left"
+          onClick={toggleLeftPanel}
+          title={leftPanelOpen ? 'Collapse left panel' : 'Expand left panel'}
+        >
+          <Icon name={leftPanelOpen ? 'chevronLeft' : 'chevronRight'} size={12} />
+        </button>
+
         <div className="designer-view__tool-rail">
           {([
             { tool: 'select', icon: 'cursor', title: 'Selection Tool (V)' },
@@ -194,11 +214,24 @@ export default function DesignerViewScreen() {
           </div>
         </div>
 
-        <aside className="app-sidebar app-sidebar--right">
-          <AlbumInfoPanel />
-          <Inspector />
-          <TemplateLibraryPanel />
-        </aside>
+        <button
+          className="panel-toggle panel-toggle--right"
+          onClick={toggleRightPanel}
+          title={rightPanelOpen ? 'Collapse right panel' : 'Expand right panel'}
+        >
+          <Icon name={rightPanelOpen ? 'chevronRight' : 'chevronLeft'} size={12} />
+        </button>
+        {rightPanelOpen && (
+          <aside className="app-sidebar app-sidebar--right">
+            <AlbumInfoPanel />
+            <Inspector />
+            <TemplateLibraryPanel />
+          </aside>
+        )}
+      </div>
+
+      <div className="designer-view__timeline">
+        <TimelinePanel />
       </div>
 
       <div className="bottom-panel">

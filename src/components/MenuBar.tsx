@@ -30,9 +30,9 @@ const FRAME_FILTERS: { value: TemplateFrameFilter; label: string }[] = [
  *  action the toolbar/panels already expose (via direct store calls or the same window events
  *  TopBar/Inspector/ImportPanel/DesignerCanvas listen for) rather than duplicating logic.
  *
- *  A few reference items aren't here because they need infrastructure this app doesn't have (a
- *  separate "Designer View" window, ruler guides, OS-level "Show in Explorer"/"Open in Photo
- *  Viewer", license/account management) — skipped rather than faked. */
+ *  A few reference items aren't here because they need infrastructure this app doesn't have
+ *  (OS-level "Show in Explorer"/"Open in Photo Viewer", license/account management) — skipped
+ *  rather than faked. */
 export default function MenuBar() {
   const project = useProjectStore((s) => s.project)
   const addPhotos = useProjectStore((s) => s.addPhotos)
@@ -78,10 +78,11 @@ export default function MenuBar() {
   const toggleTimelinePanel = useProjectStore((s) => s.toggleTimelinePanel)
   const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
   const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
+  const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
+  const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const bottomPanelOpen = useProjectStore((s) => s.bottomPanelOpen)
   const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
   const canvasTool = useProjectStore((s) => s.canvasTool)
-  const enterDesignerView = useProjectStore((s) => s.enterDesignerView)
   const setCanvasTool = useProjectStore((s) => s.setCanvasTool)
   const templateFrameFilter = useProjectStore((s) => s.templateFrameFilter)
   const setTemplateFrameFilter = useProjectStore((s) => s.setTemplateFrameFilter)
@@ -276,7 +277,6 @@ export default function MenuBar() {
           disabled: !hasSpread,
           onClick: () => spread && applyTemplateToAllSpreads(spread.templateId),
         },
-        { label: 'Edit in Designer View', disabled: !hasSpread, onClick: () => spread && enterDesignerView(spread.id) },
         { label: 'Add Blank Spread', onClick: addBlankSpread },
       ],
     },
@@ -297,6 +297,7 @@ export default function MenuBar() {
           label: 'Reset Panel Layout',
           onClick: () => {
             if (!leftPanelOpen) toggleLeftPanel()
+            if (!rightPanelOpen) toggleRightPanel()
             if (!bottomPanelOpen) toggleBottomPanel()
           },
         },
@@ -328,6 +329,7 @@ export default function MenuBar() {
         { label: `${showPhotoFileNames ? '✓ ' : ''}Show File Names in Image Browser`, onClick: toggleShowPhotoFileNames },
         { label: `${showTimelinePanel ? '✓ ' : ''}Timeline`, onClick: toggleTimelinePanel },
         { label: `${leftPanelOpen ? '✓ ' : ''}Left Panel`, onClick: toggleLeftPanel },
+        { label: `${rightPanelOpen ? '✓ ' : ''}Right Panel`, onClick: toggleRightPanel },
         { label: `${bottomPanelOpen ? '✓ ' : ''}Photo Dock (Image Browser)`, onClick: toggleBottomPanel },
       ],
     },
