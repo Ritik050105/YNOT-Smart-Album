@@ -1742,7 +1742,12 @@ input[type='checkbox'] {
 }
 .spread-thumb__box {
   position: absolute;
-  background-color: #3a3d4d;
+  /* An empty frame reads as a light, bordered placeholder — the page's own template structure
+     stays visible (matching the reference app's white page with thin frame divider lines) —
+     instead of a flat, opaque block that swallows the whole card at full-bleed template sizes. */
+  background-color: var(--panel-alt);
+  border: 1px solid var(--border);
+  box-sizing: border-box;
   background-size: cover;
   background-position: center;
 }
