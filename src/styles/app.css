@@ -1753,6 +1753,10 @@ input[type='checkbox'] {
   gap: 6px;
   padding: 0 6px;
   max-width: 100%;
+  /* Lets its label text actually wrap/shrink at narrow canvas widths instead of forcing the
+     whole wrapping .designer-toolbar row wider than its container (flex items default to
+     min-width: auto, which ignores max-width entirely). */
+  min-width: 0;
 }
 .toolbar-toggle input {
   margin: 0;

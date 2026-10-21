@@ -981,17 +981,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       future: [],
     }),
 
-  createProjectFromWizard: (opts) =>
+  createProjectFromWizard: (opts) => {
+    const project = newProject(opts)
+    // Select the blank spread newProject() just seeded (album kind only — Galleries/Slideshows
+    // have none) so the canvas opens showing it, not the empty "Select a spread…" placeholder,
+    // and the right panel's Inspector/template suggestions reveal right away.
+    const seeded = project.spreads.find((s) => !s.isCover) ?? null
     set({
-      project: newProject(opts),
-      selectedSpreadId: null,
+      project,
+      selectedSpreadId: seeded?.id ?? null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
       multiSelectedPlaceholderIds: [],
       selectedPhotoIds: [],
       history: [],
       future: [],
-    }),
+    })
+  },
 
   createSimpleProject: (kind, name, clientName) =>
     set({
