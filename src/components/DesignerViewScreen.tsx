@@ -5,6 +5,8 @@ import { inToDisplay } from '@/engine/units'
 import { useBottomDockResize } from '@/engine/useBottomDockResize'
 import DesignerCanvas from './DesignerCanvas'
 import Inspector from './Inspector'
+import AlbumInfoPanel from './AlbumInfoPanel'
+import TemplateLibraryPanel from './TemplateLibraryPanel'
 import PhotoBin from './PhotoBin'
 import MenuBar from './MenuBar'
 import Modal from './Modal'
@@ -57,11 +59,14 @@ function Ruler({
   )
 }
 
-/** The reference app's focused single-spread "Designer View" — entered via Spread > Edit in
- *  Designer View or a spread's context menu. Reuses the same canvas/inspector/photo-dock the
- *  normal multi-panel editor uses (so every existing editing feature just works here too) inside
- *  a dedicated shell: a back/"Save as Template" top bar, a ruler, and a left tool rail for the
- *  Selection/Image Frame/Text/Hand/Zoom tools instead of the TopBar's own Select/Pan buttons. */
+/** The focused single-spread editor — the only place actual spread editing happens now that the
+ *  main view (SpreadsPanel) is an all-spreads overview rather than a single-spread canvas.
+ *  Entered by double-clicking a spread in that overview, Spread > Edit in Designer View, or a
+ *  spread's context menu; Escape (with nothing else selected) or this screen's own back button
+ *  returns to the overview. Hosts the same canvas/inspector/album-info/template-library/photo-dock
+ *  the app's features already use, inside a dedicated shell: a back/"Save as Template" top bar, a
+ *  ruler, and a left tool rail for the Selection/Image Frame/Text/Hand/Zoom tools instead of the
+ *  TopBar's own Select/Pan buttons. */
 export default function DesignerViewScreen() {
   const project = useProjectStore((s) => s.project)
   const designerViewSpreadId = useProjectStore((s) => s.designerViewSpreadId)
@@ -190,7 +195,9 @@ export default function DesignerViewScreen() {
         </div>
 
         <aside className="app-sidebar app-sidebar--right">
+          <AlbumInfoPanel />
           <Inspector />
+          <TemplateLibraryPanel />
         </aside>
       </div>
 

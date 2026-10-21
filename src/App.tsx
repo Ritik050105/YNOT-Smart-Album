@@ -4,10 +4,6 @@ import TopBar from './components/TopBar'
 import ImportPanel from './components/ImportPanel'
 import PhotoBin from './components/PhotoBin'
 import SpreadsPanel from './components/SpreadsPanel'
-import DesignerCanvas from './components/DesignerCanvas'
-import Inspector from './components/Inspector'
-import TemplateLibraryPanel from './components/TemplateLibraryPanel'
-import AlbumInfoPanel from './components/AlbumInfoPanel'
 import KeyboardShortcuts from './components/KeyboardShortcuts'
 import GlobalDropZone from './components/GlobalDropZone'
 import HomeScreen from './components/HomeScreen'
@@ -45,14 +41,8 @@ export default function App() {
   const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
   const project = useProjectStore((s) => s.project)
   const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
-  const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
   const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
-  const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const revealLeftPanel = useProjectStore((s) => s.revealLeftPanel)
-  const revealRightPanel = useProjectStore((s) => s.revealRightPanel)
-  const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
-  const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
-  const selectedTextBoxId = useProjectStore((s) => s.selectedTextBoxId)
   const projectKind = project.kind
   const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
 
@@ -73,15 +63,6 @@ export default function App() {
       window.removeEventListener('album-studio:go-home', onGoHome)
     }
   }, [revealLeftPanel])
-
-  // The right panel (Album Info / Inspector / Template Library) has nothing to show until a
-  // spread, placed photo, or text box is selected — reveal it the moment one is, rather than
-  // always reserving canvas width for it. Keyed off the *id values themselves* (not just
-  // "truthy"), so picking a different spread/photo/text box re-reveals a panel the user had
-  // since collapsed, while re-clicking the same already-selected thing doesn't fight that choice.
-  useEffect(() => {
-    if (selectedSpreadId || selectedPlaceholderId || selectedTextBoxId) revealRightPanel()
-  }, [selectedSpreadId, selectedPlaceholderId, selectedTextBoxId, revealRightPanel])
 
   // The main window is the one true store — a separate "New Project" OS window hands its
   // finished options back here over IPC instead of creating the project in its own isolated store.
@@ -178,7 +159,6 @@ export default function App() {
         {leftPanelOpen && (
           <aside className="app-sidebar app-sidebar--left">
             <ImportPanel />
-            <SpreadsPanel />
           </aside>
         )}
         <button
@@ -191,23 +171,9 @@ export default function App() {
         <main className="app-main">
           <div className="app-main__stack">
             <TimelinePanel />
-            <DesignerCanvas />
+            <SpreadsPanel />
           </div>
         </main>
-        <button
-          className="panel-toggle panel-toggle--right"
-          onClick={toggleRightPanel}
-          title={rightPanelOpen ? 'Collapse right panel' : 'Expand right panel'}
-        >
-          <Icon name={rightPanelOpen ? 'chevronRight' : 'chevronLeft'} size={12} />
-        </button>
-        {rightPanelOpen && (
-          <aside className="app-sidebar app-sidebar--right">
-            <AlbumInfoPanel />
-            <Inspector />
-            <TemplateLibraryPanel />
-          </aside>
-        )}
       </div>
       <div className="bottom-panel">
         <button

@@ -141,6 +141,16 @@ export default function KeyboardShortcuts() {
         return
       }
       if (!editable && e.key === 'Escape') {
+        // In Designer View with nothing else selected, Escape backs all the way out to the
+        // all-spreads overview — the same thing its own back button does. With something still
+        // selected, the first Escape just deselects (matching every other screen's Escape
+        // behavior); a second press then exits, rather than the two meanings fighting each other.
+        const nothingSelected =
+          !s.selectedPlaceholderId && !s.selectedTextBoxId && s.multiSelectedPlaceholderIds.length === 0 && s.selectedPhotoIds.length === 0
+        if (s.designerViewSpreadId && nothingSelected) {
+          s.exitDesignerView()
+          return
+        }
         s.selectPlaceholder(null)
         s.selectTextBox(null)
         s.clearMultiSelect()

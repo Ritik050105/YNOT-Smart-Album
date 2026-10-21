@@ -656,12 +656,25 @@ export function templateFamilyLabel(t: TemplateDefinition): string {
   if (t.id.startsWith('gen-mosaic-')) return 'Mosaic'
   if (t.id.startsWith('gen-collage-')) return 'Collage'
   if (t.id.startsWith('gen-filmstrip-')) return 'Filmstrip'
+  if (t.id.startsWith('gen-modern-')) return 'Modern'
   if (t.id.startsWith('auto-') || t.id.startsWith('custom-grid-')) return 'Custom'
   if (!t.isBuiltIn) return 'My Templates'
   return 'Classic'
 }
 
-export const TEMPLATE_FAMILIES = ['All', 'Classic', 'Seamless', 'Grid', 'Hero', 'Split', 'Mosaic', 'Collage', 'Filmstrip', 'My Templates'] as const
+export const TEMPLATE_FAMILIES = [
+  'All',
+  'Classic',
+  'Seamless',
+  'Modern',
+  'Grid',
+  'Hero',
+  'Split',
+  'Mosaic',
+  'Collage',
+  'Filmstrip',
+  'My Templates',
+] as const
 
 /** Picks a reasonable default template for a count, varying the choice so consecutive spreads don't repeat. */
 export function suggestTemplate(count: number, avoidId?: string, enabledTemplateIds: string[] | null = null): TemplateDefinition {

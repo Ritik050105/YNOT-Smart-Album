@@ -5,9 +5,14 @@ import SpreadThumbnail from './SpreadThumbnail'
 import ContextMenu, { ContextMenuItem } from './ContextMenu'
 import Icon from './Icon'
 
-/** Left/right page rearrangement strip: reorder spreads by drag, click to open in the designer.
- *  The cover (front/spine/back) is a separate, non-draggable slot pinned above the interior page
- *  list — it isn't numbered as a "spread" and split/merge/reorder/duplicate don't apply to it. */
+/** The album's main view — every spread (cover pinned first, then interior pages) laid out as a
+ *  wrapping grid so the whole album is visible at once, the same "all pages, always" overview a
+ *  page-layout app's thumbnail panel gives you, just promoted to the primary view instead of a
+ *  sidebar strip. A single click selects a spread (for the context menu, Spread menu, and
+ *  Add-Blank-Spread ordering); double-click opens it in the focused Designer View to actually
+ *  work on it — Escape (or its own back button) returns here. Reorder by drag. The cover is a
+ *  separate, non-draggable slot pinned above the interior page grid — it isn't numbered as a
+ *  "spread" and split/merge/reorder/duplicate don't apply to it. */
 export default function SpreadsPanel() {
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
@@ -104,8 +109,9 @@ export default function SpreadsPanel() {
         <div
           className={`spreads-panel__item spreads-panel__item--cover ${selectedSpreadId === cover.id ? 'is-selected' : ''}`}
           onClick={() => selectSpread(cover.id)}
+          onDoubleClick={() => enterDesignerView(cover.id)}
           onContextMenu={(e) => openContextMenu(e, cover.id)}
-          title="Front / Spine / Back — right-click for more options"
+          title="Front / Spine / Back — double-click to design, right-click for more options"
         >
           <SpreadThumbnail spread={cover} photosById={photosById} size={project.size} width={100} />
           <span className="spreads-panel__label">Front / Spine / Back</span>
@@ -145,8 +151,9 @@ export default function SpreadsPanel() {
               setDragIndex(null)
             }}
             onClick={() => selectSpread(spread.id)}
+            onDoubleClick={() => enterDesignerView(spread.id)}
             onContextMenu={(e) => openContextMenu(e, spread.id)}
-            title={`Spread ${index + 1} — right-click for more options`}
+            title={`Spread ${index + 1} — double-click to design, right-click for more options`}
           >
             <SpreadThumbnail spread={spread} photosById={photosById} size={project.size} responsive />
             <span className="spreads-panel__label">

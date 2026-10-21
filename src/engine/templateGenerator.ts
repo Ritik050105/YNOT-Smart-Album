@@ -319,6 +319,69 @@ function genCollage(count: number) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Family 7: Modern — a contemporary editorial look: one hero photo inset well away from the
+// spread's edges (not spanning full-bleed to an edge like Family 2's Hero) with a supporting
+// grid in the remaining space, both using a noticeably bigger gap than every other family. The
+// generous negative space all around is the point — a quieter, more "designed" feel next to the
+// tightly-packed Grid/Filmstrip/Seamless families.
+// ---------------------------------------------------------------------------
+const MODERN_MARGIN = 0.045
+const MODERN_GAP = 0.05
+
+/** Same balanced-row idea as placeGridInRect, but with a caller-supplied gap instead of the
+ *  module-wide GAP constant — Modern's whole point is a bigger gap than every other family uses. */
+function placeGridGapped(idOffset: number, count: number, x0: number, y0: number, w: number, h: number, gap: number): PlaceholderRect[] {
+  const rowCount = Math.max(1, Math.min(count, Math.round(Math.sqrt((count * h) / w))))
+  const rowCounts = distributeEvenly(count, rowCount)
+  const rowH = h / rowCount
+  const placeholders: PlaceholderRect[] = []
+  let idx = idOffset
+  for (let r = 0; r < rowCount; r++) {
+    const cols = rowCounts[r]
+    if (cols === 0) continue
+    const colW = w / cols
+    for (let c = 0; c < cols; c++) {
+      const px = x0 + c * colW + gap / 2
+      const py = y0 + r * rowH + gap / 2
+      const pw = colW - gap
+      const ph = rowH - gap
+      placeholders.push(rect(`p${idx}`, px, py, pw, ph, orientationFor(pw, ph)))
+      idx++
+    }
+  }
+  return placeholders
+}
+
+function genModern(count: number) {
+  if (count < 2 || count > 12) return
+  const positions: Array<'left' | 'right' | 'top' | 'bottom'> = ['left', 'right', 'top', 'bottom']
+  const heroFracs = [0.55, 0.64]
+  const innerX0 = MODERN_MARGIN
+  const innerY0 = MODERN_MARGIN
+  const innerW = 1 - 2 * MODERN_MARGIN
+  const innerH = 1 - 2 * MODERN_MARGIN
+  for (const pos of positions) {
+    for (const heroFrac of heroFracs) {
+      const vertical = pos === 'left' || pos === 'right'
+      const heroPlaceholder = vertical
+        ? rect('p0', pos === 'left' ? innerX0 : innerX0 + innerW * (1 - heroFrac) + MODERN_GAP / 2, innerY0, innerW * heroFrac - MODERN_GAP / 2, innerH, 'portrait')
+        : rect('p0', innerX0, pos === 'top' ? innerY0 : innerY0 + innerH * (1 - heroFrac) + MODERN_GAP / 2, innerW, innerH * heroFrac - MODERN_GAP / 2, 'landscape')
+      const restRect = vertical
+        ? { x0: pos === 'left' ? innerX0 + innerW * heroFrac + MODERN_GAP / 2 : innerX0, y0: innerY0, w: innerW * (1 - heroFrac) - MODERN_GAP / 2, h: innerH }
+        : { x0: innerX0, y0: pos === 'top' ? innerY0 + innerH * heroFrac + MODERN_GAP / 2 : innerY0, w: innerW, h: innerH * (1 - heroFrac) - MODERN_GAP / 2 }
+      const rest = placeGridGapped(1, count - 1, restRect.x0, restRect.y0, restRect.w, restRect.h, MODERN_GAP)
+      const placeholders = [heroPlaceholder, ...rest]
+      addTemplate(
+        `gen-modern-${count}-${pos}-${Math.round(heroFrac * 100)}`,
+        `Modern ${pos[0].toUpperCase()}${pos.slice(1)}`,
+        count,
+        placeholders
+      )
+    }
+  }
+}
+
 for (let count = 1; count <= MAX_COUNT; count++) {
   genGrids(count)
   genGridsByColumn(count)
@@ -327,6 +390,7 @@ for (let count = 1; count <= MAX_COUNT; count++) {
   genFilmstrip(count)
   genMosaic(count)
   genCollage(count)
+  genModern(count)
 }
 
 export const GENERATED_TEMPLATES: TemplateDefinition[] = results

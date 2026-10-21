@@ -76,7 +76,7 @@ export default function TemplateGalleryModal({
       title="Template Gallery"
       subtitle={`${allTemplates.length} templates in your library · ${filtered.length} match ${count} photo${count === 1 ? '' : 's'}`}
       onClose={onClose}
-      width={1040}
+      width={1320}
       footer={
         <>
           <button className="btn" onClick={onClose}>

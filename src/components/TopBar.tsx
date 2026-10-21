@@ -27,10 +27,8 @@ export default function TopBar() {
   const history = useProjectStore((s) => s.history)
   const future = useProjectStore((s) => s.future)
   const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
-  const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
   const bottomPanelOpen = useProjectStore((s) => s.bottomPanelOpen)
   const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
-  const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
   const markSaved = useProjectStore((s) => s.markSaved)
@@ -271,13 +269,6 @@ export default function TopBar() {
         onClick={toggleLeftPanel}
       >
         <Icon name="panelLeft" size={14} />
-      </button>
-      <button
-        className={`btn btn--icon ${rightPanelOpen ? 'is-active' : ''}`}
-        title={rightPanelOpen ? 'Hide right panel' : 'Show right panel'}
-        onClick={toggleRightPanel}
-      >
-        <Icon name="panelRight" size={14} />
       </button>
       <button
         className={`btn btn--icon ${bottomPanelOpen ? 'is-active' : ''}`}

@@ -157,11 +157,13 @@ interface ProjectState {
   /** View menu's "Timeline" toggle — the horizontal spread strip + "Match Timeline Order" panel
    *  above the canvas. */
   showTimelinePanel: boolean
-  /** Left (Import/Spreads), right (Inspector/Templates), and bottom (Photo Dock) panel
-   *  visibility — pure UI chrome, not project data, but kept here alongside showGrid/
-   *  showPrintGuides since the same components (MenuBar's View menu) need to read/toggle it. */
+  /** Left (Import Photos) and bottom (Photo Dock) panel visibility — pure UI chrome, not project
+   *  data, but kept here alongside showGrid/showPrintGuides since the same components (MenuBar's
+   *  View menu) need to read/toggle it. There's no right-panel equivalent: the main view (the
+   *  all-spreads overview) has nothing for a right panel to show — Inspector/Album Info/Templates
+   *  only matter once a spread is opened in Designer View, which renders its own, always-visible
+   *  right panel independent of this flag. */
   leftPanelOpen: boolean
-  rightPanelOpen: boolean
   bottomPanelOpen: boolean
   /** The bottom Photo Dock's thumbnail size in px — shared between its own zoom slider and the
    *  drag-to-resize handle on the panel's top edge (see `setPhotoDockZoom`), and persisted across
@@ -227,14 +229,11 @@ interface ProjectState {
   moveGuide: (spreadId: string, axis: 'horizontal' | 'vertical', index: number, position: number) => void
   removeGuide: (spreadId: string, axis: 'horizontal' | 'vertical', index: number) => void
   toggleLeftPanel: () => void
-  toggleRightPanel: () => void
   toggleBottomPanel: () => void
-  /** Forces the left/right panel open (never closed) — used to auto-expand a panel the moment
-   *  it becomes useful (entering the editor for the left panel's Import/Spreads, selecting
-   *  something for the right panel's Inspector), without fighting a manual collapse the other
-   *  way: this never *closes* a panel the user already opened or re-collapsed themselves. */
+  /** Forces the left panel open (never closed) — used to auto-expand it the moment it becomes
+   *  useful (entering the editor, where Import Photos is the first thing you need), without
+   *  fighting a manual collapse: this never *closes* a panel the user already collapsed. */
   revealLeftPanel: () => void
-  revealRightPanel: () => void
   setPhotoDockZoom: (v: number) => void
   setPreparingProject: (v: boolean) => void
   /** Clears the dirty flag — called after a successful save, and after loading/creating a
@@ -332,11 +331,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   showPrintGuides: true,
   showGuides: true,
   showTimelinePanel: false,
-  // Collapsed by default — App.tsx reveals the left panel on entering the editor (Import Photos
-  // is the first useful action) and the right panel the moment something is selected (Inspector
-  // has nothing to show until then), rather than always eating canvas width up front.
+  // Collapsed by default — App.tsx reveals it on entering the editor (Import Photos is the
+  // first useful action), rather than always eating canvas width up front.
   leftPanelOpen: false,
-  rightPanelOpen: false,
   bottomPanelOpen: true,
   photoDockZoom: loadPhotoDockZoom(),
   preparingProject: false,
@@ -469,10 +466,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       ),
     })),
   toggleLeftPanel: () => set((s) => ({ leftPanelOpen: !s.leftPanelOpen })),
-  toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
   toggleBottomPanel: () => set((s) => ({ bottomPanelOpen: !s.bottomPanelOpen })),
   revealLeftPanel: () => set((s) => (s.leftPanelOpen ? s : { leftPanelOpen: true })),
-  revealRightPanel: () => set((s) => (s.rightPanelOpen ? s : { rightPanelOpen: true })),
   setPhotoDockZoom: (v) => {
     const clamped = Math.max(PHOTO_DOCK_ZOOM_MIN, Math.min(PHOTO_DOCK_ZOOM_MAX, Math.round(v)))
     set({ photoDockZoom: clamped })

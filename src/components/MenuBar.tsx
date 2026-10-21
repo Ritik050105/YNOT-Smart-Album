@@ -78,8 +78,6 @@ export default function MenuBar() {
   const toggleTimelinePanel = useProjectStore((s) => s.toggleTimelinePanel)
   const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
   const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
-  const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
-  const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const bottomPanelOpen = useProjectStore((s) => s.bottomPanelOpen)
   const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
   const canvasTool = useProjectStore((s) => s.canvasTool)
@@ -299,7 +297,6 @@ export default function MenuBar() {
           label: 'Reset Panel Layout',
           onClick: () => {
             if (!leftPanelOpen) toggleLeftPanel()
-            if (!rightPanelOpen) toggleRightPanel()
             if (!bottomPanelOpen) toggleBottomPanel()
           },
         },
@@ -331,7 +328,6 @@ export default function MenuBar() {
         { label: `${showPhotoFileNames ? '✓ ' : ''}Show File Names in Image Browser`, onClick: toggleShowPhotoFileNames },
         { label: `${showTimelinePanel ? '✓ ' : ''}Timeline`, onClick: toggleTimelinePanel },
         { label: `${leftPanelOpen ? '✓ ' : ''}Left Panel`, onClick: toggleLeftPanel },
-        { label: `${rightPanelOpen ? '✓ ' : ''}Right Panel (Inspector)`, onClick: toggleRightPanel },
         { label: `${bottomPanelOpen ? '✓ ' : ''}Photo Dock (Image Browser)`, onClick: toggleBottomPanel },
       ],
     },

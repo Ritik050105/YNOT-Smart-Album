@@ -167,33 +167,6 @@ export default function PhotoBin() {
           ))}
         </div>
 
-        <div className="photo-dock__bins">
-          <span className="muted">Bins:</span>
-          <button className={!binFilter ? 'is-active' : ''} onClick={() => setBinFilter('')}>
-            All
-          </button>
-          {allBins.map((b) => (
-            <button key={b} className={binFilter === b ? 'is-active' : ''} onClick={() => setBinFilter(b)}>
-              {b}
-            </button>
-          ))}
-          {addingBin ? (
-            <input
-              autoFocus
-              className="photo-dock__bin-input"
-              value={newBinDraft}
-              placeholder="Bin name…"
-              onChange={(e) => setNewBinDraft(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && confirmAddBin()}
-              onBlur={confirmAddBin}
-            />
-          ) : (
-            <button className="btn btn--icon btn--tiny" title="Add bin" onClick={() => setAddingBin(true)}>
-              <Icon name="plus" size={11} />
-            </button>
-          )}
-        </div>
-
         <label className="photo-dock__sort">
           <span className="muted">Filter:</span>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortMode)}>
@@ -222,6 +195,38 @@ export default function PhotoBin() {
           {photos.length} total · {unplacedCount} unplaced
           {selectedPhotoIds.length > 0 && ` · ${selectedPhotoIds.length} selected`}
         </span>
+      </div>
+
+      {/* Its own row, matching the reference app — bins are a primary way to browse a shoot
+         (Prep / Ceremony / Dinner / Portraits…), not a minor option buried among other filters. */}
+      <div className="photo-dock__bins">
+        <span className="photo-dock__bins-label">
+          <Icon name="grid" size={13} />
+          Bins
+        </span>
+        <button className={!binFilter ? 'is-active' : ''} onClick={() => setBinFilter('')}>
+          All ({photos.length})
+        </button>
+        {allBins.map((b) => (
+          <button key={b} className={binFilter === b ? 'is-active' : ''} onClick={() => setBinFilter(b)}>
+            {b} ({photos.filter((p) => p.bins.includes(b)).length})
+          </button>
+        ))}
+        {addingBin ? (
+          <input
+            autoFocus
+            className="photo-dock__bin-input"
+            value={newBinDraft}
+            placeholder="Bin name…"
+            onChange={(e) => setNewBinDraft(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && confirmAddBin()}
+            onBlur={confirmAddBin}
+          />
+        ) : (
+          <button className="btn btn--icon btn--tiny" title="Add bin" onClick={() => setAddingBin(true)}>
+            <Icon name="plus" size={11} />
+          </button>
+        )}
       </div>
       <div className="photo-dock__strip" style={{ '--photo-size': `${zoom}px` } as CSSProperties}>
         {sorted.map((photo) => {

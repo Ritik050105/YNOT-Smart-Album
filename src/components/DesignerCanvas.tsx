@@ -274,6 +274,27 @@ export default function DesignerCanvas() {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [viewportSize, setViewportSize] = useState({ width: STAGE_WIDTH, height: stageHeight })
 
+  // Keeps panning from drifting off into empty space forever — the spread can be dragged until
+  // only a small sliver of it remains on screen (not snapped rigidly to "fully visible", which
+  // feels stuck), but no further. When the spread is smaller than the viewport at the current
+  // zoom, it's centered on that axis instead of letting it slide around a viewport it already
+  // fully fits in.
+  const PAN_SLACK_PX = 160
+  function clampPan(pos: { x: number; y: number }, scale: number) {
+    const contentW = STAGE_WIDTH * scale
+    const contentH = stageHeight * scale
+    const clampAxis = (value: number, contentSize: number, viewportSize: number) => {
+      const minVisible = viewportSize - contentSize - PAN_SLACK_PX
+      const maxVisible = PAN_SLACK_PX
+      if (minVisible >= maxVisible) return (viewportSize - contentSize) / 2
+      return Math.min(maxVisible, Math.max(minVisible, value))
+    }
+    return {
+      x: clampAxis(pos.x, contentW, viewportSize.width),
+      y: clampAxis(pos.y, contentH, viewportSize.height),
+    }
+  }
+
   useEffect(() => {
     const el = viewportRef.current
     // The viewport div only exists once a spread is selected (the "no spread" branch below
@@ -392,12 +413,9 @@ export default function DesignerCanvas() {
       const scaleBy = 1.08
       const newScale = Math.max(0.4, Math.min(3, direction > 0 ? oldScale * scaleBy : oldScale / scaleBy))
       setStageScale(newScale)
-      setStagePos({
-        x: pointer.x - mousePointTo.x * newScale,
-        y: pointer.y - mousePointTo.y * newScale,
-      })
+      setStagePos(clampPan({ x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale }, newScale))
     } else {
-      setStagePos((pos) => ({ x: pos.x - e.evt.deltaX, y: pos.y - e.evt.deltaY }))
+      setStagePos((pos) => clampPan({ x: pos.x - e.evt.deltaX, y: pos.y - e.evt.deltaY }, stageScale))
     }
   }
 
@@ -418,7 +436,7 @@ export default function DesignerCanvas() {
       // Shift+click zooms out, matching the reference app's Zoom Tool modifier convention.
       const newScale = Math.max(0.4, Math.min(3, e.evt.shiftKey ? oldScale / scaleBy : oldScale * scaleBy))
       setStageScale(newScale)
-      setStagePos({ x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale })
+      setStagePos(clampPan({ x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale }, newScale))
       return
     }
     if (e.target === e.target.getStage()) {
@@ -431,7 +449,7 @@ export default function DesignerCanvas() {
   function handleStageMouseMove(e: Konva.KonvaEventObject<MouseEvent>) {
     if (!isPanningRef.current || !panStartRef.current) return
     const start = panStartRef.current
-    setStagePos({ x: start.stageX + (e.evt.clientX - start.x), y: start.stageY + (e.evt.clientY - start.y) })
+    setStagePos(clampPan({ x: start.stageX + (e.evt.clientX - start.x), y: start.stageY + (e.evt.clientY - start.y) }, stageScale))
   }
 
   function handleStageMouseUp() {

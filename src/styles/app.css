@@ -641,9 +641,6 @@ body {
 .panel-toggle--left {
   border-right: none;
 }
-.panel-toggle--right {
-  border-left: none;
-}
 
 .bottom-panel {
   flex-shrink: 0;
@@ -1461,23 +1458,40 @@ input[type='checkbox'] {
 .photo-dock__bins {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
   flex-wrap: wrap;
+  padding: 2px 0 10px;
+  margin-top: -2px;
+}
+.photo-dock__bins-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin-right: 2px;
 }
 .photo-dock__bins button {
   background: var(--panel-alt);
   border: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 6px 14px;
   border-radius: 999px;
   cursor: pointer;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.photo-dock__bins button:hover {
+  border-color: var(--accent);
 }
 .photo-dock__bins button.is-active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--text);
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: #fff;
 }
 .photo-dock__bin-input {
   width: 100px;
@@ -1631,10 +1645,20 @@ input[type='checkbox'] {
    spread lands in the next cell to the right of the last one instead of stacking in a tall
    single column below it. minmax() lets it adapt to the sidebar's actual width (collapsed,
    resized, different screens) rather than assuming a fixed column count. */
+/* Promoted from a sidebar strip to the app's main view — every spread visible at once, roomy
+   enough to actually tell them apart at a glance (sized for the full center column, not a 290px
+   sidebar). Double-click a card (see SpreadsPanel.tsx) to open it in the focused Designer View. */
+.spreads-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  max-width: 1100px;
+  margin: 0 auto;
+}
 .spreads-panel__list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 18px;
 }
 .spreads-panel__list .empty-state {
   grid-column: 1 / -1;
@@ -1644,12 +1668,13 @@ input[type='checkbox'] {
   cursor: pointer;
   border: 1.5px solid transparent;
   border-radius: var(--radius-md);
-  padding: 6px;
+  padding: 8px;
   min-width: 0;
   transition: border-color 0.15s var(--ease), background 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
 .spreads-panel__item--cover {
   width: fit-content;
+  max-width: 260px;
 }
 .spreads-panel__confirm {
   position: absolute;
@@ -2596,9 +2621,9 @@ input[type='checkbox'] {
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-  gap: 10px;
-  max-height: 480px;
+  grid-template-columns: repeat(auto-fill, minmax(172px, 1fr));
+  gap: 12px;
+  max-height: 600px;
   overflow-y: auto;
   padding-right: 2px;
 }
