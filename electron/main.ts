@@ -81,13 +81,24 @@ function createWindow(splash?: BrowserWindow) {
   }
 }
 
+let newProjectWindow: BrowserWindow | null = null
+
 /** Opens "New Project" as its own titled OS window (matching the reference app) instead of an
  *  in-app modal. It loads the same renderer bundle with a `?view=new-project` flag, which
  *  src/main.tsx uses to mount just the wizard instead of the full app shell. Since this window
  *  has its own isolated JS context (and thus its own separate Zustand store instance), it can't
  *  just call the store directly — it round-trips the finished options back to the main window via
- *  IPC (see 'new-project:submit' below) instead. */
+ *  IPC (see 'new-project:submit' below) instead.
+ *
+ *  Stays hidden (like the main window) until its first paint is actually ready, and focuses the
+ *  existing window instead of stacking a second one if it's somehow asked for twice — both guard
+ *  against the same class of "window shows before it has anything to show" blank-window flash. */
 function createNewProjectWindow() {
+  if (newProjectWindow && !newProjectWindow.isDestroyed()) {
+    newProjectWindow.focus()
+    return newProjectWindow
+  }
+
   const win = new BrowserWindow({
     width: 640,
     height: 760,
@@ -96,13 +107,19 @@ function createNewProjectWindow() {
     title: 'New Project',
     parent: mainWindow ?? undefined,
     backgroundColor: '#f4f5f7',
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   })
+  newProjectWindow = win
+  win.on('closed', () => {
+    if (newProjectWindow === win) newProjectWindow = null
+  })
   win.setMenu(null)
+  win.once('ready-to-show', () => win.show())
   if (isDev) {
     win.loadURL('http://localhost:5173/?view=new-project')
   } else {
