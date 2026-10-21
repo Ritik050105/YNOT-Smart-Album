@@ -1,6 +1,7 @@
-import { CSSProperties, useEffect, useMemo, useState } from 'react'
+import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useProjectStore } from '@/state/projectStore'
+import { useImportPhotos } from '@/engine/useImportPhotos'
 import { Spread } from '@/types'
 import Icon from './Icon'
 
@@ -55,6 +56,11 @@ export default function PhotoBin() {
   const selectPlaceholder = useProjectStore((s) => s.selectPlaceholder)
   const zoom = useProjectStore((s) => s.photoDockZoom)
   const setZoom = useProjectStore((s) => s.setPhotoDockZoom)
+  const runAutoBuild = useProjectStore((s) => s.runAutoBuild)
+
+  const { handleFiles, importing } = useImportPhotos()
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const favoritesInputRef = useRef<HTMLInputElement>(null)
 
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
   const [binFilter, setBinFilter] = useState('')
@@ -100,11 +106,55 @@ export default function PhotoBin() {
     return () => window.removeEventListener('click', close)
   }, [tagPopoverFor])
 
+  const importButtons = (
+    <div className="photo-dock__import-actions">
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          void handleFiles(e.target.files)
+          e.target.value = ''
+        }}
+      />
+      <input
+        ref={favoritesInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          void handleFiles(e.target.files, { markFavorite: true })
+          e.target.value = ''
+        }}
+      />
+      <button className="btn btn--tiny" disabled={importing} onClick={() => importInputRef.current?.click()}>
+        <Icon name="upload" size={12} />
+        Import Images
+      </button>
+      <button className="btn btn--tiny" disabled={importing} onClick={() => favoritesInputRef.current?.click()}>
+        <Icon name="heart" size={12} />
+        Import Favorites
+      </button>
+      <button
+        className={`btn btn--tiny ${photos.length > 0 && spreads.length === 0 ? 'btn--primary' : ''}`}
+        disabled={photos.length === 0}
+        onClick={() => runAutoBuild()}
+      >
+        <Icon name="sparkles" size={12} />
+        Auto Build
+      </button>
+    </div>
+  )
+
   if (photos.length === 0) {
     return (
       <div className="photo-dock photo-dock--empty">
+        {importButtons}
         <Icon name="image" size={22} />
-        <p>No photos imported yet — drag photos here, or use Import Photos on the left.</p>
+        <p>No photos imported yet — drag photos here, or use Import Images above.</p>
       </div>
     )
   }
@@ -154,6 +204,7 @@ export default function PhotoBin() {
   return (
     <div className="photo-dock">
       <div className="photo-dock__toolbar">
+        {importButtons}
         <div className="photo-dock__tabs">
           {QUICK_FILTERS.map((f) => (
             <button

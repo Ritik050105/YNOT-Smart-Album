@@ -1,0 +1,37 @@
+import { useState } from 'react'
+import { useProjectStore } from '@/state/projectStore'
+import { importAndDedupe, ImportSummary } from './importWorkflow'
+
+/** Shared "pick/drop files, dedupe, add to the pool" logic behind every import entry point
+ *  (the Import panel's dropzone, and the photo dock's own Import Images/Import Favorites
+ *  buttons — the reference app exposes import from both places, not just a collapsible side
+ *  panel). `markFavorite` is "Import Favorites": the same import, with every newly added photo
+ *  starred on the way in. */
+export function useImportPhotos() {
+  const addPhotos = useProjectStore((s) => s.addPhotos)
+  const runAutoBuild = useProjectStore((s) => s.runAutoBuild)
+  const setPhotoFavorite = useProjectStore((s) => s.setPhotoFavorite)
+  const photos = useProjectStore((s) => s.project.photos)
+  const spreadCount = useProjectStore((s) => s.project.spreads.length)
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const [lastSummary, setLastSummary] = useState<ImportSummary | null>(null)
+
+  async function handleFiles(fileList: FileList | File[] | null, opts?: { markFavorite?: boolean }) {
+    const files = fileList ? Array.from(fileList) : []
+    if (files.length === 0) return
+    setLastSummary(null)
+    setProgress({ done: 0, total: files.length })
+    const { newAssets, summary } = await importAndDedupe(files, photos, (done, total) => setProgress({ done, total }))
+    if (newAssets.length > 0) {
+      addPhotos(newAssets)
+      if (opts?.markFavorite) newAssets.forEach((a) => setPhotoFavorite(a.id, true))
+      // The very first drop/import, with nothing laid out yet — go straight to a spread instead
+      // of leaving the photos sitting in the pool waiting for a separate "Auto-Build" click.
+      if (spreadCount === 0) runAutoBuild()
+    }
+    setProgress(null)
+    setLastSummary(summary)
+  }
+
+  return { handleFiles, importing: progress !== null, progress, lastSummary }
+}

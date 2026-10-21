@@ -1,41 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { importAndDedupe, describeImportSummary, ImportSummary } from '@/engine/importWorkflow'
+import { describeImportSummary } from '@/engine/importWorkflow'
+import { useImportPhotos } from '@/engine/useImportPhotos'
 import Icon from './Icon'
 import SliderField from './SliderField'
 
 export default function ImportPanel() {
-  const addPhotos = useProjectStore((s) => s.addPhotos)
   const runAutoBuild = useProjectStore((s) => s.runAutoBuild)
   const photos = useProjectStore((s) => s.project.photos)
-  const spreadCount = useProjectStore((s) => s.project.spreads.length)
   const options = useProjectStore((s) => s.autoLayoutOptions)
   const setOptions = useProjectStore((s) => s.setAutoLayoutOptions)
   const [isDragging, setIsDragging] = useState(false)
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
-  const [lastSummary, setLastSummary] = useState<ImportSummary | null>(null)
+  const { handleFiles, importing, progress, lastSummary } = useImportPhotos()
   const dragDepth = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
 
-  async function handleFiles(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) return
-    setLastSummary(null)
-    setProgress({ done: 0, total: fileList.length })
-    const { newAssets, summary } = await importAndDedupe(Array.from(fileList), photos, (done, total) =>
-      setProgress({ done, total })
-    )
-    if (newAssets.length > 0) {
-      addPhotos(newAssets)
-      // The very first drop/import, with nothing laid out yet — go straight to a spread instead
-      // of leaving the photos sitting in the pool waiting for a separate "Auto-Build" click.
-      if (spreadCount === 0) runAutoBuild()
-    }
-    setProgress(null)
-    setLastSummary(summary)
-  }
-
-  const importing = progress !== null
   const hasIssues = !!lastSummary && (lastSummary.failures.length > 0 || lastSummary.rejected.length > 0)
 
   // Lets File > Import Images… (and its Ctrl+I shortcut) open the same file picker as clicking
