@@ -332,6 +332,28 @@ body {
 .home-screen__empty .btn {
   margin-top: 12px;
 }
+.continue-session-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0 4px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.continue-session-prompt svg {
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.continue-session-prompt__name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.continue-session-prompt p {
+  margin: 0;
+}
 .home-screen__grid {
   max-width: 1040px;
   margin: 16px auto 0;

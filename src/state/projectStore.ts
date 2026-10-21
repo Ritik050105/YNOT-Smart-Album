@@ -170,6 +170,17 @@ interface ProjectState {
   /** True for the brief "Preparing template libraries…" beat between finishing the New Project
    *  wizard and landing in the editor — matches the reference app's own loading transition. */
   preparingProject: boolean
+  /** Whether the current project has edits since it was last saved (or since it was opened/
+   *  created, if never saved) — drives the "continue where you left off?" prompt on next launch
+   *  (see engine/sessionMarker.ts) and could back an unsaved-changes indicator later. Every
+   *  project-content mutation goes through withHistory, which sets this true; explicit saves and
+   *  freshly loaded/created projects set it back to false. */
+  isDirty: boolean
+  /** The on-disk path of the current project, once known (set after a successful save or open) —
+   *  only ever populated in Electron, where projects are real files. Cleared when a project with
+   *  no file yet is created/opened or when returning to Home. Lets App.tsx know where to reopen
+   *  this exact project from if it's left with unsaved changes (see engine/sessionMarker.ts). */
+  currentFilePath: string | null
   /** Canvas interaction mode — "pan" sticks the canvas in pan-and-drag mode (the TopBar's hand-tool
    *  button) as an alternative to holding Space, matching the reference app's Select/Pan toolbar
    *  icons. */
@@ -226,6 +237,10 @@ interface ProjectState {
   revealRightPanel: () => void
   setPhotoDockZoom: (v: number) => void
   setPreparingProject: (v: boolean) => void
+  /** Clears the dirty flag — called after a successful save, and after loading/creating a
+   *  project (which starts clean relative to its own just-loaded/just-created state). */
+  markSaved: () => void
+  setCurrentFilePath: (path: string | null) => void
   setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'text' | 'zoom') => void
   setTemplateFrameFilter: (f: TemplateFrameFilter) => void
   toggleShowPhotoFileNames: () => void
@@ -298,6 +313,7 @@ function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => vo
       project: nextProject,
       history: [...s.history, s.project].slice(-50),
       future: [],
+      isDirty: true,
     }
   })
 }
@@ -324,6 +340,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   bottomPanelOpen: true,
   photoDockZoom: loadPhotoDockZoom(),
   preparingProject: false,
+  isDirty: false,
+  currentFilePath: null,
   canvasTool: 'select',
   templateFrameFilter: 'all',
   photoClipboard: null,
@@ -465,6 +483,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
   setPreparingProject: (v) => set({ preparingProject: v }),
+  markSaved: () => set({ isDirty: false }),
+  setCurrentFilePath: (path) => set({ currentFilePath: path }),
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setTemplateFrameFilter: (f) => set({ templateFrameFilter: f }),
   toggleShowPhotoFileNames: () => set((s) => ({ showPhotoFileNames: !s.showPhotoFileNames })),
@@ -905,14 +925,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set((s) => {
       if (s.history.length === 0) return s
       const prev = s.history[s.history.length - 1]
-      return { project: prev, history: s.history.slice(0, -1), future: [s.project, ...s.future] }
+      return { project: prev, history: s.history.slice(0, -1), future: [s.project, ...s.future], isDirty: true }
     }),
 
   redo: () =>
     set((s) => {
       if (s.future.length === 0) return s
       const [next, ...rest] = s.future
-      return { project: next, history: [...s.history, s.project], future: rest }
+      return { project: next, history: [...s.history, s.project], future: rest, isDirty: true }
     }),
 
   renameProject: (name) => withHistory(set, (p) => ({ ...p, name })),
@@ -966,6 +986,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedPhotoIds: [],
       history: [],
       future: [],
+      // A just-opened project has no edits yet relative to the file it came from. The caller
+      // (wherever it knows the on-disk path — loadProjectFile itself isn't handed one) follows up
+      // with setCurrentFilePath once it does.
+      isDirty: false,
+      currentFilePath: null,
     })
   },
 
@@ -979,6 +1004,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedPhotoIds: [],
       history: [],
       future: [],
+      isDirty: false,
+      currentFilePath: null,
     }),
 
   createProjectFromWizard: (opts) => {
@@ -996,6 +1023,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedPhotoIds: [],
       history: [],
       future: [],
+      // Starts dirty — it exists only in memory until the New Project flow's immediate save
+      // prompt (finishNewProjectSetup) succeeds and calls markSaved()/setCurrentFilePath().
+      isDirty: true,
+      currentFilePath: null,
     })
   },
 
@@ -1009,6 +1040,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedPhotoIds: [],
       history: [],
       future: [],
+      isDirty: false,
+      currentFilePath: null,
     }),
 
   reorderPhotos: (fromIndex, toIndex) =>

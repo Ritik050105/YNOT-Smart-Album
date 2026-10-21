@@ -7,8 +7,14 @@ import { recordRecentProject } from './recentProjects'
  *  "Preparing template libraries…" beat, then the editor. In the browser dev preview (no native
  *  Save dialog available) this just shows the "preparing" beat on its own. Cancelling the save
  *  dialog doesn't block entry — you still land in the editor, just without a file on disk yet
- *  (Save from the toolbar any time afterward). */
-export async function finishNewProjectSetup(project: Project, userTemplates: TemplateDefinition[]): Promise<void> {
+ *  (Save from the toolbar any time afterward). Returns the saved file's path (if the save
+ *  happened and succeeded) so the caller can mark the project clean/locatable in the store —
+ *  this module stays store-agnostic like the rest of engine/, so it hands the result back rather
+ *  than reaching into useProjectStore itself. */
+export async function finishNewProjectSetup(
+  project: Project,
+  userTemplates: TemplateDefinition[]
+): Promise<{ filePath?: string }> {
   if (window.albumStudio?.isElectron) {
     const result = await saveProjectToFile(project, userTemplates)
     if (result.saved) {
@@ -21,7 +27,10 @@ export async function finishNewProjectSetup(project: Project, userTemplates: Tem
         spreadCount: project.spreads.filter((s) => !s.isCover).length,
         kind: project.kind,
       })
+      await new Promise((resolve) => setTimeout(resolve, 450))
+      return { filePath: result.filePath }
     }
   }
   await new Promise((resolve) => setTimeout(resolve, 450))
+  return {}
 }

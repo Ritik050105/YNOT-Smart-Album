@@ -20,20 +20,30 @@ import SlideshowScreen from './components/SlideshowScreen'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import { useBottomDockResize } from '@/engine/useBottomDockResize'
-import { loadRecentProjects } from '@/engine/recentProjects'
 import { openProjectFromPath } from '@/engine/projectFile'
+import { loadOpenSession, writeOpenSession, clearOpenSession, OpenSessionMarker } from '@/engine/sessionMarker'
+import ContinueSessionPrompt from './components/ContinueSessionPrompt'
 
 export default function App() {
-  // Electron only: stays true while we check for (and try to reopen) the last project that was
-  // open, so relaunching the app resumes where you left off instead of landing on a blank Home
-  // screen. The browser dev preview has no on-disk project to reopen, so it skips straight past.
-  const [restoringSession, setRestoringSession] = useState(() => !!window.albumStudio?.isElectron)
+  // Electron only, and only when the last session genuinely ended with unsaved work still open
+  // (see engine/sessionMarker.ts) — reading localStorage is synchronous, so this is known up
+  // front rather than resolved async. Holding a marker here just means "ask"; nothing is opened
+  // until the user actually chooses to.
+  const [resumePrompt, setResumePrompt] = useState<OpenSessionMarker | null>(() =>
+    window.albumStudio?.isElectron ? loadOpenSession() : null
+  )
+  const [resuming, setResuming] = useState(false)
   const [showHome, setShowHome] = useState(true)
   const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
   const loadProjectFile = useProjectStore((s) => s.loadProjectFile)
   const preparingProject = useProjectStore((s) => s.preparingProject)
   const designerViewSpreadId = useProjectStore((s) => s.designerViewSpreadId)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
+  const markSaved = useProjectStore((s) => s.markSaved)
+  const isDirty = useProjectStore((s) => s.isDirty)
+  const currentFilePath = useProjectStore((s) => s.currentFilePath)
+  const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
+  const project = useProjectStore((s) => s.project)
   const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
   const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
   const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
@@ -43,7 +53,7 @@ export default function App() {
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
   const selectedTextBoxId = useProjectStore((s) => s.selectedTextBoxId)
-  const projectKind = useProjectStore((s) => s.project.kind)
+  const projectKind = project.kind
   const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
 
   useEffect(() => {
@@ -80,42 +90,73 @@ export default function App() {
     return window.albumStudio.onNewProjectCreated((opts) => {
       createProjectFromWizard(opts as never)
       setPreparingProject(true)
-      const { project, userTemplates } = useProjectStore.getState()
-      void finishNewProjectSetup(project, userTemplates).then(() => {
+      const { project: created, userTemplates } = useProjectStore.getState()
+      void finishNewProjectSetup(created, userTemplates).then(({ filePath }) => {
+        if (filePath) {
+          markSaved()
+          setCurrentFilePath(filePath)
+        }
         setPreparingProject(false)
         window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))
       })
     })
-  }, [createProjectFromWizard, setPreparingProject])
+  }, [createProjectFromWizard, setPreparingProject, markSaved, setCurrentFilePath])
 
-  // Resume the last project that was open, instead of always landing back on a blank Home
-  // screen — the most recently updated recent-project entry with a known on-disk path (only ever
-  // set in Electron) is reopened silently, same as clicking it from Home's Recent list.
+  // Keeps the "open session" marker in sync with the current project's dirty/saved state (see
+  // engine/sessionMarker.ts) — written while there's unsaved work tied to a real file on disk,
+  // cleared the moment that's no longer true. What actually offers to resume it is the `resumePrompt`
+  // state above, read once at launch; this effect just keeps the marker accurate for *next* launch.
   useEffect(() => {
     if (!window.albumStudio?.isElectron) return
-    const last = loadRecentProjects()
-      .filter((e) => e.filePath)
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
-    if (!last?.filePath) {
-      setRestoringSession(false)
-      return
+    // Leave the marker alone until the resume prompt is answered — it still describes the
+    // session the prompt is asking about, and the default/empty store state present while it's
+    // showing (nothing's loaded yet) would otherwise wipe that marker before the user can decide.
+    if (resumePrompt) return
+    if (isDirty && currentFilePath) {
+      writeOpenSession({
+        projectId: project.id,
+        filePath: currentFilePath,
+        name: project.name,
+        clientName: project.clientName,
+        sizeLabel: project.size.label,
+        spreadCount: project.spreads.filter((s) => !s.isCover).length,
+      })
+    } else {
+      clearOpenSession()
     }
-    let cancelled = false
-    void openProjectFromPath(last.filePath).then((file) => {
-      if (cancelled) return
-      if (file) {
-        loadProjectFile(file)
-        setShowHome(false)
-        revealLeftPanel()
-      }
-      setRestoringSession(false)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [loadProjectFile, revealLeftPanel])
+  }, [isDirty, currentFilePath, project, resumePrompt])
 
-  if (restoringSession) return <NewProjectLoadingOverlay title="Restoring your last session…" subtitle="Reopening where you left off." />
+  async function handleContinueSession() {
+    if (!resumePrompt) return
+    setResuming(true)
+    const file = await openProjectFromPath(resumePrompt.filePath)
+    setResuming(false)
+    setResumePrompt(null)
+    if (file) {
+      loadProjectFile(file)
+      setCurrentFilePath(resumePrompt.filePath)
+      setShowHome(false)
+      revealLeftPanel()
+    }
+    // Whether or not it was found, the prompt about it is resolved either way — a missing file
+    // falls through to the ordinary Home screen, same as a broken Recent entry does there.
+  }
+
+  function handleStartFresh() {
+    clearOpenSession()
+    setResumePrompt(null)
+  }
+
+  if (resumePrompt) {
+    return (
+      <ContinueSessionPrompt
+        marker={resumePrompt}
+        busy={resuming}
+        onContinue={() => void handleContinueSession()}
+        onStartFresh={handleStartFresh}
+      />
+    )
+  }
 
   if (preparingProject) return <NewProjectLoadingOverlay />
 

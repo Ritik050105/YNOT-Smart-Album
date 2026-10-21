@@ -5,6 +5,7 @@ import { saveProjectToFile, openProjectFromFile } from '@/engine/projectFile'
 import { Theme, applyTheme, getStoredTheme } from '@/engine/theme'
 import { DisplayUnit } from '@/engine/units'
 import { recordRecentProject } from '@/engine/recentProjects'
+import { clearOpenSession } from '@/engine/sessionMarker'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import Icon from './Icon'
 import Modal from './Modal'
@@ -32,6 +33,8 @@ export default function TopBar() {
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
+  const markSaved = useProjectStore((s) => s.markSaved)
+  const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
   const canvasTool = useProjectStore((s) => s.canvasTool)
   const setCanvasTool = useProjectStore((s) => s.setCanvasTool)
   const [projectBusy, setProjectBusy] = useState<'save' | 'open' | null>(null)
@@ -78,6 +81,10 @@ export default function TopBar() {
           spreadCount: project.spreads.filter((s) => !s.isCover).length,
           kind: project.kind,
         })
+        markSaved()
+        setCurrentFilePath(result.filePath ?? null)
+        // Just saved — nothing unsaved left to offer resuming next launch.
+        clearOpenSession()
       }
     } finally {
       setProjectBusy(null)
@@ -99,6 +106,9 @@ export default function TopBar() {
           spreadCount: opened.file.project.spreads.filter((s) => !s.isCover).length,
           kind: opened.file.project.kind,
         })
+        setCurrentFilePath(opened.filePath ?? null)
+        // A freshly opened project has no unsaved edits yet.
+        clearOpenSession()
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Could not open that project file.')

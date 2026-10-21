@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { openProjectFromFile, openProjectFromPath } from '@/engine/projectFile'
 import { loadRecentProjects, recordRecentProject, removeRecentProject, RecentProjectEntry } from '@/engine/recentProjects'
+import { clearOpenSession } from '@/engine/sessionMarker'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import NewProjectWizard from './NewProjectWizard'
 import Modal from './Modal'
@@ -36,6 +37,7 @@ export default function HomeScreen() {
   const loadProjectFile = useProjectStore((s) => s.loadProjectFile)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
   const createSimpleProject = useProjectStore((s) => s.createSimpleProject)
+  const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
   const [tab, setTab] = useState<HomeTab>('albums')
   const [recent, setRecent] = useState<RecentProjectEntry[]>(() => loadRecentProjects())
   const [search, setSearch] = useState('')
@@ -94,6 +96,8 @@ export default function HomeScreen() {
         spreadCount: opened.file.project.spreads.filter((s) => !s.isCover).length,
         kind: opened.file.project.kind,
       })
+      setCurrentFilePath(opened.filePath ?? null)
+      clearOpenSession()
       enterEditor()
     }
   }
@@ -125,6 +129,8 @@ export default function HomeScreen() {
     }
     loadProjectFile(file)
     recordRecentProject({ ...entry })
+    setCurrentFilePath(entry.filePath)
+    clearOpenSession()
     enterEditor()
   }
 
