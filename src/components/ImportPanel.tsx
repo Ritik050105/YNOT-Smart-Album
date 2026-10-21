@@ -2,19 +2,25 @@ import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { describeImportSummary } from '@/engine/importWorkflow'
 import { useImportPhotos } from '@/engine/useImportPhotos'
+import { autoBuildTargetPhotoIds } from '@/engine/autoBuildTarget'
+import AutoBuildModal from './AutoBuildModal'
 import Icon from './Icon'
 import SliderField from './SliderField'
 
 export default function ImportPanel() {
-  const runAutoBuild = useProjectStore((s) => s.runAutoBuild)
   const photos = useProjectStore((s) => s.project.photos)
+  const spreads = useProjectStore((s) => s.project.spreads)
+  const selectedPhotoIds = useProjectStore((s) => s.selectedPhotoIds)
   const options = useProjectStore((s) => s.autoLayoutOptions)
   const setOptions = useProjectStore((s) => s.setAutoLayoutOptions)
   const [isDragging, setIsDragging] = useState(false)
+  const [autoBuildOpen, setAutoBuildOpen] = useState(false)
   const { handleFiles, importing, progress, lastSummary } = useImportPhotos()
   const dragDepth = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
+
+  const autoBuildTargets = autoBuildTargetPhotoIds(photos, spreads, selectedPhotoIds)
 
   const hasIssues = !!lastSummary && (lastSummary.failures.length > 0 || lastSummary.rejected.length > 0)
 
@@ -127,7 +133,11 @@ export default function ImportPanel() {
       </p>
 
       <div className="auto-layout-controls">
-        <button className="btn btn--primary btn--block" disabled={photos.length === 0} onClick={() => runAutoBuild()}>
+        <button
+          className="btn btn--primary btn--block"
+          disabled={autoBuildTargets.length === 0}
+          onClick={() => setAutoBuildOpen(true)}
+        >
           <Icon name="sparkles" size={14} />
           Auto-Build Album
         </button>
@@ -150,6 +160,8 @@ export default function ImportPanel() {
           />
         </details>
       </div>
+
+      {autoBuildOpen && <AutoBuildModal photoIds={autoBuildTargets} onClose={() => setAutoBuildOpen(false)} />}
     </div>
   )
 }

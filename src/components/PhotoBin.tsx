@@ -2,7 +2,9 @@ import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useProjectStore } from '@/state/projectStore'
 import { useImportPhotos } from '@/engine/useImportPhotos'
+import { autoBuildTargetPhotoIds } from '@/engine/autoBuildTarget'
 import { Spread } from '@/types'
+import AutoBuildModal from './AutoBuildModal'
 import Icon from './Icon'
 
 /** Picks where a double-clicked photo (with nothing pre-selected) should land: the current
@@ -56,11 +58,12 @@ export default function PhotoBin() {
   const selectPlaceholder = useProjectStore((s) => s.selectPlaceholder)
   const zoom = useProjectStore((s) => s.photoDockZoom)
   const setZoom = useProjectStore((s) => s.setPhotoDockZoom)
-  const runAutoBuild = useProjectStore((s) => s.runAutoBuild)
 
   const { handleFiles, importing } = useImportPhotos()
   const importInputRef = useRef<HTMLInputElement>(null)
   const favoritesInputRef = useRef<HTMLInputElement>(null)
+  const [autoBuildOpen, setAutoBuildOpen] = useState(false)
+  const autoBuildTargets = autoBuildTargetPhotoIds(photos, spreads, selectedPhotoIds)
 
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
   const [binFilter, setBinFilter] = useState('')
@@ -139,13 +142,14 @@ export default function PhotoBin() {
         Import Favorites
       </button>
       <button
-        className={`btn btn--tiny ${photos.length > 0 && spreads.length === 0 ? 'btn--primary' : ''}`}
-        disabled={photos.length === 0}
-        onClick={() => runAutoBuild()}
+        className={`btn btn--tiny ${autoBuildTargets.length > 0 ? 'btn--primary' : ''}`}
+        disabled={autoBuildTargets.length === 0}
+        onClick={() => setAutoBuildOpen(true)}
       >
         <Icon name="sparkles" size={12} />
         Auto Build
       </button>
+      {autoBuildOpen && <AutoBuildModal photoIds={autoBuildTargets} onClose={() => setAutoBuildOpen(false)} />}
     </div>
   )
 

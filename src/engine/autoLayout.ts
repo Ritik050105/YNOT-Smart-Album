@@ -139,28 +139,48 @@ function narrowToSinglePage(ids: string[] | null): string[] | null {
   return singlePage.length > 0 ? singlePage : ids
 }
 
-/** Builds full Spread records (template + placements) from timeline-grouped photos. "Auto-Build"
- *  entry point. `enabledTemplateIds` narrows the 1-6 photo template pool to whatever was chosen
- *  in the New Project wizard's Template Library step (null/omitted = every built-in available).
- *  `layout` is that same wizard's "Layout Type" setting — whether the album's first/last interior
- *  spread must stay a single page, and whether two-page templates are offered at all. */
-export function autoBuildSpreads(
-  photos: PhotoAsset[],
-  options: AutoLayoutOptions = DEFAULT_AUTO_LAYOUT_OPTIONS,
+/** Splits `photos` (in whatever order the caller wants kept) into exactly `count` roughly-equal,
+ *  contiguous groups — the reference app's Auto Build dialog lets you drag a "Number of spreads"
+ *  slider to override the smart-grouping suggestion; this is that override's grouping. */
+export function splitPhotosIntoGroups(photos: PhotoAsset[], count: number): PhotoAsset[][] {
+  const n = Math.max(1, Math.min(count, photos.length || 1))
+  const groups: PhotoAsset[][] = []
+  const base = Math.floor(photos.length / n)
+  let extra = photos.length % n
+  let i = 0
+  for (let g = 0; g < n; g++) {
+    const size = base + (extra > 0 ? 1 : 0)
+    if (extra > 0) extra--
+    groups.push(photos.slice(i, i + size))
+    i += size
+  }
+  return groups
+}
+
+/** Builds full Spread records (template + placements) from already-grouped photos — the shared
+ *  tail end of both `autoBuildSpreads` (time-based "Smart Grouping") and a manual grouping
+ *  (the Auto Build dialog's spread-count override / "Specify range"). `enabledTemplateIds`
+ *  narrows the 1-6 photo template pool to whatever was chosen in the New Project wizard's
+ *  Template Library step (null = every built-in available). `layout` is that same wizard's
+ *  "Layout Type" setting. `allowTemplateRepeats` is the Auto Build dialog's "Template reuse:
+ *  High" — normally consecutive spreads avoid repeating the same template, which this skips. */
+export function buildSpreadsFromGroups(
+  groups: PhotoAsset[][],
   appearance: SpreadAppearanceDefaults = FALLBACK_APPEARANCE_DEFAULTS,
   enabledTemplateIds: string[] | null = null,
-  layout: AutoBuildLayoutOptions = DEFAULT_AUTO_BUILD_LAYOUT
+  layout: AutoBuildLayoutOptions = DEFAULT_AUTO_BUILD_LAYOUT,
+  matchTimelineOrder = true,
+  allowTemplateRepeats = false
 ): Spread[] {
-  const groups = groupPhotosIntoMoments(photos, options)
   const pool = layout.includeFullSpreadTemplates ? enabledTemplateIds : narrowToSinglePage(enabledTemplateIds)
   const border = { width: appearance.borderWidth, color: appearance.borderColor }
   let lastTemplateId: string | undefined
   return groups.map((group, index) => {
     const forceSingle = (index === 0 && layout.start === 'single') || (index === groups.length - 1 && layout.end === 'single')
     const candidatePool = forceSingle ? narrowToSinglePage(pool) : pool
-    const template = suggestTemplate(group.length, lastTemplateId, candidatePool)
+    const template = suggestTemplate(group.length, allowTemplateRepeats ? undefined : lastTemplateId, candidatePool)
     lastTemplateId = template.id
-    const assigned = options.matchTimelineOrder ? group : matchGroupToPlaceholders(group, template.placeholders)
+    const assigned = matchTimelineOrder ? group : matchGroupToPlaceholders(group, template.placeholders)
     const placements: PlacedPhoto[] = template.placeholders.map((ph, i) =>
       defaultPlacement(ph.id, assigned[i]?.id ?? null, border)
     )
@@ -180,6 +200,19 @@ export function autoBuildSpreads(
       guides: { horizontal: [], vertical: [] },
     }
   })
+}
+
+/** Builds full Spread records (template + placements) from timeline-grouped photos. "Auto-Build"
+ *  entry point. See `buildSpreadsFromGroups` for what `enabledTemplateIds`/`layout` do. */
+export function autoBuildSpreads(
+  photos: PhotoAsset[],
+  options: AutoLayoutOptions = DEFAULT_AUTO_LAYOUT_OPTIONS,
+  appearance: SpreadAppearanceDefaults = FALLBACK_APPEARANCE_DEFAULTS,
+  enabledTemplateIds: string[] | null = null,
+  layout: AutoBuildLayoutOptions = DEFAULT_AUTO_BUILD_LAYOUT
+): Spread[] {
+  const groups = groupPhotosIntoMoments(photos, options)
+  return buildSpreadsFromGroups(groups, appearance, enabledTemplateIds, layout, options.matchTimelineOrder)
 }
 
 /** Rebuilds a single spread's placements against a different template, keeping as many existing photos as possible. */

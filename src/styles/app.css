@@ -463,6 +463,23 @@ body {
   height: 100vh;
 }
 
+.app-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 200px;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 1px 1px, var(--canvas-dot) 1px, transparent 0) 0 0 / 22px 22px,
+    var(--bg-canvas);
+}
+
 .app-sidebar {
   width: 290px;
   flex-shrink: 0;
@@ -628,17 +645,6 @@ body {
   border-left: none;
 }
 
-.designer-view__timeline {
-  flex-shrink: 0;
-  max-height: 190px;
-  overflow-y: auto;
-  padding: 6px 14px 0;
-  background: var(--bg);
-}
-.designer-view__timeline .timeline-panel {
-  margin-bottom: 6px;
-}
-
 .bottom-panel {
   flex-shrink: 0;
   position: relative;
@@ -663,87 +669,6 @@ body {
 .panel-toggle--bottom:hover {
   background: var(--accent-soft);
   color: var(--accent);
-}
-
-.template-suggestions {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  padding: 5px 10px;
-  background: var(--panel);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-}
-.template-suggestions__header {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  font-size: 10.5px;
-  font-weight: 700;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.template-suggestions__strip {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 2px 0;
-}
-.template-suggestions__strip .template-swatch {
-  flex-shrink: 0;
-  width: 42px;
-  padding: 2px;
-}
-
-.timeline-panel {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  background: var(--panel);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-}
-.timeline-panel__strip-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.timeline-panel__strip {
-  flex: 1;
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-.timeline-panel__thumb {
-  flex-shrink: 0;
-  padding: 0;
-  border: 2px solid transparent;
-  border-radius: var(--radius-sm);
-  background: none;
-  cursor: pointer;
-}
-.timeline-panel__thumb.is-selected {
-  border-color: var(--accent);
-}
-.timeline-panel__rearrange {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.timeline-panel__label {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--text-muted);
-  flex-shrink: 0;
 }
 
 /* ---------- Menu bar ---------- */
@@ -1650,6 +1575,95 @@ input[type='checkbox'] {
   align-items: center;
   justify-content: center;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------- Spreads panel (the main "all spreads" overview) ---------- */
+
+.spreads-panel {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.spreads-panel__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 18px;
+}
+.spreads-panel__card {
+  position: relative;
+  flex: 1 1 260px;
+  max-width: 420px;
+  min-width: 180px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.spreads-panel__card--cover {
+  flex-basis: 180px;
+  max-width: 260px;
+}
+.spreads-panel__card.is-selected {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+.spreads-panel__card--drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 10px;
+  background: var(--panel);
+  border: 2px dashed var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.spreads-panel__card--drop:hover,
+.spreads-panel__card--drop.is-drag-over {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.spreads-panel__card--drop p {
+  margin: 0;
+}
+.spreads-panel__exporting {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(20, 21, 28, 0.78);
+  border-radius: var(--radius-md);
+  font-size: 11.5px;
+  color: #fff;
+}
+.spreads-panel__confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(20, 21, 28, 0.92);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+.spreads-panel__confirm p {
+  margin: 0;
+  font-size: 11.5px;
+  color: #fff;
+}
+.spreads-panel__confirm-actions {
+  display: flex;
+  gap: 6px;
 }
 
 /* ---------- Spread thumbnail (used by the Timeline filmstrip) ---------- */
@@ -2725,6 +2739,42 @@ input[type='checkbox'] {
 .export-options h4:first-child {
   margin-top: 0;
 }
+.radio-row-group,
+.checkbox-row-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.auto-build-stats {
+  display: flex;
+  gap: 14px;
+}
+.auto-build-stats__card {
+  flex: 1;
+  text-align: center;
+  padding: 16px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--panel-alt);
+}
+.auto-build-stats__number {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.auto-build-stats__to {
+  font-size: 16px;
+  font-weight: 600;
+}
+.auto-build-stats__label {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
 .radio-row,
 .checkbox-row {
   display: flex;

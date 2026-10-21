@@ -10,10 +10,8 @@ import { hasColorProfile, isMissingColorProfileDialogHidden } from './colorProfi
  *  starred on the way in. */
 export function useImportPhotos() {
   const addPhotos = useProjectStore((s) => s.addPhotos)
-  const runAutoBuild = useProjectStore((s) => s.runAutoBuild)
   const setPhotoFavorite = useProjectStore((s) => s.setPhotoFavorite)
   const photos = useProjectStore((s) => s.project.photos)
-  const spreadCount = useProjectStore((s) => s.project.spreads.length)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [lastSummary, setLastSummary] = useState<ImportSummary | null>(null)
 
@@ -26,10 +24,9 @@ export function useImportPhotos() {
     if (newAssets.length > 0) {
       addPhotos(newAssets)
       if (opts?.markFavorite) newAssets.forEach((a) => setPhotoFavorite(a.id, true))
-      // The very first drop/import, with nothing laid out yet — go straight to a spread instead
-      // of leaving the photos sitting in the pool waiting for a separate "Auto-Build" click.
-      if (spreadCount === 0) runAutoBuild()
 
+      // Importing only fills the photo pool — matching the reference app, spreads are only
+      // created once the user explicitly runs Auto Build (or adds a blank spread by hand).
       if (!isMissingColorProfileDialogHidden()) {
         const fileByName = new Map(files.map((f) => [f.name, f]))
         const missing = (

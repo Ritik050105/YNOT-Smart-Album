@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid'
 import { Project, PhotoAsset, Spread, TemplateDefinition, TextBox, ToneAdjustments, ProjectFile } from '@/types'
 import {
   autoBuildSpreads,
+  buildSpreadsFromGroups,
   DEFAULT_AUTO_LAYOUT_OPTIONS,
   AutoLayoutOptions,
   retemplateSpread,
@@ -142,9 +143,6 @@ interface ProjectState {
   /** View menu's "Guides" toggle — ruler guides (Spread.guides) are hidden when off, same as
    *  Illustrator/InDesign's own show/hide guides. */
   showGuides: boolean
-  /** View menu's "Timeline" toggle — the horizontal spread strip + "Match Timeline Order" panel
-   *  above the canvas. */
-  showTimelinePanel: boolean
   /** Left (Import Photos), right (Album Info / Inspector / Templates), and bottom (Photo Dock)
    *  panel visibility — pure UI chrome, not project data, but kept here alongside
    *  showGrid/showPrintGuides since the same components (MenuBar's View menu, TopBar) need to
@@ -192,12 +190,21 @@ interface ProjectState {
    *  handling) out of the component that actually owns it. */
   canvasZoom: number
   canvasPan: { x: number; y: number }
+  /** Set while the reference app's focused single-spread "Designer View" is open (reached by
+   *  double-clicking a spread in the all-spreads overview, or Spread > Edit in Designer View) —
+   *  a dedicated zoomed-in editing mode with its own ruler and tool rail, separate from the
+   *  overview's row of spread cards. */
+  designerViewSpreadId: string | null
   autoLayoutOptions: AutoLayoutOptions
   history: Project[]
   future: Project[]
 
   addPhotos: (photos: PhotoAsset[]) => void
   runAutoBuild: () => void
+  /** The Auto Build dialog's "Auto Build" button — appends new spreads built from `groups`
+   *  (each a photo-id array, one per new spread) to the END of the existing album, leaving any
+   *  spreads already there untouched. Unlike `runAutoBuild`, which replaces the whole album. */
+  runAutoBuildFromGroups: (groups: string[][], opts?: { allowTemplateRepeats?: boolean; matchTimelineOrder?: boolean }) => void
   selectSpread: (id: string | null) => void
   selectPlaceholder: (id: string | null) => void
   selectTextBox: (id: string | null) => void
@@ -208,7 +215,6 @@ interface ProjectState {
   toggleGrid: () => void
   togglePrintGuides: () => void
   toggleGuides: () => void
-  toggleTimelinePanel: () => void
   addGuide: (spreadId: string, axis: 'horizontal' | 'vertical', position: number) => void
   moveGuide: (spreadId: string, axis: 'horizontal' | 'vertical', index: number, position: number) => void
   removeGuide: (spreadId: string, axis: 'horizontal' | 'vertical', index: number) => void
@@ -232,6 +238,8 @@ interface ProjectState {
   setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'text' | 'zoom') => void
   setTemplateFrameFilter: (f: TemplateFrameFilter) => void
   toggleShowPhotoFileNames: () => void
+  enterDesignerView: (spreadId: string) => void
+  exitDesignerView: () => void
   setCanvasViewportMirror: (zoom: number, pan: { x: number; y: number }) => void
   copyPlacement: (spreadId: string, placeholderId: string) => void
   pastePlacement: (spreadId: string, placeholderIds: string[]) => void
@@ -317,9 +325,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   showGrid: false,
   showPrintGuides: true,
   showGuides: true,
-  // The spread filmstrip is core chrome in the reference app's single-canvas editor (it's the
-  // only place every spread is visible at once), not an opt-in extra — on by default.
-  showTimelinePanel: true,
   // Collapsed by default — App.tsx reveals it on entering the editor (Import Photos is the
   // first useful action), rather than always eating canvas width up front.
   leftPanelOpen: false,
@@ -336,6 +341,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   showPhotoFileNames: false,
   canvasZoom: 1,
   canvasPan: { x: 0, y: 0 },
+  designerViewSpreadId: null,
   autoLayoutOptions: DEFAULT_AUTO_LAYOUT_OPTIONS,
   history: [],
   future: [],
@@ -364,6 +370,47 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     // nothing, and the Inspector's template-switching panel (which only renders for a
     // selected spread) never appears.
     const first = spreads.find((s) => !s.isCover) ?? spreads[0]
+    if (first) {
+      set({
+        selectedSpreadId: first.id,
+        selectedPlaceholderId: null,
+        selectedTextBoxId: null,
+        multiSelectedPlaceholderIds: [],
+      })
+    }
+  },
+
+  runAutoBuildFromGroups: (groups, opts) => {
+    const { project, autoLayoutOptions } = get()
+    const photosById = new Map(project.photos.map((p) => [p.id, p]))
+    const photoGroups = groups
+      .map((ids) => ids.map((id) => photosById.get(id)).filter((p): p is PhotoAsset => !!p))
+      .filter((g) => g.length > 0)
+    if (photoGroups.length === 0) return
+    const appearance = {
+      backgroundColor: project.defaultBackgroundColor,
+      gapPx: project.defaultGapPx,
+      marginPx: project.defaultMarginPx,
+      borderWidth: project.defaultBorderWidth,
+      borderColor: project.defaultBorderColor,
+    }
+    const layout = {
+      start: project.layoutStart,
+      end: project.layoutEnd,
+      includeFullSpreadTemplates: project.includeFullSpreadTemplates,
+    }
+    const newSpreads = buildSpreadsFromGroups(
+      photoGroups,
+      appearance,
+      project.enabledTemplateIds,
+      layout,
+      opts?.matchTimelineOrder ?? autoLayoutOptions.matchTimelineOrder,
+      opts?.allowTemplateRepeats ?? false
+    )
+    const maxOrder = project.spreads.reduce((m, s) => Math.max(m, s.order), -1)
+    const appended = newSpreads.map((s, i) => ({ ...s, order: maxOrder + 1 + i }))
+    withHistory(set, (p) => ({ ...p, spreads: [...p.spreads, ...appended] }))
+    const first = appended[0]
     if (first) {
       set({
         selectedSpreadId: first.id,
@@ -430,7 +477,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   togglePrintGuides: () => set((s) => ({ showPrintGuides: !s.showPrintGuides })),
   toggleGuides: () => set((s) => ({ showGuides: !s.showGuides })),
-  toggleTimelinePanel: () => set((s) => ({ showTimelinePanel: !s.showTimelinePanel })),
 
   addGuide: (spreadId, axis, position) =>
     withHistory(set, (p) => ({
@@ -485,6 +531,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setTemplateFrameFilter: (f) => set({ templateFrameFilter: f }),
   toggleShowPhotoFileNames: () => set((s) => ({ showPhotoFileNames: !s.showPhotoFileNames })),
+  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId }),
+  exitDesignerView: () => set({ designerViewSpreadId: null }),
   setCanvasViewportMirror: (zoom, pan) => set({ canvasZoom: zoom, canvasPan: pan }),
 
   copyPlacement: (spreadId, placeholderId) => {
