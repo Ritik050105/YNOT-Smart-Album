@@ -570,8 +570,8 @@ export default function DesignerCanvas() {
     return (
       <div className="designer-canvas designer-canvas--empty">
         <div className="empty-state">
-          <Icon name="frame" size={28} />
-          <p>Select a spread from the left to start designing, or import photos to get going.</p>
+          <Icon name="upload" size={28} />
+          <p>Drop images here to import them into the project.</p>
         </div>
       </div>
     )

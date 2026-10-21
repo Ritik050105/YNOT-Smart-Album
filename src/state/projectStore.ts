@@ -94,21 +94,9 @@ function newProject(opts: Partial<NewProjectOptions> & { name: string; kind?: Pr
   const defaultMarginPx = opts.defaultMarginPx ?? 24
   const defaultBorderWidth = opts.defaultBorderWidth ?? 0
   const defaultBorderColor = opts.defaultBorderColor ?? '#ffffff'
-  // Albums (not Galleries/Slideshows, which don't use spreads at all) start with one blank
-  // interior spread already in place, so the editor opens ready to work rather than on an empty
-  // "Select a spread…" placeholder the user has to clear by clicking "Add Blank Spread" first.
-  const spreads: Spread[] =
-    kind === 'album'
-      ? [
-          createBlankSpread(0, {
-            backgroundColor: defaultBackgroundColor,
-            gapPx: defaultGapPx,
-            marginPx: defaultMarginPx,
-            borderWidth: defaultBorderWidth,
-            borderColor: defaultBorderColor,
-          }),
-        ]
-      : []
+  // Matches the reference app: a brand-new album starts with zero spreads — they only appear
+  // once photos come in (Auto-Build, or Spread > Add Blank Spread), not pre-seeded on creation.
+  const spreads: Spread[] = []
   return {
     id: uuid(),
     name: opts.name,
@@ -1017,13 +1005,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   createProjectFromWizard: (opts) => {
     const project = newProject(opts)
-    // Select the blank spread newProject() just seeded (album kind only — Galleries/Slideshows
-    // have none) so the canvas opens showing it, not the empty "Select a spread…" placeholder,
-    // and the right panel's Inspector/template suggestions reveal right away.
-    const seeded = project.spreads.find((s) => !s.isCover) ?? null
     set({
       project,
-      selectedSpreadId: seeded?.id ?? null,
+      selectedSpreadId: null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
       multiSelectedPlaceholderIds: [],
