@@ -3,7 +3,7 @@ import { useProjectStore } from '@/state/projectStore'
 import SpreadThumbnail from './SpreadThumbnail'
 import Icon from './Icon'
 
-const THUMB_WIDTH = 90
+const THUMB_WIDTH = 68
 
 /** View menu's "Timeline" panel — a horizontal strip of every spread (reusing the same
  *  lightweight thumbnail the Spreads panel uses) for quickly scrubbing through the album, plus
@@ -37,9 +37,13 @@ export default function TimelinePanel() {
 
   if (!showTimelinePanel || spreads.length === 0) return null
 
+  const rearrangeHint = hasMixedOrientations
+    ? 'Rearrange Timeline: this spread has a mix of vertical and horizontal images.'
+    : 'Rearrange Timeline: can be rearranged only if there is a mix of vertical and horizontal images.'
+
   return (
     <div className="timeline-panel">
-      <div className="timeline-panel__strip-row">
+      <div className="timeline-panel__strip-row" title={rearrangeHint}>
         <button className="btn btn--icon btn--tiny" onClick={() => scroll(-1)} title="Scroll left">
           <Icon name="chevronLeft" size={12} />
         </button>
@@ -60,14 +64,6 @@ export default function TimelinePanel() {
         </button>
       </div>
 
-      <div className="timeline-panel__rearrange">
-        <span className="timeline-panel__label">Rearrange Timeline:</span>
-        <span className="muted">
-          {hasMixedOrientations
-            ? 'This spread has a mix of vertical and horizontal images.'
-            : 'Timeline can be rearranged only if there is a mix of vertical and horizontal images.'}
-        </span>
-      </div>
       <div className="timeline-panel__rearrange">
         <span className="timeline-panel__label">Match Timeline Order:</span>
         <label className="checkbox-row" style={{ marginTop: 0 }}>

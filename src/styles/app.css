@@ -498,6 +498,7 @@ body {
   flex: 1;
   display: flex;
   overflow: hidden;
+  min-height: 200px;
 }
 .designer-view__tool-rail {
   flex-shrink: 0;
@@ -629,11 +630,13 @@ body {
 
 .designer-view__timeline {
   flex-shrink: 0;
-  padding: 10px 14px 0;
+  max-height: 190px;
+  overflow-y: auto;
+  padding: 6px 14px 0;
   background: var(--bg);
 }
 .designer-view__timeline .timeline-panel {
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .bottom-panel {
@@ -665,10 +668,10 @@ body {
 .template-suggestions {
   flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 10px;
-  padding: 10px 12px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 5px 10px;
   background: var(--panel);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-lg);
@@ -677,29 +680,31 @@ body {
 .template-suggestions__header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 10.5px;
   font-weight: 700;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 .template-suggestions__strip {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding: 2px 0;
 }
 .template-suggestions__strip .template-swatch {
   flex-shrink: 0;
-  width: 74px;
+  width: 42px;
+  padding: 2px;
 }
 
 .timeline-panel {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding: 12px;
+  gap: 4px;
+  padding: 8px 10px;
   background: var(--panel);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-lg);
