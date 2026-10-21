@@ -8,6 +8,7 @@ import { loadSizePresets, addSizePreset, deleteSizePreset, SizePreset } from '@/
 import { inToDisplay, displayToIn, DisplayUnit } from '@/engine/units'
 import { AlbumSize, AlbumSizeCategory, EdgeInset } from '@/types'
 import TemplateThumb from './TemplatePreview'
+import ColorField from './ColorField'
 
 const SHAPES: { category: AlbumSizeCategory; label: string; aspect: number }[] = [
   { category: 'Square', label: 'Square', aspect: 1 },
@@ -524,7 +525,7 @@ export default function NewProjectWizard({
             <div className="field-section__title">Appearance</div>
             <div className="style-field">
               <span className="style-field__label">Background color</span>
-              <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} />
+              <ColorField value={backgroundColor} onChange={setBackgroundColor} />
             </div>
 
             <div className="style-field">
@@ -553,7 +554,7 @@ export default function NewProjectWizard({
                 onChange={(e) => setBorderWidth(Number(e.target.value))}
               />
               <span className="style-field__unit">pt</span>
-              <input type="color" value={borderColor} onChange={(e) => setBorderColor(e.target.value)} />
+              <ColorField value={borderColor} onChange={setBorderColor} />
             </div>
 
             <div className="style-field">

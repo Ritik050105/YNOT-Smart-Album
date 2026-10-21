@@ -38,12 +38,20 @@ export default function App() {
   const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
   const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
+  const revealLeftPanel = useProjectStore((s) => s.revealLeftPanel)
+  const revealRightPanel = useProjectStore((s) => s.revealRightPanel)
+  const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
+  const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
+  const selectedTextBoxId = useProjectStore((s) => s.selectedTextBoxId)
   const projectKind = useProjectStore((s) => s.project.kind)
   const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
 
   useEffect(() => {
     function onEnterEditor() {
       setShowHome(false)
+      // Import Photos / Spreads is the first thing you need in a fresh or just-opened project —
+      // reveal it right away rather than making the user hunt for the collapsed panel's toggle.
+      revealLeftPanel()
     }
     function onGoHome() {
       setShowHome(true)
@@ -54,7 +62,16 @@ export default function App() {
       window.removeEventListener('album-studio:enter-editor', onEnterEditor)
       window.removeEventListener('album-studio:go-home', onGoHome)
     }
-  }, [])
+  }, [revealLeftPanel])
+
+  // The right panel (Album Info / Inspector / Template Library) has nothing to show until a
+  // spread, placed photo, or text box is selected — reveal it the moment one is, rather than
+  // always reserving canvas width for it. Keyed off the *id values themselves* (not just
+  // "truthy"), so picking a different spread/photo/text box re-reveals a panel the user had
+  // since collapsed, while re-clicking the same already-selected thing doesn't fight that choice.
+  useEffect(() => {
+    if (selectedSpreadId || selectedPlaceholderId || selectedTextBoxId) revealRightPanel()
+  }, [selectedSpreadId, selectedPlaceholderId, selectedTextBoxId, revealRightPanel])
 
   // The main window is the one true store — a separate "New Project" OS window hands its
   // finished options back here over IPC instead of creating the project in its own isolated store.
@@ -89,13 +106,14 @@ export default function App() {
       if (file) {
         loadProjectFile(file)
         setShowHome(false)
+        revealLeftPanel()
       }
       setRestoringSession(false)
     })
     return () => {
       cancelled = true
     }
-  }, [loadProjectFile])
+  }, [loadProjectFile, revealLeftPanel])
 
   if (restoringSession) return <NewProjectLoadingOverlay title="Restoring your last session…" subtitle="Reopening where you left off." />
 

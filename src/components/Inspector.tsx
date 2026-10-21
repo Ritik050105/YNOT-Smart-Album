@@ -10,6 +10,7 @@ import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { LOCAL_FONTS, CLOUD_FONTS, FontOption, getLocalFonts, ensureFontLoaded } from '@/engine/fonts'
 import Icon from './Icon'
 import SliderField from './SliderField'
+import ColorField from './ColorField'
 
 export default function Inspector() {
   const [localFonts, setLocalFonts] = useState<FontOption[]>(LOCAL_FONTS)
@@ -218,11 +219,7 @@ export default function Inspector() {
         </h4>
         <label>
           Background
-          <input
-            type="color"
-            value={spread.backgroundColor}
-            onChange={(e) => updateSpread(spread.id, { backgroundColor: e.target.value })}
-          />
+          <ColorField value={spread.backgroundColor} onChange={(hex) => updateSpread(spread.id, { backgroundColor: hex })} />
         </label>
         <SliderField
           label="Gap"
@@ -418,10 +415,9 @@ export default function Inspector() {
           />
           <label>
             Border color
-            <input
-              type="color"
+            <ColorField
               value={placement.borderColor}
-              onChange={(e) => updatePlacement(spread.id, placement.placeholderId, { borderColor: e.target.value })}
+              onChange={(hex) => updatePlacement(spread.id, placement.placeholderId, { borderColor: hex })}
             />
           </label>
           <SliderField
@@ -533,11 +529,7 @@ export default function Inspector() {
           />
           <label>
             Color
-            <input
-              type="color"
-              value={textBox.color}
-              onChange={(e) => updateTextBox(spread.id, textBox.id, { color: e.target.value })}
-            />
+            <ColorField value={textBox.color} onChange={(hex) => updateTextBox(spread.id, textBox.id, { color: hex })} />
           </label>
           <div className="text-style-row">
             <button

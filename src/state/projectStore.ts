@@ -55,14 +55,18 @@ setUserTemplateRegistry(loadUserTemplates())
 const PHOTO_DOCK_ZOOM_KEY = 'albumstudio.photoDockZoom'
 const PHOTO_DOCK_ZOOM_MIN = 56
 const PHOTO_DOCK_ZOOM_MAX = 160
+// The reference app's own Image Browser shows noticeably larger, more prominent thumbnails than
+// our old 84px default (measured off its own documentation screenshots at roughly 150-170px) —
+// started closer to the top of our existing 56-160 range instead, rather than a bare minimum.
+const PHOTO_DOCK_ZOOM_DEFAULT = 120
 
 function loadPhotoDockZoom(): number {
   try {
     const raw = localStorage.getItem(PHOTO_DOCK_ZOOM_KEY)
     const n = raw ? Number(raw) : NaN
-    return Number.isFinite(n) ? Math.max(PHOTO_DOCK_ZOOM_MIN, Math.min(PHOTO_DOCK_ZOOM_MAX, n)) : 84
+    return Number.isFinite(n) ? Math.max(PHOTO_DOCK_ZOOM_MIN, Math.min(PHOTO_DOCK_ZOOM_MAX, n)) : PHOTO_DOCK_ZOOM_DEFAULT
   } catch {
-    return 84
+    return PHOTO_DOCK_ZOOM_DEFAULT
   }
 }
 
@@ -214,6 +218,12 @@ interface ProjectState {
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
   toggleBottomPanel: () => void
+  /** Forces the left/right panel open (never closed) — used to auto-expand a panel the moment
+   *  it becomes useful (entering the editor for the left panel's Import/Spreads, selecting
+   *  something for the right panel's Inspector), without fighting a manual collapse the other
+   *  way: this never *closes* a panel the user already opened or re-collapsed themselves. */
+  revealLeftPanel: () => void
+  revealRightPanel: () => void
   setPhotoDockZoom: (v: number) => void
   setPreparingProject: (v: boolean) => void
   setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'text' | 'zoom') => void
@@ -306,8 +316,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   showPrintGuides: true,
   showGuides: true,
   showTimelinePanel: false,
-  leftPanelOpen: true,
-  rightPanelOpen: true,
+  // Collapsed by default — App.tsx reveals the left panel on entering the editor (Import Photos
+  // is the first useful action) and the right panel the moment something is selected (Inspector
+  // has nothing to show until then), rather than always eating canvas width up front.
+  leftPanelOpen: false,
+  rightPanelOpen: false,
   bottomPanelOpen: true,
   photoDockZoom: loadPhotoDockZoom(),
   preparingProject: false,
@@ -440,6 +453,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   toggleLeftPanel: () => set((s) => ({ leftPanelOpen: !s.leftPanelOpen })),
   toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
   toggleBottomPanel: () => set((s) => ({ bottomPanelOpen: !s.bottomPanelOpen })),
+  revealLeftPanel: () => set((s) => (s.leftPanelOpen ? s : { leftPanelOpen: true })),
+  revealRightPanel: () => set((s) => (s.rightPanelOpen ? s : { rightPanelOpen: true })),
   setPhotoDockZoom: (v) => {
     const clamped = Math.max(PHOTO_DOCK_ZOOM_MIN, Math.min(PHOTO_DOCK_ZOOM_MAX, Math.round(v)))
     set({ photoDockZoom: clamped })
