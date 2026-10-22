@@ -1237,6 +1237,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const project = newProject(opts)
     set({
       project,
+      leftPanelOpen: false,
+      rightPanelOpen: false,
+      bottomPanelOpen: false,
+      designerViewSpreadId: null,
       selectedSpreadId: null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,

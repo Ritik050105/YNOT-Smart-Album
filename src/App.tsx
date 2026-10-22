@@ -180,7 +180,7 @@ export default function App() {
     )
   }
 
-  if (preparingProject) return <NewProjectLoadingOverlay />
+  if (preparingProject) return <NewProjectLoadingOverlay creating title="Creating project" subtitle="Preparing your album and template library" />
 
   if (showHome) return <HomeScreen />
 

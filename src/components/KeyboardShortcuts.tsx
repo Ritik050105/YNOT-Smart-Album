@@ -35,6 +35,12 @@ export default function KeyboardShortcuts() {
         return
       }
 
+      if (mod && !editable && ['n','o','q'].includes(e.key.toLowerCase())) {
+        e.preventDefault()
+        if (e.key.toLowerCase() === 'q') void window.albumStudio?.closeCurrentWindow()
+        else window.dispatchEvent(new CustomEvent(e.key.toLowerCase() === 'n' ? 'album-studio:new-project' : 'album-studio:open-project'))
+        return
+      }
       const s = useProjectStore.getState()
       if (s.matchingTemplatesOpen) {
         if (e.key === 'Escape') { e.preventDefault(); s.closeMatchingTemplates(); return }

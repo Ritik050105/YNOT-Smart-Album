@@ -120,3 +120,33 @@
   .album-editor .topbar > .btn--primary { padding: 0 10px; font-size: 13px; }
   .album-editor .photo-dock__toolbar { gap: 8px; }
 }
+/* Empty album: the image browser opens below the spread, without a modal. */
+.album-editor .spreads-panel--empty .spreads-panel__row { justify-content: center; align-items: center; }
+.album-editor .spreads-panel--empty .spreads-panel__card--drop { flex: 0 1 auto; width: min(85%, calc(min(52vh, 470px) * var(--spread-aspect))); max-height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+.album-editor .spreads-panel--empty .spreads-panel__card--drop > svg { color: #bdbdbd; }
+.album-editor .spreads-panel__empty-timeline { flex: 0 0 clamp(90px, 19vh, 164px); background: #a2a2a2; }
+.album-editor:has(.photo-dock) .spreads-panel--empty .spreads-panel__card--drop { width: min(85%, calc(148px * var(--spread-aspect))); }
+.album-editor:has(.photo-dock) .spreads-panel--empty .spreads-panel__card--drop > svg { display: none; }
+.album-editor .photo-dock--empty .photo-dock__strip { flex: 1; width: 100%; min-height: 140px; padding: 22px; }
+.album-editor .photo-dock__dropzone { width: 100%; min-height: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; border: 1px dashed #aaa; background: transparent; color: #bdbdbd; cursor: pointer; }
+.photo-dock__drop-icon { position: relative; }
+.photo-dock__drop-icon > span { position: absolute; right: -10px; bottom: 0; width: 30px; height: 30px; border-radius: 50%; background: #ffe735; color: #555; font-size: 25px; line-height: 28px; }
+.album-editor .photo-dock--empty .photo-dock__import-actions > .btn:first-child { background: #ffe735; color: #444; }
+.album-editor .menubar__dropdown { background: #fafafa; border: 1px solid #dedede; border-radius: 3px; min-width: 300px; padding: 5px 8px; box-shadow: 0 5px 12px #0003; }
+.album-editor .menubar__dropdown-item { color: #333; min-height: 29px; font-size: 13px; }
+.album-editor .menubar__dropdown-item kbd { color: #666; }
+.album-editor .menubar__dropdown-item:disabled, .album-editor .menubar__dropdown-item:disabled kbd { color: #aaa; opacity: 1; }
+.album-editor .menubar__dropdown-item:hover:not(:disabled) { background: #e9e9e9; }
+@media(max-height:600px) {
+  .album-editor .spreads-panel__empty-timeline { flex-basis: 65px; }
+  .album-editor:has(.photo-dock) .spreads-panel--empty .spreads-panel__card--drop { width: min(85%, calc(100px * var(--spread-aspect))); padding: 12px; }
+  .album-editor .photo-dock__dropzone { gap: 6px; min-height: 90px; }
+  .album-editor .photo-dock__drop-icon > svg { width: 50px; height: 50px; }
+}
+.album-editor .menubar__dropdown-item.has-separator { border-top: 1px solid #ddd; margin-top: 5px; padding-top: 9px; }
+.menubar__recent summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; }
+.menubar__recent-list { padding-left: 12px; max-height: 220px; overflow: auto; }
+.album-editor .photo-dock--empty { align-items: stretch; justify-content: flex-start; }
+.album-editor .photo-dock--empty .photo-dock__toolbar { width: 100%; }
+.album-editor .photo-dock--empty .photo-dock__import-actions { justify-content: flex-start; }
+.album-editor .photo-dock--empty .photo-dock__import-actions > button:first-of-type { background: #ffe735; color: #444; }

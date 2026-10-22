@@ -1,0 +1,39 @@
+const {app,BrowserWindow}=require('electron')
+const {build}=require('esbuild')
+const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict')
+app.disableHardwareAcceleration()
+app.whenReady().then(async()=>{
+ const out=path.join(app.getPath('temp'),'ynot-empty-workspace-qa');await fs.mkdir(out,{recursive:true})
+ const source=`import React from 'react';import{createRoot}from'react-dom/client';import App from './src/App';import{useProjectStore as store}from'./src/state/projectStore';window.store=store;store.setState({bottomPanelOpen:true,leftPanelOpen:true,rightPanelOpen:true});store.getState().createProjectFromWizard({name:'New album',size:{...store.getState().project.size,widthIn:20,heightIn:10}});createRoot(document.getElementById('root')).render(<App/>);`
+ const result=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},bundle:true,platform:'browser',write:false,loader:{'.png':'dataurl','.icc':'dataurl'}})
+ await fs.writeFile(path.join(out,'fixture.js'),result.outputFiles[0].text)
+ for(const name of ['app','editor'])await fs.copyFile(`src/styles/${name}.css`,path.join(out,`${name}.css`))
+ await fs.writeFile(path.join(out,'index.html'),'<html><head><link rel="stylesheet" href="app.css"><link rel="stylesheet" href="editor.css"></head><body><div id="root"></div><script src="fixture.js"></script></body></html>')
+ const win=new BrowserWindow({show:false,frame:false,width:1600,height:900,webPreferences:{offscreen:true}})
+ win.webContents.on('console-message',(_,level,message)=>{if(level===3)console.error(message)});await win.loadFile(path.join(out,'index.html'));const evaluate=async code=>{try{return await win.webContents.executeJavaScript(`(()=>eval(${JSON.stringify(code)}))()`)}catch(e){console.error(code);throw e}}
+ await new Promise(r=>setTimeout(r,200));await evaluate(`window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))`)
+ for(let i=0;i<40&&!await evaluate('!!document.querySelector(".spreads-panel--empty")');i++)await new Promise(r=>setTimeout(r,100))
+ assert.equal(await evaluate('store.getState().bottomPanelOpen'),false)
+ assert.equal(await evaluate('document.querySelectorAll(".app-sidebar").length'),0)
+ for(const [w,h]of [[1600,900],[720,480]]){
+  win.setSize(w,h);await new Promise(r=>setTimeout(r,200))
+  const before=await evaluate('document.querySelector("[data-new-spread]").getBoundingClientRect().width')
+  assert.ok(await evaluate('document.querySelector("[data-new-spread]").getBoundingClientRect().right<=innerWidth'))
+  await fs.writeFile(path.join(out,`${w}-closed.png`),(await win.webContents.capturePage()).toPNG())
+  await evaluate(`document.querySelector('[aria-label="Show image browser"]').click()`);await new Promise(r=>setTimeout(r,100))
+  assert.ok(await evaluate('!!document.querySelector(".photo-dock__dropzone")'))
+  assert.ok(await evaluate('document.querySelector("[data-new-spread]").getBoundingClientRect().width')<before)
+  assert.ok(await evaluate('document.querySelector(".photo-dock").getBoundingClientRect().bottom<=innerHeight+1'))
+  await fs.writeFile(path.join(out,`${w}-open.png`),(await win.webContents.capturePage()).toPNG())
+  await evaluate(`document.querySelector('[aria-label="Hide image browser"]').click()`);await new Promise(r=>setTimeout(r,100))
+ }
+ for(const menu of ['File','Edit','Frame','Cover']){
+  await evaluate(`Array.from(document.querySelectorAll('.menubar__label')).find(e=>e.textContent===${JSON.stringify(menu)}).click()`);await new Promise(r=>setTimeout(r,80))
+  assert.ok(await evaluate(`document.querySelector('[role=menu]').getAttribute('aria-label')===${JSON.stringify(menu)}`))
+  if(menu==='Edit')assert.ok(await evaluate(`Array.from(document.querySelectorAll('[role=menuitem]')).find(e=>e.textContent.includes('Undo')).disabled`))
+  await evaluate(`document.querySelector('[role=menu]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await new Promise(r=>setTimeout(r,80))
+  assert.equal(await evaluate('!!document.querySelector("[role=menu]")'),false)
+ }
+ console.log('Empty workspace checks passed: new-project panel reset, responsive drop target, bottom browser toggle, menus and disabled selection actions.',out)
+ win.destroy();app.quit()
+}).catch(e=>{console.error(e);app.exit(1)})

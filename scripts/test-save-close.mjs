@@ -16,7 +16,7 @@ const result=await build({entryPoints:['src/components/TopBar.tsx'],bundle:true,
   stub(/^react$/,'react','export const useState=(value)=>[typeof value==="function"?value():value,()=>{}];export const useEffect=(fn)=>globalThis.__saveEffects.push(fn);')
   stub(/^react\/jsx-runtime$/,'jsx','export const jsx=()=>null;export const jsxs=jsx;export const Fragment="fragment";')
   stub(/^@\/state\/projectStore$/,'store','export const useProjectStore=(selector)=>selector(globalThis.__saveState);useProjectStore.getState=()=>globalThis.__saveState;')
-  stub(/^@\/engine\/projectFile$/,'files','export const saveProjectToFile=(...args)=>globalThis.__saveFile(...args);export const openProjectFromFile=()=>null;')
+  stub(/^@\/engine\/projectFile$/,'files','export const saveProjectToFile=(...args)=>globalThis.__saveFile(...args);export const openProjectFromFile=()=>null;export const openProjectFromPath=()=>null;')
   stub(/^@\/engine\/sessionMarker$/,'session','export const clearOpenSession=()=>globalThis.__clearRecovery();')
   stub(/^@\/engine\/recentProjects$/,'recent','export const recordRecentProject=()=>{};')
   stub(/^\.\/(Icon|Modal|ExportModal|CustomSizeModal|NewProjectWizard|ProjectInfoPanel)$/,'component','export default function Component(){}')
@@ -39,4 +39,5 @@ globalThis.__saveFile=async()=>({saved:true,filePath:'saved.json'})
 closeRequest();await flush()
 assert.equal(closes,1);assert.equal(state.isDirty,false);assert.equal(state.currentFilePath,'saved.json');assert.equal(clears,1)
 console.log('Save-on-close checks passed: successful save closes, cancelled/failed saves stay open, and concurrent edits retain dirty state and recovery.')
+
 

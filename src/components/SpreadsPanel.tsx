@@ -160,7 +160,7 @@ export default function SpreadsPanel() {
   }
 
   return (
-    <div className="spreads-panel" style={{ '--spread-aspect': project.size.widthIn / project.size.heightIn } as CSSProperties}>
+    <div className={`spreads-panel ${project.spreads.length === 0 ? 'spreads-panel--empty' : ''}`} style={{ '--spread-aspect': project.size.widthIn / project.size.heightIn } as CSSProperties}>
       <div ref={spreadsRef} className="spreads-panel__row">
         {cover ? (
           <div
@@ -302,10 +302,12 @@ export default function SpreadsPanel() {
               e.target.value = ''
             }}
           />
+          {project.spreads.length === 0 && <Icon name="image" size={100} />}
           <p>Drop images here to create a new spread.</p>
         </div>
       </div>
 
+      {project.spreads.length === 0 && <div className="spreads-panel__empty-timeline" />}
       {spreads.length > 0 && <div ref={timelineRef} className="spreads-panel__timeline" aria-label="Album image timeline">
         {spreads.map((spread, index) => <Fragment key={spread.id}>
           <div className={`spreads-panel__photos ${selectedSpreadId === spread.id ? 'is-selected' : ''} ${target?.spreadId === spread.id ? 'is-drop-target' : ''}`}

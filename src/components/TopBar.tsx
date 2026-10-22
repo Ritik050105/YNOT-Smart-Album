@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES } from '@/engine/albumSizes'
-import { saveProjectToFile, openProjectFromFile } from '@/engine/projectFile'
+import { saveProjectToFile, openProjectFromFile, openProjectFromPath } from '@/engine/projectFile'
 import { Theme, applyTheme, getStoredTheme } from '@/engine/theme'
 import { DisplayUnit } from '@/engine/units'
 import { recordRecentProject } from '@/engine/recentProjects'
@@ -99,10 +99,11 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
     }
   }
 
-  async function handleOpenProject() {
+  async function handleOpenProject(filePath?: string) {
     setProjectBusy('open')
     try {
-      const opened = await openProjectFromFile()
+      const file = filePath ? await openProjectFromPath(filePath) : null
+      const opened = filePath ? (file ? { file, filePath } : null) : await openProjectFromFile()
       if (opened) {
         if (!confirmDiscardUnsaved(useProjectStore.getState().isDirty)) return
         loadProjectFile(opened.file)
@@ -168,8 +169,8 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
     function onNewProject() {
       handleNewProjectClick()
     }
-    function onOpenProject() {
-      if (projectBusy === null) void handleOpenProject()
+    function onOpenProject(event: Event) {
+      if (projectBusy === null) void handleOpenProject((event as CustomEvent<{ filePath?: string }>).detail?.filePath)
     }
     const unsubscribeClose = window.albumStudio?.onSaveBeforeClose(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -229,14 +230,14 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
 
 
         <button className="btn" onClick={handleNewProjectClick}>New Album</button>
-        <button className="btn" disabled={projectBusy !== null} onClick={handleOpenProject}>Open Project</button>
+        <button className="btn" disabled={projectBusy !== null} onClick={() => void handleOpenProject()}>Open Project</button>
         <button className="btn" disabled={projectBusy !== null} onClick={() => void handleSaveProject()}>Save Project</button>
         <button className="btn" disabled={history.length === 0} onClick={undo}>Undo</button>
         <button className="btn" disabled={future.length === 0} onClick={redo}>Redo</button>
         <button className="btn" onClick={toggleTheme}>{theme === 'light' ? 'Dark' : 'Light'} theme</button>
       </div></details>
+      <button className={`btn btn--icon ${bottomPanelOpen ? 'is-active' : ''}`} title={bottomPanelOpen ? 'Hide image browser' : 'Show image browser'} aria-label={bottomPanelOpen ? 'Hide image browser' : 'Show image browser'} aria-expanded={bottomPanelOpen} onClick={toggleBottomPanel}><Icon name="panelBottom" /></button>
       <button className={`btn btn--icon ${leftPanelOpen ? 'is-active' : ''}`} title={leftPanelOpen ? 'Hide left panel' : 'Show left panel'} onClick={toggleLeftPanel}><Icon name="panelLeft" /></button>
-      <button className={`btn btn--icon ${bottomPanelOpen ? 'is-active' : ''}`} title={bottomPanelOpen ? 'Hide photo dock' : 'Show photo dock'} onClick={toggleBottomPanel}><Icon name="panelBottom" /></button>
       <button className="btn btn--primary" disabled={project.spreads.length === 0} onClick={() => setExportOpen(true)}><Icon name="download" size={14} />Export</button>
 
       </>}

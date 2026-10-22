@@ -215,7 +215,7 @@ export default function PhotoBin() {
   }
 
   return (
-    <div className="photo-dock">
+    <div className={`photo-dock ${photos.length === 0 ? 'photo-dock--empty' : ''}`}>
       <div className="photo-dock__toolbar">
         {importButtons}
         <select className="photo-dock__filter-select" aria-label="Show photos" value={quickFilter} onChange={(e) => setQuickFilter(e.target.value as QuickFilter)}>
@@ -439,7 +439,13 @@ export default function PhotoBin() {
             </div>
           )
         })}
-        {sorted.length === 0 && <p className="muted photo-dock__empty">{photos.length ? 'No photos match this filter.' : 'No photos imported yet — use Import Images or Import folder.'}</p>}
+        {photos.length === 0 ? <button className="photo-dock__dropzone" disabled={importing}
+          onClick={() => importInputRef.current?.click()}
+          onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
+          onDrop={e => { e.preventDefault(); e.stopPropagation(); if (!importing) void handleFiles(e.dataTransfer.files) }}>
+          <span className="photo-dock__drop-icon"><Icon name="image" size={100} /><span>+</span></span>
+          <span>Drop images here to import them into the project.</span>
+        </button> : sorted.length === 0 && <p className="muted photo-dock__empty">No photos match this filter.</p>}
       </div>
     </div>
   )

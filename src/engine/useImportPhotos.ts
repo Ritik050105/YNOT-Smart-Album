@@ -28,6 +28,7 @@ export function useImportPhotos() {
     }
     if (newAssets.length > 0) {
       addPhotos(newAssets)
+      useProjectStore.setState({ bottomPanelOpen: true })
 
       // Importing only fills the photo pool — matching the reference app, spreads are only
       // created once the user explicitly runs Auto Build (or adds a blank spread by hand).

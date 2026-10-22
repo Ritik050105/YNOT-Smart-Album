@@ -11,23 +11,24 @@ import Modal from './Modal'
 export default function CoverSetup() {
   const project = useProjectStore((s) => s.project)
   const configureCover = useProjectStore((s) => s.configureCover)
-  const [request, setRequest] = useState<{ photoIds: string[] } | null>(null)
+  const [request, setRequest] = useState<{ photoIds: string[]; mode?: 'guide' | 'custom' } | null>(null)
   useEffect(() => {
-    const open = (event: Event) => setRequest({ photoIds: (event as CustomEvent).detail?.photoIds ?? [] })
+    const open = (event: Event) => setRequest({ photoIds: (event as CustomEvent).detail?.photoIds ?? [], mode: (event as CustomEvent).detail?.mode })
     window.addEventListener('album-studio:setup-cover', open)
     return () => window.removeEventListener('album-studio:setup-cover', open)
   }, [])
   return request && <CoverDialog key={project.id} projectSize={project.size} units={project.units}
-    existing={project.spreads.find((s) => s.isCover)} onClose={() => setRequest(null)}
+    initialMode={request.mode} existing={project.spreads.find((s) => s.isCover)} onClose={() => setRequest(null)}
     onCreate={(size, details) => { configureCover(size, { ...details, reviewedPageCount: project.spreads.filter((s) => !s.isCover).reduce((n, s) => n + (s.pageSide === 'spread' ? 2 : 1), 0) }, request.photoIds); setRequest(null) }} />
 }
 
-function CoverDialog({ projectSize, units: initialUnits, existing, onClose, onCreate }: {
+function CoverDialog({ projectSize, units: initialUnits, existing, initialMode, onClose, onCreate }: {
+  initialMode?: 'guide' | 'custom'
   projectSize: AlbumSize; units: DisplayUnit; existing?: Spread; onClose: () => void
   onCreate: (size: AlbumSize, details: Omit<NonNullable<Spread['coverDetails']>, 'reviewedPageCount'>) => void
 }) {
   const [step, setStep] = useState(existing ? 2 : 1)
-  const [mode, setMode] = useState<'guide' | 'custom'>('custom')
+  const [mode, setMode] = useState<'guide' | 'custom'>(initialMode ?? 'custom')
   const [units, setUnits] = useState(initialUnits)
   const [widthIn, setWidth] = useState(existing?.size?.widthIn ?? projectSize.widthIn)
   const [heightIn, setHeight] = useState(existing?.size?.heightIn ?? projectSize.heightIn)

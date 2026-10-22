@@ -5,12 +5,16 @@ import { importPhotoFiles } from '@/engine/importPhotos'
 import { TemplateFrameFilter } from '@/engine/templates'
 import { Theme, applyTheme, getStoredTheme } from '@/engine/theme'
 import Icon from './Icon'
+import Modal from './Modal'
+import { loadRecentProjects } from '@/engine/recentProjects'
 
 interface MenuItem {
   label: string
   shortcut?: string
   disabled?: boolean
   danger?: boolean
+  separator?: boolean
+  children?: MenuItem[]
   onClick: () => void
 }
 
@@ -90,6 +94,8 @@ export default function MenuBar() {
   const toggleShowPhotoFileNames = useProjectStore((s) => s.toggleShowPhotoFileNames)
 
   const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const isDirty = useProjectStore(s => s.isDirty)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [preferencesOpen, setPreferencesOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
@@ -120,6 +126,7 @@ export default function MenuBar() {
   const singlePlacement = spread && framePlaceholderIds.length === 1
     ? spread.placements.find((p) => p.placeholderId === framePlaceholderIds[0])
     : undefined
+  const selectedPhoto = project.photos.find(p => p.id === singlePlacement?.photoId)
   const hasPhotoInSelection = framePlaceholderIds.some(
     (id) => spread?.placements.find((p) => p.placeholderId === id)?.photoId
   )
@@ -168,26 +175,31 @@ export default function MenuBar() {
     {
       label: 'File',
       items: [
-        { label: 'New Album', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:new-project')) },
-        { label: 'Open Project…', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:open-project')) },
-        { label: 'Save Project', shortcut: 'Ctrl+S', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:save-project')) },
-        { label: 'Save As…', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:save-project-as')) },
-        { label: 'Import Images…', shortcut: 'Ctrl+I', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:import-images')) },
+        { label: 'New Project…', shortcut: 'Ctrl+N', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:new-project')) },
+        { label: 'Open Project…', shortcut: 'Ctrl+O', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:open-project')) },
+        { label: 'Open Recent Project', onClick: () => undefined, children: loadRecentProjects().filter(p => p.filePath).map(p => ({ label: p.name, disabled: !window.albumStudio?.isElectron, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:open-project', {detail:{filePath:p.filePath}})) })) },
+        { label: 'Save', separator: true, disabled: !isDirty, shortcut: 'Ctrl+S', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:save-project')) },
+        { label: 'Save As…', shortcut: 'Ctrl+Shift+S', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:save-project-as')) },
+        { label: 'Cloud Proofing (pending)', separator: true, disabled: true, onClick: () => undefined },
+        { label: 'Import Images…', separator: true, shortcut: 'Ctrl+I', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:import-images')) },
         {
-          label: 'Export Album…',
-          shortcut: 'Ctrl+E',
+          label: 'Export…',
+          separator: true,
+          shortcut: 'Ctrl+Shift+E',
           disabled: project.spreads.length === 0,
           onClick: () => window.dispatchEvent(new CustomEvent('album-studio:open-export')),
         },
+        { label: 'Quit YNOT Album Studio', separator: true, shortcut: 'Ctrl+Q', disabled: !window.albumStudio?.isElectron, onClick: () => { void window.albumStudio?.closeCurrentWindow() } },
       ],
     },
     {
       label: 'Edit',
       items: [
         { label: 'Undo', shortcut: 'Ctrl+Z', disabled: history.length === 0, onClick: undo },
-        { label: 'Redo', shortcut: 'Ctrl+Shift+Z', disabled: future.length === 0, onClick: redo },
+        { label: 'Redo', shortcut: 'Ctrl+Y', disabled: future.length === 0, onClick: redo },
         {
           label: 'Cut',
+          separator: true,
           shortcut: 'Ctrl+X',
           disabled: !spread || framePlaceholderIds.length !== 1 || !hasPhotoInSelection,
           onClick: () => spread && cutPlacement(spread.id, framePlaceholderIds[0]),
@@ -224,7 +236,7 @@ export default function MenuBar() {
           danger: true,
           onClick: deleteSelection,
         },
-        { label: 'Deselect All', shortcut: 'Ctrl+D', onClick: deselectAll },
+        { label: 'Deselect All', separator: true, disabled: !hasFrameSelection && !selectedTextBoxId && useProjectStore.getState().selectedPhotoIds.length === 0, shortcut: 'Ctrl+D', onClick: deselectAll },
       ],
     },
     {
@@ -240,7 +252,10 @@ export default function MenuBar() {
           disabled: !singlePlacement,
           onClick: () => spread && singlePlacement && updatePlacement(spread.id, singlePlacement.placeholderId, { flipVertical: !singlePlacement.flipVertical }),
         },
+        { label: 'Quick Preview', separator: true, disabled: !selectedPhoto, onClick: () => setPreviewOpen(true) },
+        { label: 'Reveal in Image Browser', disabled: !selectedPhoto, onClick: () => { if (selectedPhoto) { setSelectedPhotoIds([selectedPhoto.id], selectedPhoto.id); useProjectStore.setState({bottomPanelOpen:true}) } } },
         {
+          separator: true,
           label: 'Reload from Original',
           shortcut: 'Ctrl+R',
           disabled: !singlePlacement,
@@ -268,7 +283,8 @@ export default function MenuBar() {
       label: 'Cover',
       items: [
         { label: 'Add Cover', disabled: hasCover, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:setup-cover')) },
-        { label: 'Cover Specifications…', disabled: !hasCover, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:setup-cover')) },
+        { label: 'Change Cover Dimensions', disabled: !hasCover, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:setup-cover')) },
+        { label: 'Change Cover Guide File', disabled: !hasCover, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:setup-cover', {detail:{mode:'guide'}})) },
         { label: 'Delete Cover', disabled: !hasCover, danger: true, onClick: () => { const cover = project.spreads.find((s) => s.isCover); if (cover) deleteSpread(cover.id) } },
       ],
     },
@@ -356,16 +372,25 @@ export default function MenuBar() {
         <div key={menu.label} className="menubar__item">
           <button
             className={`menubar__label ${openMenu === menu.label ? 'is-open' : ''}`}
+            aria-haspopup="menu" aria-expanded={openMenu === menu.label}
+            onMouseEnter={() => { if (openMenu) setOpenMenu(menu.label) }}
+            onKeyDown={e => { if (e.key === 'Escape') setOpenMenu(null) }}
             onClick={() => setOpenMenu((m) => (m === menu.label ? null : menu.label))}
           >
             {menu.label}
           </button>
           {openMenu === menu.label && (
-            <div className="menubar__dropdown">
+            <div className="menubar__dropdown" role="menu" aria-label={menu.label} onKeyDown={e => { if (e.key === 'Escape') setOpenMenu(null) }}>
               {menu.items.map((item) => (
-                <button
+                item.children ? <details key={item.label} className="menubar__recent">
+                  <summary className="menubar__dropdown-item">{item.label}<span>›</span></summary>
+                  <div className="menubar__recent-list">
+                    {item.children.length ? item.children.map(child => <button key={child.label} className="menubar__dropdown-item" disabled={child.disabled} onClick={() => run(child.onClick)}>{child.label}</button>) : <span className="menubar__dropdown-item">No recent projects</span>}
+                  </div>
+                </details> : <button
+                  role="menuitem"
                   key={item.label}
-                  className={`menubar__dropdown-item ${item.danger ? 'is-danger' : ''}`}
+                  className={`menubar__dropdown-item ${item.danger ? 'is-danger' : ''} ${item.separator ? 'has-separator' : ''}`}
                   disabled={item.disabled}
                   onClick={() => run(item.onClick)}
                 >
@@ -388,6 +413,9 @@ export default function MenuBar() {
           e.target.value = ''
         }}
       />
+      {previewOpen && selectedPhoto && <Modal title={selectedPhoto.fileName} onClose={() => setPreviewOpen(false)} width={900}>
+        <img src={selectedPhoto.src} alt={selectedPhoto.fileName} style={{display:'block',maxWidth:'100%',maxHeight:'70vh',margin:'auto',objectFit:'contain'}} />
+      </Modal>}
       {newGuideOpen && (
         <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setNewGuideOpen(false)}>
           <div className="modal-card" style={{ width: 340 }} role="dialog" aria-modal="true" aria-label="New Guide">
