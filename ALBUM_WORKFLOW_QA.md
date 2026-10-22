@@ -211,3 +211,29 @@ The updated main-release executable launched successfully and reopened the saved
 - Fixed overlapping favorite/bin buttons discovered during browser clicks; verified favorite toggling after separating the hit targets.
 - Active filters remain indicated after closing options and can be cleared without reopening them.
 - Tested against the running localhost renderer with the browser file-chooser API. A manual Windows folder-dialog walkthrough was not performed.
+
+
+## Packaged Windows toolbar verification — 22 October 2026
+
+- Launched the updated packaged Windows application and created a local test project through its native Save As dialog.
+- Used the real Windows Select Folder to Upload dialog to select a local folder containing copies of the eight user-provided PNGs, four in a nested subfolder.
+- Confirmed eight imported photos, all eight rendered thumbnails, and the missing ICC profile notice.
+- Native filename search PHOTO-7 showed only photo-7.png; clearing all filters restored all eight thumbnails.
+- Clicked the first thumbnail favorite button and confirmed Remove from favorites, without opening bin assignment.
+- Opened the native Filter options row. Further native filter/sort and duplicate-import checks were interrupted by detected user input; those behaviors passed the preceding localhost tests and automated toolbar tests.
+- npm run typecheck, npm run dist, toolbar regression tests, and image-decoder checks passed. Image-decoder checks used the bundled runtime canvas package.
+- Updated setup, portable build, and unpacked application copied to the main release directory after backing up the previous build.
+- Setup SHA256: CA5E497AE7CB55B9A1D620AB270E2DE477CF19A0BCD431A20C4A067F024FF286.
+- Palette unchanged; IDML remains pending. Uploaded image fixtures and test project remain local and are not included in the installer or Git.
+
+## Reference editor UI and Windows verification — 22 October 2026
+
+- Latest user request superseded the earlier editor palette constraint: the album editor now uses the supplied reference's grey surface hierarchy and yellow accent. Home-screen branding and album/template content are unchanged.
+- Reorganized the photo toolbar into inline image/pattern tabs, imports, filter, bins, sort and existing search/filter/sort/folder tools. Used photos are dimmed but remain selectable and draggable.
+- Opened the packaged Windows app with the eight supplied photos. Dragged an already-used photo onto the new-spread target: spread count increased from two to three and the original placement remained visible.
+- Saved that test separately as ynot-premium-native-test.ablm (local temporary test file; excluded from Git).
+- Native inspection identified an overextended zoom slider and a plain-square Patterns icon; fixed the slider flex basis and replaced the icon with a dot grid.
+- Production renderer/main build and photo-browser/workflow regressions passed. The editor-themed inline matching-panel test passed eight size/scaling cases from 720x480 through simulated 3840x2160, including favorites, keyboard preview/cancel/apply and undo.
+- The first high-resolution test exhausted graphics memory at the host's device scale; rerunning with --force-device-scale-factor=1 passed. No physical 4K display was tested.
+- Further native folder-picker/template-panel checks and final cosmetic recheck were stopped when the user pressed Escape. No further desktop interaction followed. Folder import had passed the preceding packaged-build test above; it was not reverified in this final UI package.
+- Template generation/matching algorithms were not modified. IDML remains pending. Full SmartAlbums parity is not claimed.

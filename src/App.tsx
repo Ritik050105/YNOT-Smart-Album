@@ -191,7 +191,7 @@ export default function App() {
   if (designerViewSpreadId) return <DesignerViewScreen />
 
   return (
-    <div className="app-shell">
+    <div className="app-shell album-editor">
       <KeyboardShortcuts />
       <GlobalDropZone />
       <CoverSetup />

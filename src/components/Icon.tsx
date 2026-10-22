@@ -29,6 +29,7 @@ const PATHS: Record<string, string> = {
   check: 'M20 6 9 17l-5-5',
   x: 'M18 6 6 18 M6 6l12 12',
   swatch: 'M3 3h18v18H3V3Z',
+  pattern: 'M6 6h.01 M12 6h.01 M18 6h.01 M6 12h.01 M12 12h.01 M18 12h.01 M6 18h.01 M12 18h.01 M18 18h.01',
   droplet: 'M12 2s6 7 6 11.5a6 6 0 1 1-12 0C6 9 12 2 12 2Z',
   flipHorizontal: 'M12 3v18 M16 7l4 2-4 2 M8 7l-4 2 4 2 M16 15l4 2-4 2 M8 15l-4 2 4 2',
   moon: 'M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11Z',

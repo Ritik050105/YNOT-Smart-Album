@@ -44,9 +44,7 @@ type SortMode = 'time' | 'name' | 'bin'
  *  needs placing is obvious at a glance. Photos can also be tagged into named "Bins" (Pixellu's
  *  term for custom photo collections — e.g. "Ceremony", "Getting Ready") and filtered by one.
  *
- *  The toolbar's five icon tabs (All / Unplaced / Placed / Favorites / Tone Adjusted) mirror the
- *  reference app's own quick-filter row — its exact tab semantics aren't documented anywhere we
- *  could check, so this is our best-effort mapping onto filters this app can actually compute. */
+ *  Used images remain selectable and draggable so the same image can appear on multiple pages. */
 export default function PhotoBin() {
   const photos = useProjectStore((s) => s.project.photos)
   const spreads = useProjectStore((s) => s.project.spreads)
@@ -119,7 +117,10 @@ export default function PhotoBin() {
 
   const importButtons = (
     <div className="photo-dock__import-actions">
-      <button className="btn btn--tiny" title="Patterns" onClick={() => setPatternsOpen(true)}><Icon name="swatch" size={12} />Patterns</button>
+      <div className="photo-dock__mode-tabs">
+        <button className="is-active" title="Images" aria-label="Images" aria-pressed="true"><Icon name="image" size={20} /></button>
+        <button title="Patterns" aria-label="Patterns" onClick={() => setPatternsOpen(true)}><Icon name="pattern" size={24} strokeWidth={4} /></button>
+      </div>
       <input
         ref={importInputRef}
         type="file"
@@ -217,6 +218,43 @@ export default function PhotoBin() {
     <div className="photo-dock">
       <div className="photo-dock__toolbar">
         {importButtons}
+        <select className="photo-dock__filter-select" aria-label="Show photos" value={quickFilter} onChange={(e) => setQuickFilter(e.target.value as QuickFilter)}>
+          {QUICK_FILTERS.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
+        </select>
+        <div className="photo-dock__bins">
+          <span className="photo-dock__bins-label">
+            <Icon name="grid" size={13} />
+            Bins
+          </span>
+          <button className={!binFilter ? 'is-active' : ''} onClick={() => setBinFilter('')}>
+            All ({photos.length})
+          </button>
+          {allBins.map((b) => (
+            <button key={b} className={binFilter === b ? 'is-active' : ''} onClick={() => setBinFilter(b)}>
+              {b} ({photos.filter((p) => p.bins.includes(b)).length})
+            </button>
+          ))}
+          {addingBin ? (
+            <input
+              autoFocus
+              className="photo-dock__bin-input"
+              value={newBinDraft}
+              placeholder="Bin name…"
+              onChange={(e) => setNewBinDraft(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && confirmAddBin()}
+              onBlur={confirmAddBin}
+            />
+          ) : (
+            <button className="btn btn--icon btn--tiny" title="Add bin" onClick={() => setAddingBin(true)}>
+              <Icon name="plus" size={11} />
+            </button>
+          )}
+        </div>
+        <label className="photo-dock__inline-sort">Sort:
+          <select aria-label="Photo order" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortMode)}>
+            <option value="time">Sort by time taken</option><option value="name">Sort by file name</option><option value="bin">Sort by bin</option>
+          </select>
+        </label>
         <div className="photo-dock__tools" role="group" aria-label="Photo browser tools">
           {(['search', 'filter', 'sort'] as const).map((tool) => (
             <button key={tool} className={`btn btn--icon ${browserTool === tool || (tool === 'search' && search.trim()) || (tool === 'filter' && (quickFilter !== 'all' || binFilter)) ? 'is-active' : ''}`}
@@ -274,37 +312,6 @@ export default function PhotoBin() {
         <button className="btn btn--icon btn--tiny" aria-label="Close photo options" onClick={() => setBrowserTool(null)}><Icon name="x" size={14} /></button>
       </div>}
 
-      {/* Its own row, matching the reference app — bins are a primary way to browse a shoot
-         (Prep / Ceremony / Dinner / Portraits…), not a minor option buried among other filters. */}
-      <div className="photo-dock__bins">
-        <span className="photo-dock__bins-label">
-          <Icon name="grid" size={13} />
-          Bins
-        </span>
-        <button className={!binFilter ? 'is-active' : ''} onClick={() => setBinFilter('')}>
-          All ({photos.length})
-        </button>
-        {allBins.map((b) => (
-          <button key={b} className={binFilter === b ? 'is-active' : ''} onClick={() => setBinFilter(b)}>
-            {b} ({photos.filter((p) => p.bins.includes(b)).length})
-          </button>
-        ))}
-        {addingBin ? (
-          <input
-            autoFocus
-            className="photo-dock__bin-input"
-            value={newBinDraft}
-            placeholder="Bin name…"
-            onChange={(e) => setNewBinDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && confirmAddBin()}
-            onBlur={confirmAddBin}
-          />
-        ) : (
-          <button className="btn btn--icon btn--tiny" title="Add bin" onClick={() => setAddingBin(true)}>
-            <Icon name="plus" size={11} />
-          </button>
-        )}
-      </div>
       <div className="photo-dock__strip" tabIndex={0} aria-label="Image browser"
         onKeyDown={(event) => {
           if (event.target instanceof HTMLInputElement) return
@@ -333,6 +340,8 @@ export default function PhotoBin() {
               key={photo.id}
                 className={`photo-dock__item ${used ? 'is-used' : 'is-unused'} ${selected ? 'is-selected' : ''}`}
                 data-dock-photo={photo.id}
+              aria-label={`${photo.fileName}${used ? ' — used in album; drag to reuse' : ''}`}
+              style={{ width: `calc(var(--photo-size, 120px) * ${Math.min(1.7, Math.max(0.45, photo.width / photo.height || 1))})` }}
               tabIndex={-1}
               draggable
               onDragStart={(e) => {

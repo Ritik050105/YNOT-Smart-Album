@@ -42,6 +42,16 @@ assert.deepEqual(calls.pop(),['all',['b','c']],'Filtered-out photos are not sele
 console.log('Photo-browser checks passed: chronological Select All, focus-local arrows, range selection, scroll/focus and text-field isolation.')
 
 const control=(label)=>find(render(),node=>node.props?.['aria-label']===label)
+globalThis.__browserFilter='all'
+const usedPhoto=find(render(),node=>node.props?.['data-dock-photo']==='a')
+assert.equal(usedPhoto.props.draggable,true,'Used photos remain draggable')
+usedPhoto.props.onClick({currentTarget:{focus(){}},shiftKey:false,ctrlKey:false,metaKey:false})
+assert.deepEqual(calls.pop(),['select','a',['a','b','c'],'single'],'Used photos remain selectable')
+const transfer={setData(type,value){this[type]=value}}
+usedPhoto.props.onDragStart({dataTransfer:transfer})
+assert.equal(transfer.effectAllowed,'copy','Reuse copies the photo instead of moving its original placement')
+assert.equal(transfer['application/x-photo-id'],'a')
+globalThis.__browserFilter='unplaced'
 for(const tool of ['Search photos','Filter photos','Sort photos','Import folder']) assert.ok(control(tool),tool+' is visible')
 control('Search photos').props.onClick()
 control('Search photo filenames').props.onChange({target:{value:'b.jpg'}})

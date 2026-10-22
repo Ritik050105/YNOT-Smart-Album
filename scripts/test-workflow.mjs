@@ -144,6 +144,7 @@ state().undo()
 assert.equal(state().project,unchanged)
 state().insertTimelinePhotos(insertIds,null)
 assert.deepEqual(state().project.spreads.at(-1).placements.map((pl)=>pl.photoId).filter(Boolean),insertIds)
+assert.deepEqual(state().project.spreads.slice(0,-1),unchanged.spreads,'Reusing dock photos on a new spread preserves every original placement')
 console.log('Timeline drop checks passed: new spreads, ordered dock insertion, photo/edit preservation, undo/redo and invalid/no-op safety.')
 
 const beforeDelete=state().project

@@ -130,7 +130,7 @@ export default function DesignerViewScreen() {
   }
 
   return (
-    <div className="app-shell designer-view">
+    <div className="app-shell album-editor designer-view">
       <KeyboardShortcuts />
       <GlobalDropZone />
       <CoverSetup />
