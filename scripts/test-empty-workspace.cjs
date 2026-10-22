@@ -54,6 +54,7 @@ app.whenReady().then(async()=>{
   const dimensions=await evaluate('(()=>{const r=document.querySelector("[data-spread-drag]").getBoundingClientRect();return [r.width,r.height]})()')
   assert.ok(Math.abs(dimensions[0]/dimensions[1]-ratio)<0.01)
   assert.equal(await evaluate('document.querySelectorAll(".spread-thumb__fold").length'),1)
+  assert.ok(await evaluate(`(()=>{const card=document.querySelector('[data-spread-drag]').getBoundingClientRect();const icon=document.querySelector('[title="Browse matching templates"]').getBoundingClientRect();return Math.abs(icon.left+icon.width/2-card.left-card.width/2)<1})()`),'Browse templates stays centered over the fold')
   await evaluate('store.setState({bottomPanelOpen:true})');await new Promise(r=>setTimeout(r,150))
   assert.ok(await evaluate('document.querySelector("[data-spread-drag]").getBoundingClientRect().height')<dimensions[1])
   await evaluate('store.setState({bottomPanelOpen:false})')
