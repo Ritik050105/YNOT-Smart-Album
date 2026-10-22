@@ -8,6 +8,11 @@ export function exportPreflight(project: Project, indices?: number[], includeCov
   const selected = selectSpreads(project, indices, includeCover)
   const lowResolution = selected.filter((spread) => {
     const size = spread.size ?? project.size
+    const background = spread.backgroundPattern
+    if (background?.mode === 'cover' && background.width && background.height) {
+      const crop = computeCoverCrop(background.width, background.height, size.widthIn, size.heightIn)
+      if (effectiveDpi(background.width, background.height, crop, size.widthIn, size.heightIn) < size.dpi / 1.2) return true
+    }
     return computePlaceholderBoxes(spread, DESIGN_WIDTH, DESIGN_WIDTH * size.heightIn / size.widthIn).some((box) => {
       const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
       const photo = placement?.photoId ? photos.get(placement.photoId) : undefined

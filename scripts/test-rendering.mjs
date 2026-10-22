@@ -136,6 +136,17 @@ const patternPixels = patternedCanvas.getContext('2d').getImageData(0,0,900,600)
 assert.deepEqual(new Uint8ClampedArray(patternedPsd.children[0].imageData.data),patternPixels)
 assert.ok(patternPixels.some((v,i)=>i%4!==3 && v!==255),'Pattern must be rendered')
 console.log('Pattern checks passed: safe drag payloads and matching preview, PSD background and print rendering.')
+const fixed = {...spread, placements:[], textBoxes:[], backgroundPattern:{name:'Photo background',src:source.toDataURL(),tileSizePx:900,mode:'cover',width:60,height:40}}
+const fixedCanvas = await engine.renderSpreadToCanvas(fixed,photos,size,75)
+assert.deepEqual([...fixedCanvas.getContext('2d').getImageData(100,300,1,1).data],[240,32,48,255])
+assert.deepEqual([...fixedCanvas.getContext('2d').getImageData(800,300,1,1).data],[16,80,224,255])
+const fixedPsd = engine.readPsd(await engine.buildSpreadPsdBytes(fixed,photos,size,75),{useImageData:true})
+assert.deepEqual(new Uint8ClampedArray(fixedPsd.children[0].imageData.data),fixedCanvas.getContext('2d').getImageData(0,0,900,600).data)
+assert.deepEqual(engine.retemplateSpread(fixed,'full-bleed').backgroundPattern,fixed.backgroundPattern)
+assert.deepEqual(engine.buildSpreadFromPlacements(spread.placements,'spread',fixed).backgroundPattern,fixed.backgroundPattern)
+assert.deepEqual(engine.deserializeProjectFile(await engine.serializeProjectFile({...project,spreads:[fixed]},[])).project.spreads[0].backgroundPattern,fixed.backgroundPattern)
+assert.deepEqual(engine.exportPreflight({...project,spreads:[fixed]}).lowResolution,[fixed.id])
+console.log('Fixed photo background: aspect-preserving render, PSD pixels, layout retention, save/reopen and low-resolution warning passed.')
 window.albumStudio.saveFile = async (file) => { saved.push(file); return {canceled:false,filePath:'test-output/album.pdf'} }
 await engine.exportAlbumToPdf(project, [0], false, {pdfX:true})
 const pdfXBytes = saved.at(-1).data

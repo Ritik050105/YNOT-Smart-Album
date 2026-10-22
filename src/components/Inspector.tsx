@@ -26,6 +26,7 @@ export default function Inspector() {
   const multiSelectedPlaceholderIds = useProjectStore((s) => s.multiSelectedPlaceholderIds)
   const updateSpread = useProjectStore((s) => s.updateSpread)
   const updatePlacement = useProjectStore((s) => s.updatePlacement)
+  const swapPlacements = useProjectStore((s) => s.swapPlacements)
   const updateImageFrame = useProjectStore((s) => s.updateImageFrame)
   const removeImageFrame = useProjectStore((s) => s.removeImageFrame)
   const updateMultiplePlacements = useProjectStore((s) => s.updateMultiplePlacements)
@@ -367,8 +368,24 @@ export default function Inspector() {
               Auto Align
             </button>
           </div>
+          <label>Swap image with
+            <select aria-label="Swap image with" value="" onChange={e => { if (e.target.value) swapPlacements(spread.id, placement.placeholderId, e.target.value) }}>
+              <option value="">Choose another image…</option>
+              {spread.placements.filter(p => p.photoId && p.placeholderId !== placement.placeholderId).map((p, i) => <option key={p.placeholderId} value={p.placeholderId}>{i + 1}. {project.photos.find(photo => photo.id === p.photoId)?.fileName}</option>)}
+            </select>
+          </label>
+          <button className="btn btn--tiny" onClick={() => {
+            const height = 900 / spreadAspect
+            updateSpread(spread.id, {
+              backgroundPattern: { name: photo.fileName, src: photo.src, tileSizePx: 900, mode: 'cover', width: photo.width, height: photo.height },
+              flipped: false,
+              customBoxes: computePlaceholderBoxes(spread, 900, height).filter(b => b.placeholderId !== placement.placeholderId).map(b => ({ id: b.placeholderId, x: b.x / 900, y: b.y / height, width: b.width / 900, height: b.height / height, preferredOrientation: 'any' as const })),
+              placements: spread.placements.filter(p => p.placeholderId !== placement.placeholderId),
+            })
+            useProjectStore.getState().selectPlaceholder(null)
+          }}>Set as fixed background</button>
           <SliderField
-            label="Zoom"
+            label="Scale"
             value={placement.zoom}
             min={1}
             max={5}
@@ -426,10 +443,10 @@ export default function Inspector() {
             />
           )}
           <SliderField
-            label="Tilt"
+            label="Angle"
             value={placement.rotationDeg}
-            min={-45}
-            max={45}
+            min={-180}
+            max={180}
             suffix="°"
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { rotationDeg: v })}
           />

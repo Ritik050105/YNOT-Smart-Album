@@ -30,6 +30,7 @@ export async function renderSpreadToCanvas(
   canvas.height = heightPx
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('2D canvas context unavailable')
+  ctx.imageSmoothingQuality = 'high'
 
   await drawSpreadBackground(ctx, spread, widthPx, heightPx)
 
@@ -48,10 +49,16 @@ export async function renderSpreadToCanvas(
 }
 
 export async function drawSpreadBackground(ctx: CanvasRenderingContext2D, spread: Spread, width: number, height: number) {
+  ctx.imageSmoothingQuality = 'high'
   ctx.fillStyle = spread.backgroundColor
   ctx.fillRect(0, 0, width, height)
   if (!spread.backgroundPattern) return
   const image = await loadImage(spread.backgroundPattern.src)
+  if (spread.backgroundPattern.mode === 'cover') {
+    const crop = computeCoverCrop(image.naturalWidth, image.naturalHeight, width, height)
+    ctx.drawImage(image, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, 0, 0, width, height)
+    return
+  }
   const scale = spread.backgroundPattern.tileSizePx * width / DESIGN_WIDTH / image.naturalWidth
   const pattern = ctx.createPattern(image, 'repeat')
   if (!pattern || !(scale > 0)) return

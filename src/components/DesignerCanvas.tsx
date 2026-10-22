@@ -730,7 +730,9 @@ export default function DesignerCanvas() {
       >
         <Layer>
            <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fill={spread.backgroundColor} onClick={() => { if (canvasTool === 'select') { selectPlaceholder(null); selectTextBox(null) } }} />
-           {patternImage && spread.backgroundPattern && <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fillPatternImage={patternImage} fillPatternScaleX={spread.backgroundPattern.tileSizePx / patternImage.width} fillPatternScaleY={spread.backgroundPattern.tileSizePx / patternImage.width} listening={false} />}
+           {patternImage && spread.backgroundPattern && (spread.backgroundPattern.mode === 'cover'
+             ? <KonvaImage image={patternImage} width={STAGE_WIDTH} height={stageHeight} crop={(() => { const c = computeCoverCrop(patternImage.width, patternImage.height, STAGE_WIDTH, stageHeight); return { x: c.cropX, y: c.cropY, width: c.cropWidth, height: c.cropHeight } })()} listening={false} />
+             : <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fillPatternImage={patternImage} fillPatternScaleX={spread.backgroundPattern.tileSizePx / patternImage.width} fillPatternScaleY={spread.backgroundPattern.tileSizePx / patternImage.width} listening={false} />)}
 
           {boxes.map((box) => {
             const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)

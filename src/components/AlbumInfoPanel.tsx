@@ -24,6 +24,9 @@ function Collapsible({ title, children, defaultOpen = true }: { title: string; c
 export default function AlbumInfoPanel() {
   const project = useProjectStore((s) => s.project)
   const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings)
+  const selectedSpreadId = useProjectStore(s => s.selectedSpreadId)
+  const updateSpread = useProjectStore(s => s.updateSpread)
+  const selectedSpread = project.spreads.find(s => s.id === selectedSpreadId)
   const [infoOpen, setInfoOpen] = useState(false)
 
   const stats = useMemo(() => {
@@ -61,6 +64,10 @@ export default function AlbumInfoPanel() {
         </button>
       </div>
 
+      {selectedSpread?.backgroundPattern?.mode === 'cover' && <Collapsible title="Fixed background">
+        <p>{selectedSpread.backgroundPattern.name}</p>
+        <button className="btn btn--tiny" onClick={() => updateSpread(selectedSpread.id, { backgroundPattern: undefined })}>Remove background</button>
+      </Collapsible>}
       <Collapsible title="Album Info" defaultOpen={false}>
         <p className="muted">
           {stats.interiorSpreads.length} spread{stats.interiorSpreads.length === 1 ? '' : 's'} ({stats.pageCount} page

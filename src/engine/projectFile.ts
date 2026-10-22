@@ -24,7 +24,10 @@ export async function serializeProjectFile(project: Project, userTemplates: Temp
   )
   const file: ProjectFile = {
     formatVersion: 1,
-    project: { ...project, photos },
+    project: { ...project, photos, spreads: await Promise.all(project.spreads.map(async spread => ({
+      ...spread,
+      backgroundPattern: spread.backgroundPattern ? { ...spread.backgroundPattern, src: await blobUrlToDataUrl(spread.backgroundPattern.src) } : undefined,
+    }))) },
     userTemplates,
   }
   return JSON.stringify(file)

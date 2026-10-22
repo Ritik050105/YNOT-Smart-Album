@@ -927,8 +927,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         return {
           ...s,
           placements: s.placements.map((pl) => {
-            if (pl.placeholderId === placeholderIdA) return { ...pl, photoId: b.photoId }
-            if (pl.placeholderId === placeholderIdB) return { ...pl, photoId: a.photoId }
+            if (pl.placeholderId === placeholderIdA) return { ...b, placeholderId: placeholderIdA }
+            if (pl.placeholderId === placeholderIdB) return { ...a, placeholderId: placeholderIdB }
             return pl
           }),
         }

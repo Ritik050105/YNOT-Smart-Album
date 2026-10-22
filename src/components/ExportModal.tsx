@@ -50,7 +50,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   const [rangeText, setRangeText] = useState('')
   const [singlePages, setSinglePages] = useState(false)
   const [includeCover, setIncludeCover] = useState(false)
-  const [jpegQuality, setJpegQuality] = useState(97)
+  const [jpegQuality, setJpegQuality] = useState(100)
 
   // "Manual Proofing" state
   const [proofWidth, setProofWidth] = useState(1600)
