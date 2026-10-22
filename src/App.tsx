@@ -3,6 +3,7 @@ import MenuBar from './components/MenuBar'
 import TopBar from './components/TopBar'
 import ImportPanel from './components/ImportPanel'
 import AlbumInfoPanel from './components/AlbumInfoPanel'
+import Inspector from './components/Inspector'
 import PhotoBin from './components/PhotoBin'
 import SpreadsPanel from './components/SpreadsPanel'
 import MatchingTemplatesPanel from './components/MatchingTemplatesPanel'
@@ -27,6 +28,7 @@ import Modal from './components/Modal'
 import { confirmDiscardUnsaved } from '@/engine/unsavedChanges'
 
 export default function App() {
+  const selectedPlaceholderId = useProjectStore(s => s.selectedPlaceholderId)
   const matchingTemplatesOpen = useProjectStore(s => s.matchingTemplatesOpen)
   const [resumePrompt, setResumePrompt] = useState<OpenSessionMarker | null>(null)
   const [recoveryFile, setRecoveryFile] = useState<ProjectFile | null>(null)
@@ -236,7 +238,7 @@ export default function App() {
         {bottomPanelOpen && <PhotoBin />}
       </div>
       </div>
-      {rightPanelOpen && <aside className="app-sidebar app-sidebar--right" aria-label="Album sidebar"><AlbumInfoPanel /></aside>}
+      {rightPanelOpen && <aside className="app-sidebar app-sidebar--right" aria-label="Album sidebar">{selectedPlaceholderId ? <Inspector /> : <AlbumInfoPanel />}</aside>}
       </div>
     </div>
   )

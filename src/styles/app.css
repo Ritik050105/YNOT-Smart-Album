@@ -1891,8 +1891,12 @@ input[type='checkbox'] {
 .inspector .inspector-group { margin: 6px 0; padding: 0 9px 8px; border: 1px solid var(--border-soft); border-radius: 10px; background: #faf8f5; }
 .inspector .inspector-group:not([open]) { padding-bottom: 0; }
 .inspector-group > summary { padding: 8px 0; cursor: pointer; color: var(--accent); font-size: 12px; font-weight: 650; }
-.inspector .slider-field { display: flex; flex-direction: column; align-items: stretch; gap: 3px; margin: 6px 0; }
-.inspector .slider-field .row { justify-content: space-between; }
+.inspector .slider-field { display: grid; grid-template-columns: 64px minmax(30px, 1fr) 48px; align-items: center; gap: 6px; margin: 4px 0; min-height: 26px; }
+.inspector .slider-field .row { display: contents; }
+.inspector .slider-field .row > span:first-child { grid-column: 1; grid-row: 1; font-size: 11px; }
+.inspector .slider-field__input-wrap { grid-column: 3; grid-row: 1; padding: 0; background: transparent; }
+.inspector .slider-field input[type=range] { grid-column: 2; grid-row: 1; height: 4px; padding: 0; margin: 0; min-width: 0; }
+.inspector .slider-field input[type=number] { width: 36px; padding: 3px; }
 .inspector input:not([type=range]):not([type=checkbox]), .inspector select { background: #fff; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
 .inspector input[type=range] { width: 100%; accent-color: var(--accent); }
 .inspector .frame-dimensions .field { flex-direction: column; align-items: stretch; gap: 6px; }

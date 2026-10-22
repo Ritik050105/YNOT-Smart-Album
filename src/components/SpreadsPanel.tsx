@@ -170,7 +170,12 @@ export default function SpreadsPanel() {
             className={`spreads-panel__card spreads-panel__card--cover ${selectedSpreadId === cover.id ? 'is-selected' : ''}`}
             data-overview-spread={cover.id}
             style={{ aspectRatio: (cover.size ?? project.size).widthIn / (cover.size ?? project.size).heightIn }}
-            onClick={() => selectSpread(cover.id)}
+            onClick={e => {
+              const r = e.currentTarget.getBoundingClientRect()
+              const box = computePlaceholderBoxes(cover, r.width, r.height).reverse().find(b => e.clientX-r.left >= b.x && e.clientX-r.left <= b.x+b.width && e.clientY-r.top >= b.y && e.clientY-r.top <= b.y+b.height)
+              selectSpread(cover.id)
+              if (box) useProjectStore.getState().selectPlaceholder(box.placeholderId)
+            }}
             onDoubleClick={() => enterDesignerView(cover.id)}
             onContextMenu={(e) => openContextMenu(e, cover.id)}
             onDragOver={(e) => e.preventDefault()}
@@ -234,7 +239,13 @@ export default function SpreadsPanel() {
             onContextMenu={(e) => openContextMenu(e, spread.id)}
             title={`Spread ${index + 1} — double-click to design, right-click for more options`}
           >
-            <div data-spread-drag className={`spreads-panel__card ${selectedSpreadId === spread.id ? 'is-selected' : ''}`} style={{ aspectRatio: (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn }} onContextMenu={e => {
+            <div data-spread-drag className={`spreads-panel__card ${selectedSpreadId === spread.id ? 'is-selected' : ''}`} style={{ aspectRatio: (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn }} onClick={e => {
+              e.stopPropagation()
+              const r = e.currentTarget.getBoundingClientRect()
+              const box = computePlaceholderBoxes(spread, r.width, r.height).reverse().find(b => e.clientX-r.left >= b.x && e.clientX-r.left <= b.x+b.width && e.clientY-r.top >= b.y && e.clientY-r.top <= b.y+b.height)
+              selectSpread(spread.id)
+              if (box) useProjectStore.getState().selectPlaceholder(box.placeholderId)
+            }} onContextMenu={e => {
               const r = e.currentTarget.getBoundingClientRect()
               const box = computePlaceholderBoxes(spread, r.width, r.height).reverse().find(b => e.clientX-r.left >= b.x && e.clientX-r.left <= b.x+b.width && e.clientY-r.top >= b.y && e.clientY-r.top <= b.y+b.height)
               if (!box && !spread.backgroundPattern) return
@@ -335,6 +346,7 @@ export default function SpreadsPanel() {
                 <img src={photo.src} alt={photo.fileName} title={`${photo.fileName} — drag to move in the timeline`} draggable={false}
                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); selectSpread(spread.id); setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: placement.placeholderId }) }}
                   data-timeline-frame={placement.placeholderId}
+                  onClick={e => { e.stopPropagation(); selectSpread(spread.id); useProjectStore.getState().selectPlaceholder(placement.placeholderId) }}
                   className={target?.spreadId === spread.id && target.beforeFrameId === placement.placeholderId ? 'is-insert-before' : ''}
                   onDrop={(e) => handleSpreadDrop(e, spread.id, placement.placeholderId)} />
               </Fragment> : null
