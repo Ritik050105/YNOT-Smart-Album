@@ -1,6 +1,8 @@
 export type PageSide = 'single' | 'left' | 'right' | 'spread'
 
 export interface PhotoAsset {
+  isBlackAndWhite?: boolean
+  cameraModel?: string
   id: string
   fileName: string
   /** Object URL for display; in Electron this points at the original file on disk. */
@@ -112,6 +114,12 @@ export interface TextBox {
 }
 
 export interface Spread {
+  backgroundPattern?: { name: string; src: string; tileSizePx: number }
+  /** Normalized frame positions after a layout is customized in Designer View. */
+  customBoxes?: PlaceholderRect[]
+  /** Cover artwork has lab dimensions independent of the interior spreads. */
+  size?: AlbumSize
+  coverDetails?: { wrapIn: number; spineIn: number; guideSrc?: string; reviewedPageCount: number }
   id: string
   order: number
   pageSide: PageSide

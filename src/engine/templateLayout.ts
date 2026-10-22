@@ -2,6 +2,21 @@ import { PlaceholderRect } from '@/types'
 
 export const GAP = 0.02
 
+/** Normalized display geometry shared by crop ranking, previews, editor and export. */
+export function resolveTemplateFrames(frames: PlaceholderRect[], aspect: number, marginPx = 0, gapPx = 0): PlaceholderRect[] {
+  const width = 900, height = width / aspect
+  const innerW = width - marginPx * 2, innerH = height - marginPx * 2
+  const smallestCell = Math.min(...frames.flatMap(p => [p.width * innerW, p.height * innerH]))
+  // Dense layouts retain at least half of every cell instead of letting spacing swallow photos.
+  const gap = smallestCell > 0 ? Math.min(gapPx, smallestCell / 2) : gapPx
+  return frames.map(p => ({ ...p,
+    x: (marginPx + p.x * innerW + gap / 2) / width,
+    y: (marginPx + p.y * innerH + gap / 2) / height,
+    width: (p.width * innerW - gap) / width,
+    height: (p.height * innerH - gap) / height,
+  }))
+}
+
 export function rect(
   id: string,
   x: number,

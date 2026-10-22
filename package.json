@@ -9,13 +9,29 @@
     "appId": "com.ynotphotography.albumstudio",
     "productName": "YNOT Album Studio",
     "copyright": "Copyright (c) YNOT Photography",
-    "files": ["dist/**", "dist-electron/**"],
-    "directories": { "output": "release", "buildResources": "build" },
+    "files": [
+      "dist/**",
+      "dist-electron/**"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
     "icon": "build/icon.png",
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.ico"
     },
@@ -30,8 +46,14 @@
     "portable": {
       "artifactName": "${productName}-Portable-${version}.${ext}"
     },
-    "mac": { "target": "dmg", "icon": "build/icon.png" },
-    "linux": { "target": "AppImage", "icon": "build/icon.png" }
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/icon.png"
+    }
   },
   "scripts": {
     "dev": "vite",
@@ -53,6 +75,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-konva": "^18.2.10",
+    "sharp": "^0.35.5",
     "use-image": "^1.1.1",
     "uuid": "^9.0.1",
     "zustand": "^4.5.5"
@@ -67,7 +90,6 @@
     "electron": "^31.3.1",
     "electron-builder": "^24.13.3",
     "png-to-ico": "^3.0.2",
-    "sharp": "^0.35.5",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
     "wait-on": "^7.2.0"

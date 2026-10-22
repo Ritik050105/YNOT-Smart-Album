@@ -19,6 +19,7 @@ export default function TemplateLibraryPanel() {
   const [pendingPhoto, setPendingPhoto] = useState<string | null>(null)
   const [importName, setImportName] = useState('')
   const [importBaseId, setImportBaseId] = useState(BUILT_IN_TEMPLATES[0].id)
+  const [importCount, setImportCount] = useState(1)
   const [importing, setImporting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -59,8 +60,15 @@ export default function TemplateLibraryPanel() {
         <div className="template-import-form">
           <img src={pendingPhoto} alt="" className="template-import-form__preview" />
           <input placeholder="Template name" value={importName} onChange={(e) => setImportName(e.target.value)} />
+          <label>Photo count
+            <input type="number" min={1} max={30} value={importCount} onChange={(e) => {
+              const count = Math.max(1, Math.min(30, Number(e.target.value) || 1))
+              setImportCount(count)
+              setImportBaseId(BUILT_IN_TEMPLATES.find(t => t.photoCount === count && t.id !== 'cover-front-spine-back')!.id)
+            }} />
+          </label>
           <select value={importBaseId} onChange={(e) => setImportBaseId(e.target.value)}>
-            {BUILT_IN_TEMPLATES.map((t) => (
+            {BUILT_IN_TEMPLATES.filter(t => t.photoCount === importCount && t.id !== 'cover-front-spine-back').map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name} ({t.photoCount} photo{t.photoCount === 1 ? '' : 's'})
               </option>

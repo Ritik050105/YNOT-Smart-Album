@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useProjectStore } from '@/state/projectStore'
 import { PlacedPhoto, PhotoAsset, TemplateDefinition } from '@/types'
+import { rankTemplates } from '@/engine/templateMatching'
 import { templatesForCount, generateCustomGrid, TemplateFrameFilter } from '@/engine/templates'
-import TemplateGalleryModal from './TemplateGalleryModal'
 import TemplateThumb from './TemplatePreview'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
@@ -11,6 +11,7 @@ import { LOCAL_FONTS, CLOUD_FONTS, FontOption, getLocalFonts, ensureFontLoaded }
 import Icon from './Icon'
 import SliderField from './SliderField'
 import ColorField from './ColorField'
+import { inToDisplay, displayToIn } from '@/engine/units'
 
 export default function Inspector() {
   const [localFonts, setLocalFonts] = useState<FontOption[]>(LOCAL_FONTS)
@@ -25,6 +26,8 @@ export default function Inspector() {
   const multiSelectedPlaceholderIds = useProjectStore((s) => s.multiSelectedPlaceholderIds)
   const updateSpread = useProjectStore((s) => s.updateSpread)
   const updatePlacement = useProjectStore((s) => s.updatePlacement)
+  const updateImageFrame = useProjectStore((s) => s.updateImageFrame)
+  const removeImageFrame = useProjectStore((s) => s.removeImageFrame)
   const updateMultiplePlacements = useProjectStore((s) => s.updateMultiplePlacements)
   const updateTextBox = useProjectStore((s) => s.updateTextBox)
   const removeTextBox = useProjectStore((s) => s.removeTextBox)
@@ -46,10 +49,11 @@ export default function Inspector() {
   const [templateName, setTemplateName] = useState('')
   const [customRows, setCustomRows] = useState(3)
   const [customCols, setCustomCols] = useState(3)
-  const [galleryOpen, setGalleryOpen] = useState(false)
+  const openMatchingTemplates = useProjectStore(s => s.openMatchingTemplates)
   useEffect(() => {
     function onOpenGallery() {
-      setGalleryOpen(true)
+      const state = useProjectStore.getState()
+      if (state.selectedSpreadId) state.openMatchingTemplates(state.selectedSpreadId)
     }
     window.addEventListener('album-studio:open-template-gallery', onOpenGallery)
     return () => window.removeEventListener('album-studio:open-template-gallery', onOpenGallery)
@@ -86,13 +90,13 @@ export default function Inspector() {
     )
   }
 
+  const size = spread.size ?? project.size
   const placement = spread.placements.find((p) => p.placeholderId === selectedPlaceholderId)
   const textBox = spread.textBoxes.find((t) => t.id === selectedTextBoxId)
   const knownFontNames = new Set([...localFonts, ...CLOUD_FONTS].map((f) => f.family))
   const isCustomFont = !!textBox && !knownFontNames.has(textBox.fontFamily)
   const photo = placement?.photoId ? project.photos.find((p) => p.id === placement.photoId) : undefined
-  const suggestions = templatesForCount(spread.placements.length, null, frameFilter)
-  const spreadAspect = project.size.widthIn / project.size.heightIn
+  const spreadAspect = size.widthIn / size.heightIn
   const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / spreadAspect).find(
     (b) => b.placeholderId === selectedPlaceholderId
   )
@@ -105,12 +109,15 @@ export default function Inspector() {
       .filter((p): p is PhotoAsset => !!p)
     return placed.length > 0 ? placed : project.photos.slice(0, spread.placements.length)
   })()
+  const suggestions = rankTemplates(quickPickPhotos.filter((photo): photo is PhotoAsset => !!photo),
+    templatesForCount(spread.placements.length, project.enabledTemplateIds, frameFilter, spreadAspect), spreadAspect, true, spread.marginPx, spread.gapPx).map((match) => match.template)
+
 
   let dpi: number | null = null
   if (photo && boxForSelected && placement) {
-    const boxWIn = (boxForSelected.width / 900) * project.size.widthIn
+    const boxWIn = (boxForSelected.width / 900) * size.widthIn
     const boxHIn =
-      (boxForSelected.height / (900 / (project.size.widthIn / project.size.heightIn))) * project.size.heightIn
+      (boxForSelected.height / (900 / (size.widthIn / size.heightIn))) * size.heightIn
     const crop = computeCoverCrop(photo.width, photo.height, boxForSelected.width, boxForSelected.height, placement.focalX, placement.focalY, placement.zoom)
     dpi = Math.round(effectiveDpi(photo.width, photo.height, crop, boxWIn, boxHIn))
   }
@@ -123,7 +130,7 @@ export default function Inspector() {
         Inspector
       </h3>
 
-      <section>
+      {!placement && !textBox && <section>
         <h4>
           <Icon name="sparkles" size={13} />
           Smart Grid Suggestions
@@ -138,7 +145,7 @@ export default function Inspector() {
         </label>
         <p className="template-match-count">{suggestions.length} matching templates found</p>
         <div className="template-grid">
-          {[...suggestions, ...userTemplates.filter((t) => t.photoCount === spread.placements.length)]
+          {suggestions
             .slice(0, 9)
             .map((t) => (
               <button
@@ -149,12 +156,12 @@ export default function Inspector() {
                 onMouseLeave={() => setHoverPreview((cur) => (cur?.template.id === t.id ? null : cur))}
                 title={t.name}
               >
-                <TemplateThumb template={t} aspect={spreadAspect} className="template-swatch__shape" />
+                <TemplateThumb template={t} aspect={spreadAspect} marginPx={spread.marginPx} gapPx={spread.gapPx} className="template-swatch__shape" />
                 <span className="template-swatch__name">{t.name}</span>
               </button>
             ))}
         </div>
-        <button className="btn btn--tiny btn--block" onClick={() => setGalleryOpen(true)}>
+        <button className="btn btn--tiny btn--block" onClick={() => openMatchingTemplates(spread.id)}>
           <Icon name="grid" size={11} />
           Browse All Templates ({suggestions.length})
         </button>
@@ -210,9 +217,9 @@ export default function Inspector() {
           <Icon name="layers" size={11} />
           Apply Template to All Spreads
         </button>
-      </section>
+      </section>}
 
-      <section>
+      {!placement && !textBox && <><section>
         <h4>
           <Icon name="layers" size={13} />
           Spread Settings
@@ -280,17 +287,36 @@ export default function Inspector() {
         })()}
       </section>
 
+      </>}
       {placement && (
         <section>
-          <h4>
+          {boxForSelected && <>
+            <h4>Frame position and size</h4>
+            <div className="frame-dimensions">
+              {(['x', 'y', 'width', 'height'] as const).map((key) => {
+                const horizontal = key === 'x' || key === 'width'
+                const dimension = horizontal ? size.widthIn : size.heightIn
+                const canvasDimension = horizontal ? 900 : 900 / spreadAspect
+                const value = boxForSelected[key] / canvasDimension
+                return <label key={key} className="field">{key} ({project.units})<input type="number" step="any"
+                  value={inToDisplay(value * dimension, project.units, size.dpi)}
+                  onChange={(e) => updateImageFrame(spread.id, placement.placeholderId, {
+                    x: boxForSelected.x / 900, y: boxForSelected.y / (900 / spreadAspect), width: boxForSelected.width / 900, height: boxForSelected.height / (900 / spreadAspect),
+                    [key]: displayToIn(Number(e.target.value), project.units, size.dpi) / dimension,
+                  })} /></label>
+              })}
+            </div>
+            <button className="btn btn--tiny" onClick={() => removeImageFrame(spread.id, placement.placeholderId)}>Delete Frame</button>
+          </>}
+          {photo && <><h4>
             <Icon name="droplet" size={13} />
             Photo Adjustments
           </h4>
           {photo && (
-            <div className={`dpi-badge ${dpi !== null && dpi < project.size.dpi ? 'dpi-badge--warn' : ''}`}>
+            <div className={`dpi-badge ${dpi !== null && dpi < size.dpi ? 'dpi-badge--warn' : ''}`}>
               <Icon name="info" size={12} />
               {photo.fileName} · {photo.width}×{photo.height}px
-              {dpi !== null && <> · {dpi} DPI {dpi < project.size.dpi && '(below target!)'}</>}
+              {dpi !== null && <> · {dpi} DPI {dpi < size.dpi && '(below target!)'}</>}
             </div>
           )}
           <div className="text-style-row">
@@ -365,6 +391,8 @@ export default function Inspector() {
             step={0.01}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { focalY: v })}
           />
+          </>}
+          <h4>Design</h4>
           <SliderField
             label="Opacity"
             value={placement.opacity}
@@ -420,7 +448,7 @@ export default function Inspector() {
               onChange={(hex) => updatePlacement(spread.id, placement.placeholderId, { borderColor: hex })}
             />
           </label>
-          <SliderField
+          {photo && <><SliderField
             label="Warmth"
             value={placement.warmth}
             min={-100}
@@ -469,6 +497,7 @@ export default function Inspector() {
               Paste Tone
             </button>
           </div>
+          </>}
         </section>
       )}
 
@@ -560,13 +589,10 @@ export default function Inspector() {
           </button>
         </section>
       )}
-      {galleryOpen && (
-        <TemplateGalleryModal initialCount={spread.placements.length} onClose={() => setGalleryOpen(false)} />
-      )}
     </div>
     {hoverPreview &&
       createPortal(
-        <TemplateHoverPreview template={hoverPreview.template} rect={hoverPreview.rect} aspect={spreadAspect} photos={quickPickPhotos} />,
+        <TemplateHoverPreview template={hoverPreview.template} rect={hoverPreview.rect} aspect={spreadAspect} photos={quickPickPhotos} marginPx={spread.marginPx} gapPx={spread.gapPx} placements={spread.placements} />,
         document.body
       )}
     </>
@@ -581,11 +607,17 @@ function TemplateHoverPreview({
   rect,
   aspect,
   photos,
+  marginPx,
+  gapPx,
+  placements,
 }: {
   template: TemplateDefinition
   rect: DOMRect
   aspect: number
   photos: (PhotoAsset | undefined)[]
+  marginPx: number
+  gapPx: number
+  placements: PlacedPhoto[]
 }) {
   const width = 220
   const gap = 10
@@ -597,7 +629,7 @@ function TemplateHoverPreview({
 
   return (
     <div className="template-hover-preview" style={{ left, top, width }}>
-      <TemplateThumb template={template} photos={photos} aspect={aspect} />
+      <TemplateThumb template={template} photos={photos} aspect={aspect} marginPx={marginPx} gapPx={gapPx} placements={placements} />
       <span className="template-hover-preview__name">{template.name}</span>
     </div>
   )

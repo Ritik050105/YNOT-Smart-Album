@@ -16,12 +16,12 @@ export function parseSpreadRange(text: string, count: number): number[] {
     if (rangeMatch) {
       const start = Number(rangeMatch[1])
       const end = Number(rangeMatch[2])
-      for (let n = Math.min(start, end); n <= Math.max(start, end); n++) {
-        if (n >= 1 && n <= count) indices.add(n - 1)
+      for (let n = Math.max(1, Math.min(start, end)); n <= Math.min(count, Math.max(start, end)); n++) {
+        indices.add(n - 1)
       }
     } else {
       const n = Number(part)
-      if (Number.isFinite(n) && n >= 1 && n <= count) indices.add(n - 1)
+      if (/^\d+$/.test(part) && Number.isInteger(n) && n >= 1 && n <= count) indices.add(n - 1)
     }
   }
   return Array.from(indices).sort((a, b) => a - b)
@@ -67,16 +67,16 @@ export async function saveOneFile(
 
 /** Saves a batch of files into one directory (Electron), or downloads them one by one (browser preview). */
 export async function saveManyFiles(
-  files: { fileName: string; bytes: Uint8Array; mime: string }[]
+  files: Iterable<{ fileName: string; bytes: Uint8Array; mime: string }> | AsyncIterable<{ fileName: string; bytes: Uint8Array; mime: string }>
 ): Promise<{ saved: boolean; dirPath?: string }> {
   if (window.albumStudio?.isElectron) {
     const dir = await window.albumStudio.pickDirectory()
     if (dir.canceled || !dir.dirPath) return { saved: false }
-    for (const f of files) {
+    for await (const f of files) {
       await window.albumStudio.writeFileInDir({ dirPath: dir.dirPath, fileName: f.fileName, data: f.bytes })
     }
     return { saved: true, dirPath: dir.dirPath }
   }
-  for (const f of files) downloadInBrowser(f.bytes, f.fileName, f.mime)
+  for await (const f of files) downloadInBrowser(f.bytes, f.fileName, f.mime)
   return { saved: true }
 }

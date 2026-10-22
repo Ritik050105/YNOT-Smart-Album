@@ -7,17 +7,17 @@ import { DisplayUnit } from '@/engine/units'
 import { recordRecentProject } from '@/engine/recentProjects'
 import { clearOpenSession } from '@/engine/sessionMarker'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
+import { confirmDiscardUnsaved } from '@/engine/unsavedChanges'
 import Icon from './Icon'
 import Modal from './Modal'
 import ExportModal from './ExportModal'
 import CustomSizeModal from './CustomSizeModal'
 import NewProjectWizard from './NewProjectWizard'
 import ProjectInfoPanel from './ProjectInfoPanel'
-import ynotMark from '@/assets/ynot-mark-white.png'
 
 const CUSTOM_SIZE_OPTION = '__custom__'
 
-export default function TopBar() {
+export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean }) {
   const project = useProjectStore((s) => s.project)
   const userTemplates = useProjectStore((s) => s.userTemplates)
   const renameProject = useProjectStore((s) => s.renameProject)
@@ -57,18 +57,19 @@ export default function TopBar() {
       return
     }
     const size = ALBUM_SIZES.find((s) => s.id === id)
-    if (size) useProjectStore.setState((s) => ({ project: { ...s.project, size } }))
+    if (size) useProjectStore.getState().updateProjectSettings({ size })
   }
 
   function applyCustomSize(size: typeof project.size, units: DisplayUnit) {
-    useProjectStore.setState((s) => ({ project: { ...s.project, size, units } }))
+    useProjectStore.getState().updateProjectSettings({ size, units })
     setCustomSizeOpen(false)
   }
 
-  async function handleSaveProject() {
+  async function handleSaveProject(saveAs = false, closeAfterSave = false) {
+    const { project, userTemplates } = useProjectStore.getState()
     setProjectBusy('save')
     try {
-      const result = await saveProjectToFile(project, userTemplates)
+      const result = await saveProjectToFile(project, userTemplates, saveAs ? null : useProjectStore.getState().currentFilePath)
       if (result.saved) {
         recordRecentProject({
           projectId: project.id,
@@ -79,11 +80,19 @@ export default function TopBar() {
           spreadCount: project.spreads.filter((s) => !s.isCover).length,
           kind: project.kind,
         })
-        markSaved()
-        setCurrentFilePath(result.filePath ?? null)
-        // Just saved — nothing unsaved left to offer resuming next launch.
-        clearOpenSession()
+        const current = useProjectStore.getState()
+        const unchanged = current.project === project && current.userTemplates === userTemplates
+        if (current.project.id === project.id) setCurrentFilePath(result.filePath ?? null)
+        if (unchanged) {
+          markSaved()
+          clearOpenSession()
+          if (closeAfterSave) await window.albumStudio?.closeCurrentWindow()
+        } else if (closeAfterSave) {
+          alert('The album changed while saving. Your latest edits are still open; save them before closing.')
+        }
       }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not save the project. Your edits are still open.')
     } finally {
       setProjectBusy(null)
     }
@@ -94,6 +103,7 @@ export default function TopBar() {
     try {
       const opened = await openProjectFromFile()
       if (opened) {
+        if (!confirmDiscardUnsaved(useProjectStore.getState().isDirty)) return
         loadProjectFile(opened.file)
         recordRecentProject({
           projectId: opened.file.project.id,
@@ -147,6 +157,9 @@ export default function TopBar() {
     function onSave() {
       if (projectBusy === null) void handleSaveProject()
     }
+    function onSaveAs() {
+      if (projectBusy === null) void handleSaveProject(true)
+    }
     function onOpenExport() {
       if (project.spreads.length > 0) setExportOpen(true)
     }
@@ -156,12 +169,19 @@ export default function TopBar() {
     function onOpenProject() {
       if (projectBusy === null) void handleOpenProject()
     }
+    const unsubscribeClose = window.albumStudio?.onSaveBeforeClose(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      if (projectBusy === null) void handleSaveProject(false, true)
+    })
     window.addEventListener('album-studio:save-project', onSave)
+    window.addEventListener('album-studio:save-project-as', onSaveAs)
     window.addEventListener('album-studio:open-export', onOpenExport)
     window.addEventListener('album-studio:new-project', onNewProject)
     window.addEventListener('album-studio:open-project', onOpenProject)
     return () => {
+      unsubscribeClose?.()
       window.removeEventListener('album-studio:save-project', onSave)
+      window.removeEventListener('album-studio:save-project-as', onSaveAs)
       window.removeEventListener('album-studio:open-export', onOpenExport)
       window.removeEventListener('album-studio:new-project', onNewProject)
       window.removeEventListener('album-studio:open-project', onOpenProject)
@@ -169,49 +189,16 @@ export default function TopBar() {
   })
 
   return (
-    <header className="topbar">
-      <button
-        className="topbar__brand"
-        title="Back to Home"
-        onClick={() => window.dispatchEvent(new CustomEvent('album-studio:go-home'))}
-      >
-        <span className="topbar__brand-mark">
-          <img src={ynotMark} alt="YNOT Photography" />
-        </span>
-        <span className="topbar__brand-name">
-          YNOT <span className="topbar__brand-sub">Album Studio</span>
-        </span>
-      </button>
-
-      <button className="btn btn--icon" title="New Album" onClick={handleNewProjectClick}>
-        <Icon name="plus" />
-      </button>
-      <button className="btn btn--icon" title="Open Project" disabled={projectBusy !== null} onClick={handleOpenProject}>
-        <Icon name="folder" />
-      </button>
-      <button className="btn btn--icon" title="Save Project" disabled={projectBusy !== null} onClick={handleSaveProject}>
-        <Icon name="save" />
-      </button>
-
-      <div className="topbar__divider" />
-
-      <button
-        className={`btn btn--icon ${canvasTool === 'select' ? 'is-active' : ''}`}
-        title="Select tool (V)"
-        onClick={() => setCanvasTool('select')}
-      >
-        <Icon name="cursor" size={14} />
-      </button>
-      <button
-        className={`btn btn--icon ${canvasTool === 'pan' ? 'is-active' : ''}`}
-        title="Pan tool (H) — or just hold Space"
-        onClick={() => setCanvasTool('pan')}
-      >
-        <Icon name="hand" size={14} />
-      </button>
-
-      <div className="topbar__divider" />
-
+    <header className="topbar" style={actionsOnly ? { display: 'contents' } : undefined}>
+      {!actionsOnly && <>
+      <button className="btn btn--icon" title="Back to Home" onClick={() => window.dispatchEvent(new CustomEvent('album-studio:go-home'))}><Icon name="home" /></button>
+      <button className={`btn btn--icon ${canvasTool === 'select' ? 'is-active' : ''}`} title="Select tool (V)" onClick={() => setCanvasTool('select')}><Icon name="cursor" /></button>
+      <button className={`btn btn--icon ${canvasTool === 'pan' ? 'is-active' : ''}`} title="Pan tool (H)" onClick={() => setCanvasTool('pan')}><Icon name="hand" /></button>
+      <div className="topbar__stats">
+        {project.spreads.filter((s) => !s.isCover).length} spreads ({project.spreads.filter((s) => !s.isCover).reduce((n, s) => n + (s.pageSide === 'spread' ? 2 : 1), 0)} pages), {new Set(project.spreads.flatMap((s) => s.placements.flatMap((p) => p.photoId ? [p.photoId] : []))).size}/{project.photos.length} images used
+        <div className="topbar__format" aria-label="Album format and size">{project.size.category} · {project.size.widthIn} × {project.size.heightIn} in</div>
+      </div>
+      <details className="topbar__settings"><summary className="btn" title="Album settings">Album <Icon name="chevronDown" size={12} /></summary><div className="topbar__settings-panel">
       <input
         className="topbar__title"
         value={project.name}
@@ -238,57 +225,19 @@ export default function TopBar() {
         <Icon name="info" size={14} />
       </button>
 
-      <div className="topbar__spacer" />
 
-      <button className="btn btn--icon" title="Undo" disabled={history.length === 0} onClick={undo}>
-        <Icon name="undo" />
-      </button>
-      <button className="btn btn--icon" title="Redo" disabled={future.length === 0} onClick={redo}>
-        <Icon name="redo" />
-      </button>
-      <button
-        className="btn btn--icon"
-        title="Keyboard & Mouse Shortcuts (?)"
-        onClick={() => window.dispatchEvent(new CustomEvent('album-studio:toggle-shortcuts-help'))}
-      >
-        <Icon name="info" />
-      </button>
-      <button
-        className="btn btn--icon"
-        title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
-        onClick={toggleTheme}
-      >
-        <Icon name={theme === 'light' ? 'moon' : 'sun'} />
-      </button>
+        <button className="btn" onClick={handleNewProjectClick}>New Album</button>
+        <button className="btn" disabled={projectBusy !== null} onClick={handleOpenProject}>Open Project</button>
+        <button className="btn" disabled={projectBusy !== null} onClick={() => void handleSaveProject()}>Save Project</button>
+        <button className="btn" disabled={history.length === 0} onClick={undo}>Undo</button>
+        <button className="btn" disabled={future.length === 0} onClick={redo}>Redo</button>
+        <button className="btn" onClick={toggleTheme}>{theme === 'light' ? 'Dark' : 'Light'} theme</button>
+      </div></details>
+      <button className={`btn btn--icon ${leftPanelOpen ? 'is-active' : ''}`} title={leftPanelOpen ? 'Hide left panel' : 'Show left panel'} onClick={toggleLeftPanel}><Icon name="panelLeft" /></button>
+      <button className={`btn btn--icon ${bottomPanelOpen ? 'is-active' : ''}`} title={bottomPanelOpen ? 'Hide photo dock' : 'Show photo dock'} onClick={toggleBottomPanel}><Icon name="panelBottom" /></button>
+      <button className="btn btn--primary" disabled={project.spreads.length === 0} onClick={() => setExportOpen(true)}><Icon name="download" size={14} />Export</button>
 
-      <div className="topbar__divider" />
-
-      <button
-        className={`btn btn--icon ${leftPanelOpen ? 'is-active' : ''}`}
-        title={leftPanelOpen ? 'Hide left panel' : 'Show left panel'}
-        onClick={toggleLeftPanel}
-      >
-        <Icon name="panelLeft" size={14} />
-      </button>
-      <button
-        className={`btn btn--icon ${bottomPanelOpen ? 'is-active' : ''}`}
-        title={bottomPanelOpen ? 'Hide photo dock' : 'Show photo dock'}
-        onClick={toggleBottomPanel}
-      >
-        <Icon name="panelBottom" size={14} />
-      </button>
-
-      <div className="topbar__divider" />
-
-      <button
-        className="btn btn--primary"
-        disabled={project.spreads.length === 0}
-        onClick={() => setExportOpen(true)}
-      >
-        <Icon name="download" size={14} />
-        Export
-      </button>
-
+      </>}
       {customSizeOpen && (
         <CustomSizeModal
           initial={project.size}

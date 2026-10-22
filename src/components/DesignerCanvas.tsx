@@ -1,20 +1,23 @@
+import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
-import { Stage, Layer, Rect, Group, Image as KonvaImage, Text as KonvaText, Line } from 'react-konva'
+import { Stage, Layer, Rect, Group, Image as KonvaImage, Text as KonvaText, Line, Transformer } from 'react-konva'
 import Konva from 'konva'
 import useImage from 'use-image'
 import { useProjectStore } from '@/state/projectStore'
-import { computePlaceholderBoxes, resolvePageInsetsPx, centerGutterInsetPx, edgeInsetToPx } from '@/engine/layoutMath'
+import { DESIGN_WIDTH, computePlaceholderBoxes, resolvePageInsetsPx, centerGutterInsetPx, edgeInsetToPx } from '@/engine/layoutMath'
 import { computeCoverCrop } from '@/engine/cropFit'
 import { ensureFontLoaded } from '@/engine/fonts'
 import { quotesForEventType } from '@/engine/textSuggestions'
 import { isEditableTarget } from '@/engine/keyboard'
 import { importAndDedupe } from '@/engine/importWorkflow'
+import { readDraggedPattern } from '@/engine/patterns'
+import { imageToneFilter } from '@/engine/imageTone'
 import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
 import ContextMenu, { ContextMenuItem } from './ContextMenu'
 
-export const STAGE_WIDTH = 900
+export const STAGE_WIDTH = DESIGN_WIDTH
 
 function PlaceholderImage({
   src,
@@ -33,8 +36,10 @@ function PlaceholderImage({
   brightness,
   contrast,
   saturation,
+  warmth,
   selected,
   multiSelected,
+  canDrag,
   onSelect,
   onSwapTo,
   onContextMenu,
@@ -52,21 +57,18 @@ function PlaceholderImage({
   cornerRadiusPx: number
   flipHorizontal: boolean
   flipVertical: boolean
-  /** -100..100, same scale as the Inspector sliders — mapped onto Konva's own filter ranges
-   *  below so the live canvas matches the export renderer's look instead of only showing tone
-   *  adjustments after export. */
   brightness: number
   contrast: number
   saturation: number
+  warmth: number
   selected: boolean
   multiSelected: boolean
+  canDrag: boolean
   onSelect: (e: Konva.KonvaEventObject<Event>) => void
   onSwapTo: (targetPlaceholderId: string) => void
   onContextMenu: (e: Konva.KonvaEventObject<Event>) => void
 }) {
   const [img] = useImage(src)
-  const imageRef = useRef<Konva.Image>(null)
-  const hasToneFilters = brightness !== 0 || contrast !== 0 || saturation !== 0
 
   const matPad = frameStyle === 'polaroid' ? Math.min(box.width, box.height) * 0.06 : 0
   const matPadBottom = frameStyle === 'polaroid' ? box.height * 0.16 : 0
@@ -74,16 +76,17 @@ function PlaceholderImage({
   const photoH = box.height - matPad - matPadBottom
   const crop = img ? computeCoverCrop(img.width, img.height, photoW, photoH, focalX, focalY, zoom) : null
 
-  // Konva filters require the node to be cached (rasterized) to apply; re-cache whenever the
-  // image, crop, or filter values change, and drop the cache when no filters are active so
-  // untouched photos stay cheap to redraw.
-  useEffect(() => {
-    const node = imageRef.current
-    if (!node) return
-    if (hasToneFilters) node.cache()
-    else node.clearCache()
-    node.getLayer()?.batchDraw()
-  }, [img, hasToneFilters, brightness, contrast, saturation, crop?.cropX, crop?.cropY, crop?.cropWidth, crop?.cropHeight, photoW, photoH])
+  const tonedImage = useMemo(() => {
+    if (!img || !crop) return undefined
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.ceil(photoW))
+    canvas.height = Math.max(1, Math.ceil(photoH))
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return undefined
+    ctx.filter = imageToneFilter({ brightness, contrast, saturation })
+    ctx.drawImage(img, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, 0, 0, canvas.width, canvas.height)
+    return canvas
+  }, [img, brightness, contrast, saturation, crop?.cropX, crop?.cropY, crop?.cropWidth, crop?.cropHeight, photoW, photoH])
 
   const centerX = box.x + box.width / 2
   const centerY = box.y + box.height / 2
@@ -98,7 +101,7 @@ function PlaceholderImage({
       x={centerX}
       y={centerY}
       rotation={rotationDeg}
-      draggable
+      draggable={canDrag}
       onDragStart={(e) => e.target.moveToTop()}
       onDragEnd={(e) => {
         // Relative (not raw) pointer position — accounts for the canvas's own zoom/pan transform
@@ -123,22 +126,16 @@ function PlaceholderImage({
       )}
       {img && crop && (
         <KonvaImage
-          ref={imageRef}
-          image={img}
+          image={tonedImage}
           x={localPhotoX}
           y={localPhotoY}
           width={photoW}
           height={photoH}
-          crop={{ x: crop.cropX, y: crop.cropY, width: crop.cropWidth, height: crop.cropHeight }}
           offsetX={flipHorizontal ? photoW : 0}
           offsetY={flipVertical ? photoH : 0}
           scaleX={flipHorizontal ? -1 : 1}
           scaleY={flipVertical ? -1 : 1}
           opacity={opacity}
-          filters={hasToneFilters ? [Konva.Filters.Brighten, Konva.Filters.Contrast, Konva.Filters.HSL] : []}
-          brightness={brightness / 100}
-          contrast={contrast}
-          saturation={saturation / 100}
           cornerRadius={frameStyle === 'rounded' ? cornerRadiusPx : 0}
           shadowEnabled={frameStyle === 'shadow'}
           shadowColor="black"
@@ -149,6 +146,12 @@ function PlaceholderImage({
           onTap={onSelect}
           onContextMenu={onContextMenu}
         />
+      )}
+      {img && crop && warmth !== 0 && (
+        <Rect x={localPhotoX} y={localPhotoY} width={photoW} height={photoH}
+          fill={warmth > 0 ? '#ffb347' : '#4aa3ff'} opacity={Math.min(Math.abs(warmth) / 100, 0.35)}
+          cornerRadius={frameStyle === 'rounded' ? cornerRadiusPx : 0}
+          globalCompositeOperation="overlay" listening={false} />
       )}
       {multiSelected && (
         <Rect
@@ -169,6 +172,7 @@ function PlaceholderImage({
           height={photoH}
           listening={false}
           globalCompositeOperation="soft-light"
+          cornerRadius={frameStyle === 'rounded' ? cornerRadiusPx : 0}
           fillRadialGradientStartPoint={{ x: photoW / 2, y: photoH / 2 }}
           fillRadialGradientEndPoint={{ x: photoW / 2, y: photoH / 2 }}
           fillRadialGradientStartRadius={0}
@@ -205,6 +209,7 @@ export default function DesignerCanvas() {
   const selectTextBox = useProjectStore((s) => s.selectTextBox)
   const setPlacementPhoto = useProjectStore((s) => s.setPlacementPhoto)
   const addPhotos = useProjectStore((s) => s.addPhotos)
+  const updateSpread = useProjectStore((s) => s.updateSpread)
   const swapPlacements = useProjectStore((s) => s.swapPlacements)
   const multiSelectedPlaceholderIds = useProjectStore((s) => s.multiSelectedPlaceholderIds)
   const toggleMultiSelectPlaceholder = useProjectStore((s) => s.toggleMultiSelectPlaceholder)
@@ -230,12 +235,28 @@ export default function DesignerCanvas() {
   const moveGuide = useProjectStore((s) => s.moveGuide)
   const removeGuide = useProjectStore((s) => s.removeGuide)
 
-  const spread: Spread | undefined = project.spreads.find((s) => s.id === selectedSpreadId)
+  const templatePreview = useProjectStore(s => s.templatePreview)
+  const spread: Spread | undefined = templatePreview?.id === selectedSpreadId ? templatePreview : project.spreads.find((s) => s.id === selectedSpreadId)
+  const size = spread?.size ?? project.size
+  const [coverGuide] = useImage(spread?.coverDetails?.guideSrc ?? '')
+  const [patternImage] = useImage(spread?.backgroundPattern?.src ?? '')
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const stageHeight = STAGE_WIDTH / (project.size.widthIn / project.size.heightIn)
+  const stageHeight = STAGE_WIDTH / (size.widthIn / size.heightIn)
   const boxes = spread ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight) : []
+  const addImageFrame = useProjectStore((s) => s.addImageFrame)
+  const updateImageFrame = useProjectStore((s) => s.updateImageFrame)
+  const drawStartRef = useRef<{ x: number; y: number } | null>(null)
+  const [draftFrame, setDraftFrame] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+  const frameNodeRef = useRef<Konva.Rect>(null)
+  const transformerRef = useRef<Konva.Transformer>(null)
+  const selectedBox = boxes.find((box) => box.placeholderId === selectedPlaceholderId)
+  useEffect(() => {
+    const transformer = transformerRef.current
+    const node = frameNodeRef.current
+    if (transformer && node) { transformer.nodes([node]); transformer.getLayer()?.batchDraw() }
+  }, [selectedPlaceholderId, selectedBox?.x, selectedBox?.y, selectedBox?.width, selectedBox?.height, canvasTool])
 
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
   const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId: string } | null>(null)
@@ -343,7 +364,7 @@ export default function DesignerCanvas() {
   useEffect(() => {
     fitToView()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spread?.id, viewportSize.width, viewportSize.height])
+  }, [spread?.id, viewportSize.width, viewportSize.height, stageHeight])
 
   // Mirrors this canvas's own local zoom/pan state into the store, read-only, so Designer View's
   // ruler and zoom readout can reflect it without this component giving up ownership of the
@@ -368,6 +389,7 @@ export default function DesignerCanvas() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (useProjectStore.getState().matchingTemplatesOpen) return
       if (e.code === 'Space' && !isEditableTarget(e.target)) {
         e.preventDefault()
         setIsSpaceDown(true)
@@ -426,6 +448,13 @@ export default function DesignerCanvas() {
       panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY, stageX: stagePos.x, stageY: stagePos.y }
       return
     }
+    if ((canvasTool === 'frame' || canvasTool === 'text') && e.evt.button === 0) {
+      const point = e.target.getStage()?.getRelativePointerPosition()
+      if (!point || point.x < 0 || point.y < 0 || point.x > STAGE_WIDTH || point.y > stageHeight) return
+      drawStartRef.current = point
+      setDraftFrame({ ...point, width: 0, height: 0 })
+      return
+    }
     if (canvasTool === 'zoom') {
       const stage = e.target.getStage()
       const pointer = stage?.getPointerPosition()
@@ -447,24 +476,46 @@ export default function DesignerCanvas() {
   }
 
   function handleStageMouseMove(e: Konva.KonvaEventObject<MouseEvent>) {
+    if (drawStartRef.current) {
+      const point = e.target.getStage()?.getRelativePointerPosition()
+      if (!point) return
+      const x = Math.max(0, Math.min(STAGE_WIDTH, point.x))
+      const y = Math.max(0, Math.min(stageHeight, point.y))
+      const start = drawStartRef.current
+      setDraftFrame({ x: Math.min(x, start.x), y: Math.min(y, start.y), width: Math.abs(x - start.x), height: Math.abs(y - start.y) })
+      return
+    }
     if (!isPanningRef.current || !panStartRef.current) return
     const start = panStartRef.current
     setStagePos(clampPan({ x: start.stageX + (e.evt.clientX - start.x), y: start.stageY + (e.evt.clientY - start.y) }, stageScale))
   }
 
   function handleStageMouseUp() {
+    if (drawStartRef.current && draftFrame && spread && (canvasTool === 'text' || (draftFrame.width >= 4 && draftFrame.height >= 4))) {
+      const rect = { x: draftFrame.x / STAGE_WIDTH, y: draftFrame.y / stageHeight, width: Math.min(1 - draftFrame.x / STAGE_WIDTH, (draftFrame.width >= 4 ? draftFrame.width : 300) / STAGE_WIDTH), height: Math.min(1 - draftFrame.y / stageHeight, (draftFrame.height >= 4 ? draftFrame.height : 80) / stageHeight) }
+      if (canvasTool === 'frame') addImageFrame(spread.id, rect)
+      else if (canvasTool === 'text') {
+        const id = uuid()
+        addTextBox(spread.id, { id, ...rect, text: '', fontFamily: 'Arial', fontSize: 24, color: '#222222', align: 'left', bold: false, italic: false })
+        selectTextBox(id)
+        setEditingTextId(id)
+      }
+    }
+    drawStartRef.current = null
+    setDraftFrame(null)
     isPanningRef.current = false
     panStartRef.current = null
   }
 
   function findBoxAt(x: number, y: number) {
-    return boxes.find((b) => x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height)
+    return [...boxes].reverse().find((b) => x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height)
   }
 
   // Click a placeholder: shift/ctrl+click adds it to a multi-select for batch editing; a plain
   // click with exactly one photo selected in the bottom dock "places" it (click-to-place, an
   // easier alternative to drag-and-drop); otherwise it's a normal single-placeholder select.
   function handlePlaceholderClick(placeholderId: string, evt: Event) {
+    if (canvasTool === 'frame' || canvasTool === 'text') return
     const keyEvt = evt as MouseEvent
     const isModified = 'shiftKey' in evt && (keyEvt.shiftKey || keyEvt.ctrlKey || keyEvt.metaKey)
     if (isModified) {
@@ -526,11 +577,14 @@ export default function DesignerCanvas() {
     const x = (e.clientX - rect.left - stagePos.x) / stageScale
     const y = (e.clientY - rect.top - stagePos.y) / stageScale
     const target = findBoxAt(x, y)
+    const pattern = readDraggedPattern(e.dataTransfer)
+    if (pattern) { updateSpread(spread.id, { backgroundPattern: pattern }); return }
 
     // Dragging a photo from the bottom dock onto a frame — the existing "place" path.
     const photoId = e.dataTransfer.getData('application/x-photo-id')
     if (photoId) {
       if (target) setPlacementPhoto(spread.id, target.placeholderId, photoId)
+      else addImageFrame(spread.id, spread.isCover && boxes.length === 0 ? { x: 0, y: 0, width: 1, height: 1 } : { x: Math.max(0, Math.min(0.7, x / STAGE_WIDTH)), y: Math.max(0, Math.min(0.7, y / stageHeight)), width: 0.3, height: 0.3 }, photoId)
       return
     }
 
@@ -538,10 +592,11 @@ export default function DesignerCanvas() {
     // drop the first one directly into the frame it landed on, so it's a single action instead
     // of "import, then find it in the dock, then drag it again."
     if (e.dataTransfer.files.length > 0) {
-      const { newAssets } = await importAndDedupe(Array.from(e.dataTransfer.files), project.photos)
-      if (newAssets.length > 0) {
-        addPhotos(newAssets)
-        if (target) setPlacementPhoto(spread.id, target.placeholderId, newAssets[0].id)
+      const { newAssets, matchedAssets } = await importAndDedupe(Array.from(e.dataTransfer.files), project.photos)
+      if (newAssets.length > 0) addPhotos(newAssets)
+      if (matchedAssets.length > 0) {
+        if (target) setPlacementPhoto(spread.id, target.placeholderId, matchedAssets[0].id)
+        else addImageFrame(spread.id, spread.isCover && boxes.length === 0 ? { x: 0, y: 0, width: 1, height: 1 } : { x: Math.max(0, Math.min(0.7, x / STAGE_WIDTH)), y: Math.max(0, Math.min(0.7, y / stageHeight)), width: 0.3, height: 0.3 }, matchedAssets[0].id)
       }
     }
   }
@@ -559,11 +614,9 @@ export default function DesignerCanvas() {
     e.target.value = ''
     framePickerTargetRef.current = null
     if (!files || files.length === 0 || !spread || !targetId) return
-    const { newAssets } = await importAndDedupe(Array.from(files), project.photos)
-    if (newAssets.length > 0) {
-      addPhotos(newAssets)
-      setPlacementPhoto(spread.id, targetId, newAssets[0].id)
-    }
+    const { newAssets, matchedAssets } = await importAndDedupe(Array.from(files), project.photos)
+    if (newAssets.length > 0) addPhotos(newAssets)
+    if (matchedAssets.length > 0) setPlacementPhoto(spread.id, targetId, matchedAssets[0].id)
   }
 
   if (!spread) {
@@ -676,7 +729,8 @@ export default function DesignerCanvas() {
         onMouseLeave={handleStageMouseUp}
       >
         <Layer>
-          <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fill={spread.backgroundColor} />
+           <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fill={spread.backgroundColor} onClick={() => { if (canvasTool === 'select') { selectPlaceholder(null); selectTextBox(null) } }} />
+           {patternImage && spread.backgroundPattern && <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fillPatternImage={patternImage} fillPatternScaleX={spread.backgroundPattern.tileSizePx / patternImage.width} fillPatternScaleY={spread.backgroundPattern.tileSizePx / patternImage.width} listening={false} />}
 
           {boxes.map((box) => {
             const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
@@ -764,8 +818,10 @@ export default function DesignerCanvas() {
                 brightness={placement.brightness}
                 contrast={placement.contrast}
                 saturation={placement.saturation}
+                warmth={placement.warmth}
                 selected={selectedPlaceholderId === box.placeholderId}
                 multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
+                canDrag={canvasTool === 'select' && !isSpaceDown}
                 onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
                 onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}
                 onContextMenu={(e) => handlePlaceholderContextMenu(box.placeholderId, e.evt)}
@@ -773,7 +829,35 @@ export default function DesignerCanvas() {
             )
           })}
 
-          {showGrid &&
+          {selectedBox && canvasTool === 'select' && <>
+            <Rect ref={frameNodeRef} x={selectedBox.x} y={selectedBox.y} width={selectedBox.width} height={selectedBox.height}
+              fill="rgba(0,0,0,0)" draggable
+              onDragEnd={(e) => updateImageFrame(spread.id, selectedBox.placeholderId, { x: e.target.x() / STAGE_WIDTH, y: e.target.y() / stageHeight, width: selectedBox.width / STAGE_WIDTH, height: selectedBox.height / stageHeight })}
+              onTransformEnd={() => {
+                const node = frameNodeRef.current
+                if (!node) return
+                const rect = { x: node.x() / STAGE_WIDTH, y: node.y() / stageHeight, width: node.width() * node.scaleX() / STAGE_WIDTH, height: node.height() * node.scaleY() / stageHeight }
+                node.scale({ x: 1, y: 1 })
+                updateImageFrame(spread.id, selectedBox.placeholderId, rect)
+              }}
+              onDblClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}
+              onContextMenu={(e) => handlePlaceholderContextMenu(selectedBox.placeholderId, e.evt)} />
+            <Transformer ref={transformerRef} borderStroke="#9c6b49" anchorStroke="#9c6b49" rotateEnabled={false} flipEnabled={false} boundBoxFunc={(old, next) => next.width < 4 || next.height < 4 ? old : next} />
+          </>}
+          {draftFrame && <Rect {...draftFrame} stroke="#9c6b49" strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />}
+
+            {spread.isCover && showPrintGuides && <>
+              {coverGuide && <KonvaImage image={coverGuide} x={0} y={0} width={STAGE_WIDTH} height={stageHeight} opacity={0.45} listening={false} />}
+              {spread.coverDetails && (() => {
+                const wrap = spread.coverDetails.wrapIn * STAGE_WIDTH / size.widthIn
+                const halfSpine = spread.coverDetails.spineIn * STAGE_WIDTH / size.widthIn / 2
+                return <>
+                  <Rect x={wrap} y={wrap} width={STAGE_WIDTH - 2 * wrap} height={stageHeight - 2 * wrap} stroke="#ffb347" dash={[5, 3]} listening={false} />
+                  {[STAGE_WIDTH / 2 - halfSpine, STAGE_WIDTH / 2 + halfSpine].map((x, i) => <Line key={i} points={[x, 0, x, stageHeight]} stroke="#4fd6c0" dash={[2, 4]} listening={false} />)}
+                </>
+              })()}
+            </>}
+            {showGrid &&
             [1 / 3, 2 / 3].flatMap((f) => [
               <Line key={`v${f}`} points={[STAGE_WIDTH * f, 0, STAGE_WIDTH * f, stageHeight]} stroke="#ff5c7a" strokeWidth={1} dash={[4, 4]} listening={false} />,
               <Line key={`h${f}`} points={[0, stageHeight * f, STAGE_WIDTH, stageHeight * f]} stroke="#ff5c7a" strokeWidth={1} dash={[4, 4]} listening={false} />,
@@ -781,12 +865,12 @@ export default function DesignerCanvas() {
 
           {showPrintGuides &&
             (() => {
-              const pxPerIn = STAGE_WIDTH / project.size.widthIn
-              const trimPx = edgeInsetToPx(project.size.trim, pxPerIn)
+              const pxPerIn = STAGE_WIDTH / size.widthIn
+              const trimPx = edgeInsetToPx(size.trim, pxPerIn)
               const safetyEdgeInset = {
-                leftRight: project.size.trim.leftRight + project.size.safeZone.leftRight,
-                topBottom: project.size.trim.topBottom + project.size.safeZone.topBottom,
-                inside: project.size.trim.inside + project.size.safeZone.inside,
+                leftRight: size.trim.leftRight + size.safeZone.leftRight,
+                topBottom: size.trim.topBottom + size.safeZone.topBottom,
+                inside: size.trim.inside + size.safeZone.inside,
               }
               const safetyPx = edgeInsetToPx(safetyEdgeInset, pxPerIn)
               const trim = resolvePageInsetsPx(spread.pageSide, trimPx)
@@ -908,10 +992,12 @@ export default function DesignerCanvas() {
             <textarea
               className="text-edit-overlay"
               style={{
-                left: box.x * STAGE_WIDTH,
-                top: box.y * stageHeight,
-                width: box.width * STAGE_WIDTH,
-                fontSize: box.fontSize,
+                left: stagePos.x + box.x * STAGE_WIDTH * stageScale,
+                top: stagePos.y + box.y * stageHeight * stageScale,
+                width: box.width * STAGE_WIDTH * stageScale,
+                minHeight: box.height * stageHeight * stageScale,
+                fontSize: box.fontSize * stageScale,
+                fontFamily: box.fontFamily,
                 color: box.color,
                 fontWeight: box.bold ? 'bold' : 'normal',
                 fontStyle: box.italic ? 'italic' : 'normal',
@@ -936,7 +1022,7 @@ export default function DesignerCanvas() {
           onClose={() => setPhotoContextMenu(null)}
         />
       )}
-      <input ref={framePickerInputRef} type="file" accept="image/*" hidden onChange={(e) => void handleFramePicked(e)} />
+      <input ref={framePickerInputRef} type="file" accept={IMAGE_FILE_ACCEPT} hidden onChange={(e) => void handleFramePicked(e)} />
     </div>
   )
 }

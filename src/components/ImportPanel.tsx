@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
+import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { describeImportSummary } from '@/engine/importWorkflow'
 import { useImportPhotos } from '@/engine/useImportPhotos'
@@ -24,15 +25,6 @@ export default function ImportPanel() {
 
   const hasIssues = !!lastSummary && (lastSummary.failures.length > 0 || lastSummary.rejected.length > 0)
 
-  // Lets File > Import Images… (and its Ctrl+I shortcut) open the same file picker as clicking
-  // the dropzone, without lifting this panel's local input ref into the store.
-  useEffect(() => {
-    function onImportImages() {
-      if (!importing) inputRef.current?.click()
-    }
-    window.addEventListener('album-studio:import-images', onImportImages)
-    return () => window.removeEventListener('album-studio:import-images', onImportImages)
-  }, [importing])
 
   return (
     <div className="panel import-panel">
@@ -72,7 +64,7 @@ export default function ImportPanel() {
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={IMAGE_FILE_ACCEPT}
           multiple
           hidden
           onChange={(e) => {

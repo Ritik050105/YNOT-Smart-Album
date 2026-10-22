@@ -1,3 +1,4 @@
+import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { importPhotoFiles } from '@/engine/importPhotos'
@@ -143,7 +144,7 @@ export default function MenuBar() {
       return
     }
     if (spread && framePlaceholderIds.length > 0) {
-      framePlaceholderIds.forEach((id) => setPlacementPhoto(spread.id, id, null))
+      updateMultiplePlacements(spread.id, framePlaceholderIds, { photoId: null })
     }
   }
 
@@ -170,7 +171,7 @@ export default function MenuBar() {
         { label: 'New Album', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:new-project')) },
         { label: 'Open Project…', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:open-project')) },
         { label: 'Save Project', shortcut: 'Ctrl+S', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:save-project')) },
-        { label: 'Save As…', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:save-project')) },
+        { label: 'Save As…', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:save-project-as')) },
         { label: 'Import Images…', shortcut: 'Ctrl+I', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:import-images')) },
         {
           label: 'Export Album…',
@@ -187,11 +188,13 @@ export default function MenuBar() {
         { label: 'Redo', shortcut: 'Ctrl+Shift+Z', disabled: future.length === 0, onClick: redo },
         {
           label: 'Cut',
+          shortcut: 'Ctrl+X',
           disabled: !spread || framePlaceholderIds.length !== 1 || !hasPhotoInSelection,
           onClick: () => spread && cutPlacement(spread.id, framePlaceholderIds[0]),
         },
         {
           label: 'Copy',
+          shortcut: 'Ctrl+C',
           disabled: !spread || framePlaceholderIds.length !== 1 || !hasPhotoInSelection,
           onClick: () => spread && copyPlacement(spread.id, framePlaceholderIds[0]),
         },
@@ -204,6 +207,7 @@ export default function MenuBar() {
         { label: 'Copy Filename(s)', disabled: !hasPhotoInSelection, onClick: copyFilenames },
         {
           label: 'Paste',
+          shortcut: 'Ctrl+V',
           disabled: !spread || !photoClipboard || !hasFrameSelection,
           onClick: () => spread && pastePlacement(spread.id, framePlaceholderIds),
         },
@@ -220,7 +224,7 @@ export default function MenuBar() {
           danger: true,
           onClick: deleteSelection,
         },
-        { label: 'Deselect All', onClick: deselectAll },
+        { label: 'Deselect All', shortcut: 'Ctrl+D', onClick: deselectAll },
       ],
     },
     {
@@ -263,7 +267,8 @@ export default function MenuBar() {
     {
       label: 'Cover',
       items: [
-        { label: 'Add Cover', disabled: hasCover, onClick: addCoverSpread },
+        { label: 'Add Cover', disabled: hasCover, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:setup-cover')) },
+        { label: 'Cover Specifications…', disabled: !hasCover, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:setup-cover')) },
         { label: 'Delete Cover', disabled: !hasCover, danger: true, onClick: () => { const cover = project.spreads.find((s) => s.isCover); if (cover) deleteSpread(cover.id) } },
       ],
     },
@@ -376,7 +381,7 @@ export default function MenuBar() {
       <input
         ref={replaceInputRef}
         type="file"
-        accept="image/*"
+        accept={IMAGE_FILE_ACCEPT}
         hidden
         onChange={(e) => {
           void handleReplaceImage(e.target.files?.[0])

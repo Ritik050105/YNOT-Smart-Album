@@ -1,0 +1,48 @@
+const { app, BrowserWindow } = require('electron')
+const { build } = require('esbuild')
+const assert = require('node:assert/strict')
+const fs = require('node:fs/promises')
+const path = require('node:path')
+app.disableHardwareAcceleration()
+app.whenReady().then(async () => {
+  const output = path.join(app.getPath('temp'), 'ynot-project-formats')
+  await fs.mkdir(output, { recursive: true })
+  const source = `import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import Wizard from './src/components/NewProjectWizard';import TopBar from './src/components/TopBar';import Spreads from './src/components/SpreadsPanel';import {useProjectStore as store} from './src/state/projectStore';import {ALBUM_SIZES} from './src/engine/albumSizes';import {findTemplate,matchesFrameFilter} from './src/engine/templates';
+  window.store=store;window.sizes=ALBUM_SIZES;window.validFilter=()=>store.getState().project.enabledTemplateIds.every(id=>matchesFrameFilter(findTemplate(id),'only-3x2',store.getState().project.size.widthIn/store.getState().project.size.heightIn));function Fixture(){const [editing,setEditing]=useState(false),[generation,setGeneration]=useState(0);window.restart=()=>{setEditing(false);setGeneration(n=>n+1)};return editing?<div className="app-shell"><TopBar/><div style={{height:400,containerType:'size'}}><Spreads/></div></div>:<Wizard key={generation} onCreated={()=>setEditing(true)} onClose={()=>{}}/>};createRoot(document.getElementById('root')).render(<Fixture/>);`
+  const result = await build({ stdin: { contents: source, resolveDir: process.cwd(), loader: 'tsx' }, bundle: true, platform: 'browser', format: 'iife', write: false, loader: { '.png': 'dataurl', '.icc': 'dataurl' } })
+  await fs.writeFile(path.join(output, 'fixture.js'), result.outputFiles[0].text)
+  await fs.copyFile('src/styles/app.css', path.join(output, 'app.css'))
+  await fs.writeFile(path.join(output, 'index.html'), '<html><head><link rel="stylesheet" href="app.css"></head><body><div id="root"></div><script src="fixture.js"></script></body></html>')
+  const win = new BrowserWindow({ show: false, width: 1280, height: 800, webPreferences: { offscreen: true, contextIsolation: true, sandbox: true, partition: 'format-test-' + Date.now() } })
+  const errors = []
+  win.webContents.on('console-message', (_, level, message) => { if (level === 3) errors.push(message) })
+  await win.loadFile(path.join(output, 'index.html'))
+  const evaluate = code => win.webContents.executeJavaScript(code).catch(error => { console.error('Failed check:', code, errors); throw error })
+  const settle = () => new Promise(resolve => setTimeout(resolve, 35))
+  for (let i = 0; i < 40 && !await evaluate('!!document.querySelector(".shape-picker")'); i++) await settle()
+  const sizes = await evaluate('window.sizes')
+  for (const [width, height] of [[720, 480], [1280, 800]]) {
+    win.setSize(width, height); await settle()
+    const tops = await evaluate(`Array.from(document.querySelectorAll('.shape-option__label'),el=>el.getBoundingClientRect().top)`)
+    assert.equal(tops.length, 5); assert.ok(Math.max(...tops) - Math.min(...tops) < 1, 'Format labels share a baseline')
+  }
+  await fs.writeFile(path.join(output, 'aligned-formats.png'), (await win.webContents.capturePage()).toPNG())
+  for (const size of sizes) {
+    await evaluate('window.restart()'); await settle()
+    await evaluate(`Array.from(document.querySelectorAll('.shape-option')).find(el=>el.textContent===${JSON.stringify(size.category)}).click()`); await settle()
+    await evaluate(`var select=Array.from(document.querySelectorAll('label')).find(el=>el.textContent.includes('Exact size')).querySelector('select');select.value=${JSON.stringify(size.id)};select.dispatchEvent(new Event('change',{bubbles:true}))`); await settle()
+    await evaluate(`Array.from(document.querySelectorAll('button')).find(el=>el.textContent.trim()==='Next').click()`); await settle()
+    const ratios = await evaluate(`Array.from(document.querySelectorAll('.template-preview-grid__swatch'),el=>{const [w,h='1']=el.style.aspectRatio.split('/');return Number(w)/Number(h)})`)
+    assert.ok(ratios.length > 0 && ratios.every(ratio => Math.abs(ratio - size.widthIn / size.heightIn) < 1e-5), size.id + ' preview follows the exact chosen size')
+    await evaluate(`var select=Array.from(document.querySelectorAll('select')).find(el=>Array.from(el.options).some(o=>o.value==='only-3x2'));select.value='only-3x2';select.dispatchEvent(new Event('change',{bubbles:true}))`); await settle()
+    await evaluate(`Array.from(document.querySelectorAll('button')).find(el=>el.textContent.trim()==='Start').click()`); await settle()
+    assert.deepEqual(await evaluate('store.getState().project.size'), size)
+    assert.equal(await evaluate('window.validFilter()'), true, 'Library filtering uses the selected aspect')
+    assert.equal(await evaluate(`document.querySelector('.topbar__format').textContent`), `${size.category} · ${size.widthIn} × ${size.heightIn} in`)
+    const ratio = await evaluate(`var rect=document.querySelector('[data-new-spread]').getBoundingClientRect();rect.width/rect.height`)
+    assert.ok(Math.abs(ratio - size.widthIn / size.heightIn) < 0.03, size.id + ' main-screen spread shape')
+  }
+  assert.deepEqual(errors, [])
+  console.log('Project format checks passed: all standard sizes, aligned labels at two resolutions, aspect-aware previews/filters, creation and main-screen dimensions/shape.')
+  win.destroy(); app.quit()
+}).catch(error => { console.error(error); app.exit(1) })

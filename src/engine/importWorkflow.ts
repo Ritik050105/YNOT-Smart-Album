@@ -1,5 +1,6 @@
 import { PhotoAsset } from '@/types'
 import { importPhotoFiles, ImportFailure } from './importPhotos'
+import { blobUrlToDataUrl } from './projectFile'
 
 export interface ImportSummary {
   importedCount: number
@@ -8,21 +9,41 @@ export interface ImportSummary {
   rejected: ImportFailure[]
 }
 
-/** Imports `files`, then drops any whose filename already exists in the project (the common case
- *  of re-dragging the same folder) before handing back what's actually new to add. Shared by the
- *  Import panel, the window-wide drop zone, and dropping a photo straight onto a canvas frame, so
- *  all three entry points behave identically. */
+/** A filename collision alone must never discard a different camera's photo. */
+export async function dedupeImportedAssets(assets: PhotoAsset[], existingPhotos: PhotoAsset[]) {
+  const known = [...existingPhotos]
+  const newAssets: PhotoAsset[] = []
+  const matchedAssets: PhotoAsset[] = []
+  const sources = new Map<string, Promise<string | null>>()
+  function source(photo: PhotoAsset) {
+    if (!sources.has(photo.id)) sources.set(photo.id, blobUrlToDataUrl(photo.src).catch(() => null))
+    return sources.get(photo.id)!
+  }
+  for (const asset of assets) {
+    let match: PhotoAsset | undefined
+    for (const candidate of known.filter((photo) => photo.fileName === asset.fileName && photo.width === asset.width && photo.height === asset.height)) {
+      const [incoming, existing] = await Promise.all([source(asset), source(candidate)])
+      if (incoming !== null && incoming === existing) { match = candidate; break }
+    }
+    if (!match) { newAssets.push(asset); known.push(asset) }
+    else if (asset.src.startsWith('blob:')) URL.revokeObjectURL(asset.src)
+    matchedAssets.push(match ?? asset)
+  }
+  return { newAssets, matchedAssets }
+}
+
+/** Shared by the photo dock, file drops and the Designer's frame picker. */
 export async function importAndDedupe(
   files: File[],
   existingPhotos: PhotoAsset[],
   onProgress?: (done: number, total: number) => void
-): Promise<{ newAssets: PhotoAsset[]; summary: ImportSummary }> {
-  const existingNames = new Set(existingPhotos.map((p) => p.fileName))
+): Promise<{ newAssets: PhotoAsset[]; matchedAssets: PhotoAsset[]; summary: ImportSummary }> {
   const { assets, failures, rejected } = await importPhotoFiles(files, onProgress)
-  const newAssets = assets.filter((a) => !existingNames.has(a.fileName))
+  const { newAssets, matchedAssets } = await dedupeImportedAssets(assets, existingPhotos)
   const duplicateCount = assets.length - newAssets.length
   return {
     newAssets,
+    matchedAssets,
     summary: { importedCount: newAssets.length, duplicateCount, failures, rejected },
   }
 }

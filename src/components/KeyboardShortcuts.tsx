@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
-import { v4 as uuid } from 'uuid'
 import { useProjectStore } from '@/state/projectStore'
 import { isEditableTarget, modKeyLabel } from '@/engine/keyboard'
 import Modal from './Modal'
 
 /** Global keyboard shortcuts for the whole app (undo/redo, save, export, delete, copy/paste
- *  tone, duplicate text, select-all-in-spread, nudge, and a "?" help overlay). Headless — only
+ *  images and tone, deselect, select-all-in-spread, nudge, and a "?" help overlay). Headless — only
  *  renders the shortcuts help modal when open; everything else is a single window keydown
  *  listener that reads/writes the project store directly so it works regardless of which panel
  *  has focus. Canvas-specific shortcuts (zoom/pan) live in DesignerCanvas instead, since they
@@ -23,6 +22,7 @@ export default function KeyboardShortcuts() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (e.defaultPrevented) return
       // Don't fight a modal's own Escape/field handling — skip entirely while one is open.
       if (document.querySelector('.modal-backdrop')) return
 
@@ -36,6 +36,11 @@ export default function KeyboardShortcuts() {
       }
 
       const s = useProjectStore.getState()
+      if (s.matchingTemplatesOpen) {
+        if (e.key === 'Escape') { e.preventDefault(); s.closeMatchingTemplates(); return }
+        if (mod && !editable && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) { e.preventDefault(); s.closeMatchingTemplates(); if (e.key.toLowerCase() === 'y' || e.shiftKey) s.redo(); else s.undo(); return }
+        if (!(mod && e.key.toLowerCase() === 's')) return
+      }
 
       if (mod && !editable && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault()
@@ -47,13 +52,20 @@ export default function KeyboardShortcuts() {
         s.redo()
         return
       }
-      if (mod && !editable && e.key.toLowerCase() === 's') {
+      if (mod && e.key.toLowerCase() === 's') {
         e.preventDefault()
-        window.dispatchEvent(new CustomEvent('album-studio:save-project'))
+        if (editable && document.activeElement instanceof HTMLElement) document.activeElement.blur()
+        window.dispatchEvent(new CustomEvent(e.shiftKey ? 'album-studio:save-project-as' : 'album-studio:save-project'))
         return
       }
-      if (mod && !editable && e.key.toLowerCase() === 'e') {
+      if (mod && !editable && e.key.toLowerCase() === 'i') {
         e.preventDefault()
+        window.dispatchEvent(new CustomEvent('album-studio:import-images'))
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'e') {
+        e.preventDefault()
+        if (editable && document.activeElement instanceof HTMLElement) document.activeElement.blur()
         window.dispatchEvent(new CustomEvent('album-studio:open-export'))
         return
       }
@@ -61,7 +73,7 @@ export default function KeyboardShortcuts() {
         if (!s.selectedSpreadId) return
         const spread = s.project.spreads.find((sp) => sp.id === s.selectedSpreadId)
         const ids = spread?.placements.filter((p) => p.photoId).map((p) => p.placeholderId) ?? []
-        if (ids.length > 1) {
+        if (ids.length > 0) {
           e.preventDefault()
           useProjectStore.setState({
             multiSelectedPlaceholderIds: ids,
@@ -74,7 +86,8 @@ export default function KeyboardShortcuts() {
       if (mod && !editable && e.key.toLowerCase() === 'c') {
         if (s.selectedSpreadId && s.selectedPlaceholderId) {
           e.preventDefault()
-          s.copyToneAdjustments(s.selectedSpreadId, s.selectedPlaceholderId)
+          if (e.shiftKey) s.copyToneAdjustments(s.selectedSpreadId, s.selectedPlaceholderId)
+          else s.copyPlacement(s.selectedSpreadId, s.selectedPlaceholderId)
         }
         return
       }
@@ -87,26 +100,24 @@ export default function KeyboardShortcuts() {
             : []
         if (targets.length > 0) {
           e.preventDefault()
-          s.pasteToneAdjustments(s.selectedSpreadId, targets)
+          if (e.shiftKey) s.pasteToneAdjustments(s.selectedSpreadId, targets)
+          else s.pastePlacement(s.selectedSpreadId, targets)
+        }
+        return
+      }
+      if (mod && !editable && !e.shiftKey && e.key.toLowerCase() === 'x') {
+        if (s.selectedSpreadId && s.selectedPlaceholderId) {
+          e.preventDefault()
+          s.cutPlacement(s.selectedSpreadId, s.selectedPlaceholderId)
         }
         return
       }
       if (mod && !editable && e.key.toLowerCase() === 'd') {
-        if (s.selectedSpreadId && s.selectedTextBoxId) {
-          const spread = s.project.spreads.find((sp) => sp.id === s.selectedSpreadId)
-          const box = spread?.textBoxes.find((t) => t.id === s.selectedTextBoxId)
-          if (box) {
-            e.preventDefault()
-            const newId = uuid()
-            s.addTextBox(s.selectedSpreadId, {
-              ...box,
-              id: newId,
-              x: Math.min(0.92, box.x + 0.02),
-              y: Math.min(0.92, box.y + 0.02),
-            })
-            s.selectTextBox(newId)
-          }
-        }
+        e.preventDefault()
+        s.selectPlaceholder(null)
+        s.selectTextBox(null)
+        s.clearMultiSelect()
+        s.setSelectedPhotoIds([], null)
         return
       }
       if (!editable && (e.key === 'Delete' || e.key === 'Backspace')) {
@@ -118,7 +129,7 @@ export default function KeyboardShortcuts() {
         if (s.selectedSpreadId && s.multiSelectedPlaceholderIds.length > 0) {
           e.preventDefault()
           const spreadId = s.selectedSpreadId
-          s.multiSelectedPlaceholderIds.forEach((id) => s.setPlacementPhoto(spreadId, id, null))
+          s.updateMultiplePlacements(spreadId, s.multiSelectedPlaceholderIds, { photoId: null })
           return
         }
         if (s.selectedSpreadId && s.selectedPlaceholderId) {
@@ -130,6 +141,10 @@ export default function KeyboardShortcuts() {
       }
       if (!editable && !mod && e.key.toLowerCase() === 'v') {
         s.setCanvasTool('select')
+        return
+      }
+      if (!editable && !mod && (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 't')) {
+        s.setCanvasTool(e.key.toLowerCase() === 'f' ? 'frame' : 'text')
         return
       }
       if (!editable && !mod && e.key.toLowerCase() === 'h') {
@@ -158,6 +173,18 @@ export default function KeyboardShortcuts() {
         return
       }
       if (!editable && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        if (!mod && !e.altKey && !e.shiftKey && !s.designerViewSpreadId && !s.selectedPlaceholderId && !s.selectedTextBoxId && s.multiSelectedPlaceholderIds.length === 0 && s.selectedSpreadId && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+          e.preventDefault()
+          s.cycleSpreadTemplate(s.selectedSpreadId, e.key === 'ArrowUp' ? -1 : 1)
+          return
+        }
+        if (!mod && !e.altKey && !e.shiftKey && !s.designerViewSpreadId && !s.selectedPlaceholderId && !s.selectedTextBoxId && s.multiSelectedPlaceholderIds.length === 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+          const spreads = [...s.project.spreads].sort((a, b) => Number(!!b.isCover) - Number(!!a.isCover) || a.order - b.order)
+          const index = spreads.findIndex((spread) => spread.id === s.selectedSpreadId)
+          const next = index < 0 ? 0 : Math.max(0, Math.min(spreads.length - 1, index + (e.key === 'ArrowLeft' ? -1 : 1)))
+          if (spreads[next]) { e.preventDefault(); s.selectSpread(spreads[next].id) }
+          return
+        }
         if (s.selectedSpreadId && s.selectedTextBoxId) {
           const spread = s.project.spreads.find((sp) => sp.id === s.selectedSpreadId)
           const box = spread?.textBoxes.find((t) => t.id === s.selectedTextBoxId)
@@ -208,6 +235,7 @@ function ShortcutsHelpModal({ onClose }: { onClose: () => void }) {
           <Row keys={`${modKeyLabel}+Z`} label="Undo" />
           <Row keys={`${modKeyLabel}+Shift+Z`} label="Redo" />
           <Row keys={`${modKeyLabel}+S`} label="Save project" />
+          <Row keys={`${modKeyLabel}+I`} label="Import images" />
           <Row keys={`${modKeyLabel}+E`} label="Export album" />
           <Row keys="?" label="Toggle this help" />
         </section>
@@ -217,9 +245,12 @@ function ShortcutsHelpModal({ onClose }: { onClose: () => void }) {
           <Row keys="Escape" label="Deselect everything" />
           <Row keys={`${modKeyLabel}+A`} label="Select all photos in the current spread" />
           <Row keys="Shift / Ctrl+click" label="Multi-select photos on the canvas" />
-          <Row keys={`${modKeyLabel}+C / ${modKeyLabel}+V`} label="Copy / paste tone adjustments" />
-          <Row keys={`${modKeyLabel}+D`} label="Duplicate the selected text box" />
+          <Row keys={`${modKeyLabel}+X / C / V`} label="Cut / copy / paste the selected image" />
+          <Row keys={`${modKeyLabel}+Shift+C / V`} label="Copy / paste tone adjustments" />
+          <Row keys={`${modKeyLabel}+D`} label="Deselect all" />
           <Row keys="Arrow keys" label="Nudge the selected text box (Shift = bigger step)" />
+          <Row keys="Left / Right" label="Select the previous / next spread in the overview" />
+          <Row keys="Up / Down" label="Try the previous / next matching layout in the overview" />
         </section>
         <section>
           <h4>Canvas</h4>

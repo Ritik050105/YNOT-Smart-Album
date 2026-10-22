@@ -1,11 +1,14 @@
+import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useProjectStore } from '@/state/projectStore'
 import { useImportPhotos } from '@/engine/useImportPhotos'
 import { autoBuildTargetPhotoIds } from '@/engine/autoBuildTarget'
+import { draggedPhotoIds } from '@/engine/photoDrag'
 import { Spread } from '@/types'
 import AutoBuildModal from './AutoBuildModal'
 import Icon from './Icon'
+import PatternsPanel from './PatternsPanel'
 
 /** Picks where a double-clicked photo (with nothing pre-selected) should land: the current
  *  spread's first empty frame if there is one, otherwise the first empty frame in album order. */
@@ -63,6 +66,7 @@ export default function PhotoBin() {
   const importInputRef = useRef<HTMLInputElement>(null)
   const favoritesInputRef = useRef<HTMLInputElement>(null)
   const [autoBuildOpen, setAutoBuildOpen] = useState(false)
+  const [patternsOpen, setPatternsOpen] = useState(false)
   const autoBuildTargets = autoBuildTargetPhotoIds(photos, spreads, selectedPhotoIds)
 
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
@@ -111,10 +115,11 @@ export default function PhotoBin() {
 
   const importButtons = (
     <div className="photo-dock__import-actions">
+      <button className="btn btn--tiny" title="Patterns" onClick={() => setPatternsOpen(true)}><Icon name="swatch" size={12} />Patterns</button>
       <input
         ref={importInputRef}
         type="file"
-        accept="image/*"
+        accept={IMAGE_FILE_ACCEPT}
         multiple
         hidden
         onChange={(e) => {
@@ -125,7 +130,7 @@ export default function PhotoBin() {
       <input
         ref={favoritesInputRef}
         type="file"
-        accept="image/*"
+        accept={IMAGE_FILE_ACCEPT}
         multiple
         hidden
         onChange={(e) => {
@@ -153,6 +158,7 @@ export default function PhotoBin() {
     </div>
   )
 
+  if (patternsOpen) return <PatternsPanel onShowPhotos={() => setPatternsOpen(false)} />
   if (photos.length === 0) {
     return (
       <div className="photo-dock photo-dock--empty">
@@ -283,20 +289,43 @@ export default function PhotoBin() {
           </button>
         )}
       </div>
-      <div className="photo-dock__strip" style={{ '--photo-size': `${zoom}px` } as CSSProperties}>
+      <div className="photo-dock__strip" tabIndex={0} aria-label="Image browser"
+        onKeyDown={(event) => {
+          if (event.target instanceof HTMLInputElement) return
+          const ids = sorted.map((photo) => photo.id)
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+            event.preventDefault()
+            useProjectStore.getState().setSelectedPhotoIds(ids, ids[0] ?? null)
+          } else if (!event.ctrlKey && !event.metaKey && !event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+            const focused = (event.target as HTMLElement).closest<HTMLElement>('[data-dock-photo]')?.dataset.dockPhoto
+            const current = ids.indexOf(focused ?? selectedPhotoIds.at(-1) ?? '')
+            const next = current < 0 ? 0 : Math.max(0, Math.min(ids.length - 1, current + (event.key === 'ArrowLeft' ? -1 : 1)))
+            const id = ids[next]
+            if (!id) return
+            event.preventDefault()
+            togglePhotoSelection(id, ids, event.shiftKey ? 'range' : 'single')
+            const item = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-dock-photo]')).find((node) => node.dataset.dockPhoto === id)
+            item?.focus({ preventScroll: true })
+            item?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+          }
+        }} style={{ '--photo-size': `${zoom}px` } as CSSProperties}>
         {sorted.map((photo) => {
           const used = usedPhotoIds.has(photo.id)
           const selected = selectedPhotoIds.includes(photo.id)
           return (
             <div
               key={photo.id}
-              className={`photo-dock__item ${used ? 'is-used' : 'is-unused'} ${selected ? 'is-selected' : ''}`}
+                className={`photo-dock__item ${used ? 'is-used' : 'is-unused'} ${selected ? 'is-selected' : ''}`}
+                data-dock-photo={photo.id}
+              tabIndex={-1}
               draggable
               onDragStart={(e) => {
                 e.dataTransfer.setData('application/x-photo-id', photo.id)
+                e.dataTransfer.setData('application/x-photo-ids', JSON.stringify(draggedPhotoIds(photo.id, selectedPhotoIds, sorted.map((p) => p.id))))
                 e.dataTransfer.effectAllowed = 'copy'
               }}
               onClick={(e) => {
+                e.currentTarget.focus({ preventScroll: true })
                 const mode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
                 togglePhotoSelection(photo.id, sorted.map((p) => p.id), mode)
               }}

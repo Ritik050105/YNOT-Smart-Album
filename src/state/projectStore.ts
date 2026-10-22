@@ -12,11 +12,15 @@ import {
   flipSpreadHorizontally,
   createBlankSpread,
   createCoverSpread,
+  defaultPlacement,
+  buildSpreadFromPlacements,
 } from '@/engine/autoLayout'
-import { BUILT_IN_TEMPLATES, findTemplate, setUserTemplateRegistry, TemplateFrameFilter } from '@/engine/templates'
+import { BUILT_IN_TEMPLATES, findTemplate, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
 import { blobUrlToDataUrl } from '@/engine/projectFile'
 import { computeAutoAdjust } from '@/engine/autoAdjust'
+import { validateCoverSize } from '@/engine/cover'
+import { DESIGN_WIDTH, boundedFrameRect, computePlaceholderBoxes } from '@/engine/layoutMath'
 import { AlbumSize, EdgeInset } from '@/types'
 
 /** Older saved project files stored a single `bleedIn`/`safeZoneIn` number per album size instead
@@ -29,6 +33,10 @@ function migrateAlbumSize(raw: AlbumSize & { bleedIn?: number; safeZoneIn?: numb
 }
 
 const TEMPLATE_LIBRARY_KEY = 'albumstudio.templateLibrary'
+const TEMPLATE_FAVORITES_KEY = 'albumstudio.templateFavorites'
+function loadTemplateFavorites(): string[] {
+  try { const ids = JSON.parse(localStorage.getItem(TEMPLATE_FAVORITES_KEY) ?? '[]'); return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [] } catch { return [] }
+}
 
 function loadUserTemplates(): TemplateDefinition[] {
   try {
@@ -183,7 +191,7 @@ interface ProjectState {
   showPhotoFileNames: boolean
   /** A spread's own Cut/Copy/Paste clipboard (the Spread context menu) — separate from
    *  `photoClipboard`, which copies one placed photo rather than a whole spread's layout. */
-  spreadClipboard: Pick<Spread, 'templateId' | 'placements' | 'textBoxes' | 'backgroundColor' | 'gapPx' | 'marginPx' | 'pageSide'> | null
+  spreadClipboard: Pick<Spread, 'templateId' | 'placements' | 'textBoxes' | 'backgroundColor' | 'backgroundPattern' | 'gapPx' | 'marginPx' | 'pageSide' | 'customBoxes' | 'flipped' | 'guides'> | null
   /** A read-only mirror of DesignerCanvas's own local zoom/pan state, written there on every
    *  change — lets Designer View's ruler and "1:1" zoom readout reflect the live canvas view
    *  without lifting that interaction-critical state (and its Figma-style wheel/keyboard
@@ -195,6 +203,13 @@ interface ProjectState {
    *  a dedicated zoomed-in editing mode with its own ruler and tool rail, separate from the
    *  overview's row of spread cards. */
   designerViewSpreadId: string | null
+  matchingTemplatesOpen: boolean
+  templatePreview: Spread | null
+  favoriteTemplateIds: string[]
+  openMatchingTemplates: (spreadId: string) => void
+  closeMatchingTemplates: () => void
+  previewMatchingTemplate: (templateId: string | null, keepOrder?: boolean) => void
+  toggleTemplateFavorite: (templateId: string) => void
   autoLayoutOptions: AutoLayoutOptions
   history: Project[]
   future: Project[]
@@ -204,7 +219,7 @@ interface ProjectState {
   /** The Auto Build dialog's "Auto Build" button — appends new spreads built from `groups`
    *  (each a photo-id array, one per new spread) to the END of the existing album, leaving any
    *  spreads already there untouched. Unlike `runAutoBuild`, which replaces the whole album. */
-  runAutoBuildFromGroups: (groups: string[][], opts?: { allowTemplateRepeats?: boolean; matchTimelineOrder?: boolean }) => void
+  runAutoBuildFromGroups: (groups: string[][], opts?: { allowTemplateRepeats?: boolean; matchTimelineOrder?: boolean; templateReuse?: 'low' | 'medium' | 'high' }) => void
   selectSpread: (id: string | null) => void
   selectPlaceholder: (id: string | null) => void
   selectTextBox: (id: string | null) => void
@@ -239,7 +254,7 @@ interface ProjectState {
   setTemplateFrameFilter: (f: TemplateFrameFilter) => void
   toggleShowPhotoFileNames: () => void
   enterDesignerView: (spreadId: string) => void
-  exitDesignerView: () => void
+  exitDesignerView: (keepEmpty?: boolean) => void
   setCanvasViewportMirror: (zoom: number, pan: { x: number; y: number }) => void
   copyPlacement: (spreadId: string, placeholderId: string) => void
   pastePlacement: (spreadId: string, placeholderIds: string[]) => void
@@ -249,16 +264,24 @@ interface ProjectState {
   cutSpread: (spreadId: string) => void
   convertSpreadPageType: (spreadId: string) => void
   reorderSpreads: (fromIndex: number, toIndex: number) => void
-  splitSpread: (spreadId: string) => void
+  splitSpread: (spreadId: string, cutIndex?: number) => void
+  moveTimelinePhoto: (sourceSpreadId: string, frameId: string, targetSpreadId: string | null, beforeFrameId?: string) => void
+  insertTimelinePhotos: (photoIds: string[], targetSpreadId: string | null, beforeFrameId?: string) => void
   mergeWithNext: (spreadId: string) => void
   flipSpread: (spreadId: string) => void
   addBlankSpread: () => void
   addCoverSpread: () => void
+  configureCover: (size: AlbumSize, details: NonNullable<Spread['coverDetails']>, photoIds?: string[]) => void
   duplicateSpread: (spreadId: string) => void
   deleteSpread: (spreadId: string) => void
-  applyTemplateToSpread: (spreadId: string, templateId: string) => void
+  applyTemplateToSpread: (spreadId: string, templateId: string, keepOrder?: boolean) => void
+  cycleSpreadTemplate: (spreadId: string, direction: -1 | 1) => void
   applyTemplateToAllSpreads: (templateId: string) => void
   updateSpread: (spreadId: string, patch: Partial<Spread>) => void
+  applyBackgroundToAllSpreads: (spreadId: string, pattern?: Spread['backgroundPattern']) => void
+  addImageFrame: (spreadId: string, rect: { x: number; y: number; width: number; height: number }, photoId?: string) => void
+  updateImageFrame: (spreadId: string, frameId: string, rect: { x: number; y: number; width: number; height: number }) => void
+  removeImageFrame: (spreadId: string, frameId: string) => void
   setPlacementPhoto: (spreadId: string, placeholderId: string, photoId: string | null) => void
   swapPlacements: (spreadId: string, placeholderIdA: string, placeholderIdB: string) => void
   updatePlacement: (spreadId: string, placeholderId: string, patch: Partial<Spread['placements'][number]>) => void
@@ -284,7 +307,7 @@ interface ProjectState {
   redo: () => void
   renameProject: (name: string) => void
   updateProjectMeta: (patch: Partial<Pick<Project, 'eventType' | 'community' | 'clientName'>>) => void
-  updateProjectSettings: (patch: Partial<Pick<Project, 'colorProfile' | 'units'>>) => void
+  updateProjectSettings: (patch: Partial<Pick<Project, 'colorProfile' | 'units' | 'size'>>) => void
   loadProjectFile: (file: ProjectFile) => void
   newProjectFile: () => void
   createProjectFromWizard: (opts: NewProjectOptions) => void
@@ -302,9 +325,13 @@ interface ProjectState {
 
 function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project) {
   set((s) => {
-    const nextProject = { ...mutate(s.project), updatedAt: new Date().toISOString() }
+    const mutated = mutate(s.project)
+    if (mutated === s.project) return {}
+    const nextProject = { ...mutated, updatedAt: new Date().toISOString() }
     return {
       project: nextProject,
+      templatePreview: null,
+      matchingTemplatesOpen: false,
       history: [...s.history, s.project].slice(-50),
       future: [],
       isDirty: true,
@@ -342,6 +369,29 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   canvasZoom: 1,
   canvasPan: { x: 0, y: 0 },
   designerViewSpreadId: null,
+  matchingTemplatesOpen: false,
+  templatePreview: null,
+  favoriteTemplateIds: loadTemplateFavorites(),
+  openMatchingTemplates: (spreadId) => {
+    const spread = get().project.spreads.find(s => s.id === spreadId && !s.isCover)
+    if (spread) set({ selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, multiSelectedPlaceholderIds: [], matchingTemplatesOpen: true, templatePreview: null })
+  },
+  closeMatchingTemplates: () => set({ matchingTemplatesOpen: false, templatePreview: null }),
+  previewMatchingTemplate: (templateId, keepOrder = true) => {
+    const { project, selectedSpreadId, templateFrameFilter } = get()
+    const spread = project.spreads.find(s => s.id === selectedSpreadId && !s.isCover)
+    if (!spread || !templateId) { set({ templatePreview: null }); return }
+    const count = spread.placements.filter(p => p.photoId).length || spread.placements.length
+    const size = spread.size ?? project.size
+    if (!templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, size.widthIn / size.heightIn).some(t => t.id === templateId)) return
+    set({ templatePreview: retemplateSpread(spread, templateId, project.photos, size.widthIn / size.heightIn, keepOrder) })
+  },
+  toggleTemplateFavorite: (templateId) => {
+    const ids = get().favoriteTemplateIds
+    const favoriteTemplateIds = ids.includes(templateId) ? ids.filter(id => id !== templateId) : [...ids, templateId]
+    try { localStorage.setItem(TEMPLATE_FAVORITES_KEY, JSON.stringify(favoriteTemplateIds)) } catch { /* Keep favorites usable for this session if storage is full. */ }
+    set({ favoriteTemplateIds })
+  },
   autoLayoutOptions: DEFAULT_AUTO_LAYOUT_OPTIONS,
   history: [],
   future: [],
@@ -359,9 +409,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       borderColor: project.defaultBorderColor,
     }
     const layout = {
-      start: project.layoutStart,
+      start: project.spreads.some((spread) => !spread.isCover) ? 'spread' : project.layoutStart,
       end: project.layoutEnd,
       includeFullSpreadTemplates: project.includeFullSpreadTemplates,
+      aspect: project.size.widthIn / project.size.heightIn,
+      frameFilter: get().templateFrameFilter,
     }
     const spreads = autoBuildSpreads(project.photos, autoLayoutOptions, appearance, project.enabledTemplateIds, layout)
     withHistory(set, (p) => ({ ...p, spreads }))
@@ -383,9 +435,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   runAutoBuildFromGroups: (groups, opts) => {
     const { project, autoLayoutOptions } = get()
     const photosById = new Map(project.photos.map((p) => [p.id, p]))
+    if (groups.some(ids => ids.some(id => !photosById.has(id)))) throw new Error('Some selected images are no longer available. Reopen Auto Build and select the images again.')
     const photoGroups = groups
       .map((ids) => ids.map((id) => photosById.get(id)).filter((p): p is PhotoAsset => !!p))
       .filter((g) => g.length > 0)
+      .flatMap((group) => Array.from({ length: Math.ceil(group.length / 30) }, (_, i) => group.slice(i * 30, (i + 1) * 30)))
     if (photoGroups.length === 0) return
     const appearance = {
       backgroundColor: project.defaultBackgroundColor,
@@ -395,9 +449,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       borderColor: project.defaultBorderColor,
     }
     const layout = {
-      start: project.layoutStart,
+      start: project.spreads.some((spread) => !spread.isCover) ? 'spread' : project.layoutStart,
       end: project.layoutEnd,
       includeFullSpreadTemplates: project.includeFullSpreadTemplates,
+      aspect: project.size.widthIn / project.size.heightIn,
+      frameFilter: get().templateFrameFilter,
     }
     const newSpreads = buildSpreadsFromGroups(
       photoGroups,
@@ -405,7 +461,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       project.enabledTemplateIds,
       layout,
       opts?.matchTimelineOrder ?? autoLayoutOptions.matchTimelineOrder,
-      opts?.allowTemplateRepeats ?? false
+      opts?.allowTemplateRepeats ?? false,
+      opts?.templateReuse
     )
     const maxOrder = project.spreads.reduce((m, s) => Math.max(m, s.order), -1)
     const appended = newSpreads.map((s, i) => ({ ...s, order: maxOrder + 1 + i }))
@@ -423,6 +480,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   selectSpread: (id) =>
     set({
+      matchingTemplatesOpen: false,
+      templatePreview: null,
       selectedSpreadId: id,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
@@ -531,8 +590,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setTemplateFrameFilter: (f) => set({ templateFrameFilter: f }),
   toggleShowPhotoFileNames: () => set((s) => ({ showPhotoFileNames: !s.showPhotoFileNames })),
-  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId }),
-  exitDesignerView: () => set({ designerViewSpreadId: null }),
+  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId, matchingTemplatesOpen: false, templatePreview: null }),
+  exitDesignerView: (keepEmpty = false) => {
+    const spread = get().project.spreads.find((s) => s.id === get().designerViewSpreadId)
+    if (!keepEmpty && spread?.isCover && !spread.placements.some((p) => p.photoId) && !spread.textBoxes.some((t) => t.text.trim())) {
+      window.dispatchEvent(new CustomEvent('album-studio:empty-cover'))
+      return
+    }
+    set({ designerViewSpreadId: null })
+  },
   setCanvasViewportMirror: (zoom, pan) => set({ canvasZoom: zoom, canvasPan: pan }),
 
   copyPlacement: (spreadId, placeholderId) => {
@@ -556,9 +622,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   copySpread: (spreadId) => {
     const spread = get().project.spreads.find((s) => s.id === spreadId)
-    if (!spread) return
-    const { templateId, placements, textBoxes, backgroundColor, gapPx, marginPx, pageSide } = spread
-    set({ spreadClipboard: { templateId, placements, textBoxes, backgroundColor, gapPx, marginPx, pageSide } })
+    if (!spread || spread.isCover) return
+    const { templateId, placements, textBoxes, backgroundColor, backgroundPattern, gapPx, marginPx, pageSide, customBoxes, flipped, guides } = spread
+    set({ spreadClipboard: { templateId, placements, textBoxes, backgroundColor, backgroundPattern, gapPx, marginPx, pageSide, customBoxes, flipped, guides } })
   },
 
   pasteSpreadAfter: (afterSpreadId) =>
@@ -576,11 +642,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         placements: clip.placements.map((pl) => ({ ...pl })),
         textBoxes: clip.textBoxes.map((t) => ({ ...t, id: uuid() })),
         backgroundColor: clip.backgroundColor,
+        backgroundPattern: clip.backgroundPattern,
         gapPx: clip.gapPx,
         marginPx: clip.marginPx,
-        flipped: false,
+        customBoxes: clip.customBoxes?.map((box) => ({ ...box })),
+        flipped: clip.flipped,
         isCover: false,
-        guides: { horizontal: [], vertical: [] },
+        guides: { horizontal: [...clip.guides.horizontal], vertical: [...clip.guides.vertical] },
       }
       interior.splice(index + 1, 0, pasted)
       const reordered = interior.map((s, i) => ({ ...s, order: i }))
@@ -611,23 +679,62 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     withHistory(set, (p) => {
       const cover = p.spreads.find((s) => s.isCover)
       const interior = p.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
+        if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex < 0 || toIndex < 0 || fromIndex >= interior.length || toIndex >= interior.length || fromIndex === toIndex) return p
       const [moved] = interior.splice(fromIndex, 1)
       interior.splice(toIndex, 0, moved)
       const reordered = interior.map((s, i) => ({ ...s, order: i }))
       return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
     }),
 
-  splitSpread: (spreadId) =>
+  splitSpread: (spreadId, cutIndex) =>
     withHistory(set, (p) => {
       const cover = p.spreads.find((s) => s.isCover)
       const interior = p.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
       const index = interior.findIndex((s) => s.id === spreadId)
       if (index === -1) return p
-      const [left, right] = splitSpreadIntoPages(interior[index])
+      if (cutIndex !== undefined && (!Number.isInteger(cutIndex) || cutIndex < 1 || cutIndex >= interior[index].placements.length)) return p
+      const [left, right] = splitSpreadIntoPages(interior[index], cutIndex)
       interior.splice(index, 1, left, right)
       const reordered = interior.map((s, i) => ({ ...s, order: i }))
       return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
     }),
+
+  moveTimelinePhoto: (sourceSpreadId, frameId, targetSpreadId, beforeFrameId) => withHistory(set, (p) => {
+    const source = p.spreads.find((s) => s.id === sourceSpreadId && !s.isCover)
+    const target = targetSpreadId === null && source ? buildSpreadFromPlacements([], 'spread', source) : p.spreads.find((s) => s.id === targetSpreadId && !s.isCover)
+    const placement = source?.placements.find((pl) => pl.placeholderId === frameId)
+    if (!source || !target || !placement?.photoId || (source === target && beforeFrameId === frameId)) return p
+    if (beforeFrameId && !target.placements.some((pl) => pl.placeholderId === beforeFrameId)) return p
+    const allSpreads = targetSpreadId === null ? [...p.spreads, { ...target, order: p.spreads.filter((s) => !s.isCover).length }] : p.spreads
+    let changed = targetSpreadId === null
+    const spreads = allSpreads.map((s) => {
+      if (s.id !== sourceSpreadId && s.id !== target.id) return s
+      const next = s.placements.filter((pl) => pl.photoId && !(s.id === sourceSpreadId && pl.placeholderId === frameId))
+      if (s.id === target.id) {
+        const index = beforeFrameId ? next.findIndex((pl) => pl.placeholderId === beforeFrameId) : -1
+        next.splice(index < 0 ? next.length : index, 0, placement)
+      }
+      if (next.length === s.placements.length && next.every((pl, i) => pl === s.placements[i])) return s
+      changed = true
+      return { ...buildSpreadFromPlacements(next, s.pageSide, s), id: s.id, textBoxes: s.textBoxes, order: s.order }
+    })
+    return changed ? { ...p, spreads } : p
+  }),
+
+  insertTimelinePhotos: (photoIds, targetSpreadId, beforeFrameId) => withHistory(set, (p) => {
+    const validIds = [...new Set(photoIds)].filter((id) => p.photos.some((photo) => photo.id === id))
+    if (!validIds.length) return p
+    const target = targetSpreadId === null ? createBlankSpread(p.spreads.filter((s) => !s.isCover).length, {
+      backgroundColor: p.defaultBackgroundColor, gapPx: p.defaultGapPx, marginPx: p.defaultMarginPx,
+      borderWidth: p.defaultBorderWidth, borderColor: p.defaultBorderColor,
+    }) : p.spreads.find((s) => s.id === targetSpreadId && !s.isCover)
+    if (!target || (beforeFrameId && !target.placements.some((pl) => pl.placeholderId === beforeFrameId))) return p
+    const placements = target.placements.filter((pl) => pl.photoId)
+    const at = beforeFrameId ? placements.findIndex((pl) => pl.placeholderId === beforeFrameId) : placements.length
+    placements.splice(at < 0 ? placements.length : at, 0, ...validIds.map((id) => defaultPlacement(uuid(), id, { width: p.defaultBorderWidth, color: p.defaultBorderColor })))
+    const updated = { ...buildSpreadFromPlacements(placements, target.pageSide, target), id: target.id, order: target.order, textBoxes: target.textBoxes }
+    return { ...p, spreads: targetSpreadId === null ? [...p.spreads, updated] : p.spreads.map((s) => s.id === target.id ? updated : s) }
+  }),
 
   mergeWithNext: (spreadId) =>
     withHistory(set, (p) => {
@@ -674,6 +781,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { ...p, spreads: [createCoverSpread(appearance), ...p.spreads] }
     }),
 
+  configureCover: (size, details, photoIds = []) => {
+    const error = validateCoverSize(size, get().project.size)
+    if (error) throw new Error(error)
+    if (![details.wrapIn, details.spineIn].every((n) => Number.isFinite(n) && n >= 0) || details.wrapIn * 2 >= Math.min(size.widthIn, size.heightIn) || details.spineIn >= size.widthIn - details.wrapIn * 2) throw new Error('Wrap and spine must fit within the cover dimensions.')
+    withHistory(set, (p) => {
+      const existing = p.spreads.find((s) => s.isCover)
+      const cover = existing ?? createCoverSpread({ backgroundColor: p.defaultBackgroundColor, gapPx: p.defaultGapPx, marginPx: p.defaultMarginPx, borderWidth: p.defaultBorderWidth, borderColor: p.defaultBorderColor })
+      const validIds = photoIds.filter((id) => p.photos.some((photo) => photo.id === id))
+      const seed = (!existing || cover.placements.length === 0) && validIds.length > 0 ? {
+        customBoxes: validIds.map((_, i) => ({ id: uuid(), x: i / validIds.length, y: 0, width: 1 / validIds.length, height: 1, preferredOrientation: 'any' as const })),
+      } : null
+      const placements = seed ? seed.customBoxes.map((box, i) => defaultPlacement(box.id, validIds[i])) : cover.placements.map((pl, i) => validIds[i] ? { ...pl, photoId: validIds[i] } : pl)
+      const updated = { ...cover, size, coverDetails: details, placements, ...seed, ...(!existing && validIds.length === 0 ? { customBoxes: [], placements: [] } : {}) }
+      return { ...p, spreads: [updated, ...p.spreads.filter((s) => !s.isCover)] }
+    })
+    const cover = get().project.spreads.find((s) => s.isCover)
+    if (cover) get().enterDesignerView(cover.id)
+  },
+
   duplicateSpread: (spreadId) =>
     withHistory(set, (p) => {
       const source = p.spreads.find((s) => s.id === spreadId)
@@ -707,16 +833,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  applyTemplateToSpread: (spreadId, templateId) =>
-    withHistory(set, (p) => ({
-      ...p,
-      spreads: p.spreads.map((s) => (s.id === spreadId ? retemplateSpread(s, templateId) : s)),
-    })),
+  applyTemplateToSpread: (spreadId, templateId, keepOrder = true) =>
+    withHistory(set, (p) => {
+      const spreads = p.spreads.map((s) => (s.id === spreadId ? retemplateSpread(s, templateId, p.photos, (s.size ?? p.size).widthIn / (s.size ?? p.size).heightIn, keepOrder) : s))
+      return spreads.some((spread, i) => spread !== p.spreads[i]) ? { ...p, spreads } : p
+    }),
+
+  cycleSpreadTemplate: (spreadId, direction) => {
+    const { project, userTemplates, templateFrameFilter } = get()
+    const spread = project.spreads.find((item) => item.id === spreadId)
+    if (!spread || spread.isCover || !spread.placements.length) return
+    const candidates = [...templatesForCount(spread.placements.length, project.enabledTemplateIds, templateFrameFilter, (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn)]
+    if (candidates.length < 2) return
+    const current = candidates.findIndex((template) => template.id === spread.templateId)
+    const next = current < 0 ? (direction > 0 ? 0 : candidates.length - 1) : (current + direction + candidates.length) % candidates.length
+    get().applyTemplateToSpread(spreadId, candidates[next].id)
+    if (get().selectedSpreadId === spreadId) set({ selectedPlaceholderId: null, selectedTextBoxId: null, multiSelectedPlaceholderIds: [] })
+  },
 
   applyTemplateToAllSpreads: (templateId) =>
     withHistory(set, (p) => ({
       ...p,
-      spreads: p.spreads.map((s) => retemplateSpread(s, templateId)),
+      spreads: p.spreads.map((s) => s.isCover ? s : retemplateSpread(s, templateId)),
     })),
 
   updateSpread: (spreadId, patch) =>
@@ -724,6 +862,46 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       ...p,
       spreads: p.spreads.map((s) => (s.id === spreadId ? { ...s, ...patch } : s)),
     })),
+
+  applyBackgroundToAllSpreads: (spreadId, pattern) => withHistory(set, (p) => {
+    const source = p.spreads.find((s) => s.id === spreadId)
+    if (!source) return p
+    return { ...p, spreads: p.spreads.map((s) => s.isCover ? s : { ...s, backgroundColor: source.backgroundColor, backgroundPattern: pattern ?? source.backgroundPattern }) }
+  }),
+
+  addImageFrame: (spreadId, rect, photoId) => {
+    const frameId = uuid()
+    const bounded = boundedFrameRect(rect)
+    withHistory(set, (p) => ({ ...p, spreads: p.spreads.map((s) => {
+      if (s.id !== spreadId) return s
+      const size = s.size ?? p.size
+      const height = DESIGN_WIDTH * size.heightIn / size.widthIn
+      const existing = computePlaceholderBoxes(s, DESIGN_WIDTH, height).map((box) => ({ id: box.placeholderId, x: box.x / DESIGN_WIDTH, y: box.y / height, width: box.width / DESIGN_WIDTH, height: box.height / height, preferredOrientation: 'any' as const }))
+      return { ...s, flipped: false, customBoxes: [...existing, { id: frameId, ...bounded, preferredOrientation: 'any' as const }], placements: [...s.placements, { ...defaultPlacement(frameId, photoId && p.photos.some((photo) => photo.id === photoId) ? photoId : null) }] }
+    }) }))
+    get().selectPlaceholder(frameId)
+  },
+
+  updateImageFrame: (spreadId, frameId, rect) => {
+    const bounded = boundedFrameRect(rect)
+    withHistory(set, (p) => ({ ...p, spreads: p.spreads.map((s) => {
+      if (s.id !== spreadId) return s
+      const size = s.size ?? p.size
+      const height = DESIGN_WIDTH * size.heightIn / size.widthIn
+      const customBoxes = computePlaceholderBoxes(s, DESIGN_WIDTH, height).map((box) => ({ id: box.placeholderId, ...(box.placeholderId === frameId ? bounded : { x: box.x / DESIGN_WIDTH, y: box.y / height, width: box.width / DESIGN_WIDTH, height: box.height / height }), preferredOrientation: 'any' as const }))
+      return { ...s, flipped: false, customBoxes }
+    }) }))
+  },
+
+  removeImageFrame: (spreadId, frameId) => {
+    withHistory(set, (p) => ({ ...p, spreads: p.spreads.map((s) => {
+      if (s.id !== spreadId) return s
+      const size = s.size ?? p.size
+      const height = DESIGN_WIDTH * size.heightIn / size.widthIn
+      return { ...s, flipped: false, customBoxes: computePlaceholderBoxes(s, DESIGN_WIDTH, height).filter((box) => box.placeholderId !== frameId).map((box) => ({ id: box.placeholderId, x: box.x / DESIGN_WIDTH, y: box.y / height, width: box.width / DESIGN_WIDTH, height: box.height / height, preferredOrientation: 'any' as const })), placements: s.placements.filter((pl) => pl.placeholderId !== frameId) }
+    }) }))
+    get().selectPlaceholder(null)
+  },
 
   setPlacementPhoto: (spreadId, placeholderId, photoId) =>
     withHistory(set, (p) => ({
@@ -904,7 +1082,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const spread = project.spreads.find((s) => s.id === spreadId)
     if (!spread) return
     const base = findTemplate(spread.templateId)
-    const placeholders = base
+    const placeholders = spread.customBoxes ?? (base
       ? base.placeholders
       : spread.placements.map((pl) => ({
           id: pl.placeholderId,
@@ -913,7 +1091,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           width: 1,
           height: 1,
           preferredOrientation: 'any' as const,
-        }))
+        })))
 
     const firstPhotoId = spread.placements.find((pl) => pl.photoId)?.photoId
     const firstPhoto = firstPhotoId ? project.photos.find((p) => p.id === firstPhotoId) : undefined
@@ -968,14 +1146,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set((s) => {
       if (s.history.length === 0) return s
       const prev = s.history[s.history.length - 1]
-      return { project: prev, history: s.history.slice(0, -1), future: [s.project, ...s.future], isDirty: true }
+      return { project: prev, history: s.history.slice(0, -1), future: [s.project, ...s.future], isDirty: true, matchingTemplatesOpen: false, templatePreview: null }
     }),
 
   redo: () =>
     set((s) => {
       if (s.future.length === 0) return s
       const [next, ...rest] = s.future
-      return { project: next, history: [...s.history, s.project], future: rest, isDirty: true }
+      return { project: next, history: [...s.history, s.project], future: rest, isDirty: true, matchingTemplatesOpen: false, templatePreview: null }
     }),
 
   renameProject: (name) => withHistory(set, (p) => ({ ...p, name })),
@@ -983,6 +1161,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   updateProjectSettings: (patch) => withHistory(set, (p) => ({ ...p, ...patch })),
 
   loadProjectFile: (file) => {
+    get().closeMatchingTemplates()
     saveUserTemplates(file.userTemplates)
     // Older saved project files predate these fields — default them so opening one doesn't
     // crash the UI that reads them.
@@ -1039,6 +1218,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   newProjectFile: () =>
     set({
+      matchingTemplatesOpen: false,
+      templatePreview: null,
       project: newProject({ name: 'Untitled Album' }),
       selectedSpreadId: null,
       selectedPlaceholderId: null,
@@ -1052,6 +1233,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }),
 
   createProjectFromWizard: (opts) => {
+    get().closeMatchingTemplates()
     const project = newProject(opts)
     set({
       project,
@@ -1071,6 +1253,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   createSimpleProject: (kind, name, clientName) =>
     set({
+      matchingTemplatesOpen: false,
+      templatePreview: null,
       project: newProject({ name, kind, clientName }),
       selectedSpreadId: null,
       selectedPlaceholderId: null,

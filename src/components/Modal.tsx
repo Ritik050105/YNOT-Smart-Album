@@ -1,4 +1,5 @@
-import { useEffect, ReactNode } from 'react'
+import { useEffect, useRef, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from './Icon'
 
 /**
@@ -28,9 +29,12 @@ export default function Modal({
    *  rather than an overlay on top of the main editor. */
   bare?: boolean
 }) {
+  const cardRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      const dialogs = document.querySelectorAll('[role="dialog"]')
+      if (dialogs[dialogs.length - 1] !== cardRef.current) return
+      if (e.key === 'Escape') { e.preventDefault(); onClose() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -38,6 +42,7 @@ export default function Modal({
 
   const card = (
     <div
+      ref={cardRef}
       className={`modal-card ${bare ? 'modal-card--bare' : ''}`}
       style={bare ? undefined : { width }}
       role="dialog"
@@ -62,9 +67,9 @@ export default function Modal({
 
   if (bare) return card
 
-  return (
+  return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       {card}
-    </div>
+    </div>, document.body
   )
 }

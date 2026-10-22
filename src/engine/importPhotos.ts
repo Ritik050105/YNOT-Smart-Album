@@ -1,8 +1,30 @@
 import exifr from 'exifr'
 import { v4 as uuid } from 'uuid'
 import { PhotoAsset } from '@/types'
+import { imageFileSource, isImageFile } from './imageSource'
 
 const CONCURRENCY = 6
+
+async function detectBlackAndWhite(src: string): Promise<boolean | undefined> {
+  try {
+    const img = new Image()
+    await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = reject; img.src = src })
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 48
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return undefined
+    ctx.drawImage(img, 0, 0, 48, 48)
+    const { data } = ctx.getImageData(0, 0, 48, 48)
+    let colored = 0
+    let visible = 0
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 128) continue
+      visible++
+      if (Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]) > 12) colored++
+    }
+    return visible > 0 ? colored / visible < 0.015 : undefined
+  } catch { return undefined }
+}
 
 export interface ImportFailure {
   fileName: string
@@ -31,10 +53,12 @@ function orientationFor(width: number, height: number): PhotoAsset['orientation'
 }
 
 async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAsset> {
-  const src = URL.createObjectURL(file)
+  const src = await imageFileSource(file)
   let capturedAt: string | null = null
+  let cameraModel: string | undefined
   try {
-    const exif = await exifr.parse(file, ['DateTimeOriginal', 'CreateDate', 'ModifyDate'])
+    const exif = await exifr.parse(file, ['DateTimeOriginal', 'CreateDate', 'ModifyDate', 'Make', 'Model'])
+    cameraModel = [exif?.Make, exif?.Model].filter(Boolean).join(' ') || undefined
     const date: Date | undefined = exif?.DateTimeOriginal ?? exif?.CreateDate ?? exif?.ModifyDate
     if (date instanceof Date && !isNaN(date.getTime())) capturedAt = date.toISOString()
   } catch {
@@ -45,6 +69,7 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
   }
 
   const { width, height } = await loadImageDimensions(src)
+  const isBlackAndWhite = await detectBlackAndWhite(src)
 
   return {
     id: uuid(),
@@ -53,9 +78,11 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
     width,
     height,
     capturedAt,
+    cameraModel,
+    isBlackAndWhite,
     orientation: orientationFor(width, height),
     megapixels: Math.round((width * height) / 1_000_000),
-    mimeType: file.type || 'image/jpeg',
+    mimeType: /\.(psd|tiff?)$/i.test(file.name) ? 'image/png' : file.type || 'image/jpeg',
     bins: [],
     favorite: false,
   }
@@ -83,9 +110,9 @@ async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T
  * import in a reasonable time instead of one-at-a-time.
  */
 export async function importPhotoFiles(files: File[], onProgress?: (done: number, total: number) => void): Promise<ImportResult> {
-  const imageFiles = files.filter((f) => f.type.startsWith('image/'))
+  const imageFiles = files.filter(isImageFile)
   const rejected: ImportFailure[] = files
-    .filter((f) => !f.type.startsWith('image/'))
+    .filter((f) => !isImageFile(f))
     .map((f) => ({ fileName: f.name, reason: 'Not an image file' }))
 
   const assets: PhotoAsset[] = new Array(imageFiles.length)

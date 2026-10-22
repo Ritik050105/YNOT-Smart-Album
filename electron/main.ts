@@ -1,9 +1,14 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu, screen } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { execFile } from 'child_process'
+import { writeFileAtomic } from './files'
+import { decodeTiff } from './images'
+import { readRecovery, writeRecovery, clearRecovery } from './recovery'
+import { fitWindowSize } from './windowSizing'
 
 const isDev = !app.isPackaged
+ipcMain.handle('images:decodeTiff', (_event, data: Uint8Array) => decodeTiff(data))
 
 // Electron shows its own default File/Edit/View/Window/Help menu unless the app sets one
 // explicitly — that was rendering as a second, redundant menu bar above the app's own in-page
@@ -50,10 +55,7 @@ let mainWindow: BrowserWindow | null = null
 
 function createWindow(splash?: BrowserWindow) {
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 680,
+    ...fitWindowSize(screen.getPrimaryDisplay().workAreaSize, { width: 1440, height: 900 }, { width: 720, height: 480 }),
     backgroundColor: '#1e1f22',
     title: 'YNOT Album Studio',
     show: false,
@@ -64,6 +66,21 @@ function createWindow(splash?: BrowserWindow) {
     },
   })
   mainWindow = win
+  win.webContents.on('will-prevent-unload', (event) => {
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'question', title: 'Unsaved Album', message: 'Do you want to save your changes before closing?',
+      detail: 'Your changes will be lost if you do not save them.',
+      buttons: ['Save', 'Discard Changes', 'Cancel'], defaultId: 0, cancelId: 2,
+    })
+    if (choice === 0) win.webContents.send('project:save-before-close')
+    if (choice === 1) {
+      try { clearRecovery(recoveryPath()) } catch (error) {
+        dialog.showErrorBox('Could not discard recovery copy', `Keep editing or save the album before closing. ${String(error)}`)
+        return
+      }
+      event.preventDefault()
+    }
+  })
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
   })
@@ -99,11 +116,9 @@ function createNewProjectWindow() {
     return newProjectWindow
   }
 
+  const workArea = screen.getDisplayMatching(mainWindow?.getBounds() ?? screen.getPrimaryDisplay().bounds).workAreaSize
   const win = new BrowserWindow({
-    width: 640,
-    height: 760,
-    minWidth: 560,
-    minHeight: 600,
+    ...fitWindowSize(workArea, { width: 640, height: 760 }, { width: 560, height: 480 }),
     title: 'New Project',
     parent: mainWindow ?? undefined,
     backgroundColor: '#f4f5f7',
@@ -150,7 +165,7 @@ ipcMain.handle(
       filters: args.filters,
     })
     if (canceled || !filePath) return { canceled: true as const }
-    fs.writeFileSync(filePath, Buffer.from(args.data))
+      writeFileAtomic(filePath, Buffer.from(args.data))
     return { canceled: false as const, filePath }
   }
 )
@@ -166,7 +181,7 @@ ipcMain.handle(
   'export:writeFileInDir',
   async (_evt, args: { dirPath: string; fileName: string; data: Uint8Array }) => {
     const target = path.join(args.dirPath, args.fileName)
-    fs.writeFileSync(target, Buffer.from(args.data))
+      writeFileAtomic(target, Buffer.from(args.data))
     return { filePath: target }
   }
 )
@@ -257,3 +272,15 @@ ipcMain.handle('fonts:listLocal', async (): Promise<{ fonts: string[] }> => {
     )
   })
 })
+
+function recoveryPath() { return path.join(app.getPath('userData'), 'album-recovery.json') }
+for (const [channel, handler] of Object.entries({
+  'recovery:read': () => readRecovery(recoveryPath()),
+  'recovery:write': (snapshot: unknown) => writeRecovery(recoveryPath(), snapshot),
+  'recovery:clear': () => clearRecovery(recoveryPath()),
+})) {
+  ipcMain.handle(channel, (event, snapshot) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error('Recovery is only available in the album window.')
+    return handler(snapshot)
+  })
+}

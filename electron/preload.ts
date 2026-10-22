@@ -16,6 +16,10 @@ export interface NewProjectPayload {
 
 export interface AlbumStudioBridge {
   isElectron: true
+  readRecovery: () => Promise<{ filePath: string | null; contents: string } | null>
+  writeRecovery: (snapshot: { filePath: string | null; contents: string }) => Promise<void>
+  clearRecovery: () => Promise<void>
+  decodeTiff: (data: Uint8Array) => Promise<string>
   saveFile: (args: {
     defaultName: string
     filters: { name: string; extensions: string[] }[]
@@ -33,6 +37,7 @@ export interface AlbumStudioBridge {
   submitNewProject: (opts: NewProjectPayload) => Promise<void>
   /** Closes whichever window calls this — used by the New Project window's Cancel button. */
   closeCurrentWindow: () => Promise<void>
+  onSaveBeforeClose: (cb: () => void) => () => void
   /** Main-window-only: fires when a New Project window round-trips its finished options back.
    *  Returns an unsubscribe function. */
   onNewProjectCreated: (cb: (opts: NewProjectPayload) => void) => () => void
@@ -40,6 +45,10 @@ export interface AlbumStudioBridge {
 
 const bridge: AlbumStudioBridge = {
   isElectron: true,
+  readRecovery: () => ipcRenderer.invoke('recovery:read'),
+  writeRecovery: (snapshot) => ipcRenderer.invoke('recovery:write', snapshot),
+  clearRecovery: () => ipcRenderer.invoke('recovery:clear'),
+  decodeTiff: (data) => ipcRenderer.invoke('images:decodeTiff', data),
   saveFile: (args) => ipcRenderer.invoke('export:saveFile', args),
   pickDirectory: () => ipcRenderer.invoke('export:pickDirectory'),
   writeFileInDir: (args) => ipcRenderer.invoke('export:writeFileInDir', args),
@@ -49,6 +58,11 @@ const bridge: AlbumStudioBridge = {
   openNewProjectWindow: () => ipcRenderer.invoke('window:openNewProject'),
   submitNewProject: (opts) => ipcRenderer.invoke('new-project:submit', opts),
   closeCurrentWindow: () => ipcRenderer.invoke('window:closeSelf'),
+  onSaveBeforeClose: (cb) => {
+    const listener = () => cb()
+    ipcRenderer.on('project:save-before-close', listener)
+    return () => ipcRenderer.removeListener('project:save-before-close', listener)
+  },
   onNewProjectCreated: (cb) => {
     const listener = (_evt: unknown, opts: NewProjectPayload) => cb(opts)
     ipcRenderer.on('new-project:created', listener)

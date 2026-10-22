@@ -1,4 +1,7 @@
-import { TemplateDefinition, PhotoAsset } from '@/types'
+import { TemplateDefinition, PhotoAsset, PlacedPhoto } from '@/types'
+import { templateFramesInReadingOrder } from '@/engine/templateMatching'
+import { resolveTemplateFrames } from '@/engine/templateLayout'
+import { computeCoverCrop } from '@/engine/cropFit'
 
 /** A single placeholder cell, filled with a real photo crop when one is available (so the
  *  preview shows what the layout will actually look like with real content) or a plain tinted
@@ -6,10 +9,17 @@ import { TemplateDefinition, PhotoAsset } from '@/types'
 export function PreviewCell({
   ph,
   photo,
+  placement,
+  aspect = 1,
 }: {
   ph: TemplateDefinition['placeholders'][number]
   photo?: PhotoAsset
+  placement?: PlacedPhoto
+  aspect?: number
 }) {
+  const crop = photo && photo.width > 0 && photo.height > 0
+    ? computeCoverCrop(photo.width, photo.height, ph.width * aspect, ph.height, placement?.focalX, placement?.focalY, placement?.zoom)
+    : undefined
   return (
     <span
       className="gallery-cell"
@@ -19,6 +29,9 @@ export function PreviewCell({
         width: `${ph.width * 100}%`,
         height: `${ph.height * 100}%`,
         backgroundImage: photo ? `url(${photo.src})` : undefined,
+        backgroundSize: crop && photo ? `${photo.width / crop.cropWidth * 100}% ${photo.height / crop.cropHeight * 100}%` : undefined,
+        backgroundPosition: crop && photo ? `${photo.width > crop.cropWidth ? crop.cropX / (photo.width - crop.cropWidth) * 100 : 50}% ${photo.height > crop.cropHeight ? crop.cropY / (photo.height - crop.cropHeight) * 100 : 50}%` : undefined,
+        transform: placement ? `scale(${placement.flipHorizontal ? -1 : 1}, ${placement.flipVertical ? -1 : 1})` : undefined,
       }}
     />
   )
@@ -33,16 +46,22 @@ export default function TemplateThumb({
   photos,
   aspect,
   className,
+  marginPx = 0,
+  gapPx = 0,
+  placements,
 }: {
   template: TemplateDefinition
   photos?: (PhotoAsset | undefined)[]
   aspect: number
   className?: string
+  marginPx?: number
+  gapPx?: number
+  placements?: PlacedPhoto[]
 }) {
   return (
     <div className={`template-thumb ${className ?? ''}`} style={{ aspectRatio: aspect }}>
-      {template.placeholders.map((ph, i) => (
-        <PreviewCell key={ph.id} ph={ph} photo={photos?.[i]} />
+      {resolveTemplateFrames(templateFramesInReadingOrder(template), aspect, marginPx, gapPx).map((ph, i) => (
+        <PreviewCell key={ph.id} ph={ph} photo={photos?.[i]} aspect={aspect} placement={placements?.find(p=>p.photoId===photos?.[i]?.id)} />
       ))}
     </div>
   )

@@ -14,12 +14,14 @@ import {
   ManualProofingOptions,
 } from '@/engine/exportAlbum'
 import { parseSpreadRange } from '@/engine/exportUtil'
+import { exportPreflight } from '@/engine/exportPreflight'
 
-type ExportFormat = 'pdf' | 'jpg' | 'png' | 'psd' | 'proofing'
+type ExportFormat = 'pdf' | 'pdfx' | 'jpg' | 'png' | 'psd' | 'proofing'
 type ExportTab = 'cloud' | 'print' | 'proofing'
 
 const FORMATS: { id: ExportFormat; title: string; desc: string; icon: Parameters<typeof Icon>[0]['name'] }[] = [
   { id: 'pdf', title: 'PDF', desc: 'One print-ready, multi-page PDF for the whole album.', icon: 'frame' },
+  { id: 'pdfx', title: 'PDF/X-3', desc: 'Color-managed PDF with an embedded sRGB profile.', icon: 'frame' },
   { id: 'jpg', title: 'JPG', desc: 'One high-res JPEG per spread — for lab upload.', icon: 'image' },
   { id: 'png', title: 'PNG', desc: 'One lossless PNG per spread, if a lab requires it.', icon: 'layers' },
   { id: 'psd', title: 'PSD (layered)', desc: 'Layered Photoshop file per spread, for finishing by hand.', icon: 'palette' },
@@ -33,11 +35,13 @@ const FORMATS: { id: ExportFormat; title: string; desc: string; icon: Parameters
  *  the honest, no-backend equivalent of a hosted "cloud proofing" upload). */
 export default function ExportModal({ onClose }: { onClose: () => void }) {
   const project = useProjectStore((s) => s.project)
-  const spreadCount = project.spreads.length
+  const spreadCount = project.spreads.filter((s) => !s.isCover).length
 
   const [tab, setTab] = useState<ExportTab>('print')
   const [exporting, setExporting] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [preflightWarning, setPreflightWarning] = useState<string | null>(null)
   const [pendingPageLimit, setPendingPageLimit] = useState<{ pageCount: number; min?: number; max?: number } | null>(null)
 
   // "For Printing" state
@@ -46,6 +50,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   const [rangeText, setRangeText] = useState('')
   const [singlePages, setSinglePages] = useState(false)
   const [includeCover, setIncludeCover] = useState(false)
+  const [jpegQuality, setJpegQuality] = useState(97)
 
   // "Manual Proofing" state
   const [proofWidth, setProofWidth] = useState(1600)
@@ -68,12 +73,13 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   async function handleExportPrint() {
     const spreadIndices = resolveRange()
     let outcome: { saved: boolean; filePath?: string; dirPath?: string } = { saved: false }
-    if (format === 'pdf') {
+    if (format === 'pdf' || format === 'pdfx') {
+      const options = { pdfX: format === 'pdfx', jpegQuality: jpegQuality / 100 }
       outcome = singlePages
-        ? await exportAlbumToPdfPages(project, spreadIndices, includeCover)
-        : await exportAlbumToPdf(project, spreadIndices, includeCover)
-    } else if (format === 'jpg') outcome = await exportAlbumToJpegs(project, spreadIndices, includeCover)
-    else if (format === 'png') outcome = await exportAlbumToPngs(project, spreadIndices, includeCover)
+        ? await exportAlbumToPdfPages(project, spreadIndices, includeCover, options)
+        : await exportAlbumToPdf(project, spreadIndices, includeCover, options)
+    } else if (format === 'jpg') outcome = await exportAlbumToJpegs(project, spreadIndices, includeCover, singlePages, jpegQuality / 100)
+    else if (format === 'png') outcome = await exportAlbumToPngs(project, spreadIndices, includeCover, singlePages)
     else if (format === 'psd') outcome = await exportAlbumToPsds(project, spreadIndices, includeCover)
     else if (format === 'proofing') outcome = await exportAlbumToProofingGallery(project)
     return outcome
@@ -94,7 +100,14 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     return exportAlbumForManualProofing(project, options, resolveRange())
   }
 
-  async function handleExport(ignoreLimits = false) {
+  async function handleExport(ignoreLimits = false, ignorePreflight = false) {
+    if (tab === 'print' && !ignorePreflight) {
+      const checks = exportPreflight(project, resolveRange(), includeCover)
+      if (checks.coverNeedsReview || checks.lowResolution.length > 0) {
+        setPreflightWarning([checks.coverNeedsReview ? 'The album page count has changed since the cover specifications were reviewed. Review the cover dimensions with your album company.' : '', checks.lowResolution.length ? `${checks.lowResolution.length} spread(s) contain images enlarged beyond 120% of the target resolution.` : ''].filter(Boolean).join(' '))
+        return
+      }
+    }
     if (tab === 'print' && !ignoreLimits) {
       const limits = checkPageLimits(project)
       if (limits.violated) {
@@ -104,9 +117,12 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     }
     setExporting(true)
     setResult(null)
+    setError(null)
     try {
       const outcome = tab === 'print' ? await handleExportPrint() : await handleExportManualProofing()
       setResult(outcome.saved ? outcome.filePath ?? outcome.dirPath ?? 'Export complete.' : null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export failed. Please try again.')
     } finally {
       setExporting(false)
     }
@@ -119,7 +135,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
       title="Export Album"
       subtitle={`${spreadCount} spread${spreadCount === 1 ? '' : 's'} · ${project.size.label}`}
       onClose={onClose}
-      width={480}
+      width={720}
       footer={
         <>
           <button className="btn" onClick={onClose}>
@@ -128,7 +144,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
           <div className="footer-spacer" />
           <button
             className="btn btn--primary"
-            disabled={exporting || rangeInvalid || tab === 'cloud'}
+            disabled={exporting || rangeInvalid || tab === 'cloud' || (spreadCount === 0 && !(tab === 'print' && includeCover && project.spreads.some((s) => s.isCover)))}
             onClick={() => void handleExport()}
           >
             <Icon name="download" size={14} />
@@ -137,6 +153,11 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
         </>
       }
     >
+      {error && <p role="alert">{error}</p>}
+      {preflightWarning && <Modal title="Review Before Printing" onClose={() => setPreflightWarning(null)} width={480} footer={<>
+        <button className="btn" onClick={() => setPreflightWarning(null)}>Review</button><div className="footer-spacer" />
+        <button className="btn btn--primary" onClick={() => { setPreflightWarning(null); void handleExport(false, true) }}>Ignore and Continue</button>
+      </>}><p>{preflightWarning}</p></Modal>}
       <div className="tab-row">
         <button className={tab === 'cloud' ? 'is-active' : ''} onClick={() => { setTab('cloud'); setResult(null) }}>
           Cloud Proofing
@@ -162,29 +183,16 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
 
       {tab === 'print' && (
         <>
-          <div className="format-grid">
-            {FORMATS.map((f) => (
-              <button
-                key={f.id}
-                className={`format-option ${format === f.id ? 'is-selected' : ''}`}
-                onClick={() => {
-                  setFormat(f.id)
-                  setResult(null)
-                }}
-              >
-                <span className="format-option__icon">
-                  <Icon name={f.icon} size={18} />
-                </span>
-                <span>
-                  <span className="format-option__title">{f.title}</span>
-                  <div className="format-option__desc">{f.desc}</div>
-                </span>
-              </button>
-            ))}
-          </div>
+          <label className="field">Output Format
+            <select value={format} onChange={(e) => { setFormat(e.target.value as ExportFormat); setResult(null) }}>
+              {FORMATS.map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}
+            </select>
+          </label>
 
           {format !== 'proofing' && (
             <section className="export-options">
+              {['jpg', 'pdf', 'pdfx'].includes(format) && <label>JPEG quality: {jpegQuality}%<input type="range" min={1} max={100} value={jpegQuality} onChange={(e) => setJpegQuality(Number(e.target.value))} /></label>}
+              {format === 'pdfx' && <p className="muted">sRGB color-managed output with an embedded ICC profile.</p>}
               <h4>Output Range</h4>
               <label className="radio-row">
                 <input type="radio" checked={rangeMode === 'all'} onChange={() => setRangeMode('all')} />
@@ -208,10 +216,10 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
                 <input type="checkbox" checked={includeCover} onChange={(e) => setIncludeCover(e.target.checked)} />
                 Include cover
               </label>
-              {format === 'pdf' && (
+              {format !== 'psd' && (
                 <label className="checkbox-row">
                   <input type="checkbox" checked={singlePages} onChange={(e) => setSinglePages(e.target.checked)} />
-                  Export as single pages (one PDF per spread, instead of one combined file)
+                  Export as single pages
                 </label>
               )}
             </section>
@@ -346,7 +354,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
                 className="btn btn--primary"
                 onClick={() => {
                   setPendingPageLimit(null)
-                  void handleExport(true)
+                  void handleExport(true, true)
                 }}
               >
                 Ignore Limitations

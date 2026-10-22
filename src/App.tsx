@@ -5,6 +5,7 @@ import ImportPanel from './components/ImportPanel'
 import AlbumInfoPanel from './components/AlbumInfoPanel'
 import PhotoBin from './components/PhotoBin'
 import SpreadsPanel from './components/SpreadsPanel'
+import MatchingTemplatesPanel from './components/MatchingTemplatesPanel'
 import KeyboardShortcuts from './components/KeyboardShortcuts'
 import GlobalDropZone from './components/GlobalDropZone'
 import MissingColorProfileDialog from './components/MissingColorProfileDialog'
@@ -17,18 +18,45 @@ import SlideshowScreen from './components/SlideshowScreen'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import { useBottomDockResize } from '@/engine/useBottomDockResize'
-import { openProjectFromPath } from '@/engine/projectFile'
-import { loadOpenSession, writeOpenSession, clearOpenSession, OpenSessionMarker } from '@/engine/sessionMarker'
+import { deserializeProjectFile, serializeProjectFile, openProjectFromPath } from '@/engine/projectFile'
+import { loadOpenSession, persistRecovery, invalidateRecovery, clearOpenSession, OpenSessionMarker } from '@/engine/sessionMarker'
+import { ProjectFile } from '@/types'
 import ContinueSessionPrompt from './components/ContinueSessionPrompt'
+import CoverSetup from './components/CoverSetup'
+import Modal from './components/Modal'
+import { confirmDiscardUnsaved } from '@/engine/unsavedChanges'
 
 export default function App() {
-  // Electron only, and only when the last session genuinely ended with unsaved work still open
-  // (see engine/sessionMarker.ts) — reading localStorage is synchronous, so this is known up
-  // front rather than resolved async. Holding a marker here just means "ask"; nothing is opened
-  // until the user actually chooses to.
-  const [resumePrompt, setResumePrompt] = useState<OpenSessionMarker | null>(() =>
-    window.albumStudio?.isElectron ? loadOpenSession() : null
-  )
+  const matchingTemplatesOpen = useProjectStore(s => s.matchingTemplatesOpen)
+  const [resumePrompt, setResumePrompt] = useState<OpenSessionMarker | null>(null)
+  const [recoveryFile, setRecoveryFile] = useState<ProjectFile | null>(null)
+  const [recoveryChecked, setRecoveryChecked] = useState(!window.albumStudio?.isElectron)
+  const [recoveryError, setRecoveryError] = useState('')
+  const [recoveryRetry, setRecoveryRetry] = useState(0)
+  useEffect(() => {
+    if (!window.albumStudio?.isElectron) return
+    let active = true
+    void window.albumStudio.readRecovery().then((snapshot) => {
+      if (!active) return
+      const legacy = loadOpenSession()
+      if (snapshot) {
+        const file = deserializeProjectFile(snapshot.contents)
+        setRecoveryFile(file)
+        setResumePrompt({ projectId: file.project.id, filePath: snapshot.filePath,
+          name: file.project.name, clientName: file.project.clientName, sizeLabel: file.project.size.label,
+          spreadCount: file.project.spreads.filter((spread) => !spread.isCover).length, hasRecovery: true })
+      } else if (legacy && !legacy.hasRecovery) setResumePrompt(legacy)
+      setRecoveryError('')
+      setRecoveryChecked(true)
+    }).catch((error) => { if (active) setRecoveryError(`Could not read the recovery copy: ${String(error)}`) })
+    return () => { active = false }
+  }, [recoveryRetry])
+  useEffect(() => {
+    const onError = (event: Event) => setRecoveryError((event as CustomEvent<string>).detail)
+    window.addEventListener('album-studio:recovery-error', onError)
+    return () => window.removeEventListener('album-studio:recovery-error', onError)
+  }, [])
+  useEffect(() => { if (recoveryChecked && recoveryError) window.alert(recoveryError) }, [recoveryChecked, recoveryError])
   const [resuming, setResuming] = useState(false)
   const [showHome, setShowHome] = useState(true)
   const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
@@ -48,15 +76,23 @@ export default function App() {
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const projectKind = project.kind
   const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
+  useEffect(() => {
+    const preventUnsavedClose = (event: BeforeUnloadEvent) => {
+      if (!useProjectStore.getState().isDirty) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', preventUnsavedClose)
+    return () => window.removeEventListener('beforeunload', preventUnsavedClose)
+  }, [])
 
   useEffect(() => {
     function onEnterEditor() {
       setShowHome(false)
-      // Import Photos / Spreads is the first thing you need in a fresh or just-opened project —
-      // reveal it right away rather than making the user hunt for the collapsed panel's toggle.
-      revealLeftPanel()
     }
     function onGoHome() {
+      if (!confirmDiscardUnsaved(useProjectStore.getState().isDirty)) return
+      useProjectStore.getState().markSaved()
       setShowHome(true)
     }
     window.addEventListener('album-studio:enter-editor', onEnterEditor)
@@ -65,7 +101,7 @@ export default function App() {
       window.removeEventListener('album-studio:enter-editor', onEnterEditor)
       window.removeEventListener('album-studio:go-home', onGoHome)
     }
-  }, [revealLeftPanel])
+  }, [])
 
   // The main window is the one true store — a separate "New Project" OS window hands its
   // finished options back here over IPC instead of creating the project in its own isolated store.
@@ -86,50 +122,52 @@ export default function App() {
     })
   }, [createProjectFromWizard, setPreparingProject, markSaved, setCurrentFilePath])
 
-  // Keeps the "open session" marker in sync with the current project's dirty/saved state (see
-  // engine/sessionMarker.ts) — written while there's unsaved work tied to a real file on disk,
-  // cleared the moment that's no longer true. What actually offers to resume it is the `resumePrompt`
-  // state above, read once at launch; this effect just keeps the marker accurate for *next* launch.
+  const userTemplates = useProjectStore((s) => s.userTemplates)
   useEffect(() => {
-    if (!window.albumStudio?.isElectron) return
-    // Leave the marker alone until the resume prompt is answered — it still describes the
-    // session the prompt is asking about, and the default/empty store state present while it's
-    // showing (nothing's loaded yet) would otherwise wipe that marker before the user can decide.
-    if (resumePrompt) return
-    if (isDirty && currentFilePath) {
-      writeOpenSession({
-        projectId: project.id,
-        filePath: currentFilePath,
-        name: project.name,
-        clientName: project.clientName,
-        sizeLabel: project.size.label,
-        spreadCount: project.spreads.filter((s) => !s.isCover).length,
-      })
-    } else {
-      clearOpenSession()
-    }
-  }, [isDirty, currentFilePath, project, resumePrompt])
+    if (!window.albumStudio?.isElectron || !recoveryChecked || resumePrompt) return
+    if (!isDirty) { clearOpenSession(); return }
+    const timer = window.setTimeout(() => {
+      void persistRecovery(serializeProjectFile(project, userTemplates), {
+        projectId: project.id, filePath: currentFilePath, name: project.name,
+        clientName: project.clientName, sizeLabel: project.size.label,
+        spreadCount: project.spreads.filter((spread) => !spread.isCover).length,
+      }).then(() => setRecoveryError('')).catch((error) => setRecoveryError(`Recovery copy could not be updated. Save your album: ${String(error)}`))
+    }, 1000)
+    return () => { window.clearTimeout(timer); invalidateRecovery() }
+  }, [isDirty, currentFilePath, project, userTemplates, resumePrompt, recoveryChecked])
 
   async function handleContinueSession() {
     if (!resumePrompt) return
     setResuming(true)
-    const file = await openProjectFromPath(resumePrompt.filePath)
-    setResuming(false)
-    setResumePrompt(null)
-    if (file) {
+    try {
+      const file = recoveryFile ?? (resumePrompt.filePath ? await openProjectFromPath(resumePrompt.filePath) : null)
+      if (!file) throw new Error('The saved album could not be found.')
       loadProjectFile(file)
       setCurrentFilePath(resumePrompt.filePath)
+      if (recoveryFile) useProjectStore.setState({ isDirty: true })
+      setResumePrompt(null)
+      setRecoveryFile(null)
       setShowHome(false)
       revealLeftPanel()
-    }
-    // Whether or not it was found, the prompt about it is resolved either way — a missing file
-    // falls through to the ordinary Home screen, same as a broken Recent entry does there.
+    } catch (error) { window.alert(String(error)) }
+    finally { setResuming(false) }
   }
 
   function handleStartFresh() {
     clearOpenSession()
     setResumePrompt(null)
+    setRecoveryFile(null)
   }
+
+  if (!recoveryChecked) return recoveryError ? (
+    <Modal title="Album recovery needs attention" onClose={() => setRecoveryRetry((value) => value + 1)}
+      footer={<>
+        <button className="btn" onClick={() => setRecoveryRetry((value) => value + 1)}>Retry Recovery</button>
+        <button className="btn" onClick={() => { clearOpenSession(); setRecoveryError(''); setRecoveryChecked(true) }}>Discard Recovery Copy</button>
+      </>}>
+      <p role="alert">{recoveryError}</p>
+    </Modal>
+  ) : <NewProjectLoadingOverlay />
 
   if (resumePrompt) {
     return (
@@ -156,9 +194,11 @@ export default function App() {
     <div className="app-shell">
       <KeyboardShortcuts />
       <GlobalDropZone />
+      <CoverSetup />
       <MissingColorProfileDialog />
       <MenuBar />
       <TopBar />
+      <MatchingTemplatesPanel />
       <div className="app-body">
         {leftPanelOpen && (
           <aside className="app-sidebar app-sidebar--left">
@@ -188,7 +228,7 @@ export default function App() {
           </aside>
         )}
       </div>
-      <div className="bottom-panel">
+      <div className="bottom-panel" hidden={matchingTemplatesOpen}>
         <button
           className="panel-toggle panel-toggle--bottom"
           onMouseDown={handleBottomHandleMouseDown}

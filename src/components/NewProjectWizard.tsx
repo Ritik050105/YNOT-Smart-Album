@@ -1,4 +1,4 @@
-import { useMemo, useState, Fragment } from 'react'
+import { useMemo, useState } from 'react'
 import Modal from './Modal'
 import Icon from './Icon'
 import { useProjectStore, NewProjectOptions } from '@/state/projectStore'
@@ -188,25 +188,41 @@ export default function NewProjectWizard({
   // representative layout per common photo count — instead of a 500+ item checkbox list, matching
   // the reference app's own small gallery-style preview (it doesn't offer per-template toggles here
   // either; that level of curation still lives in the Inspector's per-spread template picker).
+  const resolvedSize = resolveSize()
+  const previewAspect = resolvedSize.widthIn / resolvedSize.heightIn
   const previewTemplates = useMemo(
     () =>
       [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15]
-        .map((count) => templatesForCount(count, null, libraryFilter)[0])
+        .map((count) => templatesForCount(count, null, libraryFilter, previewAspect)[0])
         .filter((t): t is NonNullable<typeof t> => !!t),
-    [libraryFilter]
+    [libraryFilter, previewAspect]
   )
 
   const enabledTemplateIds = useMemo(() => {
     if (libraryFilter === 'all') return null
-    const narrowed = BUILT_IN_TEMPLATES.filter((t) => matchesFrameFilter(t, libraryFilter)).map((t) => t.id)
-    return narrowed.length > 0 ? narrowed : null
-  }, [libraryFilter])
+    const narrowed = BUILT_IN_TEMPLATES.filter((t) => matchesFrameFilter(t, libraryFilter, previewAspect)).map((t) => t.id)
+    return narrowed
+  }, [libraryFilter, previewAspect])
+
+  function selectStandardSize(id: string) {
+    const size = ALBUM_SIZES.find(size => size.id === id)
+    if (!size) return
+    setSelectedPreset('')
+    setPresetId(id)
+    setWidthIn(size.widthIn)
+    setHeightIn(size.heightIn)
+    setDpi(size.dpi)
+    setTrim(size.trim)
+    setSafeZone(size.safeZone)
+    setMinPages(size.minPages ?? 0)
+    setMaxPages(size.maxPages ?? 0)
+  }
 
   function toggleShape(category: AlbumSizeCategory) {
     setSelectedPreset('')
     setShape(category)
     const first = ALBUM_SIZES.find((a) => a.category === category)
-    if (first) setPresetId(first.id)
+    if (first) selectStandardSize(first.id)
   }
 
   function resolveSize(): AlbumSize {
@@ -232,7 +248,7 @@ export default function NewProjectWizard({
   function handleCreate() {
     const opts: NewProjectOptions = {
       name: name.trim() || 'Untitled Album',
-      size: resolveSize(),
+      size: resolvedSize,
       units,
       colorProfile,
       defaultBackgroundColor: backgroundColor,
@@ -288,18 +304,6 @@ export default function NewProjectWizard({
         </>
       }
     >
-      <div className="wizard-steps">
-        {(['Choose Project Specifications', 'Template Library and Appearance Settings'] as const).map((label, i) => (
-          <Fragment key={label}>
-            <div className={`wizard-steps__step ${step === i + 1 ? 'is-active' : ''} ${step > i + 1 ? 'is-done' : ''}`}>
-              <span className="wizard-steps__dot">{step > i + 1 ? <Icon name="check" size={10} /> : i + 1}</span>
-              {label}
-            </div>
-            {i === 0 && <div className="wizard-steps__connector" />}
-          </Fragment>
-        ))}
-      </div>
-
       {step === 1 ? (
         <>
           <label className="field" style={{ marginBottom: 14 }}>
@@ -348,9 +352,10 @@ export default function NewProjectWizard({
                     <button
                       key={s.category}
                       className={`shape-option ${!selectedPreset && shape === s.category ? 'is-selected' : ''}`}
+                      aria-pressed={!selectedPreset && shape === s.category}
                       onClick={() => toggleShape(s.category)}
                     >
-                      <span className="shape-option__swatch" style={{ width: 28, height: 28 / s.aspect }} />
+                      <span className="shape-option__icon"><span className="shape-option__swatch" style={{ width: 28, height: 28 / s.aspect }} /></span>
                       <span className="shape-option__label">{s.label}</span>
                     </button>
                   ))}
@@ -359,10 +364,7 @@ export default function NewProjectWizard({
                   Exact size
                   <select
                     value={presetId}
-                    onChange={(e) => {
-                      setSelectedPreset('')
-                      setPresetId(e.target.value)
-                    }}
+                    onChange={(e) => selectStandardSize(e.target.value)}
                   >
                     {ALBUM_SIZE_CATEGORIES.filter((c) => c === shape).map((category) => (
                       <optgroup key={category} label={category}>
@@ -517,7 +519,7 @@ export default function NewProjectWizard({
 
           <div className="template-preview-grid">
             {previewTemplates.map((t) => (
-              <TemplateThumb key={t.id} template={t} aspect={widthIn / heightIn} className="template-preview-grid__swatch" />
+              <TemplateThumb key={t.id} template={t} aspect={previewAspect} className="template-preview-grid__swatch" />
             ))}
           </div>
 

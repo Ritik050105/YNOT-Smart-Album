@@ -14,6 +14,9 @@ import MissingColorProfileDialog from './MissingColorProfileDialog'
 import Modal from './Modal'
 import Icon from './Icon'
 import KeyboardShortcuts from './KeyboardShortcuts'
+import CoverSetup from './CoverSetup'
+import TopBar from './TopBar'
+import MatchingTemplatesPanel from './MatchingTemplatesPanel'
 
 const RULER_THICKNESS = 20
 /** How far past the spread's own edges the ruler draws ticks, in inches — covers typical panning
@@ -70,6 +73,7 @@ function Ruler({
  *  returns to the overview. Right panel (Album Info/Inspector/Templates) defaults collapsed and
  *  reveals itself once the user actually selects a placeholder or text box to edit. */
 export default function DesignerViewScreen() {
+  const matchingTemplatesOpen = useProjectStore(s => s.matchingTemplatesOpen)
   const project = useProjectStore((s) => s.project)
   const designerViewSpreadId = useProjectStore((s) => s.designerViewSpreadId)
   const exitDesignerView = useProjectStore((s) => s.exitDesignerView)
@@ -79,15 +83,24 @@ export default function DesignerViewScreen() {
   const canvasPan = useProjectStore((s) => s.canvasPan)
   const saveSpreadAsTemplate = useProjectStore((s) => s.saveSpreadAsTemplate)
   const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
+  const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
+  const selectedTextBoxId = useProjectStore((s) => s.selectedTextBoxId)
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
 
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [saving, setSaving] = useState(false)
+  const [emptyCoverWarning, setEmptyCoverWarning] = useState(false)
+  useEffect(() => {
+    const warn = () => setEmptyCoverWarning(true)
+    window.addEventListener('album-studio:empty-cover', warn)
+    return () => window.removeEventListener('album-studio:empty-cover', warn)
+  }, [])
 
   const interior = project.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
   const spread = project.spreads.find((s) => s.id === designerViewSpreadId)
+  const size = spread?.size ?? project.size
   const spreadLabel = spread?.isCover ? 'cover' : `spread ${interior.findIndex((s) => s.id === spread?.id) + 1}`
 
   useEffect(() => {
@@ -100,9 +113,9 @@ export default function DesignerViewScreen() {
 
   if (!spread) return null
 
-  const pxPerInWidth = STAGE_WIDTH / project.size.widthIn
-  const stageHeight = STAGE_WIDTH / (project.size.widthIn / project.size.heightIn)
-  const pxPerInHeight = stageHeight / project.size.heightIn
+  const pxPerInWidth = STAGE_WIDTH / size.widthIn
+  const stageHeight = STAGE_WIDTH / (size.widthIn / size.heightIn)
+  const pxPerInHeight = stageHeight / size.heightIn
 
   async function handleSaveTemplate() {
     if (!spread || !templateName.trim()) return
@@ -120,10 +133,16 @@ export default function DesignerViewScreen() {
     <div className="app-shell designer-view">
       <KeyboardShortcuts />
       <GlobalDropZone />
+      <CoverSetup />
       <MissingColorProfileDialog />
       <MenuBar />
+      <TopBar actionsOnly />
+      {emptyCoverWarning && <Modal title="Empty Cover" onClose={() => setEmptyCoverWarning(false)} footer={<>
+        <button className="btn" onClick={() => setEmptyCoverWarning(false)}>Continue Editing</button><div className="footer-spacer" />
+        <button className="btn btn--danger" onClick={() => { useProjectStore.getState().deleteSpread(spread.id); exitDesignerView(true) }}>Delete Cover</button>
+      </>}><p>A cover must contain at least one image or non-empty text box. Continue editing or delete the empty cover.</p></Modal>}
       <header className="designer-view__topbar">
-        <button className="designer-view__back" title="Back to the album overview" onClick={exitDesignerView}>
+        <button className="designer-view__back" title="Back to the album overview" onClick={() => exitDesignerView()}>
           <Icon name="chevronLeft" size={16} />
         </button>
         <button
@@ -133,13 +152,16 @@ export default function DesignerViewScreen() {
         >
           Save as Template
         </button>
+        {!spread.isCover && <button className="btn" aria-pressed={matchingTemplatesOpen} onClick={() => matchingTemplatesOpen ? useProjectStore.getState().closeMatchingTemplates() : useProjectStore.getState().openMatchingTemplates(spread.id)}><Icon name="grid" size={14} /> Browse matching templates</button>}
+        {spread.isCover && <button className="btn" onClick={() => window.dispatchEvent(new CustomEvent('album-studio:setup-cover'))}>Cover Specifications</button>}
         <div className="designer-view__spacer" />
         <span className="muted">
           {project.name} — designing {spreadLabel} @ {Math.round(canvasZoom * 100)}%
         </span>
       </header>
 
-      <div className="designer-view__body">
+      <MatchingTemplatesPanel />
+      <div className={`designer-view__body ${matchingTemplatesOpen ? 'is-browsing-templates' : ''}`}>
         <div className="designer-view__tool-rail">
           {([
             { tool: 'select', icon: 'cursor', title: 'Selection Tool (V)' },
@@ -163,21 +185,21 @@ export default function DesignerViewScreen() {
           <div className="designer-view__corner" />
           <Ruler
             orientation="horizontal"
-            sizeIn={project.size.widthIn}
+            sizeIn={size.widthIn}
             pxPerIn={pxPerInWidth}
             zoom={canvasZoom}
             panPx={canvasPan.x}
             unit={project.units}
-            dpi={project.size.dpi}
+            dpi={size.dpi}
           />
           <Ruler
             orientation="vertical"
-            sizeIn={project.size.heightIn}
+            sizeIn={size.heightIn}
             pxPerIn={pxPerInHeight}
             zoom={canvasZoom}
             panPx={canvasPan.y}
             unit={project.units}
-            dpi={project.size.dpi}
+            dpi={size.dpi}
           />
           <div className="designer-view__canvas">
             <DesignerCanvas />
@@ -209,14 +231,12 @@ export default function DesignerViewScreen() {
         </button>
         {rightPanelOpen && (
           <aside className="app-sidebar app-sidebar--right">
-            <AlbumInfoPanel />
-            <Inspector />
-            <TemplateLibraryPanel />
+            {selectedPlaceholderId || selectedTextBoxId ? <Inspector /> : <AlbumInfoPanel />}
           </aside>
         )}
       </div>
 
-      <div className="bottom-panel">
+      <div className="bottom-panel" hidden={matchingTemplatesOpen}>
         <button
           className="panel-toggle panel-toggle--bottom"
           onMouseDown={handleBottomHandleMouseDown}

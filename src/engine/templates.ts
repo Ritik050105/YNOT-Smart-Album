@@ -1,6 +1,7 @@
 import { TemplateDefinition, PlaceholderRect } from '@/types'
 import { GAP, distributeEvenly, placeGridInRect } from './templateLayout'
 import { GENERATED_TEMPLATES } from './templateGenerator'
+import { expandTemplateLibrary } from './referenceTemplates'
 
 // A plain incrementing counter (not crypto.randomUUID()) — module evaluation order is the same
 // on every app launch, so this produces the exact same placeholder ids every time. That stability
@@ -544,11 +545,10 @@ const HAND_CRAFTED_TEMPLATES: TemplateDefinition[] = [
   sixFeatureFive,
 ]
 
-/** The full built-in library: ~24 hand-designed layouts plus the procedurally generated set
- *  (grids/hero/split/filmstrip/mosaic/collage families swept across 1-30 photos) — see
- *  templateGenerator.ts for how the generated ~480 are built. Hand-crafted entries are listed
- *  first so they win ties when a photo count has both (e.g. "Quad Grid" before "Grid 2×2"). */
-export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [...HAND_CRAFTED_TEMPLATES, ...GENERATED_TEMPLATES]
+/** 300 interior layouts per photo count (1–30), plus the cover. Keep original entries first
+ *  so existing projects and equally ranked layout suggestions retain their geometry/order. */
+const originalTemplates = [...HAND_CRAFTED_TEMPLATES, ...GENERATED_TEMPLATES]
+export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [...originalTemplates, ...expandTemplateLibrary(originalTemplates)]
 
 /** CSS style for a template swatch's background — a thumbnail image, a flat color, or a CSS
  *  gradient string (the generated library's `thumbnailColor` values are gradients, e.g.
@@ -571,19 +571,17 @@ export type TemplateFrameFilter = 'all' | 'no-square' | 'only-3x2'
 const RATIO_TOLERANCE = 0.08
 
 /** Whether every placeholder is close to a classic 3:2 (or 2:3) photo ratio. */
-function hasOnly3x2Frames(t: TemplateDefinition): boolean {
+function hasOnly3x2Frames(t: TemplateDefinition, aspect: number): boolean {
   return t.placeholders.every((ph) => {
-    const r = ph.width / ph.height
+    const r = ph.width / ph.height * aspect
     return Math.abs(r - 1.5) < RATIO_TOLERANCE || Math.abs(r - 2 / 3) < RATIO_TOLERANCE
   })
 }
 
-/** Mirrors the reference app's "Templates without square frames" / "...only with 3:2 frame
- *  ratios" filters — a coarse shape check on the template's own placeholders, not a perfect
- *  frame-matcher, but enough to narrow the picker when square or non-3:2 crops don't suit a job. */
-export function matchesFrameFilter(t: TemplateDefinition, filter: TemplateFrameFilter): boolean {
-  if (filter === 'no-square') return !t.placeholders.some((ph) => Math.abs(ph.width / ph.height - 1) < RATIO_TOLERANCE)
-  if (filter === 'only-3x2') return hasOnly3x2Frames(t)
+/** Filter actual frame proportions at the album aspect ratio, rather than normalized coordinates. */
+export function matchesFrameFilter(t: TemplateDefinition, filter: TemplateFrameFilter, aspect = 1): boolean {
+  if (filter === 'no-square') return !t.placeholders.some((ph) => Math.abs(ph.width / ph.height * aspect - 1) < RATIO_TOLERANCE)
+  if (filter === 'only-3x2') return hasOnly3x2Frames(t, aspect)
   return true
 }
 
@@ -591,20 +589,13 @@ export function matchesFrameFilter(t: TemplateDefinition, filter: TemplateFrameF
 export function templatesForCount(
   count: number,
   enabledTemplateIds: string[] | null = null,
-  frameFilter: TemplateFrameFilter = 'all'
+  frameFilter: TemplateFrameFilter = 'all',
+  aspect = 1
 ): TemplateDefinition[] {
   if (count <= 0) return []
-  let builtins = BUILT_IN_TEMPLATES.filter((t) => t.photoCount === count)
-  if (enabledTemplateIds) {
-    const narrowed = builtins.filter((t) => enabledTemplateIds.includes(t.id))
-    // If the project's chosen template library happens to exclude every template for this
-    // exact count, fall back to the full set rather than silently producing nothing.
-    if (narrowed.length > 0) builtins = narrowed
-  }
-  if (frameFilter !== 'all') {
-    const narrowed = builtins.filter((t) => matchesFrameFilter(t, frameFilter))
-    if (narrowed.length > 0) builtins = narrowed
-  }
+  let builtins = [...BUILT_IN_TEMPLATES, ...userTemplateRegistry].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
+  if (enabledTemplateIds !== null) builtins = builtins.filter((t) => enabledTemplateIds.includes(t.id))
+  if (frameFilter !== 'all') builtins = builtins.filter((t) => matchesFrameFilter(t, frameFilter, aspect))
   if (!enabledTemplateIds) {
     // Default suggestions favor clean, non-overlapping rectangular layouts — matching the
     // client's own site (ynot.website), which never overlaps photos. The "Collage" family
@@ -613,7 +604,7 @@ export function templatesForCount(
     const nonOverlapping = builtins.filter((t) => templateFamilyLabel(t) !== 'Collage')
     if (nonOverlapping.length > 0) builtins = nonOverlapping
   }
-  if (builtins.length > 0) return builtins
+  if (builtins.length > 0 || enabledTemplateIds !== null || frameFilter !== 'all') return builtins
   // Beyond the hand-designed 1-6 photo templates, offer two auto-generated, balanced layouts.
   const clamped = Math.min(count, 30)
   return [generateJustifiedGrid(clamped), generateHeroGrid(clamped)]
@@ -649,8 +640,12 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
  *  browser into tabs (Classic / Seamless / Grid / Hero / Split / Mosaic / Collage / Filmstrip /
  *  Custom / My Templates), since the generated library doesn't carry a separate "family" field. */
 export function templateFamilyLabel(t: TemplateDefinition): string {
+  if (t.id.startsWith('ref-editorial-')) return 'Editorial'
+  if (t.id.startsWith('ref-paired-')) return 'Paired Pages'
+  if (t.id.startsWith('ref-storyboard-')) return 'Storyboard'
+  if (t.id.startsWith('ref-mosaic-')) return 'Mosaic'
   if (t.id.startsWith('seamless-')) return 'Seamless'
-  if (t.id.startsWith('gen-grid-')) return 'Grid'
+  if (t.id.startsWith('gen-grid-') || t.id.startsWith('gen-gridcol-')) return 'Grid'
   if (t.id.startsWith('gen-hero-')) return 'Hero'
   if (t.id.startsWith('gen-split-')) return 'Split'
   if (t.id.startsWith('gen-mosaic-')) return 'Mosaic'
@@ -667,6 +662,9 @@ export const TEMPLATE_FAMILIES = [
   'Classic',
   'Seamless',
   'Modern',
+  'Editorial',
+  'Paired Pages',
+  'Storyboard',
   'Grid',
   'Hero',
   'Split',

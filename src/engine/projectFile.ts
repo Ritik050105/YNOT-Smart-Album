@@ -32,7 +32,7 @@ export async function serializeProjectFile(project: Project, userTemplates: Temp
 
 export function deserializeProjectFile(jsonText: string): ProjectFile {
   const parsed = JSON.parse(jsonText) as ProjectFile
-  if (parsed.formatVersion !== 1 || !parsed.project) {
+  if (parsed?.formatVersion !== 1 || !parsed.project || !Array.isArray(parsed.project.photos) || !Array.isArray(parsed.project.spreads) || !parsed.project.size || !Array.isArray(parsed.userTemplates) || !parsed.project.spreads.every((s) => Array.isArray(s.placements) && Array.isArray(s.textBoxes))) {
     throw new Error('This file is not a valid YNOT Album Studio project.')
   }
   return parsed
@@ -44,10 +44,17 @@ function fileNameFor(project: Project): string {
 
 export async function saveProjectToFile(
   project: Project,
-  userTemplates: TemplateDefinition[]
+  userTemplates: TemplateDefinition[],
+  filePath?: string | null
 ): Promise<{ saved: boolean; filePath?: string }> {
   const json = await serializeProjectFile(project, userTemplates)
   const bytes = new TextEncoder().encode(json)
+  if (filePath && window.albumStudio?.isElectron) {
+    const split = Math.max(filePath.lastIndexOf('\\'), filePath.lastIndexOf('/'))
+    if (split < 1) throw new Error('Invalid project path. Use Save As to choose a file.')
+    await window.albumStudio.writeFileInDir({ dirPath: filePath.slice(0, split), fileName: filePath.slice(split + 1), data: bytes })
+    return { saved: true, filePath }
+  }
   return saveOneFile(bytes, fileNameFor(project), 'application/json', [
     { name: 'YNOT Album Studio Project', extensions: ['ablm', 'json'] },
   ])
@@ -64,16 +71,20 @@ export function openProjectFromFile(): Promise<{ file: ProjectFile; filePath?: s
     })
   }
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.ablm,.json,application/json'
+    input.oncancel = () => resolve(null)
     input.onchange = () => {
       const file = input.files?.[0]
       if (!file) return resolve(null)
       const reader = new FileReader()
-      reader.onload = () => resolve({ file: deserializeProjectFile(reader.result as string) })
-      reader.onerror = () => resolve(null)
+      reader.onload = () => {
+        try { resolve({ file: deserializeProjectFile(reader.result as string) }) }
+        catch (err) { reject(err) }
+      }
+      reader.onerror = () => reject(new Error('Could not read that project file.'))
       reader.readAsText(file)
     }
     input.click()

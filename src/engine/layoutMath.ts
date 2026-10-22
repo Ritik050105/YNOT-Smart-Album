@@ -1,5 +1,8 @@
 import { EdgeInset, PageSide, Spread } from '@/types'
 import { findTemplate } from './templates'
+import { resolveTemplateFrames } from './templateLayout'
+
+export const DESIGN_WIDTH = 900
 
 export interface PlaceholderBox {
   placeholderId: string
@@ -13,28 +16,33 @@ export interface PlaceholderBox {
  *  the given size, applying the spread's margin + gap. Shared by the live editor canvas and
  *  the export rasterizer so what you see is exactly what you print. */
 export function computePlaceholderBoxes(
-  spread: Pick<Spread, 'templateId' | 'marginPx' | 'gapPx' | 'flipped'>,
+  spread: Pick<Spread, 'templateId' | 'marginPx' | 'gapPx' | 'flipped' | 'customBoxes'>,
   canvasWidthPx: number,
   canvasHeightPx: number
 ): PlaceholderBox[] {
+  if (spread.customBoxes) return spread.customBoxes.map((box) => ({ placeholderId: box.id,
+    x: (spread.flipped ? 1 - box.x - box.width : box.x) * canvasWidthPx, y: box.y * canvasHeightPx,
+    width: box.width * canvasWidthPx, height: box.height * canvasHeightPx }))
   const template = findTemplate(spread.templateId)
   if (!template) return []
 
-  const margin = spread.marginPx
-  const gap = spread.gapPx
-  const innerW = canvasWidthPx - margin * 2
-  const innerH = canvasHeightPx - margin * 2
-
-  return template.placeholders.map((ph) => {
+  return resolveTemplateFrames(template.placeholders, canvasWidthPx / canvasHeightPx, spread.marginPx, spread.gapPx).map((ph) => {
     const x = spread.flipped ? 1 - ph.x - ph.width : ph.x
     return {
       placeholderId: ph.id,
-      x: margin + x * innerW + gap / 2,
-      y: margin + ph.y * innerH + gap / 2,
-      width: ph.width * innerW - gap,
-      height: ph.height * innerH - gap,
+      x: x * canvasWidthPx,
+      y: ph.y * canvasHeightPx,
+      width: ph.width * canvasWidthPx,
+      height: ph.height * canvasHeightPx,
     }
   })
+}
+
+export function boundedFrameRect(rect: { x: number; y: number; width: number; height: number }) {
+  if (!Object.values(rect).every(Number.isFinite)) throw new Error('Frame coordinates must be finite numbers.')
+  const x = Math.max(0, Math.min(0.998, rect.x))
+  const y = Math.max(0, Math.min(0.998, rect.y))
+  return { x, y, width: Math.max(0.002, Math.min(1 - x, rect.width)), height: Math.max(0.002, Math.min(1 - y, rect.height)) }
 }
 
 /** Resolves a per-edge trim/safe-zone inset (inches, already converted to px) into independent

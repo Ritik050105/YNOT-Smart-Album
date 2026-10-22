@@ -5,6 +5,9 @@ import { computePlaceholderBoxes, resolvePageInsetsPx, centerGutterInsetPx, edge
 import { buildSpreadPsdBytes } from './exportPsd'
 import { buildProofingGalleryHtml } from './exportProofing'
 import { canvasToBytes, saveOneFile, saveManyFiles, projectFileBaseName } from './exportUtil'
+import { savePdfX3 } from './pdfX'
+
+interface PdfExportOptions { pdfX?: boolean; jpegQuality?: number }
 
 /** Checks the album's interior page count against its size's optional min/max page range (an
  *  "album company" product's own printing constraints, set on a saved Custom preset) — the
@@ -21,21 +24,24 @@ export function checkPageLimits(project: Project): { violated: boolean; pageCoun
 /** Returns spreads in album order, optionally narrowed to an "Output Range" selection of
  *  0-based indices (e.g. a parsed "1, 2, 5-7" field) — shared by every export path so range
  *  selection behaves identically for PDF, raster, PSD, and manual-proofing exports.
- *  `includeCover` (only meaningful in "all spreads" mode — an explicit range is already exact)
- *  is the "For Printing" tab's "Include cover" checkbox, off by default like the reference app's. */
-function selectSpreads(project: Project, spreadIndices?: number[], includeCover = true): Spread[] {
+ *  Interior range numbers never include the cover; `includeCover` prepends it separately. */
+export function selectSpreads(project: Project, spreadIndices?: number[], includeCover = true): Spread[] {
   const sorted = [...project.spreads].sort((a, b) => a.order - b.order)
-  if (!spreadIndices) return includeCover ? sorted : sorted.filter((s) => !s.isCover)
-  return spreadIndices.map((i) => sorted[i]).filter((s): s is Spread => !!s)
+  const interior = sorted.filter((s) => !s.isCover)
+  const selected = spreadIndices
+    ? [...new Set(spreadIndices)].filter((i) => Number.isInteger(i) && i >= 0 && i < interior.length).sort((a, b) => a - b).map((i) => interior[i])
+    : interior
+  return includeCover ? [...sorted.filter((s) => s.isCover), ...selected] : selected
 }
 
 async function buildSingleSpreadPdfBytes(project: Project, spread: Spread): Promise<Uint8Array> {
+  const size = spread.size ?? project.size
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
   const pdf = await PDFDocument.create()
-  const canvas = await renderSpreadToCanvas(spread, photosById, project.size, project.size.dpi)
+  const canvas = await renderSpreadToCanvas(spread, photosById, size, size.dpi)
   const jpegBytes = await canvasToBytes(canvas, 'image/jpeg', 0.97)
   const image = await pdf.embedJpg(jpegBytes)
-  const page = pdf.addPage([project.size.widthIn * 72, project.size.heightIn * 72])
+  const page = pdf.addPage([size.widthIn * 72, size.heightIn * 72])
   page.drawImage(image, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() })
   return pdf.save()
 }
@@ -45,42 +51,62 @@ async function buildSingleSpreadPdfBytes(project: Project, spread: Spread): Prom
 export async function exportAlbumToPdf(
   project: Project,
   spreadIndices?: number[],
-  includeCover = true
+  includeCover = true,
+  options: PdfExportOptions = {}
 ): Promise<{ saved: boolean; filePath?: string }> {
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
   const pdf = await PDFDocument.create()
   const pixelsPerInch = project.size.dpi
 
   for (const spread of selectSpreads(project, spreadIndices, includeCover)) {
-    const canvas = await renderSpreadToCanvas(spread, photosById, project.size, pixelsPerInch)
-    const jpegBytes = await canvasToBytes(canvas, 'image/jpeg', 0.97)
+    const size = spread.size ?? project.size
+    const canvas = await renderSpreadToCanvas(spread, photosById, size, size.dpi)
+    const jpegBytes = await canvasToBytes(canvas, 'image/jpeg', options.jpegQuality ?? 0.97)
     const image = await pdf.embedJpg(jpegBytes)
-    const page = pdf.addPage([project.size.widthIn * 72, project.size.heightIn * 72])
+    const page = pdf.addPage([size.widthIn * 72, size.heightIn * 72])
     page.drawImage(image, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() })
   }
 
-  const bytes = await pdf.save()
-  const fileName = `${projectFileBaseName(project)}.pdf`
+  const bytes = options.pdfX ? await savePdfX3(pdf, project.name) : await pdf.save()
+  const fileName = `${projectFileBaseName(project)}${options.pdfX ? '-PDFX3' : ''}.pdf`
   return saveOneFile(bytes, fileName, 'application/pdf', [{ name: 'PDF Document', extensions: ['pdf'] }])
 }
 
-/** "Export as single pages" for PDF — one PDF file per spread instead of one combined document,
- *  saved into a chosen directory in one go. */
+/** Split two-page interiors at the gutter; covers retain their own complete artwork. */
+export function singlePageCanvases(canvas: HTMLCanvasElement, spread: Pick<Spread, 'pageSide' | 'isCover'>): HTMLCanvasElement[] {
+  if (spread.isCover || spread.pageSide !== 'spread') return [canvas]
+  const cut = Math.floor(canvas.width / 2)
+  return [0, cut].map((x, index) => {
+    const page = document.createElement('canvas')
+    page.width = index === 0 ? cut : canvas.width - cut
+    page.height = canvas.height
+    const ctx = page.getContext('2d')
+    if (!ctx) throw new Error('2D canvas context unavailable')
+    ctx.drawImage(canvas, x, 0, page.width, page.height, 0, 0, page.width, page.height)
+    return page
+  })
+}
+
+/** One PDF per physical page, split at the gutter for full spreads. */
 export async function exportAlbumToPdfPages(
   project: Project,
   spreadIndices?: number[],
-  includeCover = true
+  includeCover = true,
+  options: PdfExportOptions = {}
 ): Promise<{ saved: boolean; dirPath?: string }> {
   const spreads = selectSpreads(project, spreadIndices, includeCover)
   const files = []
+  const photosById = new Map(project.photos.map((p) => [p.id, p]))
   for (const spread of spreads) {
-    const bytes = await buildSingleSpreadPdfBytes(project, spread)
-    const spreadNumber = spread.order + 1
-    files.push({
-      fileName: `${projectFileBaseName(project)}-spread-${String(spreadNumber).padStart(2, '0')}.pdf`,
-      bytes,
-      mime: 'application/pdf',
-    })
+    const size = spread.size ?? project.size
+    const canvas = await renderSpreadToCanvas(spread, photosById, size, size.dpi)
+    for (const [index, pageCanvas] of singlePageCanvases(canvas, spread).entries()) {
+      const pdf = await PDFDocument.create()
+      const image = await pdf.embedJpg(await canvasToBytes(pageCanvas, 'image/jpeg', options.jpegQuality ?? 0.97))
+      const page = pdf.addPage([size.widthIn * 72 * pageCanvas.width / canvas.width, size.heightIn * 72])
+      page.drawImage(image, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() })
+      files.push({ fileName: `${projectFileBaseName(project)}-${spread.isCover ? 'cover' : `spread-${String(spread.order + 1).padStart(2, '0')}-page-${index + 1}`}${options.pdfX ? '-PDFX3' : ''}.pdf`, bytes: options.pdfX ? await savePdfX3(pdf, project.name) : await pdf.save(), mime: 'application/pdf' })
+    }
   }
   return saveManyFiles(files)
 }
@@ -89,18 +115,21 @@ export async function exportAlbumToPdfPages(
 export async function exportAlbumToJpegs(
   project: Project,
   spreadIndices?: number[],
-  includeCover = true
+  includeCover = true,
+  singlePages = false,
+  quality = 0.97
 ): Promise<{ saved: boolean; dirPath?: string }> {
-  return exportSpreadsAsRaster(project, 'image/jpeg', 'jpg', spreadIndices, includeCover)
+  return exportSpreadsAsRaster(project, 'image/jpeg', 'jpg', spreadIndices, includeCover, singlePages, quality)
 }
 
 /** Exports each spread as a lossless PNG (useful when a lab or print broker requires it). */
 export async function exportAlbumToPngs(
   project: Project,
   spreadIndices?: number[],
-  includeCover = true
+  includeCover = true,
+  singlePages = false
 ): Promise<{ saved: boolean; dirPath?: string }> {
-  return exportSpreadsAsRaster(project, 'image/png', 'png', spreadIndices, includeCover)
+  return exportSpreadsAsRaster(project, 'image/png', 'png', spreadIndices, includeCover, singlePages)
 }
 
 /** Exports each spread as a layered PSD (background + per-photo + per-text layers) for
@@ -114,13 +143,15 @@ export async function exportAlbumToPsds(
   const pixelsPerInch = project.size.dpi
   const spreads = selectSpreads(project, spreadIndices, includeCover)
 
-  const files = []
-  for (const spread of spreads) {
-    const bytes = await buildSpreadPsdBytes(spread, photosById, project.size, pixelsPerInch)
-    const spreadNumber = spread.order + 1
-    files.push({ fileName: `spread-${String(spreadNumber).padStart(2, '0')}.psd`, bytes, mime: 'image/vnd.adobe.photoshop' })
+  async function* files() {
+    for (const spread of spreads) {
+      const size = spread.size ?? project.size
+      const bytes = await buildSpreadPsdBytes(spread, photosById, size, size.dpi)
+      const spreadNumber = spread.order + 1
+      yield { fileName: spread.isCover ? 'cover.psd' : `spread-${String(spreadNumber).padStart(2, '0')}.psd`, bytes, mime: 'image/vnd.adobe.photoshop' }
+    }
   }
-  return saveManyFiles(files)
+  return saveManyFiles(files())
 }
 
 /** Exports a self-contained proofing gallery (HTML, images embedded) to share with a client for
@@ -137,7 +168,7 @@ export async function exportAlbumToProofingGallery(project: Project): Promise<{ 
 export async function exportSingleSpreadToPdf(project: Project, spread: Spread): Promise<{ saved: boolean; filePath?: string }> {
   const bytes = await buildSingleSpreadPdfBytes(project, spread)
   const spreadNumber = spread.order + 1
-  const fileName = `${projectFileBaseName(project)}-spread-${String(spreadNumber).padStart(2, '0')}.pdf`
+  const fileName = `${projectFileBaseName(project)}-${spread.isCover ? 'cover' : `spread-${String(spreadNumber).padStart(2, '0')}`}.pdf`
   return saveOneFile(bytes, fileName, 'application/pdf', [{ name: 'PDF Document', extensions: ['pdf'] }])
 }
 
@@ -146,7 +177,9 @@ async function exportSpreadsAsRaster(
   mime: string,
   ext: string,
   spreadIndices?: number[],
-  includeCover = true
+  includeCover = true,
+  singlePages = false,
+  quality = 0.97
 ): Promise<{ saved: boolean; dirPath?: string }> {
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
   const pixelsPerInch = project.size.dpi
@@ -154,10 +187,14 @@ async function exportSpreadsAsRaster(
 
   const files = []
   for (const spread of spreads) {
-    const canvas = await renderSpreadToCanvas(spread, photosById, project.size, pixelsPerInch)
-    const bytes = await canvasToBytes(canvas, mime, 0.97)
-    const spreadNumber = spread.order + 1
-    files.push({ fileName: `spread-${String(spreadNumber).padStart(2, '0')}.${ext}`, bytes, mime })
+    const size = spread.size ?? project.size
+    const canvas = await renderSpreadToCanvas(spread, photosById, size, size.dpi)
+    const canvases = singlePages ? singlePageCanvases(canvas, spread) : [canvas]
+    for (const [index, page] of canvases.entries()) {
+      const bytes = await canvasToBytes(page, mime, Math.max(0.01, Math.min(1, quality)))
+      const name = spread.isCover ? 'cover' : `spread-${String(spread.order + 1).padStart(2, '0')}${singlePages ? `-page-${index + 1}` : ''}`
+      files.push({ fileName: `${name}.${ext}`, bytes, mime })
+    }
   }
   return saveManyFiles(files)
 }
@@ -207,14 +244,15 @@ function drawManualProofingOverlays(
   options: ManualProofingOptions
 ) {
   const boxes = computePlaceholderBoxes(spread, width, height)
-  const pxPerIn = width / project.size.widthIn
+  const size = spread.size ?? project.size
+  const pxPerIn = width / size.widthIn
 
   if (options.includeTrimArea) {
-    const trimPx = edgeInsetToPx(project.size.trim, pxPerIn)
+    const trimPx = edgeInsetToPx(size.trim, pxPerIn)
     const safetyEdgeInset = {
-      leftRight: project.size.trim.leftRight + project.size.safeZone.leftRight,
-      topBottom: project.size.trim.topBottom + project.size.safeZone.topBottom,
-      inside: project.size.trim.inside + project.size.safeZone.inside,
+      leftRight: size.trim.leftRight + size.safeZone.leftRight,
+      topBottom: size.trim.topBottom + size.safeZone.topBottom,
+      inside: size.trim.inside + size.safeZone.inside,
     }
     const safetyPx = edgeInsetToPx(safetyEdgeInset, pxPerIn)
     const trim = resolvePageInsetsPx(spread.pageSide, trimPx)
@@ -352,7 +390,8 @@ export async function exportAlbumForManualProofing(
 
   const files = []
   for (const spread of spreads) {
-    const canvas = await renderSpreadToCanvas(spread, photosById, project.size, effectiveDpi)
+    const size = spread.size ?? project.size
+    const canvas = await renderSpreadToCanvas(spread, photosById, size, options.widthPx / size.widthIn)
     const ctx = canvas.getContext('2d')
     if (ctx) {
       const spreadNumber = spread.order + 1

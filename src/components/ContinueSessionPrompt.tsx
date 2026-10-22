@@ -19,7 +19,7 @@ export default function ContinueSessionPrompt({
   return (
     <Modal
       title="Continue where you left off?"
-      subtitle={`"${marker.name}" was still open with unsaved changes last time.`}
+      subtitle={marker.hasRecovery ? `Recover unsaved changes to "${marker.name}".` : `Reopen the last saved version of "${marker.name}". Unsaved edits from the older app version are unavailable.`}
       onClose={onStartFresh}
       width={420}
       footer={

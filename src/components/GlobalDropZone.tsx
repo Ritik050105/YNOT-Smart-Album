@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { useProjectStore } from '@/state/projectStore'
-import { importAndDedupe, describeImportSummary, ImportSummary } from '@/engine/importWorkflow'
+import { describeImportSummary } from '@/engine/importWorkflow'
+import { useImportPhotos } from '@/engine/useImportPhotos'
+import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import Icon from './Icon'
 
 function dragHasFiles(e: DragEvent): boolean {
@@ -14,13 +15,19 @@ function dragHasFiles(e: DragEvent): boolean {
  *  instead). A depth counter avoids the classic flicker where dragging over a child element fires
  *  dragleave on its parent. */
 export default function GlobalDropZone() {
-  const addPhotos = useProjectStore((s) => s.addPhotos)
-  const runAutoBuild = useProjectStore((s) => s.runAutoBuild)
   const [active, setActive] = useState(false)
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
-  const [summary, setSummary] = useState<ImportSummary | null>(null)
+  const { handleFiles, importing, progress, lastSummary: summary } = useImportPhotos()
   const depth = useRef(0)
-  const importing = progress !== null
+  const inputRef = useRef<HTMLInputElement>(null)
+  const handleFilesRef = useRef(handleFiles)
+  handleFilesRef.current = handleFiles
+  const importingRef = useRef(importing)
+  importingRef.current = importing
+  useEffect(() => {
+    const onImport = () => { if (!importingRef.current) inputRef.current?.click() }
+    window.addEventListener('album-studio:import-images', onImport)
+    return () => window.removeEventListener('album-studio:import-images', onImport)
+  }, [])
 
   useEffect(() => {
     function onDragEnter(e: DragEvent) {
@@ -55,22 +62,8 @@ export default function GlobalDropZone() {
       e.preventDefault()
       const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : []
       if (files.length === 0) return
-      setSummary(null)
-      setProgress({ done: 0, total: files.length })
-      const { newAssets, summary: result } = await importAndDedupe(
-        files,
-        useProjectStore.getState().project.photos,
-        (done, total) => setProgress({ done, total })
-      )
-      if (newAssets.length > 0) {
-        addPhotos(newAssets)
-        // First-ever drop with nothing laid out yet — go straight to a spread instead of leaving
-        // the photos sitting in the pool waiting for a separate "Auto-Build" click.
-        if (useProjectStore.getState().project.spreads.length === 0) runAutoBuild()
-      }
-      setProgress(null)
-      setSummary(result)
-      window.setTimeout(() => setSummary(null), 5000)
+      if (importingRef.current) return
+      await handleFilesRef.current(files)
     }
     window.addEventListener('dragenter', onDragEnter)
     window.addEventListener('dragover', onDragOver)
@@ -84,12 +77,14 @@ export default function GlobalDropZone() {
       window.removeEventListener('drop', onDropCapture, true)
       window.removeEventListener('drop', onDrop)
     }
-  }, [addPhotos, runAutoBuild])
+  }, [])
 
   const hasIssues = !!summary && (summary.failures.length > 0 || summary.rejected.length > 0)
 
   return (
     <>
+      <input ref={inputRef} type="file" accept={IMAGE_FILE_ACCEPT} multiple hidden
+        onChange={(event) => { void handleFiles(event.target.files); event.target.value = '' }} />
       {(active || importing) && (
         <div className="global-drop-overlay">
           <div className="global-drop-overlay__card">

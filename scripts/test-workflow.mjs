@@ -1,0 +1,174 @@
+import assert from 'node:assert/strict'
+import { build } from 'esbuild'
+
+const result = await build({
+  stdin: {
+    contents: `export * from './src/engine/autoLayout'; export * from './src/engine/photoDrag'; export * from './src/engine/cover'; export * from './src/engine/layoutMath'; export * from './src/engine/unsavedChanges'; export { useProjectStore } from './src/state/projectStore'`,
+    resolveDir: process.cwd(),
+  },
+  bundle: true, platform: 'node', format: 'esm', write: false,
+})
+const { splitPhotosIntoGroups, spreadCountRange, draggedPhotoIds, readDraggedPhotoIds, readTimelineFrame, useProjectStore, groupPhotosIntoMoments, buildSpreadsFromGroups, mergeSpreads, splitSpreadIntoPages, validateCoverSize, computePlaceholderBoxes, retemplateSpread, confirmDiscardUnsaved } =
+  await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
+
+assert.deepEqual(spreadCountRange(12, 3, 6), { min: 2, max: 4 })
+assert.equal(confirmDiscardUnsaved(false, () => { throw new Error('Saved albums need no prompt') }),true)
+assert.equal(confirmDiscardUnsaved(true, () => false),false)
+assert.equal(confirmDiscardUnsaved(true, () => true),true)
+assert.deepEqual(spreadCountRange(13, 5, 6), { min: 3, max: 3 })
+assert.deepEqual(spreadCountRange(2, 3, 6), { min: 1, max: 1 })
+assert.deepEqual(splitPhotosIntoGroups([], 1), [])
+for (let total = 1; total <= 100; total++) {
+  const photos = Array.from({ length: total }, (_, id) => ({ id: String(id) }))
+  const range = spreadCountRange(total, 3, 6)
+  for (let count = range.min; count <= range.max; count++) {
+    const groups = splitPhotosIntoGroups(photos, count)
+    assert.deepEqual(groups.flat(), photos)
+    assert.ok(groups.every((g) => g.length > 0 && g.length <= 6))
+    if (Math.ceil(total / 6) <= Math.floor(total / 3)) assert.ok(groups.every((g) => g.length >= 3))
+  }
+}
+assert.deepEqual(draggedPhotoIds('b', ['c', 'b'], ['a', 'b', 'c']), ['b', 'c'])
+assert.deepEqual(draggedPhotoIds('a', ['b'], ['a', 'b']), ['a'])
+const transfer = (single, multiple = '') => ({ getData: (type) => type === 'application/x-photo-id' ? single : multiple })
+assert.deepEqual(readDraggedPhotoIds(transfer('a'), ['a']), ['a'])
+assert.deepEqual(readDraggedPhotoIds(transfer('a', '["b","b","missing",null]'), ['a', 'b']), ['b'])
+assert.deepEqual(readDraggedPhotoIds(transfer('a', '{broken'), ['a']), [])
+assert.deepEqual(readDraggedPhotoIds(transfer('a', '{}'), ['a']), [])
+
+const photos = Array.from({ length: 65 }, (_, id) => ({ id: String(id), capturedAt: new Date(id * 1000).toISOString(), orientation: 'landscape' }))
+useProjectStore.getState().addPhotos(photos)
+assert.equal(useProjectStore.getState().project.spreads.length, 0, 'Import must not build spreads')
+useProjectStore.getState().runAutoBuildFromGroups([photos.map((p) => p.id)])
+const built = useProjectStore.getState().project.spreads
+assert.equal(built.length, 3)
+assert.deepEqual(built.flatMap((s) => s.placements.map((p) => p.photoId).filter(Boolean)), photos.map((p) => p.id))
+useProjectStore.getState().runAutoBuildFromGroups([['0', '1']])
+assert.equal(useProjectStore.getState().project.spreads.length, 4, 'Auto Build must append')
+useProjectStore.getState().undo()
+assert.equal(useProjectStore.getState().project.spreads.length, 3)
+useProjectStore.getState().redo()
+assert.equal(useProjectStore.getState().project.spreads.length, 4)
+const state = () => useProjectStore.getState()
+const albumSize = state().project.size
+const coverSize = { ...albumSize, widthIn: albumSize.widthIn + 2, heightIn: albumSize.heightIn + 1 }
+assert.ok(validateCoverSize({ ...albumSize, widthIn: 0 }, albumSize))
+assert.ok(validateCoverSize({ ...albumSize, heightIn: albumSize.heightIn - 1 }, albumSize))
+assert.equal(validateCoverSize(coverSize, albumSize), null)
+state().configureCover(coverSize, { wrapIn: 0.2, spineIn: 0.5, reviewedPageCount: 8 })
+const coverId = state().project.spreads.find((s) => s.isCover).id
+assert.deepEqual(state().project.spreads.find((s) => s.id === coverId).placements, [])
+state().addImageFrame(coverId, { x: 0.1, y: 0.2, width: 0.3, height: 0.4 }, '0')
+let cover = state().project.spreads.find((s) => s.id === coverId)
+const frameId = cover.placements[0].placeholderId
+assert.equal(cover.placements[0].photoId, '0')
+state().updateImageFrame(coverId, frameId, { x: 0.8, y: 0.8, width: 0.4, height: 0.5 })
+cover = state().project.spreads.find((s) => s.id === coverId)
+assert.ok(Math.abs(cover.customBoxes[0].width - 0.2) < 1e-10)
+assert.equal(computePlaceholderBoxes(cover, 1000, 500)[0].x, 800)
+const savedCover = JSON.parse(JSON.stringify(cover))
+assert.deepEqual(savedCover, cover)
+state().removeImageFrame(coverId, frameId)
+assert.equal(state().project.spreads.find((s) => s.id === coverId).placements.length, 0)
+state().undo()
+assert.deepEqual(state().project.spreads.find((s) => s.id === coverId), savedCover)
+const adjusted = { ...built[0], placements: built[0].placements.map((p) => ({ ...p, brightness: 23, focalX: 0.2 })) }
+const ret = retemplateSpread(adjusted, 'full-bleed')
+assert.equal(ret, adjusted, 'A smaller template must not silently remove photos')
+const input = photos.slice(0, 4).map((p, i) => ({ ...p, isBlackAndWhite: i > 1, cameraModel: i % 2 ? 'B' : 'A' }))
+const options = { gapMinutes: Infinity, maxPhotosPerSpread: 6, matchTimelineOrder: true }
+assert.equal(groupPhotosIntoMoments(input, options).length, 1)
+assert.equal(groupPhotosIntoMoments(input, { ...options, groupBlackAndWhite: true }).length, 2)
+assert.equal(groupPhotosIntoMoments(input, { ...options, groupMetadata: true }).length, 4)
+const varied = buildSpreadsFromGroups(Array.from({length: 50}, () => [photos[0]]), undefined, null, undefined, true, false, 'low')
+const uses = Object.values(varied.reduce((counts, s) => { counts[s.templateId] = (counts[s.templateId] ?? 0) + 1; return counts }, {}))
+assert.ok(Math.max(...uses) - Math.min(...uses) <= 1, 'Low template reuse must distribute layouts evenly')
+const interiorId = state().project.spreads.find((s) => !s.isCover).id
+state().addImageFrame(interiorId, { x: 0.1, y: 0.1, width: 0.2, height: 0.2 }, '1')
+const customInterior = state().project.spreads.find((s) => s.id === interiorId)
+state().copySpread(interiorId)
+state().pasteSpreadAfter(interiorId)
+const interiors = state().project.spreads.filter((s) => !s.isCover).sort((a,b)=>a.order-b.order)
+assert.deepEqual(interiors[1].customBoxes, customInterior.customBoxes)
+assert.deepEqual(interiors[1].placements, customInterior.placements)
+console.log('Workflow checks passed: grouping, reuse levels, range bounds, photo preservation, drag validation, import, append, cover dimensions, custom frame copy/paste, history and template safety.')
+assert.equal(readTimelineFrame({ getData:()=>'{bad' }), null)
+assert.equal(readTimelineFrame({ getData:()=>'{"spreadId":4,"frameId":"x"}' }), null)
+const mergedLarge = mergeSpreads(built[0], built[1])
+assert.equal(mergedLarge.placements.length, 60)
+assert.equal(mergedLarge.customBoxes.length, 60)
+assert.deepEqual(mergedLarge.placements.map((p)=>p.photoId), photos.slice(0,60).map((p)=>p.id))
+mergedLarge.placements[12].brightness = 19
+const cut = splitSpreadIntoPages(mergedLarge, 13)
+assert.deepEqual(cut.map((s)=>s.placements.length), [13,47])
+assert.equal(cut[0].placements[12].brightness,19)
+assert.ok(cut.every((s)=>s.pageSide==='spread'))
+const beforeMove = state().project.spreads.flatMap((s)=>s.placements.map((p)=>p.photoId).filter(Boolean)).sort()
+state().moveTimelinePhoto(interiors[0].id, interiors[0].placements[0].placeholderId, interiors[1].id)
+assert.deepEqual(state().project.spreads.flatMap((s)=>s.placements.map((p)=>p.photoId).filter(Boolean)).sort(), beforeMove)
+const coverBeforeTemplates = state().project.spreads.find((s)=>s.isCover)
+state().applyTemplateToAllSpreads('full-bleed')
+assert.deepEqual(state().project.spreads.find((s)=>s.isCover), coverBeforeTemplates)
+console.log('Timeline checks passed: large merges, precise cuts, moving photos, adjustment preservation and cover isolation.')
+state().markSaved()
+const previousSize=state().project.size
+state().updateProjectSettings({size:{...previousSize,widthIn:previousSize.widthIn+1}})
+assert.equal(state().isDirty,true)
+state().undo()
+assert.deepEqual(state().project.size,previousSize)
+const snapshot = structuredClone(state().project)
+const idsBefore = snapshot.spreads.flatMap((s)=>s.placements.map((pl)=>pl.photoId).filter(Boolean)).sort()
+const from = state().project.spreads.find((s)=>!s.isCover && s.placements.some((pl)=>pl.photoId))
+const moved = from.placements.find((pl)=>pl.photoId)
+state().moveTimelinePhoto(from.id,moved.placeholderId,null)
+assert.equal(state().project.spreads.length,snapshot.spreads.length+1)
+assert.deepEqual(state().project.spreads.flatMap((s)=>s.placements.map((pl)=>pl.photoId).filter(Boolean)).sort(),idsBefore)
+assert.equal(state().project.spreads.at(-1).placements[0].photoId,moved.photoId)
+state().undo()
+assert.deepEqual(state().project,snapshot)
+state().redo()
+assert.equal(state().project.spreads.at(-1).placements[0].photoId,moved.photoId)
+const unchanged=state().project
+const historyCount=state().history.length
+state().moveTimelinePhoto('missing','missing',null)
+state().reorderSpreads(-1,100000)
+state().insertTimelinePhotos(['missing'],'missing')
+assert.equal(state().project,unchanged)
+assert.equal(state().history.length,historyCount)
+const insertTarget=state().project.spreads.find((s)=>!s.isCover && s.placements.some((pl)=>pl.photoId))
+const targetPhotoIds=insertTarget.placements.filter((pl)=>pl.photoId).map((pl)=>pl.photoId)
+const insertIds=state().project.photos.slice(0,2).map((p)=>p.id)
+state().insertTimelinePhotos([...insertIds,'invalid',insertIds[0]],insertTarget.id,insertTarget.placements[0].placeholderId)
+assert.deepEqual(state().project.spreads.find((s)=>s.id===insertTarget.id).placements.filter((pl)=>pl.photoId).map((pl)=>pl.photoId),[...insertIds,...targetPhotoIds])
+state().undo()
+assert.equal(state().project,unchanged)
+state().insertTimelinePhotos(insertIds,null)
+assert.deepEqual(state().project.spreads.at(-1).placements.map((pl)=>pl.photoId).filter(Boolean),insertIds)
+console.log('Timeline drop checks passed: new spreads, ordered dock insertion, photo/edit preservation, undo/redo and invalid/no-op safety.')
+
+const beforeDelete=state().project
+const deleteSpread=beforeDelete.spreads.at(-1)
+const deleteFrames=deleteSpread.placements.map((placement)=>placement.placeholderId)
+const beforeHistory=state().history.length
+state().updateMultiplePlacements(deleteSpread.id,deleteFrames,{photoId:null})
+assert.ok(state().project.spreads.at(-1).placements.every((placement)=>placement.photoId===null))
+assert.equal(state().history.length,beforeHistory+1)
+state().undo()
+assert.deepEqual(state().project,beforeDelete,'One undo restores the entire image multiselection')
+console.log('Batch deletion check passed: one action and one undo for all selected images.')
+
+const cycleTarget=state().project.spreads.find((spread)=>!spread.isCover && spread.placements.length>1)
+const cycleBefore=state().project
+const originals=cycleTarget.placements.filter((placement)=>placement.photoId).map(({placeholderId,...placement})=>placement)
+state().selectSpread(cycleTarget.id)
+state().cycleSpreadTemplate(cycleTarget.id,1)
+const cycled=state().project.spreads.find((spread)=>spread.id===cycleTarget.id)
+assert.notEqual(cycled.templateId,cycleTarget.templateId)
+assert.deepEqual(cycled.placements.filter((placement)=>placement.photoId).map(({placeholderId,...placement})=>placement),originals,'Cycling keeps each photo and every crop/tone edit')
+state().undo()
+assert.deepEqual(state().project,cycleBefore,'Template cycling is one undoable edit')
+state().cycleSpreadTemplate('missing',1)
+assert.deepEqual(state().project,cycleBefore)
+const coverToCycle=state().project.spreads.find((spread)=>spread.isCover)
+if (coverToCycle) {state().cycleSpreadTemplate(coverToCycle.id,1);assert.deepEqual(state().project,cycleBefore)}
+console.log('Template cycle checks passed: matching photo counts, preserved edits, cover isolation and undo.')

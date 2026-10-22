@@ -1,7 +1,8 @@
-import { PhotoAsset, Spread, AlbumSize } from '@/types'
+import { PhotoAsset, Spread, AlbumSize, PlacedPhoto, TextBox } from '@/types'
 import { computeCoverCrop } from './cropFit'
-import { computePlaceholderBoxes } from './layoutMath'
+import { DESIGN_WIDTH, PlaceholderBox, computePlaceholderBoxes } from './layoutMath'
 import { ensureFontLoaded } from './fonts'
+import { imageToneFilter } from './imageTone'
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -21,6 +22,7 @@ export async function renderSpreadToCanvas(
   size: AlbumSize,
   pixelsPerInch: number
 ): Promise<HTMLCanvasElement> {
+  size = spread.size ?? size
   const widthPx = Math.round(size.widthIn * pixelsPerInch)
   const heightPx = Math.round(size.heightIn * pixelsPerInch)
   const canvas = document.createElement('canvas')
@@ -29,21 +31,44 @@ export async function renderSpreadToCanvas(
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('2D canvas context unavailable')
 
-  ctx.fillStyle = spread.backgroundColor
-  ctx.fillRect(0, 0, widthPx, heightPx)
+  await drawSpreadBackground(ctx, spread, widthPx, heightPx)
 
-  const margin = spread.marginPx
+  const scale = widthPx / DESIGN_WIDTH
   const boxes = computePlaceholderBoxes(spread, widthPx, heightPx)
 
   for (const ph of boxes) {
     const placement = spread.placements.find((p) => p.placeholderId === ph.placeholderId)
+    const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
+    if (!photo) continue
+    await drawPlacement(ctx, ph, placement, photo, scale)
+  }
+  for (const box of spread.textBoxes) await drawTextBox(ctx, box, widthPx, heightPx)
+
+  return canvas
+}
+
+export async function drawSpreadBackground(ctx: CanvasRenderingContext2D, spread: Spread, width: number, height: number) {
+  ctx.fillStyle = spread.backgroundColor
+  ctx.fillRect(0, 0, width, height)
+  if (!spread.backgroundPattern) return
+  const image = await loadImage(spread.backgroundPattern.src)
+  const scale = spread.backgroundPattern.tileSizePx * width / DESIGN_WIDTH / image.naturalWidth
+  const pattern = ctx.createPattern(image, 'repeat')
+  if (!pattern || !(scale > 0)) return
+  ctx.save()
+  ctx.scale(scale, scale)
+  ctx.fillStyle = pattern
+  ctx.fillRect(0, 0, width / scale, height / scale)
+  ctx.restore()
+}
+
+export async function drawPlacement(ctx: CanvasRenderingContext2D, ph: PlaceholderBox, placement: PlacedPhoto | undefined, photo: PhotoAsset | undefined, scale: number) {
     const boxX = ph.x
     const boxY = ph.y
     const boxW = ph.width
     const boxH = ph.height
-    if (boxW <= 0 || boxH <= 0) continue
+    if (boxW <= 0 || boxH <= 0) return
 
-    const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
     const frameStyle = placement?.frameStyle ?? 'none'
     const rotation = ((placement?.rotationDeg ?? 0) * Math.PI) / 180
 
@@ -82,7 +107,7 @@ export async function renderSpreadToCanvas(
     ctx.save()
     ctx.beginPath()
     if (frameStyle === 'rounded') {
-      roundedRectPath(ctx, boxX, boxY, boxW, boxH, placement?.cornerRadiusPx ?? Math.min(boxW, boxH) * 0.06)
+      roundedRectPath(ctx, boxX, boxY, boxW, boxH, (placement?.cornerRadiusPx ?? 24) * scale)
     } else {
       ctx.rect(photoX, photoY, photoW, photoH)
     }
@@ -100,10 +125,7 @@ export async function renderSpreadToCanvas(
         placement?.zoom ?? 1
       )
 
-      const brightness = 1 + (placement?.brightness ?? 0) / 100
-      const contrast = 1 + (placement?.contrast ?? 0) / 100
-      const saturate = 1 + (placement?.saturation ?? 0) / 100
-      ctx.filter = `brightness(${brightness}) contrast(${contrast}) saturate(${saturate})`
+      ctx.filter = imageToneFilter(placement ?? { brightness: 0, contrast: 0, saturation: 0 })
       ctx.globalAlpha = placement?.opacity ?? 1
 
       const flipH = placement?.flipHorizontal ?? false
@@ -138,7 +160,7 @@ export async function renderSpreadToCanvas(
     }
     ctx.restore()
 
-    const borderWidth = placement?.borderWidth ?? 0
+    const borderWidth = (placement?.borderWidth ?? 0) * scale
     if (borderWidth > 0 && frameStyle !== 'polaroid') {
       ctx.strokeStyle = placement?.borderColor ?? '#ffffff'
       ctx.lineWidth = borderWidth
@@ -146,26 +168,6 @@ export async function renderSpreadToCanvas(
     }
 
     ctx.restore()
-  }
-
-  const innerW = widthPx - margin * 2
-  const innerH = heightPx - margin * 2
-  for (const box of spread.textBoxes) {
-    await ensureFontLoaded(box.fontFamily)
-    const x = margin + box.x * innerW
-    const y = margin + box.y * innerH
-    const w = box.width * innerW
-    ctx.save()
-    ctx.font = `${box.italic ? 'italic ' : ''}${box.bold ? 'bold ' : ''}${box.fontSize * (pixelsPerInch / 96)}px ${box.fontFamily}`
-    ctx.fillStyle = box.color
-    ctx.textAlign = box.align
-    ctx.textBaseline = 'top'
-    const tx = box.align === 'center' ? x + w / 2 : box.align === 'right' ? x + w : x
-    wrapText(ctx, box.text, tx, y, w, box.fontSize * 1.3 * (pixelsPerInch / 96))
-    ctx.restore()
-  }
-
-  return canvas
 }
 
 /** Simulated "relighting": a soft radial glow (positive) or vignette/shadow (negative) centered
@@ -202,18 +204,39 @@ function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w:
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {
-  const words = text.split(/\s+/)
-  let line = ''
   let cursorY = y
-  for (const word of words) {
-    const testLine = line ? `${line} ${word}` : word
-    if (ctx.measureText(testLine).width > maxWidth && line) {
-      ctx.fillText(line, x, cursorY)
-      line = word
-      cursorY += lineHeight
-    } else {
-      line = testLine
+  for (const paragraph of text.split(/\r?\n/)) {
+    let line = ''
+    for (const word of paragraph.split(/\s+/)) {
+      const testLine = line ? `${line} ${word}` : word
+      if (ctx.measureText(testLine).width > maxWidth && line) {
+        ctx.fillText(line, x, cursorY)
+        line = word
+        cursorY += lineHeight
+      } else {
+        line = testLine
+      }
     }
+    if (line) ctx.fillText(line, x, cursorY)
+    cursorY += lineHeight
   }
-  if (line) ctx.fillText(line, x, cursorY)
+  return cursorY - y
+}
+
+export async function drawTextBox(ctx: CanvasRenderingContext2D, box: TextBox, widthPx: number, heightPx: number) {
+  const scale = widthPx / DESIGN_WIDTH
+
+    await ensureFontLoaded(box.fontFamily)
+    const x = box.x * widthPx
+    const y = box.y * heightPx
+    const w = box.width * widthPx
+    ctx.save()
+    ctx.font = `${box.italic ? 'italic ' : ''}${box.bold ? 'bold ' : ''}${box.fontSize * scale}px ${box.fontFamily}`
+    ctx.fillStyle = box.color
+    ctx.textAlign = box.align
+    ctx.textBaseline = 'top'
+    const tx = box.align === 'center' ? x + w / 2 : box.align === 'right' ? x + w : x
+    const height = wrapText(ctx, box.text, tx, y, w, box.fontSize * scale)
+    ctx.restore()
+    return height
 }

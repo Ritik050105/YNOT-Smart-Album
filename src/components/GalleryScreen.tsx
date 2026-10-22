@@ -1,3 +1,4 @@
+import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { importAndDedupe } from '@/engine/importWorkflow'
@@ -71,7 +72,7 @@ export default function GalleryScreen() {
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={IMAGE_FILE_ACCEPT}
           multiple
           hidden
           onChange={(e) => {

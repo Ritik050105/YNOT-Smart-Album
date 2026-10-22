@@ -16,6 +16,10 @@ export interface NewProjectPayload {
 
 export interface AlbumStudioBridge {
   isElectron: true
+  readRecovery: () => Promise<{ filePath: string | null; contents: string } | null>
+  writeRecovery: (snapshot: { filePath: string | null; contents: string }) => Promise<void>
+  clearRecovery: () => Promise<void>
+  decodeTiff: (data: Uint8Array) => Promise<string>
   saveFile: (args: {
     defaultName: string
     filters: { name: string; extensions: string[] }[]
@@ -29,6 +33,7 @@ export interface AlbumStudioBridge {
   openNewProjectWindow: () => Promise<void>
   submitNewProject: (opts: NewProjectPayload) => Promise<void>
   closeCurrentWindow: () => Promise<void>
+  onSaveBeforeClose: (cb: () => void) => () => void
   onNewProjectCreated: (cb: (opts: NewProjectPayload) => void) => () => void
 }
 
