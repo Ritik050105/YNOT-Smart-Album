@@ -1,3 +1,5 @@
+import ynotMark from '@/assets/ynot-mark-white.png'
+
 interface Props {
   title?: string
   subtitle?: string
@@ -11,12 +13,8 @@ export default function NewProjectLoadingOverlay({
   subtitle = 'This may take several minutes.',
 }: Props) {
   return (
-    <div className="new-project-loading">
-      <p className="new-project-loading__title">{title}</p>
-      <p className="muted">{subtitle}</p>
-      <div className="new-project-loading__bar">
-        <div className="new-project-loading__bar-fill" />
-      </div>
+    <div className="new-project-loading" role="status" aria-label={`${title} ${subtitle}`}>
+      <div className="new-project-loading__mark"><img src={ynotMark} alt="YNOT Photography" /></div>
     </div>
   )
 }

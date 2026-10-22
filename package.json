@@ -11,7 +11,8 @@
     "copyright": "Copyright (c) YNOT Photography",
     "files": [
       "dist/**",
-      "dist-electron/**"
+      "dist-electron/**",
+      "src/assets/ynot-mark-white.png"
     ],
     "directories": {
       "output": "release",

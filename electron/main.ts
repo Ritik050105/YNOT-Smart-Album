@@ -15,42 +15,28 @@ ipcMain.handle('images:decodeTiff', (_event, data: Uint8Array) => decodeTiff(dat
 // File/Edit/Spread/Templates/View/Help bar. The app owns all of that, so the native one is unset.
 Menu.setApplicationMenu(null)
 
-/** A small frameless splash window shown the instant the app launches, while Electron spins up
- *  the real window and (in dev) Vite/renderer boots — the same "app is opening" affordance the
- *  reference app shows, built as an inline data: URL so there's no extra file to package. */
+/** Match the reference's light, logo-only launch screen without delaying startup. */
 function createSplash(): BrowserWindow {
   const splash = new BrowserWindow({
-    width: 380,
-    height: 340,
-    frame: false,
+    ...fitWindowSize(screen.getPrimaryDisplay().workAreaSize, { width: 1440, height: 900 }, { width: 720, height: 480 }),
+    title: 'YNOT Album Studio',
     resizable: false,
-    movable: false,
     show: true,
     center: true,
-    backgroundColor: '#292b2e',
+    backgroundColor: '#fafafa',
     webPreferences: { contextIsolation: true },
   })
   splash.setMenu(null)
+  const logo = fs.readFileSync(path.join(app.getAppPath(), 'src', 'assets', 'ynot-mark-white.png')).toString('base64')
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-    html,body{margin:0;height:100%;display:flex;align-items:center;justify-content:center;background:#292b2e;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-user-select:none;}
-    .wrap{display:flex;flex-direction:column;align-items:center;gap:20px;}
-    .mark{width:68px;height:68px;border-radius:18px;background:linear-gradient(145deg,#393b3f,#292b2e);display:flex;align-items:center;justify-content:center;border:1px solid #64676d;}
-    .mark svg{width:36px;height:36px;}
-    .title{color:#f4f5f6;font-size:19px;font-weight:700;letter-spacing:0.02em;text-align:center;}
-    .title span{display:block;color:#c6c9ce;font-weight:400;font-size:12.5px;margin-top:3px;letter-spacing:0.08em;text-transform:uppercase;}
-    .spinner{width:26px;height:26px;border-radius:50%;border:3px solid #64676d;border-top-color:#ffe735;animation:spin 0.85s linear infinite;}
-    @keyframes spin{to{transform:rotate(360deg)}}
-  </style></head><body>
-    <div class="wrap">
-      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l8 8 8-8M12 12v8"/></svg></div>
-      <div class="title">YNOT<span>Album Studio</span></div>
-      <div class="spinner"></div>
-    </div>
-  </body></html>`
+    html,body{margin:0;height:100%;background:#fafafa;}
+    body{display:grid;place-items:center;-webkit-user-select:none;}
+    .mark{width:144px;height:144px;max-width:24vmin;max-height:24vmin;border-radius:24%;background:linear-gradient(145deg,#2b2b2e,#0c0c0d);display:grid;place-items:center;border:1px solid #63676d;box-sizing:border-box;}
+    img{width:58%;height:58%;object-fit:contain;}
+  </style></head><body><div class="mark" role="status" aria-label="Loading YNOT Album Studio"><img src="data:image/png;base64,${logo}" alt="YNOT Photography"></div></body></html>`
   splash.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
   return splash
 }
-
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(splash?: BrowserWindow) {
