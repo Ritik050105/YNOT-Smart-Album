@@ -3,12 +3,13 @@ import Modal from './Modal'
 import Icon from './Icon'
 import { useProjectStore, NewProjectOptions } from '@/state/projectStore'
 import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES, DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
-import { templatesForCount, matchesFrameFilter, TemplateFrameFilter, BUILT_IN_TEMPLATES } from '@/engine/templates'
+import { matchesFrameFilter, TemplateFrameFilter, BUILT_IN_TEMPLATES } from '@/engine/templates'
 import { loadSizePresets, addSizePreset, deleteSizePreset, SizePreset } from '@/engine/sizePresets'
 import { inToDisplay, displayToIn, DisplayUnit } from '@/engine/units'
 import { AlbumSize, AlbumSizeCategory, EdgeInset } from '@/types'
 import TemplateThumb from './TemplatePreview'
 import ColorField from './ColorField'
+import { LIBRARY_PREVIEW_TEMPLATES } from '@/engine/editorialTemplates'
 
 const SHAPES: { category: AlbumSizeCategory; label: string; aspect: number }[] = [
   { category: 'Square', label: 'Square', aspect: 1 },
@@ -191,19 +192,9 @@ export default function NewProjectWizard({
     setSelectedPreset('')
   }
 
-  // A small, fixed-size preview of what the chosen library filter leaves available — one
-  // representative layout per common photo count — instead of a 500+ item checkbox list, matching
-  // the reference app's own small gallery-style preview (it doesn't offer per-template toggles here
-  // either; that level of curation still lives in the Inspector's per-spread template picker).
   const resolvedSize = resolveSize()
   const previewAspect = resolvedSize.widthIn / resolvedSize.heightIn
-  const previewTemplates = useMemo(
-    () =>
-      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15]
-        .map((count) => templatesForCount(count, null, libraryFilter, previewAspect)[0])
-        .filter((t): t is NonNullable<typeof t> => !!t),
-    [libraryFilter, previewAspect]
-  )
+  const previewTemplates = LIBRARY_PREVIEW_TEMPLATES
 
   const enabledTemplateIds = useMemo(() => {
     if (libraryFilter === 'all') return null
@@ -282,6 +273,7 @@ export default function NewProjectWizard({
 
   return (
     <Modal
+      key={step}
       title={step === 1 ? "Choose Project Specifications" : "Template Library and Appearance Settings"}
       className="project-wizard"
       headerContent={step === 1 && (
@@ -489,8 +481,8 @@ export default function NewProjectWizard({
           </details>
         </>
       ) : (
-        <>
-          <label className="field" style={{ marginBottom: 14 }}>
+        <div className="library-appearance">
+          <label className="field library-appearance__filter">
             Template Library Filter
             <select value={libraryFilter} onChange={(e) => setLibraryFilter(e.target.value as TemplateFrameFilter)}>
               {LIBRARY_FILTERS.map((f) => (
@@ -503,10 +495,16 @@ export default function NewProjectWizard({
 
           <div className="template-preview-grid">
             {previewTemplates.map((t) => (
-              <TemplateThumb key={t.id} template={t} aspect={previewAspect} className="template-preview-grid__swatch" />
+              <div key={t.id} className={`library-preview ${matchesFrameFilter(t, libraryFilter, previewAspect) ? '' : 'is-excluded'}`}
+                title={`${t.name} — ${matchesFrameFilter(t, libraryFilter, previewAspect) ? 'Included' : 'Excluded by selected filter'}`}>
+                <TemplateThumb template={t} aspect={previewAspect} marginPx={24} gapPx={gapPx} backgroundColor={backgroundColor}
+                  borderColor={borderColor} borderWidth={borderWidth} className="template-preview-grid__swatch" />
+                <span className="sr-only">{t.name}: {matchesFrameFilter(t, libraryFilter, previewAspect) ? 'Included' : 'Excluded by selected filter'}</span>
+              </div>
             ))}
           </div>
 
+          <p className="library-appearance__summary" aria-live="polite">{enabledTemplateIds ? enabledTemplateIds.filter(id => id !== 'cover-front-spine-back').length : BUILT_IN_TEMPLATES.length - 1} matching layouts · Preview follows your album dimensions and appearance settings</p>
           <div className="field-section">
             <div className="field-section__title">Appearance</div>
             <div className="style-field">
@@ -517,6 +515,7 @@ export default function NewProjectWizard({
             <div className="style-field">
               <span className="style-field__label">Border around images</span>
               <select
+                aria-label="Border around images"
                 value={stylePickFor(borderWidth, BORDER_STYLES)}
                 onChange={(e) => {
                   const found = BORDER_STYLES.find((s) => s.label === e.target.value)
@@ -536,8 +535,9 @@ export default function NewProjectWizard({
                 type="number"
                 min={0}
                 max={200}
+                aria-label="Border width"
                 value={borderWidth}
-                onChange={(e) => setBorderWidth(Number(e.target.value))}
+                onChange={(e) => setBorderWidth(Math.max(0, Math.min(200, Number(e.target.value) || 0)))}
               />
               <span className="style-field__unit">pt</span>
               <ColorField value={borderColor} onChange={setBorderColor} />
@@ -546,6 +546,7 @@ export default function NewProjectWizard({
             <div className="style-field">
               <span className="style-field__label">Gap between images</span>
               <select
+                aria-label="Gap between images"
                 value={stylePickFor(gapPx, GAP_STYLES)}
                 onChange={(e) => {
                   const found = GAP_STYLES.find((s) => s.label === e.target.value)
@@ -561,11 +562,11 @@ export default function NewProjectWizard({
                   Custom
                 </option>
               </select>
-              <input type="number" min={0} max={200} value={gapPx} onChange={(e) => setGapPx(Number(e.target.value))} />
+              <input aria-label="Image gap" type="number" min={0} max={200} value={gapPx} onChange={(e) => setGapPx(Math.max(0, Math.min(200, Number(e.target.value) || 0)))} />
               <span className="style-field__unit">pt</span>
             </div>
           </div>
-        </>
+        </div>
       )}
     </Modal>
   )

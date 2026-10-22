@@ -1,3 +1,4 @@
+import { CSSProperties } from 'react'
 import { TemplateDefinition, PhotoAsset, PlacedPhoto } from '@/types'
 import { templateFramesInReadingOrder } from '@/engine/templateMatching'
 import { resolveTemplateFrames } from '@/engine/templateLayout'
@@ -49,6 +50,9 @@ export default function TemplateThumb({
   marginPx = 0,
   gapPx = 0,
   placements,
+  backgroundColor,
+  borderColor,
+  borderWidth,
 }: {
   template: TemplateDefinition
   photos?: (PhotoAsset | undefined)[]
@@ -56,10 +60,13 @@ export default function TemplateThumb({
   className?: string
   marginPx?: number
   gapPx?: number
+  backgroundColor?: string
+  borderColor?: string
+  borderWidth?: number
   placements?: PlacedPhoto[]
 }) {
   return (
-    <div className={`template-thumb ${className ?? ''}`} style={{ aspectRatio: aspect }}>
+    <div className={`template-thumb ${className ?? ''}`} style={{ aspectRatio: aspect, backgroundColor, '--preview-border-color': borderColor, '--preview-border-width': borderWidth === undefined ? undefined : `${borderWidth / 900 * 100}cqw` } as CSSProperties}>
       {resolveTemplateFrames(templateFramesInReadingOrder(template), aspect, marginPx, gapPx).map((ph, i) => (
         <PreviewCell key={ph.id} ph={ph} photo={photos?.[i]} aspect={aspect} placement={placements?.find(p=>p.photoId===photos?.[i]?.id)} />
       ))}

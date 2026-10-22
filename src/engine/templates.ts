@@ -1,7 +1,8 @@
 import { TemplateDefinition, PlaceholderRect } from '@/types'
-import { GAP, distributeEvenly, placeGridInRect } from './templateLayout'
+import { GAP, distributeEvenly, placeGridInRect, geometrySignature } from './templateLayout'
 import { GENERATED_TEMPLATES } from './templateGenerator'
 import { expandTemplateLibrary } from './referenceTemplates'
+import { EDITORIAL_TEMPLATES } from './editorialTemplates'
 
 // A plain incrementing counter (not crypto.randomUUID()) — module evaluation order is the same
 // on every app launch, so this produces the exact same placeholder ids every time. That stability
@@ -548,7 +549,15 @@ const HAND_CRAFTED_TEMPLATES: TemplateDefinition[] = [
 /** 300 interior layouts per photo count (1–30), plus the cover. Keep original entries first
  *  so existing projects and equally ranked layout suggestions retain their geometry/order. */
 const originalTemplates = [...HAND_CRAFTED_TEMPLATES, ...GENERATED_TEMPLATES]
-export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [...originalTemplates, ...expandTemplateLibrary(originalTemplates)]
+const existingTemplates = [...originalTemplates, ...expandTemplateLibrary(originalTemplates)]
+const signatures = new Set(existingTemplates.map(t => `${t.photoCount}:${geometrySignature(t.placeholders)}`))
+const editorialAdditions = EDITORIAL_TEMPLATES.filter(t => {
+  const signature = `${t.photoCount}:${geometrySignature(t.placeholders)}`
+  if (signatures.has(signature)) return false
+  signatures.add(signature)
+  return true
+})
+export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [...existingTemplates, ...editorialAdditions]
 
 /** CSS style for a template swatch's background — a thumbnail image, a flat color, or a CSS
  *  gradient string (the generated library's `thumbnailColor` values are gradients, e.g.
