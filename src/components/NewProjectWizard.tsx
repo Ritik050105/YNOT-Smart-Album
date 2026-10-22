@@ -20,6 +20,8 @@ const SHAPES: { category: AlbumSizeCategory; label: string; aspect: number }[] =
 ]
 
 const COLOR_PROFILES = ['sRGB', 'Adobe RGB', 'ProPhoto RGB']
+// These ten filter examples are authored at 3:2; stretching them changes which frames are square.
+const FILTER_EXAMPLE_ASPECT = 1.5
 
 const LIBRARY_FILTERS: { value: TemplateFrameFilter; label: string }[] = [
   { value: 'all', label: 'All Templates' },
@@ -492,16 +494,16 @@ export default function NewProjectWizard({
 
           <div className="template-preview-grid">
             {previewTemplates.map((t) => (
-              <div key={t.id} className={`library-preview ${matchesFrameFilter(t, libraryFilter, previewAspect) ? '' : 'is-excluded'}`}
-                title={`${t.name} — ${matchesFrameFilter(t, libraryFilter, previewAspect) ? 'Included' : 'Excluded by selected filter'}`}>
-                <TemplateThumb template={t} aspect={previewAspect} marginPx={24} gapPx={gapPx} backgroundColor={backgroundColor}
+              <div key={t.id} className={`library-preview ${matchesFrameFilter(t, libraryFilter, FILTER_EXAMPLE_ASPECT) ? '' : 'is-excluded'}`}
+                title={`${t.name} — ${matchesFrameFilter(t, libraryFilter, FILTER_EXAMPLE_ASPECT) ? 'Included' : 'Excluded by selected filter'}`}>
+                <TemplateThumb template={t} aspect={FILTER_EXAMPLE_ASPECT} marginPx={24} gapPx={gapPx} backgroundColor={backgroundColor}
                   borderColor={borderColor} borderWidth={borderWidth} className="template-preview-grid__swatch" />
-                <span className="sr-only">{t.name}: {matchesFrameFilter(t, libraryFilter, previewAspect) ? 'Included' : 'Excluded by selected filter'}</span>
+                <span className="sr-only">{t.name}: {matchesFrameFilter(t, libraryFilter, FILTER_EXAMPLE_ASPECT) ? 'Included' : 'Excluded by selected filter'}</span>
               </div>
             ))}
           </div>
 
-          <p className="library-appearance__summary" aria-live="polite">{enabledTemplateIds ? enabledTemplateIds.filter(id => id !== 'cover-front-spine-back').length : BUILT_IN_TEMPLATES.length - 1} matching layouts · Preview follows your album dimensions and appearance settings</p>
+          <p className="library-appearance__summary" aria-live="polite">{enabledTemplateIds ? enabledTemplateIds.filter(id => id !== 'cover-front-spine-back').length : BUILT_IN_TEMPLATES.length - 1} matching layouts</p>
           <div className="field-section">
             <div className="field-section__title">Appearance</div>
             <div className="style-field">

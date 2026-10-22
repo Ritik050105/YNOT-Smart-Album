@@ -38,7 +38,7 @@ app.whenReady().then(async () => {
   }
   const choices=await evaluate(`Array.from(document.querySelectorAll('select')).filter(s=>s.parentElement.textContent.includes('Starts with')||s.parentElement.textContent.includes('Ends with')).map(s=>Array.from(s.options,o=>o.textContent))`)
   assert.deepEqual(choices,[['Full spread','Single page/side'],['Full spread','Single page/side']])
-  await evaluate(`const input=Array.from(document.querySelectorAll('label')).find(e=>e.textContent.includes('Spread width')).querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'18');input.dispatchEvent(new Event('input',{bubbles:true}))`)
+  await evaluate(`const input=Array.from(document.querySelectorAll('label')).find(e=>e.textContent.includes('Spread width')).querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'15');input.dispatchEvent(new Event('input',{bubbles:true}))`)
   await new Promise(r=>setTimeout(r,100))
   await evaluate(`Array.from(document.querySelectorAll('button')).find(e=>e.textContent==='Next').click()`)
   await new Promise(r=>setTimeout(r,100))
@@ -46,6 +46,8 @@ app.whenReady().then(async () => {
     await evaluate(`const select=document.querySelector('.library-appearance__filter select');select.value=${JSON.stringify(filter)};select.dispatchEvent(new Event('change',{bubbles:true}))`)
     await new Promise(r=>setTimeout(r,100))
     assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.library-preview')).flatMap((e,i)=>e.classList.contains('is-excluded')?[i]:[])`),excluded,filter)
+    assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.library-preview')).flatMap((e,i)=>Number(getComputedStyle(e).opacity)<0.3?[i]:[])`),excluded,`${filter}: excluded examples visibly fade at a 5:4 album ratio`)
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.template-thumb')).aspectRatio`),'1.5 / 1','Examples retain their authored proportions')
   }
   win.setSize(1060,840)
   for(let i=0;i<30;i++){if(await evaluate('innerWidth===1060 && innerHeight===840'))break;await new Promise(r=>setTimeout(r,100))}
@@ -62,7 +64,7 @@ app.whenReady().then(async () => {
   await evaluate(`Array.from(document.querySelectorAll('button')).find(e=>e.textContent.includes('Start')).click()`)
   await new Promise(r=>setTimeout(r,100))
   assert.equal(await evaluate('window.submitted.layoutStart'),'spread')
-  assert.equal(await evaluate('window.submitted.size.widthIn'),18)
+  assert.equal(await evaluate('window.submitted.size.widthIn'),15)
   assert.equal(await evaluate('window.submitted.defaultGapPx'),28)
   assert.equal(await evaluate('window.submitted.defaultBorderWidth'),5)
   assert.ok(await evaluate('window.submitted.enabledTemplateIds.length>0'))
