@@ -3428,8 +3428,6 @@ input::placeholder { color: var(--text-faint); opacity: 1; }
 .project-wizard__custom .field-grid input, .project-wizard__custom .field-grid select { max-width: 100px; }
 .project-wizard .checkbox-row { color: #25282b; font-size: 14px; line-height: 1.5; }
 .project-wizard input[type="checkbox"] { accent-color: #009ab0; width: 18px; height: 18px; }
-.project-wizard__details { max-width: 720px; margin: 32px auto 0; border-top: 1px solid #e0e3e6; padding-top: 18px; }
-.project-wizard__details summary { cursor: pointer; color: #62686e; margin-bottom: 16px; }
 @media (max-width: 700px) {
   .project-wizard .modal-card__header { padding: 20px 38px; }
   .project-wizard .modal-card__body { padding: 20px; }

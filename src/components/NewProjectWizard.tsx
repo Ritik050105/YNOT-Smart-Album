@@ -19,7 +19,6 @@ const SHAPES: { category: AlbumSizeCategory; label: string; aspect: number }[] =
   { category: 'Magazine', label: 'Magazine', aspect: 1.1 },
 ]
 
-const COLOR_PROFILES = ['sRGB', 'Adobe RGB', 'ProPhoto RGB']
 // These ten filter examples are authored at 3:2; stretching them changes which frames are square.
 const FILTER_EXAMPLE_ASPECT = 1.5
 
@@ -120,7 +119,6 @@ export default function NewProjectWizard({
   const createProjectFromWizard = useProjectStore((s) => s.createProjectFromWizard)
 
   const [step, setStep] = useState<1 | 2>(1)
-  const [name, setName] = useState('Untitled Album')
   const [specTab, setSpecTab] = useState<'company' | 'custom'>('company')
   const [shape, setShape] = useState<AlbumSizeCategory>('Square')
   const [presetId, setPresetId] = useState(DEFAULT_ALBUM_SIZE.id)
@@ -140,7 +138,6 @@ export default function NewProjectWizard({
   const [layoutStart, setLayoutStart] = useState<'spread' | 'single'>('spread')
   const [layoutEnd, setLayoutEnd] = useState<'spread' | 'single'>('spread')
   const [includeFullSpreadTemplates, setIncludeFullSpreadTemplates] = useState(true)
-  const [colorProfile, setColorProfile] = useState('sRGB')
 
   const [backgroundColor, setBackgroundColor] = useState('#ffffff')
   const [gapPx, setGapPx] = useState(8)
@@ -247,10 +244,10 @@ export default function NewProjectWizard({
 
   function handleCreate() {
     const opts: NewProjectOptions = {
-      name: name.trim() || 'Untitled Album',
+      name: 'Untitled Album',
       size: resolvedSize,
       units,
-      colorProfile,
+      colorProfile: 'sRGB',
       defaultBackgroundColor: backgroundColor,
       defaultGapPx: gapPx,
       defaultMarginPx: 24,
@@ -454,30 +451,7 @@ export default function NewProjectWizard({
             </div>
           )}
 
-          {specTab === 'custom' && <details className="project-wizard__details"><summary>Project details</summary>
-          <label className="field">Album name<input value={name} onChange={e => setName(e.target.value)} /></label>
-          <div className="field-grid">                <label className="field">
-                  Min pages (0 = no limit)
-                  <input type="number" min={0} max={999} value={minPages} onChange={(e) => setMinPages(Math.max(0, Number(e.target.value)))} />
-                </label>
-                <label className="field">
-                  Max pages (0 = no limit)
-                  <input type="number" min={0} max={999} value={maxPages} onChange={(e) => setMaxPages(Math.max(0, Number(e.target.value)))} />
-                </label>
-</div>
-          <div className="field-section">
-            <label className="field">
-              Color profile
-              <select value={colorProfile} onChange={(e) => setColorProfile(e.target.value)}>
-                {COLOR_PROFILES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          </details>}
+
         </>
       ) : (
         <div className="library-appearance">
