@@ -3304,7 +3304,27 @@ input[type='checkbox'] {
 .btn:hover:not(:disabled) { transform: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 input::placeholder { color: var(--text-faint); opacity: 1; }
-.home-screen { padding: clamp(24px, 5vh, 56px) clamp(20px, 5vw, 80px) 48px; background: radial-gradient(ellipse at 50% 0, #414449 0, var(--bg) 65%); }
+.home-screen {
+  --bg: #fff;
+  --panel: #fff;
+  --panel-alt: #f8f5f2;
+  --panel-raised: #f3ede7;
+  --border: #d8cec5;
+  --border-soft: #e9e2dc;
+  --text: #000;
+  --text-muted: #000;
+  --text-faint: #000;
+  --accent: #65432c;
+  --accent-2: #65432c;
+  --accent-soft: #f3ede7;
+  --accent-ring: #65432c40;
+  color-scheme: light;
+  color: var(--text);
+  padding: clamp(24px, 5vh, 56px) clamp(20px, 5vw, 80px) 48px;
+  background: #fff;
+}
+.home-screen .btn--primary { background: var(--accent-soft); color: var(--accent); border-color: var(--border); }
+.home-screen .btn--primary:hover:not(:disabled) { background: #e9ded4; }
 .home-screen__header { gap: 16px; margin-bottom: clamp(24px, 5vh, 48px); }
 .home-screen__mark { width: 68px; height: 68px; border: 1px solid #63676d; box-shadow: 0 12px 28px #0003; }
 .home-screen__header h1 { font-size: clamp(22px, 2vw, 28px); font-weight: 600; letter-spacing: -.5px; }
@@ -3319,12 +3339,13 @@ input::placeholder { color: var(--text-faint); opacity: 1; }
 .home-screen__grid { gap: 20px; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); }
 .home-card { border-color: var(--border); box-shadow: 0 4px 18px #0002; }
 .home-card:hover { transform: translateY(-2px); }
-.home-card__thumb { height: 130px; background: linear-gradient(145deg, #53565b, #3e4146); color: #f4f5f6; border-bottom: 1px solid var(--border-soft); }
+.home-card__thumb { height: 130px; background: var(--panel-alt); color: var(--accent); border-bottom: 1px solid var(--border-soft); }
 .home-card__thumb svg { width: 38px; height: 38px; }
 .home-card__body { gap: 5px; padding: 16px; }
 .home-card__name { font-size: 14px; font-weight: 600; }
 .home-card__meta, .home-card__date { font-size: 12px; }
-.home-card__remove { top: 10px; right: 10px; width: 26px; height: 26px; background: #242629aa; }
+.home-card__remove { top: 10px; right: 10px; width: 26px; height: 26px; background: var(--panel); color: var(--text); }
+.home-card__remove:hover { background: var(--panel-raised); color: var(--accent); }
 .home-screen__empty { border: 1px dashed var(--border); border-radius: 12px; padding: 44px 20px; }
 .modal-card { border-color: var(--border); box-shadow: 0 24px 80px #0006; }
 .modal-card__header { background: var(--panel-alt); padding: 22px 24px 18px; }
