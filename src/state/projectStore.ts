@@ -15,7 +15,7 @@ import {
   defaultPlacement,
   buildSpreadFromPlacements,
 } from '@/engine/autoLayout'
-import { BUILT_IN_TEMPLATES, findTemplate, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
+import { BUILT_IN_TEMPLATES, uniqueTemplates, findTemplate, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
 import { blobUrlToDataUrl } from '@/engine/projectFile'
 import { computeAutoAdjust } from '@/engine/autoAdjust'
@@ -876,7 +876,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const photo = p.photos.find(photo => photo.id === s.placements.find(pl => pl.placeholderId === frameId)?.photoId)
       if (!photo) return s
       const size = s.size ?? p.size, height = DESIGN_WIDTH * size.heightIn / size.widthIn
-      return { ...s, backgroundPattern: { name: photo.fileName, src: photo.src, tileSizePx: DESIGN_WIDTH, mode: 'cover' as const, width: photo.width, height: photo.height }, flipped: false,
+      return { ...s, backgroundPattern: { name: photo.fileName, src: photo.src, tileSizePx: DESIGN_WIDTH, mode: 'cover' as const, width: photo.width, height: photo.height, edits: { ...s.placements.find(pl => pl.placeholderId === frameId)! } }, flipped: false,
         customBoxes: computePlaceholderBoxes(s, DESIGN_WIDTH, height).filter(b => b.placeholderId !== frameId).map(b => ({ id: b.placeholderId, x: b.x / DESIGN_WIDTH, y: b.y / height, width: b.width / DESIGN_WIDTH, height: b.height / height, preferredOrientation: 'any' as const })),
         placements: s.placements.filter(pl => pl.placeholderId !== frameId) }
     }) }))
@@ -1154,7 +1154,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   setAutoLayoutOptions: (opts) => set((s) => ({ autoLayoutOptions: { ...s.autoLayoutOptions, ...opts } })),
 
-  allTemplates: () => [...BUILT_IN_TEMPLATES, ...get().userTemplates],
+  allTemplates: () => uniqueTemplates([...BUILT_IN_TEMPLATES, ...get().userTemplates]),
 
   undo: () =>
     set((s) => {

@@ -10,7 +10,7 @@ export function exportPreflight(project: Project, indices?: number[], includeCov
     const size = spread.size ?? project.size
     const background = spread.backgroundPattern
     if (background?.mode === 'cover' && background.width && background.height) {
-      const crop = computeCoverCrop(background.width, background.height, size.widthIn, size.heightIn)
+      const crop = computeCoverCrop(background.width, background.height, size.widthIn, size.heightIn, background.edits?.focalX, background.edits?.focalY, background.edits?.zoom)
       if (effectiveDpi(background.width, background.height, crop, size.widthIn, size.heightIn) < size.dpi / 1.2) return true
     }
     return computePlaceholderBoxes(spread, DESIGN_WIDTH, DESIGN_WIDTH * size.heightIn / size.widthIn).some((box) => {

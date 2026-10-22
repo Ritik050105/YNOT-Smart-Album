@@ -115,7 +115,7 @@ export interface TextBox {
 }
 
 export interface Spread {
-  backgroundPattern?: { name: string; src: string; tileSizePx: number; mode?: 'cover'; width?: number; height?: number }
+  backgroundPattern?: { name: string; src: string; tileSizePx: number; mode?: 'cover'; width?: number; height?: number; edits?: PlacedPhoto }
   /** Normalized frame positions after a layout is customized in Designer View. */
   customBoxes?: PlaceholderRect[]
   /** Cover artwork has lab dimensions independent of the interior spreads. */

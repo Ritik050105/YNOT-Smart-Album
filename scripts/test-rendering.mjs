@@ -29,6 +29,16 @@ const result = await build({ stdin: {
 }, bundle: true, platform: 'node', format: 'esm', write: false, loader: { '.png': 'dataurl', '.icc': 'dataurl' } })
 const engine = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 engine.initializeCanvas(createCanvas)
+const catalogueBundle=await build({stdin:{contents:`export * from './src/engine/templates'; export { GENERATED_TEMPLATES } from './src/engine/templateGenerator'; export { geometrySignature } from './src/engine/templateLayout'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false})
+const catalogue=await import(`data:text/javascript;base64,${Buffer.from(catalogueBundle.outputFiles[0].text).toString('base64')}`)
+assert.equal(catalogue.uniqueTemplates(catalogue.BUILT_IN_TEMPLATES).length,catalogue.BUILT_IN_TEMPLATES.length)
+const hidden=catalogue.GENERATED_TEMPLATES.find(t=>!catalogue.BUILT_IN_TEMPLATES.some(u=>u.id===t.id))
+assert.ok(hidden,'Duplicate generated layouts must be removed from browsing')
+assert.deepEqual(catalogue.findTemplate(hidden.id),hidden,'Old album template IDs must still resolve')
+assert.deepEqual(catalogue.templatesForCount(hidden.photoCount,[hidden.id]),[hidden],'Old enabled-template lists must still work')
+const first=catalogue.BUILT_IN_TEMPLATES[0]
+assert.equal(catalogue.uniqueTemplates([first,{...first,id:'duplicate',placeholders:[...first.placeholders].reverse()}]).length,1)
+console.log(`Template checks passed: ${catalogue.BUILT_IN_TEMPLATES.length} unique layouts; legacy album IDs and enabled lists preserved.`)
 
 const source = createCanvas(60, 40)
 const sourceCtx = source.getContext('2d')
@@ -147,6 +157,20 @@ assert.deepEqual(engine.buildSpreadFromPlacements(spread.placements,'spread',fix
 assert.deepEqual(engine.deserializeProjectFile(await engine.serializeProjectFile({...project,spreads:[fixed]},[])).project.spreads[0].backgroundPattern,fixed.backgroundPattern)
 assert.deepEqual(engine.exportPreflight({...project,spreads:[fixed]}).lowResolution,[fixed.id])
 console.log('Fixed photo background: aspect-preserving render, PSD pixels, layout retention, save/reopen and low-resolution warning passed.')
+const edits = {...spread.placements[0], zoom:1.7, focalX:0.3, focalY:0.6, rotationDeg:25, opacity:0.65, brightness:18, flipHorizontal:true}
+const editedBackground = {...fixed, backgroundPattern:{...fixed.backgroundPattern, edits}}
+const editedCanvas = await engine.renderSpreadToCanvas(editedBackground,photos,size,75)
+const expectedBackground = createCanvas(900,600)
+const expectedCtx = expectedBackground.getContext('2d')
+expectedCtx.imageSmoothingQuality='high'
+expectedCtx.fillStyle=spread.backgroundColor; expectedCtx.fillRect(0,0,900,600)
+await engine.drawPlacement(expectedCtx,{x:0,y:0,width:900,height:600},edits,photos.get('photo'),1)
+const editedPixels=Buffer.from(editedCanvas.getContext('2d').getImageData(0,0,900,600).data)
+assert.ok(editedPixels.equals(Buffer.from(expectedCtx.getImageData(0,0,900,600).data)), 'Background must retain all image edits')
+const editedPsd=engine.readPsd(await engine.buildSpreadPsdBytes(editedBackground,photos,size,75),{useImageData:true})
+assert.ok(editedPixels.equals(Buffer.from(editedPsd.children[0].imageData.data)), 'PSD must retain background edits')
+assert.deepEqual(engine.deserializeProjectFile(await engine.serializeProjectFile({...project,spreads:[editedBackground]},[])).project.spreads[0].backgroundPattern.edits,edits)
+console.log('Edited backgrounds: crop, scale, angle, opacity, tone, flips, PSD and save/reopen passed.')
 window.albumStudio.saveFile = async (file) => { saved.push(file); return {canceled:false,filePath:'test-output/album.pdf'} }
 await engine.exportAlbumToPdf(project, [0], false, {pdfX:true})
 const pdfXBytes = saved.at(-1).data

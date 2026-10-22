@@ -557,7 +557,22 @@ const editorialAdditions = EDITORIAL_TEMPLATES.filter(t => {
   signatures.add(signature)
   return true
 })
-export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [...existingTemplates, ...editorialAdditions]
+const legacyTemplates = [...existingTemplates, ...editorialAdditions]
+
+export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefinition[] {
+  const seen = new Set<string>()
+  return templates.filter(t => {
+    // Ignore tiny spacing variants that look identical in the template browser.
+    const frames = t.placeholders.map(p => [p.x, p.y, p.width, p.height].map(v => Math.round(v * 20)).join(',')).sort().join('|')
+    const signature = `${t.pageSide}:${t.id === 'cover-front-spine-back' ? 'cover' : t.photoCount}:${frames}`
+    if (seen.has(signature)) return false
+    seen.add(signature)
+    return true
+  })
+}
+
+// Keep legacy IDs resolvable so existing albums retain their frame IDs and geometry.
+export const BUILT_IN_TEMPLATES = uniqueTemplates(legacyTemplates)
 
 /** CSS style for a template swatch's background — a thumbnail image, a flat color, or a CSS
  *  gradient string (the generated library's `thumbnailColor` values are gradients, e.g.
@@ -602,9 +617,10 @@ export function templatesForCount(
   aspect = 1
 ): TemplateDefinition[] {
   if (count <= 0) return []
-  let builtins = [...BUILT_IN_TEMPLATES, ...userTemplateRegistry].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
+  let builtins = [...legacyTemplates, ...userTemplateRegistry].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
   if (enabledTemplateIds !== null) builtins = builtins.filter((t) => enabledTemplateIds.includes(t.id))
   if (frameFilter !== 'all') builtins = builtins.filter((t) => matchesFrameFilter(t, frameFilter, aspect))
+  builtins = uniqueTemplates(builtins)
   if (!enabledTemplateIds) {
     // Default suggestions favor clean, non-overlapping rectangular layouts — matching the
     // client's own site (ynot.website), which never overlaps photos. The "Collage" family
@@ -630,7 +646,7 @@ export function setUserTemplateRegistry(templates: TemplateDefinition[]) {
 
 /** Looks up a template by id across both the built-in library and the user's saved/imported ones. */
 export function findTemplate(id: string): TemplateDefinition | undefined {
-  const known = BUILT_IN_TEMPLATES.find((t) => t.id === id) ?? userTemplateRegistry.find((t) => t.id === id)
+  const known = legacyTemplates.find((t) => t.id === id) ?? userTemplateRegistry.find((t) => t.id === id)
   if (known) return known
 
   // Auto-generated templates (justified/hero grids, custom rows x cols) aren't stored anywhere —

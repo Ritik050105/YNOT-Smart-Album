@@ -53,12 +53,11 @@ export async function drawSpreadBackground(ctx: CanvasRenderingContext2D, spread
   ctx.fillStyle = spread.backgroundColor
   ctx.fillRect(0, 0, width, height)
   if (!spread.backgroundPattern) return
-  const image = await loadImage(spread.backgroundPattern.src)
   if (spread.backgroundPattern.mode === 'cover') {
-    const crop = computeCoverCrop(image.naturalWidth, image.naturalHeight, width, height)
-    ctx.drawImage(image, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, 0, 0, width, height)
+    await drawPlacement(ctx, { placeholderId: 'background', x: 0, y: 0, width, height }, spread.backgroundPattern.edits, { src: spread.backgroundPattern.src }, width / DESIGN_WIDTH)
     return
   }
+  const image = await loadImage(spread.backgroundPattern.src)
   const scale = spread.backgroundPattern.tileSizePx * width / DESIGN_WIDTH / image.naturalWidth
   const pattern = ctx.createPattern(image, 'repeat')
   if (!pattern || !(scale > 0)) return
@@ -69,7 +68,7 @@ export async function drawSpreadBackground(ctx: CanvasRenderingContext2D, spread
   ctx.restore()
 }
 
-export async function drawPlacement(ctx: CanvasRenderingContext2D, ph: PlaceholderBox, placement: PlacedPhoto | undefined, photo: PhotoAsset | undefined, scale: number) {
+export async function drawPlacement(ctx: CanvasRenderingContext2D, ph: PlaceholderBox, placement: PlacedPhoto | undefined, photo: Pick<PhotoAsset, 'src'> | undefined, scale: number) {
     const boxX = ph.x
     const boxY = ph.y
     const boxW = ph.width

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface ContextMenuItem {
   label: string
@@ -31,15 +32,13 @@ export default function ContextMenu({
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
     }
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); onClose() }
     }
     window.addEventListener('mousedown', onMouseDown)
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('contextmenu', onMouseDown)
+    window.addEventListener('keydown', onKeyDown, true)
     return () => {
       window.removeEventListener('mousedown', onMouseDown)
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('contextmenu', onMouseDown)
+      window.removeEventListener('keydown', onKeyDown, true)
     }
   }, [onClose])
 
@@ -53,7 +52,7 @@ export default function ContextMenu({
     if (overflowY > 0) el.style.top = `${Math.max(4, y - overflowY)}px`
   }, [x, y])
 
-  return (
+  return createPortal(
     <div ref={ref} role="menu" className="context-menu" style={{ left: x, top: y, maxHeight: 'calc(100vh - 8px)', overflowY: 'auto' }}>
       {items.map((item) => (
         <button
@@ -71,6 +70,6 @@ export default function ContextMenu({
           {item.shortcut && <span>{item.shortcut}</span>}
         </button>
       ))}
-    </div>
+    </div>, document.body
   )
 }

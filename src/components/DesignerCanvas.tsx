@@ -16,8 +16,22 @@ import { imageToneFilter } from '@/engine/imageTone'
 import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
 import PhotoContextMenu from './PhotoContextMenu'
+import { drawSpreadBackground } from '@/engine/renderSpread'
 
 export const STAGE_WIDTH = DESIGN_WIDTH
+
+function FixedBackground({ spread, height, onContextMenu }: { spread: Spread; height: number; onContextMenu: (e: Konva.KonvaEventObject<PointerEvent>) => void }) {
+  const [canvas, setCanvas] = useState<HTMLCanvasElement>()
+  useEffect(() => {
+    let active = true
+    const next = document.createElement('canvas')
+    next.width = STAGE_WIDTH; next.height = Math.round(height)
+    const ctx = next.getContext('2d')
+    if (ctx) void drawSpreadBackground(ctx, spread, next.width, next.height).then(() => { if (active) setCanvas(next) }).catch(() => { if (active) setCanvas(undefined) })
+    return () => { active = false }
+  }, [spread.backgroundPattern, spread.backgroundColor, height])
+  return <KonvaImage image={canvas} width={STAGE_WIDTH} height={height} onContextMenu={onContextMenu} />
+}
 
 function PlaceholderImage({
   src,
@@ -526,6 +540,7 @@ export default function DesignerCanvas() {
 
   function handlePlaceholderContextMenu(placeholderId: string, evt: Event) {
     evt.preventDefault()
+    evt.stopPropagation()
     const mouseEvt = evt as MouseEvent
     selectPlaceholder(placeholderId)
     setPhotoContextMenu({ openedAt: Date.now(), x: mouseEvt.clientX, y: mouseEvt.clientY, placeholderId })
@@ -696,7 +711,7 @@ export default function DesignerCanvas() {
         <Layer>
            <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fill={spread.backgroundColor} onClick={() => { if (canvasTool === 'select') { selectPlaceholder(null); selectTextBox(null) } }} />
            {patternImage && spread.backgroundPattern && (spread.backgroundPattern.mode === 'cover'
-             ? <KonvaImage image={patternImage} width={STAGE_WIDTH} height={stageHeight} crop={(() => { const c = computeCoverCrop(patternImage.width, patternImage.height, STAGE_WIDTH, stageHeight); return { x: c.cropX, y: c.cropY, width: c.cropWidth, height: c.cropHeight } })()} onContextMenu={e => { e.evt.preventDefault(); setPhotoContextMenu({ openedAt: Date.now(), x: e.evt.clientX, y: e.evt.clientY }) }} />
+             ? <FixedBackground spread={spread} height={stageHeight} onContextMenu={e => { e.evt.preventDefault(); e.evt.stopPropagation(); setPhotoContextMenu({ openedAt: Date.now(), x: e.evt.clientX, y: e.evt.clientY }) }} />
              : <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fillPatternImage={patternImage} fillPatternScaleX={spread.backgroundPattern.tileSizePx / patternImage.width} fillPatternScaleY={spread.backgroundPattern.tileSizePx / patternImage.width} listening={false} />)}
 
           {boxes.map((box) => {

@@ -291,8 +291,8 @@ export default function Inspector() {
       </>}
       {placement && (
         <section>
-          {boxForSelected && <>
-            <h4>Frame position and size</h4>
+          {boxForSelected && <details className="inspector-group">
+            <summary>Frame position &amp; size</summary>
             <div className="frame-dimensions">
               {(['x', 'y', 'width', 'height'] as const).map((key) => {
                 const horizontal = key === 'x' || key === 'width'
@@ -308,11 +308,8 @@ export default function Inspector() {
               })}
             </div>
             <button className="btn btn--tiny" onClick={() => removeImageFrame(spread.id, placement.placeholderId)}>Delete Frame</button>
-          </>}
-          {photo && <><h4>
-            <Icon name="droplet" size={13} />
-            Photo Adjustments
-          </h4>
+          </details>}
+          {photo && <details className="inspector-group" open><summary>Image &amp; crop</summary>
           {photo && (
             <div className={`dpi-badge ${dpi !== null && dpi < size.dpi ? 'dpi-badge--warn' : ''}`}>
               <Icon name="info" size={12} />
@@ -399,8 +396,8 @@ export default function Inspector() {
             step={0.01}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { focalY: v })}
           />
-          </>}
-          <h4>Design</h4>
+          </details>}
+          <details className="inspector-group" open><summary>Transform &amp; frame</summary>
           <SliderField
             label="Opacity"
             value={placement.opacity}
@@ -456,7 +453,8 @@ export default function Inspector() {
               onChange={(hex) => updatePlacement(spread.id, placement.placeholderId, { borderColor: hex })}
             />
           </label>
-          {photo && <><SliderField
+          </details>
+          {photo && <details className="inspector-group"><summary>Tone &amp; color</summary><SliderField
             label="Warmth"
             value={placement.warmth}
             min={-100}
@@ -505,7 +503,7 @@ export default function Inspector() {
               Paste Tone
             </button>
           </div>
-          </>}
+          </details>}
         </section>
       )}
 
