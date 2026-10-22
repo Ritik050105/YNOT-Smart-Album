@@ -177,3 +177,14 @@
 .album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions > button { width: 38px; padding: 0; }
 .album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions svg { width: 19px; height: 19px; }
 .album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__toolbar { gap: 8px; }
+
+/* Keep the same physical spread proportions as the designer and export renderer. */
+.album-editor .spreads-panel { --overview-height: max(48px, min(435px, calc(100cqh - clamp(95px, 17vh, 164px) - 36px))); --spread-width: calc(var(--overview-height) * var(--spread-aspect)); }
+.album-editor:has(.bottom-panel .photo-dock) .spreads-panel { --overview-height: max(48px, min(148px, calc(100cqh - clamp(95px, 17vh, 164px) - 36px))); }
+.album-editor .spreads-panel__column { --spread-width: calc(var(--overview-height) * var(--spread-aspect)); }
+.album-editor .spreads-panel__card--cover { flex-basis: var(--overview-height); }
+.spread-thumb__fold { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: #dedede; pointer-events: none; }
+.album-editor .spread-card-controls { height: 36px; background: #515151; }
+.album-editor .spread-card-controls button { width: 30px; height: 30px; }
+.album-editor .spread-card-controls span { font-size: 14px; }
+.album-editor.designer-view .designer-canvas { background: #bfbfbf; box-shadow: none; border-radius: 0; }

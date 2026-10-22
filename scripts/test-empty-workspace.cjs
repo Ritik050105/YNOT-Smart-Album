@@ -4,7 +4,7 @@ const fs=require('node:fs/promises'),path=require('node:path'),assert=require('n
 app.disableHardwareAcceleration()
 app.whenReady().then(async()=>{
  const out=path.join(app.getPath('temp'),'ynot-empty-workspace-qa');await fs.mkdir(out,{recursive:true})
- const source=`import React from 'react';import{createRoot}from'react-dom/client';import App from './src/App';import{useProjectStore as store}from'./src/state/projectStore';window.store=store;store.setState({bottomPanelOpen:true,leftPanelOpen:true,rightPanelOpen:true});store.getState().createProjectFromWizard({name:'New album',size:{...store.getState().project.size,widthIn:20,heightIn:10}});createRoot(document.getElementById('root')).render(<App/>);`
+ const source=`import Konva from 'konva';window.Konva=Konva;import React from 'react';import{createRoot}from'react-dom/client';import App from './src/App';import{useProjectStore as store}from'./src/state/projectStore';window.store=store;store.setState({bottomPanelOpen:true,leftPanelOpen:true,rightPanelOpen:true});store.getState().createProjectFromWizard({name:'New album',size:{...store.getState().project.size,widthIn:20,heightIn:10}});createRoot(document.getElementById('root')).render(<App/>);`
  const result=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},bundle:true,platform:'browser',write:false,loader:{'.png':'dataurl','.icc':'dataurl'}})
  await fs.writeFile(path.join(out,'fixture.js'),result.outputFiles[0].text)
  for(const name of ['app','editor'])await fs.copyFile(`src/styles/${name}.css`,path.join(out,`${name}.css`))
@@ -46,6 +46,23 @@ app.whenReady().then(async()=>{
   await evaluate(`document.querySelector('[role=menu]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await new Promise(r=>setTimeout(r,80))
   assert.equal(await evaluate('!!document.querySelector("[role=menu]")'),false)
  }
+ win.setSize(1600,900)
+ await evaluate('store.getState().addBlankSpread()')
+ for(const ratio of [2,1.5,0.75]){
+  await evaluate(`store.getState().updateProjectSettings({size:{...store.getState().project.size,widthIn:${ratio*10},heightIn:10}})`)
+  await new Promise(r=>setTimeout(r,150))
+  const dimensions=await evaluate('(()=>{const r=document.querySelector("[data-spread-drag]").getBoundingClientRect();return [r.width,r.height]})()')
+  assert.ok(Math.abs(dimensions[0]/dimensions[1]-ratio)<0.01)
+  assert.equal(await evaluate('document.querySelectorAll(".spread-thumb__fold").length'),1)
+  await evaluate('store.setState({bottomPanelOpen:true})');await new Promise(r=>setTimeout(r,150))
+  assert.ok(await evaluate('document.querySelector("[data-spread-drag]").getBoundingClientRect().height')<dimensions[1])
+  await evaluate('store.setState({bottomPanelOpen:false})')
+ }
+ await evaluate('store.getState().enterDesignerView(store.getState().project.spreads[0].id)')
+ await new Promise(r=>setTimeout(r,400))
+ assert.equal(await evaluate('Konva.stages.flatMap(s=>s.find(".center-fold")).length'),1)
+ assert.ok(await evaluate('(()=>{const l=Konva.stages.flatMap(s=>s.find(".center-fold"))[0];const p=l.points();return p[0]===p[2]&&p[1]===0&&Math.abs((p[0]*2)/p[3]-.75)<.001})()'))
+ await fs.writeFile(path.join(out,'designer-fold.png'),(await win.webContents.capturePage()).toPNG())
  console.log('Empty workspace checks passed: new-project panel reset, responsive drop target, bottom browser toggle, menus and disabled selection actions.',out)
  win.destroy();app.quit()
 }).catch(e=>{console.error(e);app.exit(1)})

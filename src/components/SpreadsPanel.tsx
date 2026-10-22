@@ -223,6 +223,7 @@ export default function SpreadsPanel() {
             className={`spreads-panel__column ${selectedSpreadId === spread.id ? 'is-selected' : ''} ${target?.spreadId === spread.id ? 'is-drop-target' : ''}`}
             data-timeline-spread={spread.id}
             data-overview-spread={spread.id}
+            style={{ '--spread-aspect': (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn } as CSSProperties}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => handleSpreadDrop(e, spread.id)}
             onClick={() => selectSpread(spread.id)}
@@ -230,7 +231,7 @@ export default function SpreadsPanel() {
             onContextMenu={(e) => openContextMenu(e, spread.id)}
             title={`Spread ${index + 1} — double-click to design, right-click for more options`}
           >
-            <div data-spread-drag className={`spreads-panel__card ${selectedSpreadId === spread.id ? 'is-selected' : ''}`} style={{ aspectRatio: project.size.widthIn / project.size.heightIn }}>
+            <div data-spread-drag className={`spreads-panel__card ${selectedSpreadId === spread.id ? 'is-selected' : ''}`} style={{ aspectRatio: (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn }}>
             <SpreadThumbnail spread={spread} photosById={photosById} size={project.size} responsive />
             <div className="spread-card-controls" onDoubleClick={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
               <button title="Edit in Designer View" onClick={() => enterDesignerView(spread.id)}><Icon name="edit" size={12} /></button>

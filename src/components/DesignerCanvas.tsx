@@ -5,7 +5,7 @@ import { Stage, Layer, Rect, Group, Image as KonvaImage, Text as KonvaText, Line
 import Konva from 'konva'
 import useImage from 'use-image'
 import { useProjectStore } from '@/state/projectStore'
-import { DESIGN_WIDTH, computePlaceholderBoxes, resolvePageInsetsPx, centerGutterInsetPx, edgeInsetToPx } from '@/engine/layoutMath'
+import { DESIGN_WIDTH, computePlaceholderBoxes, resolvePageInsetsPx, edgeInsetToPx } from '@/engine/layoutMath'
 import { computeCoverCrop } from '@/engine/cropFit'
 import { ensureFontLoaded } from '@/engine/fonts'
 import { quotesForEventType } from '@/engine/textSuggestions'
@@ -875,9 +875,6 @@ export default function DesignerCanvas() {
               const safetyPx = edgeInsetToPx(safetyEdgeInset, pxPerIn)
               const trim = resolvePageInsetsPx(spread.pageSide, trimPx)
               const safety = resolvePageInsetsPx(spread.pageSide, safetyPx)
-              const centerX = STAGE_WIDTH / 2
-              const trimGutter = centerGutterInsetPx(trimPx)
-              const safetyGutter = centerGutterInsetPx(safetyPx)
               return (
                 <>
                   <Rect
@@ -885,9 +882,9 @@ export default function DesignerCanvas() {
                     y={trim.top}
                     width={STAGE_WIDTH - trim.left - trim.right}
                     height={stageHeight - trim.top - trim.bottom}
-                    stroke="#ffb347"
+                    stroke="#d95339"
                     strokeWidth={1}
-                    dash={[5, 3]}
+                    strokeScaleEnabled={false}
                     listening={false}
                   />
                   <Rect
@@ -895,22 +892,17 @@ export default function DesignerCanvas() {
                     y={safety.top}
                     width={STAGE_WIDTH - safety.left - safety.right}
                     height={stageHeight - safety.top - safety.bottom}
-                    stroke="#4fd6c0"
+                    stroke="#9fcb99"
                     strokeWidth={1}
-                    dash={[2, 4]}
+                    strokeScaleEnabled={false}
                     listening={false}
                   />
-                  {spread.pageSide === 'spread' && (
-                    <>
-                      <Line points={[centerX - trimGutter, 0, centerX - trimGutter, stageHeight]} stroke="#ffb347" strokeWidth={1} dash={[5, 3]} listening={false} />
-                      <Line points={[centerX + trimGutter, 0, centerX + trimGutter, stageHeight]} stroke="#ffb347" strokeWidth={1} dash={[5, 3]} listening={false} />
-                      <Line points={[centerX - safetyGutter, 0, centerX - safetyGutter, stageHeight]} stroke="#4fd6c0" strokeWidth={1} dash={[2, 4]} listening={false} />
-                      <Line points={[centerX + safetyGutter, 0, centerX + safetyGutter, stageHeight]} stroke="#4fd6c0" strokeWidth={1} dash={[2, 4]} listening={false} />
-                    </>
-                  )}
+
                 </>
               )
             })()}
+
+          {!spread.isCover && spread.pageSide === 'spread' && <Line name="center-fold" points={[STAGE_WIDTH / 2, 0, STAGE_WIDTH / 2, stageHeight]} stroke="#dedede" strokeWidth={1} strokeScaleEnabled={false} listening={false} />}
 
           {showGuides &&
             spread.guides.vertical.map((pos, i) => (

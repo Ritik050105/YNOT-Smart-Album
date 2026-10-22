@@ -15,10 +15,18 @@ export default function SpreadThumbnail({ spread, photosById, size, width = 420,
   size = spread.size ?? size
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [failed, setFailed] = useState(false)
+  const [renderWidth, setRenderWidth] = useState(width)
+  useEffect(() => {
+    const element = canvasRef.current?.parentElement
+    if (!responsive || !element) { setRenderWidth(width); return }
+    const observer = new ResizeObserver(() => setRenderWidth(Math.min(2400, Math.max(width, Math.ceil(element.clientWidth * window.devicePixelRatio)))))
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [responsive, width])
   useEffect(() => {
     let cancelled = false
     setFailed(false)
-    void renderSpreadToCanvas(spread, photosById, size, width / size.widthIn).then((rendered) => {
+    void renderSpreadToCanvas(spread, photosById, size, renderWidth / size.widthIn).then((rendered) => {
       const canvas = canvasRef.current
       if (cancelled || !canvas) return
       canvas.width = rendered.width
@@ -26,11 +34,12 @@ export default function SpreadThumbnail({ spread, photosById, size, width = 420,
       canvas.getContext('2d')?.drawImage(rendered, 0, 0)
     }).catch(() => { if (!cancelled) setFailed(true) })
     return () => { cancelled = true }
-  }, [spread, photosById, size, width])
+  }, [spread, photosById, size, renderWidth])
 
   return (
     <div className="spread-thumb" style={{ width: responsive ? '100%' : width, aspectRatio: size.widthIn / size.heightIn, background: spread.backgroundColor }}>
       <canvas ref={canvasRef} role="img" aria-label="Spread preview" style={{ width: '100%', height: '100%', display: 'block' }} />
+      {!spread.isCover && spread.pageSide === 'spread' && <span className="spread-thumb__fold" aria-hidden="true" />}
       {failed && <span role="status">Preview unavailable</span>}
     </div>
   )
