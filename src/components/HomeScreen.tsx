@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { openProjectFromFile, openProjectFromPath } from '@/engine/projectFile'
-import { loadRecentProjects, recordRecentProject, removeRecentProject, RecentProjectEntry } from '@/engine/recentProjects'
+import { loadRecentProjects, recordRecentProject, removeRecentProject, RecentProjectEntry, ALBUM_STATUSES, AlbumStatus, ProjectSort, browseRecentProjects, setRecentProjectStatus } from '@/engine/recentProjects'
 import { clearOpenSession } from '@/engine/sessionMarker'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import NewProjectWizard from './NewProjectWizard'
@@ -41,12 +41,25 @@ export default function HomeScreen() {
   const [tab, setTab] = useState<HomeTab>('albums')
   const [recent, setRecent] = useState<RecentProjectEntry[]>(() => loadRecentProjects())
   const [search, setSearch] = useState('')
+  const [tool, setTool] = useState<'search' | 'filter' | 'sort' | null>(null)
+  const [statuses, setStatuses] = useState<AlbumStatus[]>([])
+  const [sort, setSort] = useState<ProjectSort>('modified')
+  const toolsRef = useRef<HTMLDivElement>(null)
   const [newProjectMenuOpen, setNewProjectMenuOpen] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [simpleCreate, setSimpleCreate] = useState<{ kind: 'gallery' | 'slideshow'; name: string; clientName: string } | null>(null)
   const [opening, setOpening] = useState<string | null>(null)
   const [openError, setOpenError] = useState<string | null>(null)
   const newProjectMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!tool) return
+    const close = (event: MouseEvent) => { if (!toolsRef.current?.contains(event.target as Node)) setTool(null) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setTool(null); toolsRef.current?.querySelector<HTMLButtonElement>(`[data-tool="${tool}"]`)?.focus() } }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', escape)
+    return () => { window.removeEventListener('mousedown', close); window.removeEventListener('keydown', escape) }
+  }, [tool])
 
   useEffect(() => {
     if (!newProjectMenuOpen) return
@@ -89,6 +102,7 @@ export default function HomeScreen() {
       loadProjectFile(opened.file)
       recordRecentProject({
         projectId: opened.file.project.id,
+        createdAt: opened.file.project.createdAt,
         name: opened.file.project.name,
         clientName: opened.file.project.clientName,
         sizeLabel: opened.file.project.size.label,
@@ -128,7 +142,7 @@ export default function HomeScreen() {
       return
     }
     loadProjectFile(file)
-    recordRecentProject({ ...entry })
+    recordRecentProject({ ...entry, createdAt: file.project.createdAt })
     setCurrentFilePath(entry.filePath)
     clearOpenSession()
     enterEditor()
@@ -141,13 +155,7 @@ export default function HomeScreen() {
 
   const activeKind = KIND_FOR_TAB[tab]
   const forTab = recent.filter((e) => (e.kind ?? 'album') === activeKind)
-  const visibleRecent = search.trim()
-    ? forTab.filter(
-        (e) =>
-          e.name.toLowerCase().includes(search.trim().toLowerCase()) ||
-          e.clientName?.toLowerCase().includes(search.trim().toLowerCase())
-      )
-    : forTab
+  const visibleRecent = browseRecentProjects(recent, activeKind, search, statuses, sort)
 
   const tabLabel = tab === 'albums' ? 'album' : tab === 'galleries' ? 'gallery' : 'slideshow'
 
@@ -160,23 +168,11 @@ export default function HomeScreen() {
         <h1>YNOT Album Studio</h1>
       </header>
 
-      <div className="home-tabs">
-        {HOME_TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? 'is-active' : ''} onClick={() => setTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="home-screen__toolbar">
-        <div className="home-screen__search">
-          <Icon name="search" size={14} />
-          <input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="home-screen__navigation">
+        <div className="home-tabs" role="tablist" aria-label="Project types">
+          {HOME_TABS.map(t => <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'is-active' : ''}
+            onClick={() => { setTab(t.id); setTool(null); setSearch('') }}>{t.label}</button>)}
         </div>
-        <div className="home-screen__toolbar-actions">
-          <button className="btn btn--icon" title="Open Project…" onClick={() => void handleOpenAny()}>
-            <Icon name="folder" size={14} />
-          </button>
           <div className="split-button" ref={newProjectMenuRef}>
             <button className="btn btn--primary" onClick={() => setNewProjectMenuOpen((o) => !o)}>
               <Icon name="plus" size={14} />
@@ -198,17 +194,37 @@ export default function HomeScreen() {
               </div>
             )}
           </div>
-        </div>
       </div>
-
+      <div className="home-screen__toolbar home-screen__toolbar--compact" ref={toolsRef}>
+        <span className="home-screen__result-count">{visibleRecent.length} {visibleRecent.length === 1 ? tabLabel : tab}</span>
+        <div className="home-screen__browser-tools" role="group" aria-label="Project browser tools">
+          {(['search', ...(tab === 'albums' ? ['filter'] as const : []), 'sort'] as const).map(item => (
+            <button key={item} data-tool={item} className={`btn btn--icon ${tool === item || (item === 'search' && search) || (item === 'filter' && statuses.length) ? 'is-active' : ''}`}
+              aria-label={`${item === 'search' ? 'Search' : item === 'filter' ? 'Filter' : 'Sort'} ${tab}`} aria-expanded={tool === item}
+              onClick={() => setTool(tool === item ? null : item)}><Icon name={item} size={21} /></button>
+          ))}
+          {tab === 'albums' && <><span className="photo-dock__tool-divider" /><button className="btn btn--icon" aria-label="Open Project…" title="Open Project…" onClick={() => void handleOpenAny()}><Icon name="folder" size={22} /></button></>}
+        </div>
+        {tool && <div className="home-browser-popover" aria-label={`${tool} projects`}>
+          {tool === 'search' && <label>Search {tab}<input autoFocus type="search" aria-label={`Search ${tab} by name or client`} placeholder="Name or client…" value={search} onChange={event => setSearch(event.target.value)} /></label>}
+          {tool === 'filter' && tab === 'albums' && <><strong>Filter by</strong>{ALBUM_STATUSES.map(status => <label key={status} className="home-browser-check"><input type="checkbox" checked={statuses.includes(status)} onChange={() => setStatuses(current => current.includes(status) ? current.filter(value => value !== status) : [...current, status])} />{status}</label>)}<small>Local album labels</small></>}
+          {tool === 'sort' && <div role="radiogroup" aria-label="Project order">{([
+            ['modified', 'Last modified'], ['name', `${tabLabel[0].toUpperCase() + tabLabel.slice(1)} name`], ['created-asc', 'Date created: old to new'], ['created-desc', 'Date created: new to old'],
+          ] as [ProjectSort, string][]).map(([value, label]) => <button key={value} role="radio" aria-checked={sort === value} className={sort === value ? 'is-active' : ''} onClick={() => { setSort(value); setTool(null) }}>{label}{sort === value && <Icon name="check" size={14} />}</button>)}</div>}
+        </div>}
+      </div>
+      {(search || (tab === 'albums' && statuses.length > 0)) && <div className="home-screen__active-filters">
+        {search && <span>Search: {search}</span>}{tab === 'albums' && statuses.map(status => <span key={status}>{status}</span>)}
+        <button className="btn btn--tiny" onClick={() => { setSearch(''); setStatuses([]) }}>Clear filters</button>
+      </div>}
       {openError && <p className="home-screen__error">{openError}</p>}
 
       {visibleRecent.length === 0 ? (
         <div className="home-screen__empty">
           <Icon name="bookOpen" size={32} />
-          <p>There are no {tab}</p>
+          <p>{forTab.length ? `No ${tab} match your filters` : `There are no ${tab}`}</p>
           <p className="muted">
-            {tab === 'albums'
+            {forTab.length ? 'Try another search or clear your filters.' : tab === 'albums'
               ? 'Create an album and share it with your clients.'
               : tab === 'galleries'
                 ? 'Create a gallery to collect client favorites.'
@@ -224,9 +240,8 @@ export default function HomeScreen() {
       ) : (
         <div className="home-screen__grid">
           {visibleRecent.map((entry) => (
-            <button
-              key={entry.projectId}
-              className="home-card"
+            <article key={entry.projectId} className="home-card">
+            <button className="home-card__open"
               disabled={opening === entry.projectId}
               onClick={() => void handleOpenRecent(entry)}
             >
@@ -245,11 +260,18 @@ export default function HomeScreen() {
                 </span>
                 <span className="home-card__date">Updated {formatDate(entry.updatedAt)}</span>
               </div>
-              <span className="home-card__remove" onClick={(e) => handleRemoveRecent(e, entry.projectId)} title="Remove from list">
-                <Icon name="x" size={12} />
-              </span>
-              {opening === entry.projectId && <span className="home-card__loading">Opening…</span>}
             </button>
+              {tab === 'albums' && <label className="home-card__status">Album status
+                <select aria-label={`Status for ${entry.name}`} title="Local label — does not publish or contact clients" value={entry.status ?? 'Unpublished draft'}
+                  onChange={event => setRecent(setRecentProjectStatus(entry.projectId, event.target.value as AlbumStatus))}>
+                  {ALBUM_STATUSES.map(status => <option key={status}>{status}</option>)}
+                </select>
+              </label>}
+              <button className="home-card__remove" onClick={(e) => handleRemoveRecent(e, entry.projectId)} title="Remove from list" aria-label={`Remove ${entry.name} from list`}>
+                <Icon name="x" size={12} />
+              </button>
+              {opening === entry.projectId && <span className="home-card__loading">Opening…</span>}
+            </article>
           ))}
         </div>
       )}

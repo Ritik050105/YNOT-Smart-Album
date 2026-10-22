@@ -20,6 +20,7 @@ export async function finishNewProjectSetup(
     if (result.saved) {
       recordRecentProject({
         projectId: project.id,
+        createdAt: project.createdAt,
         name: project.name,
         clientName: project.clientName,
         sizeLabel: project.size.label,

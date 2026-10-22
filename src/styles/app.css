@@ -3352,3 +3352,35 @@ input::placeholder { color: var(--text-faint); opacity: 1; }
 .workflow-step.is-done .workflow-step__dot, .photo-dock__tabs button.is-active,
 .gallery-screen__tabs button.is-active, .template-pick-item__check { color: #26282b; }
 .template-thumb .gallery-cell { background-color: #bfc3c9; border-color: #e0e2e6; }
+
+/* Reference project browser: tabs and creation above a compact tool strip. */
+.home-screen__navigation { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--border-soft); }
+.home-screen__navigation .home-tabs { flex: 1; margin: 0; border: 0; }
+.home-screen__navigation > .split-button { flex-shrink: 0; margin-bottom: 8px; }
+.home-screen__toolbar--compact { position: relative; margin: 8px auto 20px; justify-content: flex-end; min-height: 38px; }
+.home-screen__result-count { margin-right: auto; font-size: 12px; color: var(--text-faint); }
+.home-screen__browser-tools { display: flex; align-items: center; gap: 6px; }
+.home-screen__browser-tools .btn { width: 34px; height: 34px; min-height: 34px; padding: 6px; border: 0; background: transparent; box-shadow: none; color: var(--text-muted); }
+.home-screen__browser-tools .btn:hover { background: var(--panel-raised); }
+.home-screen__browser-tools .btn.is-active { color: var(--accent); background: var(--accent-soft); }
+.home-browser-popover { position: absolute; right: 0; top: calc(100% + 8px); width: min(280px, calc(100vw - 40px)); z-index: 30; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 36px #0005; padding: 12px; }
+.home-browser-popover strong { display: block; font-size: 13px; padding: 4px 4px 12px; border-bottom: 1px solid var(--border-soft); margin-bottom: 8px; }
+.home-browser-popover label { font-size: 13px; }
+.home-browser-popover input[type=search] { width: 100%; margin-top: 10px; }
+.home-browser-check { display: flex; gap: 10px; align-items: center; min-height: 42px; cursor: pointer; }
+.home-browser-check input { width: 15px; height: 15px; flex: 0 0 15px; accent-color: var(--accent); }
+.home-browser-popover small { display: block; color: var(--text-faint); margin-top: 8px; }
+.home-browser-popover [role=radio] { display: flex; align-items: center; justify-content: space-between; width: 100%; background: transparent; color: var(--text); border: 0; border-radius: 5px; padding: 12px 8px; cursor: pointer; text-align: left; }
+.home-browser-popover [role=radio]:hover, .home-browser-popover [role=radio].is-active { background: var(--panel-raised); }
+.home-screen__active-filters { max-width: 1200px; margin: 0 auto 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.home-screen__active-filters span { font-size: 12px; color: var(--text-muted); border: 1px solid var(--border); border-radius: 16px; padding: 4px 10px; }
+.home-card__open { display: flex; flex-direction: column; width: 100%; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+.home-card__open:disabled { opacity: .6; cursor: wait; }
+.home-card__remove { border: 0; }
+.home-card__status { width: 100%; padding: 0 16px 14px; color: var(--text-faint); font-size: 11px; }
+.home-card__status select { display: block; width: 100%; margin-top: 4px; font-size: 12px; padding: 6px 8px; }
+@media (max-width: 600px) {
+ .home-screen__navigation { flex-wrap: wrap; gap: 8px; }
+ .home-screen__navigation .home-tabs { flex-basis: 100%; gap: 22px; }
+ .home-screen__navigation > .split-button { margin-left: auto; }
+}

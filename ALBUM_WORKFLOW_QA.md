@@ -237,3 +237,13 @@ The updated main-release executable launched successfully and reopened the saved
 - The first high-resolution test exhausted graphics memory at the host's device scale; rerunning with --force-device-scale-factor=1 passed. No physical 4K display was tested.
 - Further native folder-picker/template-panel checks and final cosmetic recheck were stopped when the user pressed Escape. No further desktop interaction followed. Folder import had passed the preceding packaged-build test above; it was not reverified in this final UI package.
 - Template generation/matching algorithms were not modified. IDML remains pending. Full SmartAlbums parity is not claimed.
+
+## Project browser status filters and sorting — 22 October 2026
+
+- Home navigation places New Project beside the tabs and compact browser tools below, following the supplied screenshots while retaining the charcoal/yellow palette.
+- Albums has search, status filters, sort and open-project icons; Galleries and Slideshows expose only search and sort in their browser toolbar.
+- Added the five reference status labels as local album organization metadata, with an explicit per-card status selector. Labels do not publish albums or represent synced client feedback.
+- Search matches names and clients; multiple status selections combine inclusively. Four sort choices cover last modification, natural name order and creation date in both directions. Save/open callers now record creation dates, with a first-seen fallback for legacy entries.
+- Live localhost checks passed for status assignment, empty and combined filter results, clear filters, search, sort-menu choices and the two-icon Gallery/Slideshow toolbars.
+- Project-browser regression tests cover persistence, legacy entries, all sort orders, search/status composition and gallery isolation. Save-on-close regression and production build passed. Native Windows controls and installer were not retested/rebuilt for this change.
+- Template features and IDML pending status are unchanged.

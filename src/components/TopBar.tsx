@@ -73,6 +73,7 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
       if (result.saved) {
         recordRecentProject({
           projectId: project.id,
+        createdAt: project.createdAt,
           name: project.name,
           clientName: project.clientName,
           sizeLabel: project.size.label,
@@ -107,6 +108,7 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
         loadProjectFile(opened.file)
         recordRecentProject({
           projectId: opened.file.project.id,
+        createdAt: opened.file.project.createdAt,
           name: opened.file.project.name,
           clientName: opened.file.project.clientName,
           sizeLabel: opened.file.project.size.label,
