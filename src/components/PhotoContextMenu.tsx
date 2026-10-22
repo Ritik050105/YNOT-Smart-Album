@@ -3,6 +3,7 @@ import { useProjectStore } from '@/state/projectStore'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { importAndDedupe } from '@/engine/importWorkflow'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
+import { defaultPlacement } from '@/engine/autoLayout'
 import ContextMenu, { ContextMenuItem } from './ContextMenu'
 import Modal from './Modal'
 
@@ -59,7 +60,7 @@ export default function PhotoContextMenu({ x, y, spreadId, frameId }: { x: numbe
         const replacement = result.matchedAssets[0]
         if (!replacement) throw new Error('Could not import the replacement image.')
         if (frameId) state.setPlacementPhoto(spreadId, frameId, replacement.id)
-        else state.updateSpread(spreadId, { backgroundPattern: { ...spread.backgroundPattern, name: replacement.fileName, src: replacement.src, tileSizePx: 900, mode: 'cover', width: replacement.width, height: replacement.height } })
+        else state.updateSpread(spreadId, { backgroundPattern: { ...spread.backgroundPattern, edits: { ...defaultPlacement('background', replacement.id), ...spread.backgroundPattern?.edits, photoId: replacement.id }, name: replacement.fileName, src: replacement.src, tileSizePx: 900, mode: 'cover', width: replacement.width, height: replacement.height } })
       })
     }} />
     {preview && src && <Modal title={name} onClose={() => setPreview(false)} width={900}><img src={src} alt={name} style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }} /></Modal>}

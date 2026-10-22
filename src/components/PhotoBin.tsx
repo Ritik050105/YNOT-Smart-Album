@@ -87,7 +87,7 @@ export default function PhotoBin() {
   const [newBinName, setNewBinName] = useState('')
 
   const usedPhotoIds = useMemo(
-    () => new Set(spreads.flatMap((s) => s.placements.map((p) => p.photoId).filter((id): id is string => !!id))),
+    () => new Set(spreads.flatMap((s) => [...s.placements.map((p) => p.photoId), s.backgroundPattern?.edits?.photoId].filter((id): id is string => !!id))),
     [spreads]
   )
 

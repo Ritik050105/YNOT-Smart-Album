@@ -871,15 +871,29 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   }),
 
   makePhotoBackground: (spreadId, frameId) => {
-    withHistory(set, p => ({ ...p, spreads: p.spreads.map(s => {
-      if (s.id !== spreadId) return s
-      const photo = p.photos.find(photo => photo.id === s.placements.find(pl => pl.placeholderId === frameId)?.photoId)
-      if (!photo) return s
-      const size = s.size ?? p.size, height = DESIGN_WIDTH * size.heightIn / size.widthIn
-      return { ...s, backgroundPattern: { name: photo.fileName, src: photo.src, tileSizePx: DESIGN_WIDTH, mode: 'cover' as const, width: photo.width, height: photo.height, edits: { ...s.placements.find(pl => pl.placeholderId === frameId)! } }, flipped: false,
-        customBoxes: computePlaceholderBoxes(s, DESIGN_WIDTH, height).filter(b => b.placeholderId !== frameId).map(b => ({ id: b.placeholderId, x: b.x / DESIGN_WIDTH, y: b.y / height, width: b.width / DESIGN_WIDTH, height: b.height / height, preferredOrientation: 'any' as const })),
-        placements: s.placements.filter(pl => pl.placeholderId !== frameId) }
-    }) }))
+    withHistory(set, p => {
+      const photos = [...p.photos]
+      const spreads = p.spreads.map(s => {
+        if (s.id !== spreadId) return s
+        const selected = s.placements.find(pl => pl.placeholderId === frameId)
+        const photo = photos.find(photo => photo.id === selected?.photoId)
+        if (!photo || !selected) return s
+        const previous = s.backgroundPattern?.mode === 'cover' ? s.backgroundPattern : undefined
+        let previousPhoto = previous && (photos.find(p => p.id === previous.edits?.photoId) ?? photos.find(p => p.src === previous.src))
+        if (previous && !previousPhoto) {
+          const width = previous.width ?? photo.width, height = previous.height ?? photo.height
+          previousPhoto = { ...photo, id: uuid(), src: previous.src, fileName: previous.name, sourcePath: undefined, width, height, megapixels: width * height / 1000000, orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait', bins: [], favorite: false }
+          photos.push(previousPhoto)
+        }
+        const backgroundPattern = { name: photo.fileName, src: photo.src, tileSizePx: DESIGN_WIDTH, mode: 'cover' as const, width: photo.width, height: photo.height, edits: { ...selected } }
+        if (previousPhoto) return { ...s, backgroundPattern, placements: s.placements.map(pl => pl.placeholderId === frameId ? { ...defaultPlacement(frameId, previousPhoto.id), ...previous?.edits, placeholderId: frameId, photoId: previousPhoto.id } : pl) }
+        const size = s.size ?? p.size, height = DESIGN_WIDTH * size.heightIn / size.widthIn
+        return { ...s, backgroundPattern, flipped: false,
+          customBoxes: computePlaceholderBoxes(s, DESIGN_WIDTH, height).filter(b => b.placeholderId !== frameId).map(b => ({ id: b.placeholderId, x: b.x / DESIGN_WIDTH, y: b.y / height, width: b.width / DESIGN_WIDTH, height: b.height / height, preferredOrientation: 'any' as const })),
+          placements: s.placements.filter(pl => pl.placeholderId !== frameId) }
+        })
+      return { ...p, photos, spreads }
+    })
     get().selectPlaceholder(null)
   },
 
