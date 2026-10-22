@@ -5,6 +5,7 @@ export interface PhotoAsset {
   cameraModel?: string
   id: string
   fileName: string
+  sourcePath?: string
   /** Object URL for display; in Electron this points at the original file on disk. */
   src: string
   width: number

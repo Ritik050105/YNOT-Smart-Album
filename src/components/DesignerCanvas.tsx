@@ -15,7 +15,7 @@ import { readDraggedPattern } from '@/engine/patterns'
 import { imageToneFilter } from '@/engine/imageTone'
 import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
-import ContextMenu, { ContextMenuItem } from './ContextMenu'
+import PhotoContextMenu from './PhotoContextMenu'
 
 export const STAGE_WIDTH = DESIGN_WIDTH
 
@@ -223,12 +223,6 @@ export default function DesignerCanvas() {
   const showPrintGuides = useProjectStore((s) => s.showPrintGuides)
   const togglePrintGuides = useProjectStore((s) => s.togglePrintGuides)
   const updatePlacement = useProjectStore((s) => s.updatePlacement)
-  const resetPlacementToOriginal = useProjectStore((s) => s.resetPlacementToOriginal)
-  const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
-  const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
-  const toneClipboard = useProjectStore((s) => s.toneClipboard)
-  const autoAlignPlacement = useProjectStore((s) => s.autoAlignPlacement)
-  const autoAdjustPlacement = useProjectStore((s) => s.autoAdjustPlacement)
   const canvasTool = useProjectStore((s) => s.canvasTool)
   const setCanvasViewportMirror = useProjectStore((s) => s.setCanvasViewportMirror)
   const showGuides = useProjectStore((s) => s.showGuides)
@@ -259,7 +253,7 @@ export default function DesignerCanvas() {
   }, [selectedPlaceholderId, selectedBox?.x, selectedBox?.y, selectedBox?.width, selectedBox?.height, canvasTool])
 
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
-  const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId: string } | null>(null)
+  const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId?: string; openedAt: number } | null>(null)
   const stageRef = useRef<Konva.Stage>(null)
   // Double-clicking an empty frame opens a native file picker and drops the chosen photo straight
   // into that exact frame — the canvas-side counterpart to the dock's double-click-to-place,
@@ -533,37 +527,8 @@ export default function DesignerCanvas() {
   function handlePlaceholderContextMenu(placeholderId: string, evt: Event) {
     evt.preventDefault()
     const mouseEvt = evt as MouseEvent
-    setPhotoContextMenu({ x: mouseEvt.clientX, y: mouseEvt.clientY, placeholderId })
-  }
-
-  function photoContextMenuItems(placeholderId: string): ContextMenuItem[] {
-    if (!spread) return []
-    const placement = spread.placements.find((p) => p.placeholderId === placeholderId)
-    if (!placement) return []
-    const isBW = placement.saturation <= -100
-    return [
-      {
-        label: 'Reload from Original',
-        onClick: () => resetPlacementToOriginal(spread.id, placeholderId),
-      },
-      { label: 'Auto Adjust', onClick: () => void autoAdjustPlacement(spread.id, placeholderId) },
-      { label: 'Auto Align', onClick: () => autoAlignPlacement(spread.id, placeholderId) },
-      {
-        label: isBW ? 'Remove Black & White' : 'Black & White',
-        onClick: () => updatePlacement(spread.id, placeholderId, { saturation: isBW ? 0 : -100 }),
-      },
-      { label: 'Copy Tone Adjustments', onClick: () => copyToneAdjustments(spread.id, placeholderId) },
-      {
-        label: 'Paste Tone Adjustments',
-        disabled: !toneClipboard,
-        onClick: () => pasteToneAdjustments(spread.id, [placeholderId]),
-      },
-      {
-        label: 'Clear Photo',
-        danger: true,
-        onClick: () => setPlacementPhoto(spread.id, placeholderId, null),
-      },
-    ]
+    selectPlaceholder(placeholderId)
+    setPhotoContextMenu({ openedAt: Date.now(), x: mouseEvt.clientX, y: mouseEvt.clientY, placeholderId })
   }
 
   async function handleContainerDrop(e: React.DragEvent) {
@@ -731,7 +696,7 @@ export default function DesignerCanvas() {
         <Layer>
            <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fill={spread.backgroundColor} onClick={() => { if (canvasTool === 'select') { selectPlaceholder(null); selectTextBox(null) } }} />
            {patternImage && spread.backgroundPattern && (spread.backgroundPattern.mode === 'cover'
-             ? <KonvaImage image={patternImage} width={STAGE_WIDTH} height={stageHeight} crop={(() => { const c = computeCoverCrop(patternImage.width, patternImage.height, STAGE_WIDTH, stageHeight); return { x: c.cropX, y: c.cropY, width: c.cropWidth, height: c.cropHeight } })()} listening={false} />
+             ? <KonvaImage image={patternImage} width={STAGE_WIDTH} height={stageHeight} crop={(() => { const c = computeCoverCrop(patternImage.width, patternImage.height, STAGE_WIDTH, stageHeight); return { x: c.cropX, y: c.cropY, width: c.cropWidth, height: c.cropHeight } })()} onContextMenu={e => { e.evt.preventDefault(); setPhotoContextMenu({ openedAt: Date.now(), x: e.evt.clientX, y: e.evt.clientY }) }} />
              : <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fillPatternImage={patternImage} fillPatternScaleX={spread.backgroundPattern.tileSizePx / patternImage.width} fillPatternScaleY={spread.backgroundPattern.tileSizePx / patternImage.width} listening={false} />)}
 
           {boxes.map((box) => {
@@ -1008,14 +973,7 @@ export default function DesignerCanvas() {
         })()}
       </div>
       </div>
-      {photoContextMenu && (
-        <ContextMenu
-          x={photoContextMenu.x}
-          y={photoContextMenu.y}
-          items={photoContextMenuItems(photoContextMenu.placeholderId)}
-          onClose={() => setPhotoContextMenu(null)}
-        />
-      )}
+      {photoContextMenu && spread && <PhotoContextMenu key={JSON.stringify(photoContextMenu)} x={photoContextMenu.x} y={photoContextMenu.y} spreadId={spread.id} frameId={photoContextMenu.placeholderId} />}
       <input ref={framePickerInputRef} type="file" accept={IMAGE_FILE_ACCEPT} hidden onChange={(e) => void handleFramePicked(e)} />
     </div>
   )

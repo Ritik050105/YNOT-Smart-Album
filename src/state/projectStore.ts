@@ -279,6 +279,7 @@ interface ProjectState {
   applyTemplateToAllSpreads: (templateId: string) => void
   updateSpread: (spreadId: string, patch: Partial<Spread>) => void
   applyBackgroundToAllSpreads: (spreadId: string, pattern?: Spread['backgroundPattern']) => void
+  makePhotoBackground: (spreadId: string, frameId: string) => void
   addImageFrame: (spreadId: string, rect: { x: number; y: number; width: number; height: number }, photoId?: string) => void
   updateImageFrame: (spreadId: string, frameId: string, rect: { x: number; y: number; width: number; height: number }) => void
   removeImageFrame: (spreadId: string, frameId: string) => void
@@ -868,6 +869,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (!source) return p
     return { ...p, spreads: p.spreads.map((s) => s.isCover ? s : { ...s, backgroundColor: source.backgroundColor, backgroundPattern: pattern ?? source.backgroundPattern }) }
   }),
+
+  makePhotoBackground: (spreadId, frameId) => {
+    withHistory(set, p => ({ ...p, spreads: p.spreads.map(s => {
+      if (s.id !== spreadId) return s
+      const photo = p.photos.find(photo => photo.id === s.placements.find(pl => pl.placeholderId === frameId)?.photoId)
+      if (!photo) return s
+      const size = s.size ?? p.size, height = DESIGN_WIDTH * size.heightIn / size.widthIn
+      return { ...s, backgroundPattern: { name: photo.fileName, src: photo.src, tileSizePx: DESIGN_WIDTH, mode: 'cover' as const, width: photo.width, height: photo.height }, flipped: false,
+        customBoxes: computePlaceholderBoxes(s, DESIGN_WIDTH, height).filter(b => b.placeholderId !== frameId).map(b => ({ id: b.placeholderId, x: b.x / DESIGN_WIDTH, y: b.y / height, width: b.width / DESIGN_WIDTH, height: b.height / height, preferredOrientation: 'any' as const })),
+        placements: s.placements.filter(pl => pl.placeholderId !== frameId) }
+    }) }))
+    get().selectPlaceholder(null)
+  },
 
   addImageFrame: (spreadId, rect, photoId) => {
     const frameId = uuid()

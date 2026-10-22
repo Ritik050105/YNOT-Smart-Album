@@ -374,16 +374,7 @@ export default function Inspector() {
               {spread.placements.filter(p => p.photoId && p.placeholderId !== placement.placeholderId).map((p, i) => <option key={p.placeholderId} value={p.placeholderId}>{i + 1}. {project.photos.find(photo => photo.id === p.photoId)?.fileName}</option>)}
             </select>
           </label>
-          <button className="btn btn--tiny" onClick={() => {
-            const height = 900 / spreadAspect
-            updateSpread(spread.id, {
-              backgroundPattern: { name: photo.fileName, src: photo.src, tileSizePx: 900, mode: 'cover', width: photo.width, height: photo.height },
-              flipped: false,
-              customBoxes: computePlaceholderBoxes(spread, 900, height).filter(b => b.placeholderId !== placement.placeholderId).map(b => ({ id: b.placeholderId, x: b.x / 900, y: b.y / height, width: b.width / 900, height: b.height / height, preferredOrientation: 'any' as const })),
-              placements: spread.placements.filter(p => p.placeholderId !== placement.placeholderId),
-            })
-            useProjectStore.getState().selectPlaceholder(null)
-          }}>Set as fixed background</button>
+          <button className="btn btn--tiny" onClick={() => useProjectStore.getState().makePhotoBackground(spread.id, placement.placeholderId)}>Set as fixed background</button>
           <SliderField
             label="Scale"
             value={placement.zoom}

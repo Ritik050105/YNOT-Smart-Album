@@ -74,6 +74,7 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
   return {
     id: uuid(),
     fileName: file.name,
+    sourcePath: window.albumStudio?.getImagePath?.(file) || undefined,
     src,
     width,
     height,

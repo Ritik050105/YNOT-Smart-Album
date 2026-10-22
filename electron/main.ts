@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu, screen, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { execFile } from 'child_process'
@@ -6,6 +6,12 @@ import { writeFileAtomic } from './files'
 import { decodeTiff } from './images'
 import { readRecovery, writeRecovery, clearRecovery } from './recovery'
 import { fitWindowSize } from './windowSizing'
+
+ipcMain.handle('images:showFile', async (_event, filePath: string, reveal: boolean) => {
+  if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !/\.(jpe?g|png|webp|gif|bmp|tiff?|psd|avif|heic)$/i.test(filePath) || !fs.statSync(filePath).isFile()) throw new Error('The original image is unavailable. Replace the image to reconnect its file.')
+  if (reveal) shell.showItemInFolder(filePath)
+  else { const error = await shell.openPath(filePath); if (error) throw new Error(error) }
+})
 
 const isDev = !app.isPackaged
 ipcMain.handle('images:decodeTiff', (_event, data: Uint8Array) => decodeTiff(data))

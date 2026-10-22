@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 // Mirrors state/projectStore.ts's NewProjectOptions. Kept as a structural shape (not imported)
 // since this file compiles outside the renderer's tsconfig — it's just forwarded through IPC,
@@ -16,6 +16,8 @@ export interface NewProjectPayload {
 
 export interface AlbumStudioBridge {
   isElectron: true
+  getImagePath: (file: File) => string
+  showImageFile: (filePath: string, reveal: boolean) => Promise<void>
   readRecovery: () => Promise<{ filePath: string | null; contents: string } | null>
   writeRecovery: (snapshot: { filePath: string | null; contents: string }) => Promise<void>
   clearRecovery: () => Promise<void>
@@ -45,6 +47,8 @@ export interface AlbumStudioBridge {
 
 const bridge: AlbumStudioBridge = {
   isElectron: true,
+  getImagePath: file => webUtils.getPathForFile(file),
+  showImageFile: (filePath, reveal) => ipcRenderer.invoke('images:showFile', filePath, reveal),
   readRecovery: () => ipcRenderer.invoke('recovery:read'),
   writeRecovery: (snapshot) => ipcRenderer.invoke('recovery:write', snapshot),
   clearRecovery: () => ipcRenderer.invoke('recovery:clear'),

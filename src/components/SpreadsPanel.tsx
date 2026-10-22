@@ -9,6 +9,8 @@ import { useTimelineDrag } from '@/engine/useTimelineDrag'
 import SpreadThumbnail from './SpreadThumbnail'
 import ContextMenu, { ContextMenuItem } from './ContextMenu'
 import Icon from './Icon'
+import PhotoContextMenu from './PhotoContextMenu'
+import { computePlaceholderBoxes } from '@/engine/layoutMath'
 
 /** The album's main view — the reference app's own "all spreads" screen: a row of real,
  *  proportioned spread cards (not a zoomed single-spread canvas, no ruler or tool rail here),
@@ -16,6 +18,7 @@ import Icon from './Icon'
  *  selects a spread; double-click opens it in the focused Designer View to actually work on it —
  *  Escape (or its own back button) returns here. Reorder by drag. */
 export default function SpreadsPanel() {
+  const [photoMenu, setPhotoMenu] = useState<{ x: number; y: number; spreadId: string; frameId?: string; openedAt: number } | null>(null)
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectSpread = useProjectStore((s) => s.selectSpread)
@@ -231,7 +234,13 @@ export default function SpreadsPanel() {
             onContextMenu={(e) => openContextMenu(e, spread.id)}
             title={`Spread ${index + 1} — double-click to design, right-click for more options`}
           >
-            <div data-spread-drag className={`spreads-panel__card ${selectedSpreadId === spread.id ? 'is-selected' : ''}`} style={{ aspectRatio: (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn }}>
+            <div data-spread-drag className={`spreads-panel__card ${selectedSpreadId === spread.id ? 'is-selected' : ''}`} style={{ aspectRatio: (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn }} onContextMenu={e => {
+              const r = e.currentTarget.getBoundingClientRect()
+              const box = computePlaceholderBoxes(spread, r.width, r.height).reverse().find(b => e.clientX-r.left >= b.x && e.clientX-r.left <= b.x+b.width && e.clientY-r.top >= b.y && e.clientY-r.top <= b.y+b.height)
+              if (!box && !spread.backgroundPattern) return
+              e.preventDefault(); e.stopPropagation(); selectSpread(spread.id)
+              setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: box?.placeholderId })
+            }}>
             <SpreadThumbnail spread={spread} photosById={photosById} size={project.size} responsive />
             <div className="spread-card-controls" onDoubleClick={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
               <div className="spread-card-controls__actions">
@@ -324,6 +333,7 @@ export default function SpreadsPanel() {
               return photo ? <Fragment key={placement.placeholderId}>
                 {placementIndex > 0 && <button className="timeline-cut" title={`Cut timeline before ${photo.fileName}`} onDoubleClick={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); splitSpread(spread.id, placementIndex) }}><Icon name="scissors" size={10} /></button>}
                 <img src={photo.src} alt={photo.fileName} title={`${photo.fileName} — drag to move in the timeline`} draggable={false}
+                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); selectSpread(spread.id); setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: placement.placeholderId }) }}
                   data-timeline-frame={placement.placeholderId}
                   className={target?.spreadId === spread.id && target.beforeFrameId === placement.placeholderId ? 'is-insert-before' : ''}
                   onDrop={(e) => handleSpreadDrop(e, spread.id, placement.placeholderId)} />
@@ -338,6 +348,7 @@ export default function SpreadsPanel() {
       {drag && <img className="timeline-drag-preview" src={drag.src} alt="" style={{ left: drag.x + 12, top: drag.y + 12 }} />}
       {drag && <span className="sr-only" role="status">{target ? 'Release to place image' : 'Move over the timeline to place image'}</span>}
 
+      {photoMenu && <PhotoContextMenu key={JSON.stringify(photoMenu)} {...photoMenu} />}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}

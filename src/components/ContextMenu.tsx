@@ -5,6 +5,8 @@ export interface ContextMenuItem {
   onClick: () => void
   disabled?: boolean
   danger?: boolean
+  shortcut?: string
+  separator?: boolean
 }
 
 /** A generic right-click menu, positioned at a fixed (x, y) — used on canvas photos and spread
@@ -52,11 +54,13 @@ export default function ContextMenu({
   }, [x, y])
 
   return (
-    <div ref={ref} className="context-menu" style={{ left: x, top: y }}>
+    <div ref={ref} role="menu" className="context-menu" style={{ left: x, top: y, maxHeight: 'calc(100vh - 8px)', overflowY: 'auto' }}>
       {items.map((item) => (
         <button
           key={item.label}
+          role="menuitem"
           className={`context-menu__item ${item.danger ? 'is-danger' : ''}`}
+          style={{ display: 'flex', justifyContent: 'space-between', gap: 28, ...(item.separator ? { borderTop: '1px solid var(--border-soft)', marginTop: 4 } : {}) }}
           disabled={item.disabled}
           onClick={() => {
             item.onClick()
@@ -64,6 +68,7 @@ export default function ContextMenu({
           }}
         >
           {item.label}
+          {item.shortcut && <span>{item.shortcut}</span>}
         </button>
       ))}
     </div>
