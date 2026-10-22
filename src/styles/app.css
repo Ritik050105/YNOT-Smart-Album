@@ -1895,13 +1895,18 @@ input[type='checkbox'] {
 .inspector-group > summary::after { content: ''; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); margin-right: 3px; }
 .inspector-group[open] > summary::after { transform: rotate(45deg); }
 .inspector .inspector-group > label:not(.slider-field) { display: grid; grid-template-columns: minmax(74px, 1fr) minmax(0, 1.3fr); gap: 8px; margin: 5px 0; min-height: 28px; }
-.inspector .slider-field { display: grid; grid-template-columns: minmax(0, 1fr) 80px; align-items: center; gap: 8px; margin: 5px 0; min-height: 28px; }
+.inspector .slider-field { display: grid; grid-template-columns: minmax(0, 1fr) 124px; align-items: center; gap: 8px; margin: 5px 0; min-height: 28px; }
 .inspector .slider-field .row { display: contents; }
 .inspector .slider-field .row > span:first-child { grid-column: 1; grid-row: 1; font-size: 11px; }
-.inspector .slider-field__input-wrap { grid-column: 2; grid-row: 1; padding: 0; background: transparent; position: relative; }
+.inspector .slider-field__input-wrap { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px; gap: 0; grid-column: 2; grid-row: 1; padding: 0; background: #fff; position: relative; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .inspector .slider-field input[type=range] { display: none; }
 .inspector .slider-field input[type=number] { width: 100%; padding: 5px 18px 5px 8px; text-align: left; font-variant-numeric: tabular-nums; }
-.inspector .slider-field__suffix { position: absolute; right: 7px; pointer-events: none; }
+.inspector .slider-field__suffix { position: absolute; right: 31px; pointer-events: none; font-size: 9px; }
+.inspector .slider-field .slider-field__input { border: 0; border-radius: 0; min-width: 0; text-align: center; padding: 4px 12px 4px 2px; }
+.inspector .numeric-step { display: flex; align-items: center; justify-content: center; align-self: stretch; min-height: 26px; border: 0; background: #faf8f5; color: var(--accent); font-size: 17px; cursor: pointer; padding: 0; }
+.inspector .numeric-step:hover:not(:disabled) { background: var(--accent-soft); }
+.inspector .numeric-step:disabled { opacity: .35; cursor: default; }
+.inspector .numeric-step:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .inspector input:not([type=range]):not([type=checkbox]), .inspector select { background: #fff; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
 .inspector input[type=range] { width: 100%; accent-color: var(--accent); }
 .inspector .frame-dimensions .field { flex-direction: column; align-items: stretch; gap: 6px; }

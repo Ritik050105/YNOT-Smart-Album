@@ -1,5 +1,4 @@
-/** A range slider paired with a numeric input showing/editing the same value — every numeric
- *  attribute in the app should let you type an exact custom value, not just drag a slider. */
+/** Exact numeric entry with either a slider or compact adjustment buttons. */
 export default function SliderField({
   label,
   value,
@@ -7,6 +6,7 @@ export default function SliderField({
   max,
   step = 1,
   suffix = '',
+  buttons = false,
   onChange,
 }: {
   label: string
@@ -15,19 +15,25 @@ export default function SliderField({
   max: number
   step?: number
   suffix?: string
+  buttons?: boolean
   onChange: (value: number) => void
 }) {
   function clamp(v: number) {
     if (Number.isNaN(v)) return min
     return Math.min(max, Math.max(min, v))
   }
+  const directions = label === 'Focal X' ? ['←', '→'] : label === 'Focal Y' ? ['↑', '↓'] : label === 'Angle' ? ['↶', '↷'] : ['−', '+']
+  const actions = label === 'Focal X' ? ['Move crop left', 'Move crop right'] : label === 'Focal Y' ? ['Move crop up', 'Move crop down'] : label === 'Angle' ? ['Rotate counterclockwise', 'Rotate clockwise'] : [`Decrease ${label.toLowerCase()}`, `Increase ${label.toLowerCase()}`]
+  function nudge(direction: number) { onChange(clamp(Number((value + direction * step).toFixed(6)))) }
 
   return (
-    <label className="slider-field">
+    <div className="slider-field">
       <span className="row">
         <span>{label}</span>
         <span className="slider-field__input-wrap">
+          {buttons && <button type="button" className="numeric-step" title={actions[0]} aria-label={actions[0]} disabled={value <= min} onClick={() => nudge(-1)}>{directions[0]}</button>}
           <input
+            aria-label={label}
             type="number"
             className="slider-field__input"
             value={value}
@@ -37,16 +43,18 @@ export default function SliderField({
             onChange={(e) => onChange(clamp(Number(e.target.value)))}
           />
           {suffix && <span className="slider-field__suffix">{suffix}</span>}
+          {buttons && <button type="button" className="numeric-step" title={actions[1]} aria-label={actions[1]} disabled={value >= max} onClick={() => nudge(1)}>{directions[1]}</button>}
         </span>
       </span>
-      <input
+      {!buttons && <input
+        aria-label={`${label} slider`}
         type="range"
         min={min}
         max={max}
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-      />
-    </label>
+      />}
+    </div>
   )
 }

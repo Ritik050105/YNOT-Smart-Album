@@ -221,7 +221,7 @@ export default function Inspector() {
           Background
           <ColorField value={spread.backgroundColor} onChange={(hex) => updateSpread(spread.id, { backgroundColor: hex })} />
         </label>
-        <SliderField
+        <SliderField buttons
           label="Gap"
           value={spread.gapPx}
           min={0}
@@ -229,7 +229,7 @@ export default function Inspector() {
           suffix="px"
           onChange={(v) => updateSpread(spread.id, { gapPx: v })}
         />
-        <SliderField
+        <SliderField buttons
           label="Margin"
           value={spread.marginPx}
           min={0}
@@ -363,7 +363,7 @@ export default function Inspector() {
             </select>
           </label>
           <button className="btn btn--tiny" onClick={() => useProjectStore.getState().makePhotoBackground(spread.id, placement.placeholderId)}>Set as fixed background</button>
-          <SliderField
+          <SliderField buttons
             label="Scale"
             value={placement.zoom}
             min={1}
@@ -371,7 +371,7 @@ export default function Inspector() {
             step={0.05}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { zoom: v })}
           />
-          <SliderField
+          <SliderField buttons
             label="Focal X"
             value={placement.focalX}
             min={0}
@@ -379,7 +379,7 @@ export default function Inspector() {
             step={0.01}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { focalX: v })}
           />
-          <SliderField
+          <SliderField buttons
             label="Focal Y"
             value={placement.focalY}
             min={0}
@@ -389,7 +389,7 @@ export default function Inspector() {
           />
           </details>}
           <details className="inspector-group" open><summary>Transform &amp; frame</summary>
-          <SliderField
+          <SliderField buttons
             label="Opacity"
             value={placement.opacity}
             min={0}
@@ -412,7 +412,7 @@ export default function Inspector() {
             </select>
           </label>
           {placement.frameStyle === 'rounded' && (
-            <SliderField
+            <SliderField buttons
               label="Radius"
               value={placement.cornerRadiusPx}
               min={0}
@@ -421,7 +421,7 @@ export default function Inspector() {
               onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { cornerRadiusPx: v })}
             />
           )}
-          <SliderField
+          <SliderField buttons
             label="Angle"
             value={placement.rotationDeg}
             min={-180}
@@ -429,7 +429,7 @@ export default function Inspector() {
             suffix="°"
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { rotationDeg: v })}
           />
-          <SliderField
+          <SliderField buttons
             label="Border width"
             value={placement.borderWidth}
             min={0}
@@ -445,35 +445,35 @@ export default function Inspector() {
             />
           </label>
           </details>
-          {photo && <details className="inspector-group"><summary>Tone &amp; color</summary><SliderField
+          {photo && <details className="inspector-group"><summary>Tone &amp; color</summary><SliderField buttons
             label="Warmth"
             value={placement.warmth}
             min={-100}
             max={100}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { warmth: v })}
           />
-          <SliderField
+          <SliderField buttons
             label="Brightness"
             value={placement.brightness}
             min={-100}
             max={100}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { brightness: v })}
           />
-          <SliderField
+          <SliderField buttons
             label="Contrast"
             value={placement.contrast}
             min={-100}
             max={100}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { contrast: v })}
           />
-          <SliderField
+          <SliderField buttons
             label="Saturation"
             value={placement.saturation}
             min={-100}
             max={100}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { saturation: v })}
           />
-          <SliderField
+          <SliderField buttons
             label="Relight"
             value={placement.relightIntensity}
             min={-100}
@@ -545,7 +545,7 @@ export default function Inspector() {
               />
             </label>
           )}
-          <SliderField
+          <SliderField buttons
             label="Size"
             value={textBox.fontSize}
             min={8}
@@ -705,7 +705,7 @@ function MultiSelectInspector({
             Auto Align
           </button>
         </div>
-        <SliderField
+        <SliderField buttons
           label="Opacity"
           value={1}
           min={0}
@@ -713,7 +713,7 @@ function MultiSelectInspector({
           step={0.01}
           onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { opacity: v })}
         />
-        <SliderField
+        <SliderField buttons
           label="Border width"
           value={0}
           min={0}
@@ -721,28 +721,28 @@ function MultiSelectInspector({
           suffix="px"
           onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { borderWidth: v })}
         />
-        <SliderField
+        <SliderField buttons
           label="Warmth"
           value={0}
           min={-100}
           max={100}
           onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { warmth: v })}
         />
-        <SliderField
+        <SliderField buttons
           label="Brightness"
           value={0}
           min={-100}
           max={100}
           onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { brightness: v })}
         />
-        <SliderField
+        <SliderField buttons
           label="Contrast"
           value={0}
           min={-100}
           max={100}
           onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { contrast: v })}
         />
-        <SliderField
+        <SliderField buttons
           label="Saturation"
           value={0}
           min={-100}

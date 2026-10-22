@@ -94,6 +94,11 @@ app.whenReady().then(async()=>{
  await new Promise(r=>setTimeout(r,100))
  assert.deepEqual(await evaluate('store.getState().project.spreads[0].placements.map(p=>[p.photoId,p.zoom])'),[['b',1],['a',2]],'Swap carries photo adjustments')
  await fs.writeFile(path.join(out,'inspector-organized.png'),(await win.webContents.capturePage()).toPNG())
+ for(const [action,key,expected] of [['Increase scale','zoom',1.05],['Move crop left','focalX',.49],['Move crop down','focalY',.51],['Rotate clockwise','rotationDeg',1],['Decrease opacity','opacity',.99]]) {
+   await evaluate(`document.querySelector('[aria-label="${action}"]').click()`)
+   await new Promise(r=>setTimeout(r,50))
+   assert.equal(await evaluate(`store.getState().project.spreads[0].placements[0].${key}`),expected,action)
+ }
  await evaluate(`const s=store.getState().project.spreads[0];store.getState().updatePlacement(s.id,s.placements[0].placeholderId,{zoom:1.7,rotationDeg:25,opacity:.65,brightness:18,flipHorizontal:true})`)
  await evaluate(`Array.from(document.querySelectorAll('button')).find(e=>e.textContent==='Set as fixed background').click()`)
  await new Promise(r=>setTimeout(r,100))
