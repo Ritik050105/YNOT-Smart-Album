@@ -4,6 +4,10 @@ const KEY = 'albumstudio.customSizePresets'
 
 export interface SizePreset extends AlbumSize {
   presetName: string
+  units?: 'in' | 'cm' | 'px'
+  layoutStart?: 'spread' | 'single'
+  layoutEnd?: 'spread' | 'single'
+  includeFullSpreadTemplates?: boolean
 }
 
 export function loadSizePresets(): SizePreset[] {
@@ -24,7 +28,9 @@ function saveSizePresets(presets: SizePreset[]) {
 }
 
 export function addSizePreset(preset: SizePreset): SizePreset[] {
-  const next = [...loadSizePresets().filter((p) => p.presetName !== preset.presetName), preset]
+  const existing = loadSizePresets()
+  const previous = existing.find(p => p.presetName === preset.presetName)
+  const next = [...existing.filter(p => p.presetName !== preset.presetName), { ...previous, ...preset }]
   saveSizePresets(next)
   return next
 }

@@ -17,7 +17,11 @@ export default function Modal({
   footer,
   width = 480,
   bare = false,
+  className = '',
+  headerContent,
 }: {
+  className?: string
+  headerContent?: ReactNode
   title: string
   subtitle?: string
   onClose: () => void
@@ -43,7 +47,7 @@ export default function Modal({
   const card = (
     <div
       ref={cardRef}
-      className={`modal-card ${bare ? 'modal-card--bare' : ''}`}
+      className={`modal-card ${bare ? 'modal-card--bare' : ''} ${className}`}
       style={bare ? undefined : { width }}
       role="dialog"
       aria-modal="true"
@@ -60,6 +64,7 @@ export default function Modal({
           </button>
         )}
       </div>
+      {headerContent}
       <div className="modal-card__body">{children}</div>
       {footer && <div className="modal-card__footer">{footer}</div>}
     </div>

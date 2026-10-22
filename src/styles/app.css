@@ -3384,3 +3384,77 @@ input::placeholder { color: var(--text-faint); opacity: 1; }
  .home-screen__navigation .home-tabs { flex-basis: 100%; gap: 22px; }
  .home-screen__navigation > .split-button { margin-left: auto; }
 }
+/* Project specifications: light paper surface keeps dimension fields easy to scan. */
+.project-wizard {
+  --panel: #fff; --panel-alt: #f0f1f2; --text: #25282b; --text-muted: #62686e;
+  --text-faint: #757b80; --border: #c5c9cd; --border-soft: #e0e3e6;
+  color: var(--text); background: #fff; height: min(840px, calc(100dvh - 32px));
+}
+.project-wizard.modal-card--bare { height: 100%; }
+.project-wizard .modal-card__header { position: relative; justify-content: center; border: 0; padding: 34px 48px 28px; }
+.project-wizard .modal-card__header h2 { font-size: clamp(20px, 2.5vw, 28px); text-align: center; letter-spacing: -.5px; }
+.project-wizard .modal-card__header > button { position: absolute; right: 12px; top: 12px; }
+.project-wizard__tabs { display: flex; justify-content: center; background: #f0f1f2; flex-shrink: 0; }
+.project-wizard__tabs button { width: 225px; background: transparent; border: 0; border-bottom: 3px solid transparent; color: #62686e; padding: 18px 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.project-wizard__tabs button[aria-selected="true"] { color: #20272b; border-bottom-color: #009ab0; }
+.project-wizard .modal-card__body { flex: 1; padding: 32px clamp(20px, 6vw, 90px); }
+.project-wizard .modal-card__footer { background: white; border-top: 1px solid #edf0f2; }
+.project-wizard .field { font-size: 15px; color: #292f34; gap: 12px; }
+.project-wizard input:not([type="checkbox"]), .project-wizard select { background: #fff; color: #25282b; border: 0; border-bottom: 1px solid #999fa5; border-radius: 0; box-shadow: none; min-height: 38px; font-size: 16px; padding: 6px 10px; }
+.project-wizard select option { background: white; color: #25282b; }
+.project-wizard input:focus-visible, .project-wizard select:focus-visible { outline: 2px solid #009ab0; outline-offset: 3px; }
+.project-wizard .btn:not(.btn--primary) { background: white; color: #4c5359; border-color: #c5c9cd; box-shadow: 0 1px 2px #00000008; }
+.project-wizard .btn:disabled { opacity: .4; }
+.project-wizard__company { max-width: 540px; margin: 0 auto; }
+.project-wizard .field-section__title { text-transform: none; letter-spacing: 0; font-size: 15px; color: #22292f; margin-bottom: 20px; }
+.project-wizard .field-section { margin-top: 28px; }
+.project-wizard .field-section__title span { color: #82898f; cursor: help; padding-left: 6px; }
+.project-wizard .shape-picker { gap: 12px; margin: 24px 0; }
+.project-wizard .shape-option { background: transparent; border: 0; color: #6a7279; padding: 8px 0; gap: 12px; }
+.project-wizard .shape-option.is-selected { background: #f0fafb; color: #008fa5; }
+.project-wizard .shape-option__icon { height: 94px; }
+.project-wizard .shape-option__swatch { position: relative; width: 76px; height: auto; max-height: 94px; border: 2px solid currentColor; border-radius: 3px; background: transparent; }
+.project-wizard .shape-option.is-selected .shape-option__swatch { background: transparent; border-color: #009ab0; }
+.project-wizard .shape-option__swatch::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; border-left: 2px solid currentColor; }
+.project-wizard .shape-option__swatch::after { content: ''; position: absolute; width: 30%; height: 24%; top: 38%; left: 40%; border: 2px solid currentColor; border-radius: 1px; }
+.project-wizard__custom { max-width: 720px; margin: auto; }
+.project-wizard__presets, .project-wizard__save { display: flex; align-items: end; gap: 12px; padding-bottom: 26px; margin-bottom: 28px; border-bottom: 1px solid #dce0e3; }
+.project-wizard__presets .field, .project-wizard__save .field { flex: 1; min-width: 0; }
+.project-wizard__presets .btn, .project-wizard__save .btn { min-height: 40px; }
+.project-wizard .field-section-row { gap: 60px; margin-top: 30px; }
+.project-wizard__custom .field-section .field { display: grid; grid-template-columns: 1fr 1.3fr; align-items: center; gap: 12px; margin-bottom: 18px; }
+.project-wizard__custom .field-grid { gap: 60px; }
+.project-wizard__custom .field-grid .field { display: flex; flex-direction: row; align-items: center; }
+.project-wizard__custom .field-grid input, .project-wizard__custom .field-grid select { max-width: 100px; }
+.project-wizard .checkbox-row { color: #25282b; font-size: 14px; line-height: 1.5; }
+.project-wizard input[type="checkbox"] { accent-color: #009ab0; width: 18px; height: 18px; }
+.project-wizard__details { max-width: 720px; margin: 32px auto 0; border-top: 1px solid #e0e3e6; padding-top: 18px; }
+.project-wizard__details summary { cursor: pointer; color: #62686e; margin-bottom: 16px; }
+@media (max-width: 700px) {
+  .project-wizard .modal-card__header { padding: 20px 38px; }
+  .project-wizard .modal-card__body { padding: 20px; }
+  .project-wizard .field-section-row { gap: 22px; }
+  .project-wizard__presets { flex-wrap: wrap; }
+  .project-wizard__presets .field { flex-basis: 100%; }
+  .project-wizard__custom .field-section .field { display: flex; }
+  .project-wizard .shape-option__swatch { width: 54px; }
+}
+@media (max-width: 480px) {
+  .project-wizard .field-section-row { flex-direction: column; }
+  .project-wizard .shape-picker { grid-template-columns: repeat(3, 1fr); }
+}
+.project-wizard .shape-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.project-wizard .shape-option__icon { height: 126px; }
+.project-wizard .shape-option__swatch { width: 110px; max-height: 126px; }
+@media (max-width: 700px) {
+  .project-wizard .shape-option__icon { height: 94px; }
+  .project-wizard .shape-option__swatch { width: 76px; max-height: 94px; }
+}
+.project-wizard.modal-card--bare { max-width: none; max-height: none; }
+@media (max-height: 600px) {
+  .project-wizard .modal-card__header { padding: 16px 40px 12px; }
+  .project-wizard .modal-card__header h2 { font-size: 20px; }
+  .project-wizard__tabs button { padding-block: 12px; }
+  .project-wizard .modal-card__body { padding-block: 20px; }
+  .project-wizard__presets { padding-bottom: 18px; margin-bottom: 18px; }
+}

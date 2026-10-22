@@ -104,7 +104,7 @@ function createNewProjectWindow() {
 
   const workArea = screen.getDisplayMatching(mainWindow?.getBounds() ?? screen.getPrimaryDisplay().bounds).workAreaSize
   const win = new BrowserWindow({
-    ...fitWindowSize(workArea, { width: 640, height: 760 }, { width: 560, height: 480 }),
+    ...fitWindowSize(workArea, { width: 1060, height: 840 }, { width: 560, height: 480 }),
     title: 'New Project',
     parent: mainWindow ?? undefined,
     backgroundColor: '#292b2e',

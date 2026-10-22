@@ -12,8 +12,8 @@ import ColorField from './ColorField'
 
 const SHAPES: { category: AlbumSizeCategory; label: string; aspect: number }[] = [
   { category: 'Square', label: 'Square', aspect: 1 },
+  { category: 'Landscape', label: 'Landscape', aspect: 1.35 },
   { category: 'Portrait', label: 'Portrait', aspect: 0.8 },
-  { category: 'Landscape', label: 'Landscape', aspect: 1.25 },
   { category: 'Panoramic', label: 'Panoramic', aspect: 2 },
   { category: 'Magazine', label: 'Magazine', aspect: 1.1 },
 ]
@@ -125,6 +125,7 @@ export default function NewProjectWizard({
   const [presets, setPresets] = useState<SizePreset[]>(() => loadSizePresets())
   const [selectedPreset, setSelectedPreset] = useState('')
   const [presetName, setPresetName] = useState('')
+  const [savingPreset, setSavingPreset] = useState(false)
   const [units, setUnits] = useState<DisplayUnit>('in')
   const [widthIn, setWidthIn] = useState(DEFAULT_ALBUM_SIZE.widthIn)
   const [heightIn, setHeightIn] = useState(DEFAULT_ALBUM_SIZE.heightIn)
@@ -146,8 +147,12 @@ export default function NewProjectWizard({
 
   function applyPreset(presetName: string) {
     const preset = presets.find((p) => p.presetName === presetName)
-    if (!preset) return
     setSelectedPreset(presetName)
+    if (!preset) return
+    setUnits(preset.units ?? 'in')
+    setLayoutStart(preset.layoutStart ?? 'spread')
+    setLayoutEnd(preset.layoutEnd ?? 'spread')
+    setIncludeFullSpreadTemplates(preset.includeFullSpreadTemplates ?? true)
     setWidthIn(preset.widthIn)
     setHeightIn(preset.heightIn)
     setDpi(preset.dpi)
@@ -163,6 +168,7 @@ export default function NewProjectWizard({
     const preset: SizePreset = {
       id: `preset-${trimmed}`,
       presetName: trimmed,
+      units, layoutStart, layoutEnd, includeFullSpreadTemplates,
       label: trimmed,
       category: 'Custom',
       widthIn,
@@ -176,6 +182,7 @@ export default function NewProjectWizard({
     setPresets(addSizePreset(preset))
     setSelectedPreset(trimmed)
     setPresetName('')
+    setSavingPreset(false)
   }
 
   function removeSelectedPreset() {
@@ -275,9 +282,16 @@ export default function NewProjectWizard({
 
   return (
     <Modal
-      title="New Album"
+      title={step === 1 ? "Choose Project Specifications" : "Template Library and Appearance Settings"}
+      className="project-wizard"
+      headerContent={step === 1 && (
+        <div className="project-wizard__tabs" role="tablist" aria-label="Project specifications">
+          <button role="tab" aria-selected={specTab === 'company'} onClick={() => setSpecTab('company')}>Album Company Preset</button>
+          <button role="tab" aria-selected={specTab === 'custom'} onClick={() => setSpecTab('custom')}>Custom</button>
+        </div>
+      )}
       onClose={onClose}
-      width={620}
+      width={1060}
       bare={bare}
       footer={
         <>
@@ -306,22 +320,8 @@ export default function NewProjectWizard({
     >
       {step === 1 ? (
         <>
-          <label className="field" style={{ marginBottom: 14 }}>
-            Album name
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Arjun & Meera Wedding" />
-          </label>
-
-          <div className="tab-row">
-            <button className={specTab === 'company' ? 'is-active' : ''} onClick={() => setSpecTab('company')}>
-              Album Company Preset
-            </button>
-            <button className={specTab === 'custom' ? 'is-active' : ''} onClick={() => setSpecTab('custom')}>
-              Custom
-            </button>
-          </div>
-
           {specTab === 'company' ? (
-            <>
+            <div className="project-wizard__company">
               <label className="field">
                 Album Company:
                 <select value="ynot" onChange={() => undefined}>
@@ -329,33 +329,17 @@ export default function NewProjectWizard({
                 </select>
               </label>
 
-              {presets.length > 0 && (
-                <div className="field-section" style={{ marginTop: 10 }}>
-                  <div className="field-section__title">Saved Presets</div>
-                  <div className="preset-row">
-                    <select value={selectedPreset} onChange={(e) => applyPreset(e.target.value)}>
-                      <option value="">Use a standard size below instead…</option>
-                      {presets.map((p) => (
-                        <option key={p.presetName} value={p.presetName}>
-                          {p.presetName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
               <div className="field-section">
                 <div className="field-section__title">Album Format and Size</div>
                 <div className="shape-picker">
-                  {SHAPES.map((s) => (
+                  {SHAPES.slice(0, 3).map((s) => (
                     <button
                       key={s.category}
                       className={`shape-option ${!selectedPreset && shape === s.category ? 'is-selected' : ''}`}
                       aria-pressed={!selectedPreset && shape === s.category}
                       onClick={() => toggleShape(s.category)}
                     >
-                      <span className="shape-option__icon"><span className="shape-option__swatch" style={{ width: 28, height: 28 / s.aspect }} /></span>
+                      <span className="shape-option__icon"><span className="shape-option__swatch" style={{ aspectRatio: s.aspect }} /></span>
                       <span className="shape-option__label">{s.label}</span>
                     </button>
                   ))}
@@ -378,33 +362,24 @@ export default function NewProjectWizard({
                   </select>
                 </label>
               </div>
-            </>
+            </div>
           ) : (
-            <>
-              {presets.length > 0 && (
-                <div className="preset-row">
+            <div className="project-wizard__custom">
+              <div className="project-wizard__presets">
+                <label className="field">Saved Presets:
                   <select value={selectedPreset} onChange={(e) => applyPreset(e.target.value)}>
                     <option value="">[New Preset]</option>
-                    {presets.map((p) => (
-                      <option key={p.presetName} value={p.presetName}>
-                        {p.presetName}
-                      </option>
-                    ))}
+                    {presets.map(p => <option key={p.presetName} value={p.presetName}>{p.presetName}</option>)}
                   </select>
-                  <button className="btn btn--tiny" disabled={!presetName.trim()} onClick={saveCurrentAsPreset}>
-                    Save Preset
-                  </button>
-                  <button className="btn btn--tiny btn--danger" disabled={!selectedPreset} onClick={removeSelectedPreset}>
-                    Delete Preset
-                  </button>
-                </div>
-              )}
-              <div className="save-template-row" style={{ marginBottom: 14 }}>
-                <input placeholder="Preset name" value={presetName} onChange={(e) => setPresetName(e.target.value)} />
-                <button className="btn btn--tiny" disabled={!presetName.trim()} onClick={saveCurrentAsPreset}>
-                  Save Preset
-                </button>
+                </label>
+                <button className="btn" onClick={() => { setPresetName(selectedPreset); setSavingPreset(true) }}>Save Preset</button>
+                <button className="btn" disabled={!selectedPreset} onClick={removeSelectedPreset}>Delete Preset</button>
               </div>
+              {savingPreset && <div className="project-wizard__save">
+                <label className="field">Preset name<input autoFocus value={presetName} onChange={e => setPresetName(e.target.value)} /></label>
+                <button className="btn btn--primary" disabled={!presetName.trim()} onClick={saveCurrentAsPreset}>Save</button>
+                <button className="btn" onClick={() => setSavingPreset(false)}>Cancel</button>
+              </div>}
 
               <div className="field-grid">
                 <label className="field">
@@ -419,19 +394,11 @@ export default function NewProjectWizard({
                     <option value="px">px</option>
                   </select>
                 </label>
-                <label className="field">
-                  Min pages (0 = no limit)
-                  <input type="number" min={0} max={999} value={minPages} onChange={(e) => setMinPages(Math.max(0, Number(e.target.value)))} />
-                </label>
-                <label className="field">
-                  Max pages (0 = no limit)
-                  <input type="number" min={0} max={999} value={maxPages} onChange={(e) => setMaxPages(Math.max(0, Number(e.target.value)))} />
-                </label>
               </div>
 
               <div className="field-section-row">
                 <div className="field-section">
-                  <div className="field-section__title">Output Dimensions</div>
+                  <div className="field-section__title">Output Dimensions <span title="Full exported spread dimensions, including trim." aria-label="About output dimensions">ⓘ</span></div>
                   <label className="field">
                     Spread width ({units})
                     <input
@@ -457,14 +424,14 @@ export default function NewProjectWizard({
                     Starts with
                     <select value={layoutStart} onChange={(e) => setLayoutStart(e.target.value as 'spread' | 'single')}>
                       <option value="spread">Full spread</option>
-                      <option value="single">Single page</option>
+                      <option value="single">Single page/side</option>
                     </select>
                   </label>
                   <label className="field">
                     Ends with
                     <select value={layoutEnd} onChange={(e) => setLayoutEnd(e.target.value as 'spread' | 'single')}>
                       <option value="spread">Full spread</option>
-                      <option value="single">Single page</option>
+                      <option value="single">Single page/side</option>
                     </select>
                   </label>
                   <label className="checkbox-row">
@@ -484,13 +451,29 @@ export default function NewProjectWizard({
                   <EdgeInsetFields value={safeZone} onChange={setSafeZone} units={units} dpi={dpi} step={marginStep} />
                 </div>
                 <div className="field-section">
-                  <div className="field-section__title">Trim</div>
+                  <div className="field-section__title">Trim <span title="Area removed by your album lab when cutting the printed spread." aria-label="About trim">ⓘ</span></div>
                   <EdgeInsetFields value={trim} onChange={setTrim} units={units} dpi={dpi} step={marginStep} />
                 </div>
               </div>
-            </>
+            </div>
           )}
 
+          <details className="project-wizard__details"><summary>Project details</summary>
+          {specTab === 'company' && <label className="field">Album format
+            <select value={shape} onChange={e => toggleShape(e.target.value as AlbumSizeCategory)}>
+              {SHAPES.map(s => <option key={s.category} value={s.category}>{s.label}</option>)}
+            </select>
+          </label>}
+          <label className="field">Album name<input value={name} onChange={e => setName(e.target.value)} /></label>
+          <div className="field-grid">                <label className="field">
+                  Min pages (0 = no limit)
+                  <input type="number" min={0} max={999} value={minPages} onChange={(e) => setMinPages(Math.max(0, Number(e.target.value)))} />
+                </label>
+                <label className="field">
+                  Max pages (0 = no limit)
+                  <input type="number" min={0} max={999} value={maxPages} onChange={(e) => setMaxPages(Math.max(0, Number(e.target.value)))} />
+                </label>
+</div>
           <div className="field-section">
             <label className="field">
               Color profile
@@ -503,6 +486,7 @@ export default function NewProjectWizard({
               </select>
             </label>
           </div>
+          </details>
         </>
       ) : (
         <>
