@@ -69,10 +69,6 @@ export default function Inspector() {
   if (!spread) {
     return (
       <div className="panel inspector">
-        <h3>
-          <Icon name="palette" size={14} />
-          Inspector
-        </h3>
         <div className="empty-state">
           <Icon name="swatch" size={24} />
           <p>Select a spread, photo, or text box to edit its details here.</p>
@@ -126,10 +122,6 @@ export default function Inspector() {
   return (
     <>
     <div className="panel inspector">
-      <h3>
-        <Icon name="palette" size={14} />
-        Inspector
-      </h3>
 
       {!placement && !textBox && <section>
         <h4>
@@ -313,8 +305,7 @@ export default function Inspector() {
           {photo && (
             <div className={`dpi-badge ${dpi !== null && dpi < size.dpi ? 'dpi-badge--warn' : ''}`}>
               <Icon name="info" size={12} />
-              {photo.fileName} · {photo.width}×{photo.height}px
-              {dpi !== null && <> · {dpi} DPI {dpi < size.dpi && '(below target!)'}</>}
+              <span className="inspector-photo-meta"><span title={photo.fileName}>{photo.fileName}</span><small>{photo.width} × {photo.height}px{dpi !== null && <> · {dpi} DPI{dpi < size.dpi && ' · Low resolution'}</>}</small></span>
             </div>
           )}
           <div className="text-style-row">
@@ -670,10 +661,6 @@ function MultiSelectInspector({
 
   return (
     <div className="panel inspector">
-      <h3>
-        <Icon name="palette" size={14} />
-        Inspector
-      </h3>
       <section>
         <h4>
           <Icon name="layers" size={13} />
