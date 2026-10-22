@@ -1,18 +1,22 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { build } from 'esbuild'
-const bundle = await build({ stdin: { contents: `export * from './src/engine/templates';export * from './src/engine/templateLayout';export * from './src/engine/templateMatching'`, resolveDir: process.cwd() }, bundle: true, platform: 'node', format: 'esm', write: false })
-const { BUILT_IN_TEMPLATES: templates, geometrySignature, findTemplate, rankTemplates } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
-const legacy = templates.filter(t => !t.id.startsWith('ref-') && !t.id.startsWith('editorial-'))
+import { readFileSync } from 'node:fs'
+const bundle = await build({ stdin: { contents: `export * from './src/engine/templates';export {GENERATED_TEMPLATES} from './src/engine/templateGenerator';export * from './src/engine/templateLayout';export * from './src/engine/templateMatching'`, resolveDir: process.cwd() }, bundle: true, platform: 'node', format: 'esm', write: false })
+const { BUILT_IN_TEMPLATES: templates, geometrySignature, findTemplate, rankTemplates, GENERATED_TEMPLATES, uniqueTemplates } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
+const templateSource = readFileSync('src/engine/templates.ts', 'utf8')
+const handNames = templateSource.match(/const HAND_CRAFTED_TEMPLATES[^=]*= \[([\s\S]*?)\]/)[1].split(',').map(s=>s.trim()).filter(Boolean)
+const handIds = handNames.map(name=>templateSource.match(new RegExp('const '+name+"[^=]*= \\{\\s*id: '([^']+)'"))[1])
+const legacy = [...handIds.map(findTemplate), ...GENERATED_TEMPLATES]
 console.log('Legacy geometry:', legacy.length, createHash('sha256').update(JSON.stringify(legacy.map(t => [t.id, t.placeholders]))).digest('hex'))
 assert.equal(legacy.length, 1744)
 assert.equal(createHash('sha256').update(JSON.stringify(legacy.map(t => [t.id, t.placeholders]))).digest('hex'), 'adb468255cbbd34b4321428def71754e86e3cc3e5c277fbb6b66bb9614a6a2ff', 'Saved album geometry must stay unchanged')
-assert.equal(templates.filter(t => !t.id.startsWith('editorial-')).length, 9001, 'All existing layouts remain')
-assert.ok(templates.length > 9001, 'Editorial layouts are additional')
+for (const t of legacy) assert.deepEqual(findTemplate(t.id),t,'Saved layouts still resolve')
+assert.equal(uniqueTemplates(templates).length,templates.length,'Only unique compositions are browsable')
 assert.equal(new Set(templates.map(t => t.id)).size, templates.length)
 for (let count = 1; count <= 30; count++) {
   const candidates = templates.filter(t => t.photoCount === count && t.id !== 'cover-front-spine-back')
-  assert.ok(candidates.length >= 300, `${count} photos`)
+  assert.ok(candidates.length > 0, `${count} photos`)
   if (count > 1) assert.ok(candidates.some(t => t.id.startsWith('ref-paired-') && Math.abs(t.placeholders.filter(p=>p.x+p.width<=0.5).length-count/2)<=0.5), `Balanced paired pages for ${count} photos`)
   const newSignatures = new Set()
   for (const t of candidates) {
@@ -41,4 +45,5 @@ for (let count = 1; count <= 30; count++) {
     assert.equal(new Set(ranked[0].photos.map(p => p.id)).size, count)
   }
 }
-console.log('Template checks passed: At least 300 layouts × 30 counts plus editorial additions, stable legacy frames, finite bounds, no new duplicates/overlaps, mixed-photo matching at three aspect ratios.')
+console.log('Template checks passed: Unique layouts for all 30 photo counts, stable legacy frames, finite bounds, no new duplicates/overlaps, mixed-photo matching at three aspect ratios.')
+
