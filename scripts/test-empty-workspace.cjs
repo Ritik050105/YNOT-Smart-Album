@@ -58,7 +58,10 @@ app.whenReady().then(async()=>{
   assert.ok(await evaluate('document.querySelector("[data-spread-drag]").getBoundingClientRect().height')<dimensions[1])
   await evaluate('store.setState({bottomPanelOpen:false})')
  }
- await evaluate('store.getState().enterDesignerView(store.getState().project.spreads[0].id)')
+ assert.equal(await evaluate('document.querySelectorAll(".spread-card-controls__actions button svg path").length'),2,'Both spread actions have visible icons')
+ await evaluate(`store.setState({history:[]});document.querySelector('[aria-label="Flip spread horizontally"]').click()`)
+ assert.equal(await evaluate('store.getState().history.length'),1,'Flip button uses the undoable spread action')
+ await evaluate(`document.querySelector('[aria-label="Edit in Designer View"]').click()`)
  await new Promise(r=>setTimeout(r,400))
  assert.equal(await evaluate('Konva.stages.flatMap(s=>s.find(".center-fold")).length'),1)
  assert.ok(await evaluate('(()=>{const l=Konva.stages.flatMap(s=>s.find(".center-fold"))[0];const p=l.points();return p[0]===p[2]&&p[1]===0&&Math.abs((p[0]*2)/p[3]-.75)<.001})()'))

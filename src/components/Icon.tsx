@@ -3,6 +3,8 @@
 const PATHS: Record<string, string> = {
   home: 'M3 10l9-7 9 7v11h-6v-7H9v7H3V10Z',
   plus: 'M12 5v14M5 12h14',
+  edit: 'M15 5l4 4 M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15l-1 6Z',
+  flipSpread: 'M12 2v20 M8 5H3v14h5 M16 5h2 M21 5v3 M21 11v2 M21 16v3 M18 19h-2',
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z',
   save: 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z M17 21v-8H7v8 M7 3v5h8',
   undo: 'M3 7v6h6 M3 13a9 9 0 1 0 3-6.7L3 9',

@@ -3209,7 +3209,7 @@ input[type='checkbox'] {
 .spreads-panel__card:hover .spread-card-controls, .spreads-panel__card.is-selected .spread-card-controls, .spread-card-controls:focus-within { opacity: 0.92; }
 .spread-card-controls button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
 .spread-card-controls button:hover { background: var(--accent-soft); color: var(--accent); }
-.spread-card-controls__templates { display: flex; }
+.spread-card-controls__actions, .spread-card-controls__templates { display: flex; }
 .spread-card-controls span { min-width: 18px; text-align: center; font-size: 11px; }
 .photo-dock__strip:focus { outline: none; }
 .photo-dock__item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

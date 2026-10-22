@@ -234,7 +234,10 @@ export default function SpreadsPanel() {
             <div data-spread-drag className={`spreads-panel__card ${selectedSpreadId === spread.id ? 'is-selected' : ''}`} style={{ aspectRatio: (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn }}>
             <SpreadThumbnail spread={spread} photosById={photosById} size={project.size} responsive />
             <div className="spread-card-controls" onDoubleClick={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
-              <button title="Edit in Designer View" onClick={() => enterDesignerView(spread.id)}><Icon name="edit" size={12} /></button>
+              <div className="spread-card-controls__actions">
+                <button title="Flip spread horizontally" aria-label="Flip spread horizontally" onClick={() => flipSpread(spread.id)}><Icon name="flipSpread" size={16} /></button>
+                <button title="Edit in Designer View" aria-label="Edit in Designer View" onClick={() => enterDesignerView(spread.id)}><Icon name="edit" size={16} /></button>
+              </div>
               <div className="spread-card-controls__templates">
                 <button title="Previous template (Up)" onClick={() => { selectSpread(spread.id); cycleSpreadTemplate(spread.id, -1) }}><Icon name="chevronLeft" size={12} /></button>
                 <button title="Browse matching templates" onClick={() => openMatchingTemplates(spread.id)}><Icon name="grid" size={12} /></button>
