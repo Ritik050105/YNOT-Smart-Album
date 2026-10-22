@@ -200,3 +200,14 @@ The updated main-release executable launched successfully and reopened the saved
 - Portable SHA-256: `09C79967517961970E5B1737DA1F020FD2E6304F84811D958B52D11D7201B96B`.
 - Application archive SHA-256: `B2AA8822A773CF3CE3A94D37E8DF1AF53F8DC255477B1FC49AC275715B58A860`.
 - Palette unchanged, IDML pending, physical 4K unverified. This fixes the observed manual-count case; it does not establish complete proprietary SmartAlbums grouping parity.
+
+
+## Localhost photo-toolbar verification — 22 October 2026
+
+- Imported a synthetic folder through the toolbar folder chooser: three JPEGs, including a nested image, were imported; a text file was skipped.
+- Reimported that folder: zero new photos, three duplicates skipped, one non-image file skipped. Import progress and final summary appeared in the dock.
+- Searched for uppercase ALPHA and saw only alpha.jpg; clearing search restored the photos.
+- Verified ascending and descending filename order, empty Favorites, and Favorites showing a marked photo.
+- Fixed overlapping favorite/bin buttons discovered during browser clicks; verified favorite toggling after separating the hit targets.
+- Active filters remain indicated after closing options and can be cleared without reopening them.
+- Tested against the running localhost renderer with the browser file-chooser API. A manual Windows folder-dialog walkthrough was not performed.

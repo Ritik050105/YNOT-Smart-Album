@@ -3,6 +3,7 @@ import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useProjectStore } from '@/state/projectStore'
 import { useImportPhotos } from '@/engine/useImportPhotos'
+import { describeImportSummary } from '@/engine/importWorkflow'
 import { autoBuildTargetPhotoIds } from '@/engine/autoBuildTarget'
 import { draggedPhotoIds } from '@/engine/photoDrag'
 import { Spread } from '@/types'
@@ -62,8 +63,11 @@ export default function PhotoBin() {
   const zoom = useProjectStore((s) => s.photoDockZoom)
   const setZoom = useProjectStore((s) => s.setPhotoDockZoom)
 
-  const { handleFiles, importing } = useImportPhotos()
+  const { handleFiles, importing, progress, lastSummary } = useImportPhotos()
   const importInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
+  const [browserTool, setBrowserTool] = useState<'search' | 'filter' | 'sort' | null>(null)
+  const [descending, setDescending] = useState(false)
   const favoritesInputRef = useRef<HTMLInputElement>(null)
   const [autoBuildOpen, setAutoBuildOpen] = useState(false)
   const [patternsOpen, setPatternsOpen] = useState(false)
@@ -127,6 +131,11 @@ export default function PhotoBin() {
           e.target.value = ''
         }}
       />
+      <input ref={folderInputRef} type="file" multiple hidden
+        // @ts-expect-error -- Chromium folder selection
+        webkitdirectory=""
+        onChange={(e) => { void handleFiles(e.target.files); e.target.value = '' }}
+      />
       <input
         ref={favoritesInputRef}
         type="file"
@@ -159,15 +168,6 @@ export default function PhotoBin() {
   )
 
   if (patternsOpen) return <PatternsPanel onShowPhotos={() => setPatternsOpen(false)} />
-  if (photos.length === 0) {
-    return (
-      <div className="photo-dock photo-dock--empty">
-        {importButtons}
-        <Icon name="image" size={22} />
-        <p>No photos imported yet — drag photos here, or use Import Images above.</p>
-      </div>
-    )
-  }
 
   const filtered = photos
     .filter((p) => {
@@ -185,6 +185,8 @@ export default function PhotoBin() {
     if (sortBy === 'bin') return (a.bins[0] ?? '').localeCompare(b.bins[0] ?? '')
     return new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime()
   })
+
+  if (descending) sorted.reverse()
 
   const unplacedCount = photos.length - usedPhotoIds.size
 
@@ -215,31 +217,18 @@ export default function PhotoBin() {
     <div className="photo-dock">
       <div className="photo-dock__toolbar">
         {importButtons}
-        <div className="photo-dock__tabs">
-          {QUICK_FILTERS.map((f) => (
-            <button
-              key={f.id}
-              className={quickFilter === f.id ? 'is-active' : ''}
-              title={f.title}
-              onClick={() => setQuickFilter(f.id)}
-            >
-              <Icon name={f.icon} size={14} />
+        <div className="photo-dock__tools" role="group" aria-label="Photo browser tools">
+          {(['search', 'filter', 'sort'] as const).map((tool) => (
+            <button key={tool} className={`btn btn--icon ${browserTool === tool || (tool === 'search' && search.trim()) || (tool === 'filter' && (quickFilter !== 'all' || binFilter)) ? 'is-active' : ''}`}
+              title={`${tool[0].toUpperCase() + tool.slice(1)} photos`} aria-label={`${tool[0].toUpperCase() + tool.slice(1)} photos`}
+              aria-expanded={browserTool === tool} aria-controls="photo-browser-options"
+              onClick={() => setBrowserTool(browserTool === tool ? null : tool)}>
+              <Icon name={tool} size={20} />
             </button>
           ))}
-        </div>
-
-        <label className="photo-dock__sort">
-          <span className="muted">Filter:</span>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortMode)}>
-            <option value="time">Sort by time taken</option>
-            <option value="name">Sort by file name</option>
-            <option value="bin">Sort by bin</option>
-          </select>
-        </label>
-
-        <div className="photo-dock__search">
-          <Icon name="search" size={13} />
-          <input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <span className="photo-dock__tool-divider" />
+          <button className="btn btn--icon" title="Import folder" aria-label="Import folder" disabled={importing}
+            onClick={() => folderInputRef.current?.click()}><Icon name="folder" size={21} /></button>
         </div>
 
         <input
@@ -257,6 +246,33 @@ export default function PhotoBin() {
           {selectedPhotoIds.length > 0 && ` · ${selectedPhotoIds.length} selected`}
         </span>
       </div>
+
+      <div className="photo-dock__status muted" role="status">
+        {importing && progress ? `Importing ${progress.done} of ${progress.total}…` : lastSummary ? describeImportSummary(lastSummary) : ''}
+        {(search.trim() || quickFilter !== 'all' || binFilter) && <> · Filters active <button className="btn btn--tiny" onClick={() => { setSearch(''); setQuickFilter('all'); setBinFilter('') }}>Clear all filters</button></>}
+      </div>
+      {browserTool && <div id="photo-browser-options" className="photo-dock__options">
+        {browserTool === 'search' && <div className="photo-dock__search">
+          <Icon name="search" size={14} />
+          <input autoFocus aria-label="Search photo filenames" placeholder="Search filenames…" value={search}
+            onChange={(e) => setSearch(e.target.value)} />
+          <button className="btn btn--icon btn--tiny" aria-label="Clear search" onClick={() => setSearch('')}><Icon name="x" size={12} /></button>
+        </div>}
+        {browserTool === 'filter' && <div className="photo-dock__tabs">
+          {QUICK_FILTERS.map((f) => <button key={f.id} className={quickFilter === f.id ? 'is-active' : ''}
+            aria-pressed={quickFilter === f.id} onClick={() => setQuickFilter(f.id)}><Icon name={f.icon} size={14} /> {f.title}</button>)}
+        </div>}
+        {browserTool === 'sort' && <label className="photo-dock__sort">Sort photos:
+          <select aria-label="Sort photos by" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortMode)}>
+            <option value="time">Time taken</option><option value="name">File name</option><option value="bin">Bin</option>
+          </select>
+          <select aria-label="Sort direction" value={descending ? 'descending' : 'ascending'} onChange={(e) => setDescending(e.target.value === 'descending')}>
+            <option value="ascending">Ascending</option><option value="descending">Descending</option>
+          </select>
+        </label>}
+        {(search || quickFilter !== 'all' || binFilter) && <button className="btn btn--tiny" onClick={() => { setSearch(''); setQuickFilter('all'); setBinFilter('') }}>Reset filters</button>}
+        <button className="btn btn--icon btn--tiny" aria-label="Close photo options" onClick={() => setBrowserTool(null)}><Icon name="x" size={14} /></button>
+      </div>}
 
       {/* Its own row, matching the reference app — bins are a primary way to browse a shoot
          (Prep / Ceremony / Dinner / Portraits…), not a minor option buried among other filters. */}
@@ -414,7 +430,7 @@ export default function PhotoBin() {
             </div>
           )
         })}
-        {sorted.length === 0 && <p className="muted photo-dock__empty">No photos match this filter.</p>}
+        {sorted.length === 0 && <p className="muted photo-dock__empty">{photos.length ? 'No photos match this filter.' : 'No photos imported yet — use Import Images or Import folder.'}</p>}
       </div>
     </div>
   )

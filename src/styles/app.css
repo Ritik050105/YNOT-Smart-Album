@@ -2987,7 +2987,7 @@ input[type='checkbox'] {
 }
 .photo-dock__tag-btn {
   position: absolute;
-  top: 4px;
+  bottom: 4px;
   left: 4px;
   width: 16px;
   height: 16px;
@@ -3311,3 +3311,17 @@ input[type='checkbox'] {
   .auto-build-count { margin-bottom: 10px; }
   .auto-build-reuse { margin-top: 8px; margin-bottom: 0; }
 }
+
+.photo-dock__tools { display: flex; align-items: center; gap: 4px; }
+.photo-dock__tools .is-active { color: var(--accent); background: var(--panel-alt); }
+.photo-dock__tool-divider { height: 25px; border-left: 1px solid var(--border); margin: 0 5px; }
+.photo-dock__options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 10px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+.photo-dock__options .photo-dock__tabs { flex-wrap: wrap; }
+
+.photo-dock__options .photo-dock__tabs button { width: auto; padding: 0 8px; gap: 5px; }
+
+.photo-dock__status:empty { display: none; }
+.photo-dock__status { padding: 3px 10px; flex-shrink: 0; font-size: 11px; }
+
+.photo-dock__item:focus-within .photo-dock__fav-btn,
+.photo-dock__item:focus-within .photo-dock__tag-btn { opacity: 1; }

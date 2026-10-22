@@ -35,6 +35,8 @@ const PATHS: Record<string, string> = {
   panelLeft: 'M3 3h18v18H3V3Z M9 3v18',
   panelRight: 'M3 3h18v18H3V3Z M15 3v18',
   panelBottom: 'M3 3h18v18H3V3Z M3 15h18',
+  filter: 'M4 4h16l-6 8v7l-4 2v-9L4 4Z',
+  sort: 'M3 6h18 M3 12h12 M3 18h6',
   search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z M21 21l-4.3-4.3',
   heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z',
   wand: 'M15 4V2 M15 16v-2 M8 9h2 M20 9h2 M17.8 6.2l1.4-1.4 M17.8 11.8l1.4 1.4 M3 21l9-9 M12.2 12.2 15 15',
