@@ -12,7 +12,7 @@
     "files": [
       "dist/**",
       "dist-electron/**",
-      "src/assets/ynot-mark-white.png"
+      "src/assets/ynot-mark-dark.png"
     ],
     "directories": {
       "output": "release",

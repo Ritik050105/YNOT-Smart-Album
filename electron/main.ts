@@ -27,12 +27,12 @@ function createSplash(): BrowserWindow {
     webPreferences: { contextIsolation: true },
   })
   splash.setMenu(null)
-  const logo = fs.readFileSync(path.join(app.getAppPath(), 'src', 'assets', 'ynot-mark-white.png')).toString('base64')
+  const logo = fs.readFileSync(path.join(app.getAppPath(), 'src', 'assets', 'ynot-mark-dark.png')).toString('base64')
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     html,body{margin:0;height:100%;background:#fafafa;}
     body{display:grid;place-items:center;-webkit-user-select:none;}
-    .mark{width:144px;height:144px;max-width:24vmin;max-height:24vmin;border-radius:24%;background:linear-gradient(145deg,#2b2b2e,#0c0c0d);display:grid;place-items:center;border:1px solid #63676d;box-sizing:border-box;}
-    img{width:58%;height:58%;object-fit:contain;}
+    .mark{width:64px;height:64px;max-width:16vmin;max-height:16vmin;display:grid;place-items:center;}
+    img{width:100%;height:100%;object-fit:contain;}
   </style></head><body><div class="mark" role="status" aria-label="Loading YNOT Album Studio"><img src="data:image/png;base64,${logo}" alt="YNOT Photography"></div></body></html>`
   splash.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
   return splash

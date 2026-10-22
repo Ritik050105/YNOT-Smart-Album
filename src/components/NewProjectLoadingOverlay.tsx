@@ -1,4 +1,4 @@
-import ynotMark from '@/assets/ynot-mark-white.png'
+import ynotMark from '@/assets/ynot-mark-dark.png'
 
 interface Props {
   title?: string
