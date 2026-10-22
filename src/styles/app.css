@@ -1,30 +1,26 @@
-/* Light is the app's default theme (matches the reference app and is easier to read in a studio
- * with ambient light); dark remains available via the toolbar toggle and is layered on top with
- * [data-theme='dark'] so every component that already consumes these variables gets it for free. */
+/* Shared reference-inspired palette for every window and portal. */
 :root {
-  /* Palette lifted from the client's own site (ynot.website): warm bronze/terracotta
-     (rgb(156,107,73)) as the signature accent, over warm cream/charcoal neutrals — replacing the
-     generic cool-gray/teal scheme with something that actually reads as "YNOT". */
-  --bg: #f6f1ea;
-  --bg-canvas: #ece3d7;
-  --panel: #fffdfa;
-  --panel-alt: #f5efe6;
-  --panel-raised: #efe5d7;
-  --border: #e3d8c8;
-  --border-soft: #ede3d4;
-  --text: #2a241e;
-  --text-muted: #7a6f62;
-  --text-faint: #a89b8a;
 
-  --accent: #9c6b49;
-  --accent-2: #c79868;
+  --bg: #292b2e;
+  --bg-canvas: #bfbfbf;
+  --panel: #393b3f;
+  --panel-alt: #303236;
+  --panel-raised: #474a4f;
+  --border: #64676d;
+  --border-soft: #484b50;
+  --text: #f4f5f6;
+  --text-muted: #c6c9ce;
+  --text-faint: #aeb3ba;
+
+  --accent: #ffe735;
+  --accent-2: #ffe735;
   --accent-grad: linear-gradient(135deg, var(--accent), var(--accent-2));
-  --accent-soft: rgba(156, 107, 73, 0.12);
-  --accent-ring: rgba(156, 107, 73, 0.4);
+  --accent-soft: rgba(255, 231, 53, 0.10);
+  --accent-ring: rgba(255, 231, 53, 0.28);
 
-  --success: #4f8f5c;
-  --warn: #b5791f;
-  --danger: #b23b3b;
+  --success: #81c995;
+  --warn: #f2c36b;
+  --danger: #ff8d8d;
   --danger-soft: rgba(178, 59, 59, 0.1);
 
   --canvas-dot: rgba(42, 36, 30, 0.07);
@@ -51,23 +47,22 @@
 }
 
 :root[data-theme='dark'] {
-  /* The client's site itself runs near-black with the same bronze accent brightened for contrast
-     — this mirrors that look rather than inventing an unrelated dark palette. */
-  --bg: #19160f;
-  --bg-canvas: #0e0c08;
-  --panel: #221d15;
-  --panel-alt: #2b251a;
-  --panel-raised: #352d20;
-  --border: #433a29;
-  --border-soft: #332c20;
-  --text: #f3ebe1;
-  --text-muted: #b2a493;
-  --text-faint: #786b5a;
 
-  --accent: #d4a574;
-  --accent-2: #e8c196;
-  --accent-soft: rgba(212, 165, 116, 0.16);
-  --accent-ring: rgba(212, 165, 116, 0.45);
+  --bg: #222427;
+  --bg-canvas: #aeb0b3;
+  --panel: #303236;
+  --panel-alt: #292b2f;
+  --panel-raised: #3e4146;
+  --border: #5c6067;
+  --border-soft: #43464c;
+  --text: #f4f5f6;
+  --text-muted: #c6c9ce;
+  --text-faint: #aeb3ba;
+
+  --accent: #ffe735;
+  --accent-2: #ffe735;
+  --accent-soft: rgba(255, 231, 53, 0.10);
+  --accent-ring: rgba(255, 231, 53, 0.28);
 
   --success: #6fbf7f;
   --warn: #ffb347;
@@ -75,7 +70,7 @@
   --danger-soft: rgba(255, 122, 122, 0.12);
 
   --canvas-dot: rgba(255, 255, 255, 0.045);
-  --slider-thumb-ring: #1a1510;
+  --slider-thumb-ring: #303236;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.35);
@@ -3325,3 +3320,59 @@ input[type='checkbox'] {
 
 .photo-dock__item:focus-within .photo-dock__fav-btn,
 .photo-dock__item:focus-within .photo-dock__tag-btn { opacity: 1; }
+
+/* Consistent entrance, setup and dialog styling; album artwork keeps its own colors. */
+:root { color-scheme: dark; }
+.btn--primary, .btn--toggle.is-active, .btn--icon.is-active { color: #26282b; box-shadow: none; }
+.btn { font-weight: 600; }
+.btn:hover:not(:disabled) { transform: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+input::placeholder { color: var(--text-faint); opacity: 1; }
+.home-screen { padding: clamp(24px, 5vh, 56px) clamp(20px, 5vw, 80px) 48px; background: radial-gradient(ellipse at 50% 0, #414449 0, var(--bg) 65%); }
+.home-screen__header { gap: 16px; margin-bottom: clamp(24px, 5vh, 48px); }
+.home-screen__mark { width: 68px; height: 68px; border: 1px solid #63676d; box-shadow: 0 12px 28px #0003; }
+.home-screen__header h1 { font-size: clamp(22px, 2vw, 28px); font-weight: 600; letter-spacing: -.5px; }
+.home-tabs, .home-screen__toolbar, .home-screen__grid { max-width: 1200px; }
+.home-tabs { gap: 28px; }
+.home-tabs button { padding: 12px 2px; }
+.home-screen__toolbar { margin-top: 20px; margin-bottom: 20px; }
+.home-screen__toolbar .btn { min-height: 42px; }
+.home-screen__search { max-width: 350px; padding: 8px 12px; border-color: var(--border-soft); }
+.home-screen__search input { min-width: 0; padding: 3px; box-shadow: none; }
+.home-screen__search:focus-within { border-color: var(--accent); }
+.home-screen__grid { gap: 20px; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); }
+.home-card { border-color: var(--border); box-shadow: 0 4px 18px #0002; }
+.home-card:hover { transform: translateY(-2px); }
+.home-card__thumb { height: 130px; background: linear-gradient(145deg, #53565b, #3e4146); color: #f4f5f6; border-bottom: 1px solid var(--border-soft); }
+.home-card__thumb svg { width: 38px; height: 38px; }
+.home-card__body { gap: 5px; padding: 16px; }
+.home-card__name { font-size: 14px; font-weight: 600; }
+.home-card__meta, .home-card__date { font-size: 12px; }
+.home-card__remove { top: 10px; right: 10px; width: 26px; height: 26px; background: #242629aa; }
+.home-screen__empty { border: 1px dashed var(--border); border-radius: 12px; padding: 44px 20px; }
+.modal-card { border-color: var(--border); box-shadow: 0 24px 80px #0006; }
+.modal-card__header { background: var(--panel-alt); padding: 22px 24px 18px; }
+.modal-card__header h2 { font-size: 20px; font-weight: 600; }
+.modal-card__body { padding: 22px 24px; }
+.modal-card__footer { background: var(--panel-alt); padding: 16px 24px; }
+.modal-card__footer .btn { min-height: 38px; padding-inline: 20px; }
+.shape-option { border-radius: 8px; }
+.shape-option.is-selected { border-color: var(--accent); background: var(--accent-soft); }
+.shape-option.is-selected .shape-option__swatch { background: #ffe73540; border-color: var(--accent); }
+.new-project-loading { background: var(--bg); }
+.photo-dock__bins button.is-active, .designer-view__tool.is-active { color: #26282b; }
+@media (max-width: 600px) {
+  .home-screen__toolbar { flex-wrap: wrap; }
+  .home-screen__search { flex-basis: 100%; max-width: none; }
+  .home-screen__toolbar-actions { margin-left: auto; }
+  .modal-card__header, .modal-card__body, .modal-card__footer { padding: 14px 16px; }
+}
+@media (max-height: 600px) {
+  .home-screen { padding-top: 20px; }
+  .home-screen__header { flex-direction: row; justify-content: center; margin-bottom: 16px; }
+  .home-screen__mark { width: 44px; height: 44px; border-radius: 12px; }
+  .modal-card__header, .modal-card__body, .modal-card__footer { padding-block: 12px; }
+}
+.workflow-step.is-done .workflow-step__dot, .photo-dock__tabs button.is-active,
+.gallery-screen__tabs button.is-active, .template-pick-item__check { color: #26282b; }
+.template-thumb .gallery-cell { background-color: #bfc3c9; border-color: #e0e2e6; }
