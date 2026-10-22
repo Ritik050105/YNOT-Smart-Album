@@ -26,9 +26,9 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
   const redo = useProjectStore((s) => s.redo)
   const history = useProjectStore((s) => s.history)
   const future = useProjectStore((s) => s.future)
-  const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
+  const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
   const bottomPanelOpen = useProjectStore((s) => s.bottomPanelOpen)
-  const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
+  const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const toggleBottomPanel = useProjectStore((s) => s.toggleBottomPanel)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
   const markSaved = useProjectStore((s) => s.markSaved)
@@ -237,7 +237,7 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
         <button className="btn" onClick={toggleTheme}>{theme === 'light' ? 'Dark' : 'Light'} theme</button>
       </div></details>
       <button className={`btn btn--icon ${bottomPanelOpen ? 'is-active' : ''}`} title={bottomPanelOpen ? 'Hide image browser' : 'Show image browser'} aria-label={bottomPanelOpen ? 'Hide image browser' : 'Show image browser'} aria-expanded={bottomPanelOpen} onClick={toggleBottomPanel}><Icon name="panelBottom" /></button>
-      <button className={`btn btn--icon ${leftPanelOpen ? 'is-active' : ''}`} title={leftPanelOpen ? 'Hide left panel' : 'Show left panel'} onClick={toggleLeftPanel}><Icon name="panelLeft" /></button>
+      <button className={`btn btn--icon ${rightPanelOpen ? 'is-active' : ''}`} title={rightPanelOpen ? 'Hide album sidebar' : 'Show album sidebar'} aria-label={rightPanelOpen ? 'Hide album sidebar' : 'Show album sidebar'} aria-expanded={rightPanelOpen} onClick={toggleRightPanel}><Icon name="panelRight" /></button>
       <button className="btn btn--primary" disabled={project.spreads.length === 0} onClick={() => setExportOpen(true)}><Icon name="download" size={14} />Export</button>
 
       </>}

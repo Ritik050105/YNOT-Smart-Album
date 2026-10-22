@@ -8,7 +8,7 @@ function Collapsible({ title, children, defaultOpen = true }: { title: string; c
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="collapsible">
-      <button className="collapsible__header" onClick={() => setOpen((o) => !o)}>
+      <button className="collapsible__header" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <span>{title}</span>
         <Icon name={open ? 'chevronUp' : 'chevronDown'} size={12} />
       </button>
@@ -49,7 +49,7 @@ export default function AlbumInfoPanel() {
     <div className="panel album-info-panel">
       <div className="album-info-panel__header">
         <div>
-          <strong>{project.size.label}</strong>
+          <strong>YNOT Photography</strong>
           <span className="muted">
             {inToDisplay(project.size.widthIn, project.units, project.size.dpi)}
             {project.units} × {inToDisplay(project.size.heightIn, project.units, project.size.dpi)}
@@ -61,7 +61,7 @@ export default function AlbumInfoPanel() {
         </button>
       </div>
 
-      <Collapsible title="Album Info">
+      <Collapsible title="Album Info" defaultOpen={false}>
         <p className="muted">
           {stats.interiorSpreads.length} spread{stats.interiorSpreads.length === 1 ? '' : 's'} ({stats.pageCount} page
           {stats.pageCount === 1 ? '' : 's'}): {stats.uniqueTemplates} unique template{stats.uniqueTemplates === 1 ? '' : 's'}

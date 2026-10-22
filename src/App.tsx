@@ -198,6 +198,8 @@ export default function App() {
       <MissingColorProfileDialog />
       <MenuBar />
       <TopBar />
+      <div className="editor-workspace">
+      <div className="editor-workspace__content">
       <MatchingTemplatesPanel />
       <div className="app-body">
         {leftPanelOpen && (
@@ -222,11 +224,6 @@ export default function App() {
         >
           <Icon name={rightPanelOpen ? 'chevronRight' : 'chevronLeft'} size={12} />
         </button>
-        {rightPanelOpen && (
-          <aside className="app-sidebar app-sidebar--right">
-            <AlbumInfoPanel />
-          </aside>
-        )}
       </div>
       <div className="bottom-panel" hidden={matchingTemplatesOpen}>
         <button
@@ -237,6 +234,9 @@ export default function App() {
           <Icon name={bottomPanelOpen ? 'chevronDown' : 'chevronUp'} size={12} />
         </button>
         {bottomPanelOpen && <PhotoBin />}
+      </div>
+      </div>
+      {rightPanelOpen && <aside className="app-sidebar app-sidebar--right" aria-label="Album sidebar"><AlbumInfoPanel /></aside>}
       </div>
     </div>
   )

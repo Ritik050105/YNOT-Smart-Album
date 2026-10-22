@@ -150,3 +150,30 @@
 .album-editor .photo-dock--empty .photo-dock__toolbar { width: 100%; }
 .album-editor .photo-dock--empty .photo-dock__import-actions { justify-content: flex-start; }
 .album-editor .photo-dock--empty .photo-dock__import-actions > button:first-of-type { background: #ffe735; color: #444; }
+
+/* The album sidebar spans both the canvas and the image browser. */
+.editor-workspace { display: flex; flex: 1; min-height: 0; }
+.editor-workspace__content { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.album-editor .editor-workspace > .app-sidebar--right { width: clamp(280px, 31.25vw, 500px); padding: 0; background: #fff; border-left: 1px solid #ddd; box-shadow: -2px 0 5px #0001; }
+.album-editor .album-info-panel { --text: #555; --text-muted: #666; --border-soft: #e5e5e5; color: #555; background: #fff; border: 0; border-radius: 0; padding: 0; box-shadow: none; }
+.album-editor .album-info-panel__header { min-height: 70px; padding: 18px 20px; margin: 0; gap: 10px; }
+.album-editor .album-info-panel__header > div { display: contents; }
+.album-editor .album-info-panel__header strong { font-size: 19px; }
+.album-editor .album-info-panel__header .muted { margin-left: auto; font-size: 16px; white-space: nowrap; }
+.album-editor .album-info-panel__header .btn { background: #eee; color: #666; border-radius: 50%; }
+.album-editor .album-info-panel .collapsible { margin: 0; padding: 0; border-top: 0; }
+.album-editor .album-info-panel .collapsible__header { padding: 17px 20px; background: #f8f8f8; border-bottom: 1px solid #e5e5e5; color: #555; font-size: 16px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.album-editor .album-info-panel .collapsible__body { padding: 24px 20px; gap: 18px; font-size: 14px; }
+.album-editor .album-info-panel .field { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 12px; color: #666; font-size: 14px; margin: 0; }
+.album-editor .album-info-panel select { width: 100%; min-width: 0; background: #fff; color: #555; border: 0; border-bottom: 1px solid #bbb; border-radius: 0; padding: 10px 8px; box-shadow: none; }
+.album-editor .album-info-panel select option { background: #fff; color: #555; }
+@media (max-width: 850px) {
+  .album-editor .album-info-panel__header { flex-wrap: wrap; padding: 14px; }
+  .album-editor .album-info-panel__header strong { font-size: 16px; }
+  .album-editor .album-info-panel__header .muted { font-size: 13px; }
+  .album-editor .album-info-panel .field { grid-template-columns: 90px minmax(0, 1fr); gap: 6px; }
+}
+.album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions > button > span { display: none; }
+.album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions > button { width: 38px; padding: 0; }
+.album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions svg { width: 19px; height: 19px; }
+.album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__toolbar { gap: 8px; }

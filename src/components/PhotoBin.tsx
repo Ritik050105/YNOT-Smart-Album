@@ -148,21 +148,22 @@ export default function PhotoBin() {
           e.target.value = ''
         }}
       />
-      <button className="btn btn--tiny" disabled={importing} onClick={() => importInputRef.current?.click()}>
+      <button className="btn btn--tiny" aria-label="Import Images" title="Import Images" disabled={importing} onClick={() => importInputRef.current?.click()}>
         <Icon name="upload" size={12} />
-        Import Images
+        <span>Import Images</span>
       </button>
-      <button className="btn btn--tiny" disabled={importing} onClick={() => favoritesInputRef.current?.click()}>
+      <button className="btn btn--tiny" aria-label="Import Favorites" title="Import Favorites" disabled={importing} onClick={() => favoritesInputRef.current?.click()}>
         <Icon name="heart" size={12} />
-        Import Favorites
+        <span>Import Favorites</span>
       </button>
       <button
+        aria-label="Auto Build" title="Auto Build"
         className={`btn btn--tiny ${autoBuildTargets.length > 0 ? 'btn--primary' : ''}`}
         disabled={autoBuildTargets.length === 0}
         onClick={() => setAutoBuildOpen(true)}
       >
         <Icon name="sparkles" size={12} />
-        Auto Build
+        <span>Auto Build</span>
       </button>
       {autoBuildOpen && <AutoBuildModal photoIds={autoBuildTargets} onClose={() => setAutoBuildOpen(false)} />}
     </div>
