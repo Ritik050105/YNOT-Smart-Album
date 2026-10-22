@@ -694,7 +694,7 @@ export default function DesignerCanvas() {
         </label>
         <label className="toolbar-toggle">
           <input type="checkbox" checked={showPrintGuides} onChange={togglePrintGuides} />
-          Print guides (<span style={{ color: '#ffb347' }}>bleed</span> / <span style={{ color: '#4fd6c0' }}>safety</span>)
+          Print guides (<span style={{ color: '#d95339' }}>bleed</span> / <span style={{ color: '#9fcb99' }}>safety</span>)
         </label>
         <button className="btn btn--tiny toolbar-zoom" title="Fit spread to view (Ctrl/Cmd+0)" onClick={fitToView}>
           {Math.round(stageScale * 100)}%

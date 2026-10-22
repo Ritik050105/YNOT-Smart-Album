@@ -3490,3 +3490,17 @@ input::placeholder { color: var(--text-faint); opacity: 1; }
 .project-creating__title { padding: 10px 18px; background: #f1f1f1; font-size: 14px; }
 .project-creating p { margin: 28px 24px; }
 .project-creating progress { display: block; width: calc(100% - 48px); height: 6px; margin: 0 24px 30px; accent-color: #ffe735; }
+
+.project-wizard__company { max-width: 520px; }
+.project-wizard__company .shape-picker { margin: 14px 0 16px; gap: 38px; }
+.project-wizard__company .shape-option { padding: 0; }
+.project-wizard__company .shape-option.is-selected { background: transparent; }
+.project-wizard__company .shape-option__icon { height: 124px; }
+.project-wizard__company .shape-option__swatch { width: auto; height: 124px; max-height: none; }
+.project-wizard__company .project-wizard__size { width: 140px; }
+.project-wizard__album-type { margin-top: 32px; }
+.project-wizard .modal-card__footer { border-top: 0; }
+@media (max-width: 600px) {
+ .project-wizard__company .shape-picker { gap: 16px; }
+ .project-wizard__company .shape-option__icon, .project-wizard__company .shape-option__swatch { height: 90px; }
+}

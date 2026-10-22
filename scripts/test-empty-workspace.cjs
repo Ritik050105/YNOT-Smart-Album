@@ -62,6 +62,14 @@ app.whenReady().then(async()=>{
  await new Promise(r=>setTimeout(r,400))
  assert.equal(await evaluate('Konva.stages.flatMap(s=>s.find(".center-fold")).length'),1)
  assert.ok(await evaluate('(()=>{const l=Konva.stages.flatMap(s=>s.find(".center-fold"))[0];const p=l.points();return p[0]===p[2]&&p[1]===0&&Math.abs((p[0]*2)/p[3]-.75)<.001})()'))
+ for(const side of ['single','left','right']){
+  await evaluate(`store.getState().updateSpread(store.getState().project.spreads[0].id,{pageSide:'${side}'})`)
+  await new Promise(r=>setTimeout(r,100))
+  assert.equal(await evaluate('Konva.stages.flatMap(s=>s.find(".center-fold")).length'),0)
+ }
+ await evaluate('store.getState().updateSpread(store.getState().project.spreads[0].id,{pageSide:"spread"});store.getState().togglePrintGuides()')
+ await new Promise(r=>setTimeout(r,100))
+ assert.equal(await evaluate('Konva.stages.flatMap(s=>s.find(".center-fold")).length'),1)
  await fs.writeFile(path.join(out,'designer-fold.png'),(await win.webContents.capturePage()).toPNG())
  console.log('Empty workspace checks passed: new-project panel reset, responsive drop target, bottom browser toggle, menus and disabled selection actions.',out)
  win.destroy();app.quit()

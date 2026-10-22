@@ -291,11 +291,7 @@ export default function NewProjectWizard({
             <button className="btn" onClick={() => setStep(1)}>
               Back
             </button>
-          ) : (
-            <button className="btn" onClick={onClose}>
-              Cancel
-            </button>
-          )}
+          ) : null}
           <div className="footer-spacer" />
           {step === 1 ? (
             <button className="btn btn--primary" onClick={() => setStep(2)}>
@@ -322,23 +318,23 @@ export default function NewProjectWizard({
               </label>
 
               <div className="field-section">
-                <div className="field-section__title">Album Format and Size</div>
+                <div className="field-section__title">Album Format and Size (in):</div>
                 <div className="shape-picker">
                   {SHAPES.slice(0, 3).map((s) => (
                     <button
                       key={s.category}
                       className={`shape-option ${!selectedPreset && shape === s.category ? 'is-selected' : ''}`}
+                      aria-label={s.label}
                       aria-pressed={!selectedPreset && shape === s.category}
                       onClick={() => toggleShape(s.category)}
                     >
                       <span className="shape-option__icon"><span className="shape-option__swatch" style={{ aspectRatio: s.aspect }} /></span>
-                      <span className="shape-option__label">{s.label}</span>
+
                     </button>
                   ))}
                 </div>
-                <label className="field">
-                  Exact size
-                  <select
+                <label className="field project-wizard__size">
+                  <select aria-label="Exact size"
                     value={presetId}
                     onChange={(e) => selectStandardSize(e.target.value)}
                   >
@@ -346,7 +342,7 @@ export default function NewProjectWizard({
                       <optgroup key={category} label={category}>
                         {ALBUM_SIZES.filter((s) => s.category === category).map((s) => (
                           <option key={s.id} value={s.id}>
-                            {s.label}
+                            {s.widthIn}×{s.heightIn}
                           </option>
                         ))}
                       </optgroup>
@@ -354,6 +350,12 @@ export default function NewProjectWizard({
                   </select>
                 </label>
               </div>
+              <label className="field project-wizard__album-type">
+                Album Type:
+                <select value="photo-album" onChange={() => undefined}>
+                  <option value="photo-album">Photo Album</option>
+                </select>
+              </label>
             </div>
           ) : (
             <div className="project-wizard__custom">
@@ -450,12 +452,7 @@ export default function NewProjectWizard({
             </div>
           )}
 
-          <details className="project-wizard__details"><summary>Project details</summary>
-          {specTab === 'company' && <label className="field">Album format
-            <select value={shape} onChange={e => toggleShape(e.target.value as AlbumSizeCategory)}>
-              {SHAPES.map(s => <option key={s.category} value={s.category}>{s.label}</option>)}
-            </select>
-          </label>}
+          {specTab === 'custom' && <details className="project-wizard__details"><summary>Project details</summary>
           <label className="field">Album name<input value={name} onChange={e => setName(e.target.value)} /></label>
           <div className="field-grid">                <label className="field">
                   Min pages (0 = no limit)
@@ -478,7 +475,7 @@ export default function NewProjectWizard({
               </select>
             </label>
           </div>
-          </details>
+          </details>}
         </>
       ) : (
         <div className="library-appearance">
