@@ -280,6 +280,8 @@ interface ProjectState {
   updateSpread: (spreadId: string, patch: Partial<Spread>) => void
   applyBackgroundToAllSpreads: (spreadId: string, pattern?: Spread['backgroundPattern']) => void
   makePhotoBackground: (spreadId: string, frameId: string) => void
+  detachBackground: (spreadId: string) => void
+  relinkPhoto: (photoId: string, replacement: PhotoAsset) => void
   addImageFrame: (spreadId: string, rect: { x: number; y: number; width: number; height: number }, photoId?: string) => void
   updateImageFrame: (spreadId: string, frameId: string, rect: { x: number; y: number; width: number; height: number }) => void
   removeImageFrame: (spreadId: string, frameId: string) => void
@@ -308,7 +310,7 @@ interface ProjectState {
   redo: () => void
   renameProject: (name: string) => void
   updateProjectMeta: (patch: Partial<Pick<Project, 'eventType' | 'community' | 'clientName'>>) => void
-  updateProjectSettings: (patch: Partial<Pick<Project, 'colorProfile' | 'units' | 'size'>>) => void
+  updateProjectSettings: (patch: Partial<Pick<Project, 'colorProfile' | 'units' | 'size' | 'customFonts'>>) => void
   loadProjectFile: (file: ProjectFile) => void
   newProjectFile: () => void
   createProjectFromWizard: (opts: NewProjectOptions) => void
@@ -897,6 +899,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     get().selectPlaceholder(null)
   },
 
+  detachBackground: (spreadId) => withHistory(set, p => {
+    const photos = [...p.photos]
+    const spreads = p.spreads.map(s => {
+      const bg = s.backgroundPattern
+      if (s.id !== spreadId || bg?.mode !== 'cover') return s
+      let photo = photos.find(a => a.id === bg.edits?.photoId) ?? photos.find(a => a.src === bg.src)
+      if (!photo) {
+        const width = bg.width ?? 1, height = bg.height ?? 1
+        photo = { id: uuid(), src: bg.src, fileName: bg.name, width, height, megapixels: width*height/1000000, orientation: width===height?'square':width>height?'landscape':'portrait', bins: [], favorite: false, mimeType: 'image/jpeg', capturedAt: new Date().toISOString() }
+        photos.push(photo)
+      }
+      const id = uuid(), size = s.size ?? p.size, height = DESIGN_WIDTH*size.heightIn/size.widthIn
+      const boxes = computePlaceholderBoxes(s, DESIGN_WIDTH, height).map(b => ({id:b.placeholderId,x:b.x/DESIGN_WIDTH,y:b.y/height,width:b.width/DESIGN_WIDTH,height:b.height/height,preferredOrientation:'any' as const}))
+      return {...s, backgroundPattern:undefined, flipped:false, customBoxes:[{id,x:0,y:0,width:1,height:1,preferredOrientation:'any' as const},...boxes], placements:[{...defaultPlacement(id,photo.id),...bg.edits,placeholderId:id,photoId:photo.id},...s.placements]}
+    })
+    return {...p,photos,spreads}
+  }),
+  relinkPhoto: (photoId, replacement) => withHistory(set, p => {
+    const original = p.photos.find(a => a.id === photoId)
+    if (!original) return p
+    return {...p, photos:p.photos.map(a => a.id===photoId?{...replacement,id:photoId,bins:a.bins,favorite:a.favorite}:a), spreads:p.spreads.map(s => s.backgroundPattern?.mode==='cover' && (s.backgroundPattern.edits?.photoId===photoId || (!s.backgroundPattern.edits?.photoId && s.backgroundPattern.src===original.src)) ? {...s,backgroundPattern:{...s.backgroundPattern,src:replacement.src,name:replacement.fileName,width:replacement.width,height:replacement.height}}:s)}
+  }),
   addImageFrame: (spreadId, rect, photoId) => {
     const frameId = uuid()
     const bounded = boundedFrameRect(rect)

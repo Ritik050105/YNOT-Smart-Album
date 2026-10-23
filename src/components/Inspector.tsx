@@ -7,17 +7,13 @@ import { templatesForCount, generateCustomGrid, TemplateFrameFilter } from '@/en
 import TemplateThumb from './TemplatePreview'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
-import { LOCAL_FONTS, CLOUD_FONTS, FontOption, getLocalFonts, ensureFontLoaded } from '@/engine/fonts'
+import FontPicker from './FontPicker'
 import Icon from './Icon'
 import SliderField from './SliderField'
 import ColorField from './ColorField'
 import { inToDisplay, displayToIn } from '@/engine/units'
 
 export default function Inspector() {
-  const [localFonts, setLocalFonts] = useState<FontOption[]>(LOCAL_FONTS)
-  useEffect(() => {
-    void getLocalFonts().then(setLocalFonts)
-  }, [])
 
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
@@ -90,8 +86,6 @@ export default function Inspector() {
   const size = spread.size ?? project.size
   const placement = spread.placements.find((p) => p.placeholderId === selectedPlaceholderId)
   const textBox = spread.textBoxes.find((t) => t.id === selectedTextBoxId)
-  const knownFontNames = new Set([...localFonts, ...CLOUD_FONTS].map((f) => f.family))
-  const isCustomFont = !!textBox && !knownFontNames.has(textBox.fontFamily)
   const photo = placement?.photoId ? project.photos.find((p) => p.id === placement.photoId) : undefined
   const spreadAspect = size.widthIn / size.heightIn
   const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / spreadAspect).find(
@@ -504,47 +498,7 @@ export default function Inspector() {
             <Icon name="type" size={13} />
             Text
           </h4>
-          <label>
-            Font
-            <select
-              value={isCustomFont ? '__custom__' : textBox.fontFamily}
-              onChange={(e) => {
-                const family = e.target.value
-                if (family === '__custom__') {
-                  updateTextBox(spread.id, textBox.id, { fontFamily: '' })
-                  return
-                }
-                void ensureFontLoaded(family)
-                updateTextBox(spread.id, textBox.id, { fontFamily: family })
-              }}
-            >
-              <optgroup label="Local Fonts">
-                {localFonts.map((f) => (
-                  <option key={f.family} value={f.family}>
-                    {f.family}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Cloud Fonts">
-                {CLOUD_FONTS.map((f) => (
-                  <option key={f.family} value={f.family}>
-                    {f.family}
-                  </option>
-                ))}
-              </optgroup>
-              <option value="__custom__">Custom…</option>
-            </select>
-          </label>
-          {isCustomFont && (
-            <label>
-              Custom font name
-              <input
-                placeholder="e.g. a font installed on this PC"
-                value={textBox.fontFamily}
-                onChange={(e) => updateTextBox(spread.id, textBox.id, { fontFamily: e.target.value })}
-              />
-            </label>
-          )}
+          <FontPicker value={textBox.fontFamily} onChange={family => updateTextBox(spread.id, textBox.id, { fontFamily: family })} />
           <SliderField buttons
             label="Size"
             value={textBox.fontSize}
@@ -562,13 +516,13 @@ export default function Inspector() {
               className={`btn btn--toggle ${textBox.bold ? 'is-active' : ''}`}
               onClick={() => updateTextBox(spread.id, textBox.id, { bold: !textBox.bold })}
             >
-              B
+              Bold
             </button>
             <button
               className={`btn btn--toggle ${textBox.italic ? 'is-active' : ''}`}
               onClick={() => updateTextBox(spread.id, textBox.id, { italic: !textBox.italic })}
             >
-              I
+              Italic
             </button>
             {(['left', 'center', 'right'] as const).map((a) => (
               <button
@@ -576,7 +530,7 @@ export default function Inspector() {
                 className={`btn btn--toggle ${textBox.align === a ? 'is-active' : ''}`}
                 onClick={() => updateTextBox(spread.id, textBox.id, { align: a })}
               >
-                {a[0].toUpperCase()}
+                {a === 'left' ? 'Align left' : a === 'center' ? 'Center' : 'Align right'}
               </button>
             ))}
           </div>

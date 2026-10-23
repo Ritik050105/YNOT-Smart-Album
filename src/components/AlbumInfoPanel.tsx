@@ -66,6 +66,7 @@ export default function AlbumInfoPanel() {
 
       {selectedSpread?.backgroundPattern?.mode === 'cover' && <Collapsible title="Fixed background">
         <p>{selectedSpread.backgroundPattern.name}</p>
+        <button className="btn btn--tiny" onClick={() => useProjectStore.getState().detachBackground(selectedSpread.id)}>Detach background</button>
         <button className="btn btn--tiny" onClick={() => updateSpread(selectedSpread.id, { backgroundPattern: undefined })}>Remove background</button>
       </Collapsible>}
       <Collapsible title="Album Info" defaultOpen={false}>

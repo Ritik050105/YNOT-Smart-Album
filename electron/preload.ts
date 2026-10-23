@@ -17,6 +17,7 @@ export interface NewProjectPayload {
 export interface AlbumStudioBridge {
   isElectron: true
   getImagePath: (file: File) => string
+  missingImagePaths: (paths: string[]) => Promise<string[]>
   showImageFile: (filePath: string, reveal: boolean) => Promise<void>
   readRecovery: () => Promise<{ filePath: string | null; contents: string } | null>
   writeRecovery: (snapshot: { filePath: string | null; contents: string }) => Promise<void>
@@ -49,6 +50,7 @@ const bridge: AlbumStudioBridge = {
   isElectron: true,
   getImagePath: file => webUtils.getPathForFile(file),
   showImageFile: (filePath, reveal) => ipcRenderer.invoke('images:showFile', filePath, reveal),
+  missingImagePaths: (paths) => ipcRenderer.invoke('images:missingPaths', paths),
   readRecovery: () => ipcRenderer.invoke('recovery:read'),
   writeRecovery: (snapshot) => ipcRenderer.invoke('recovery:write', snapshot),
   clearRecovery: () => ipcRenderer.invoke('recovery:clear'),

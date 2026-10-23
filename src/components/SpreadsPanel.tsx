@@ -18,6 +18,8 @@ import { computePlaceholderBoxes } from '@/engine/layoutMath'
  *  selects a spread; double-click opens it in the focused Designer View to actually work on it —
  *  Escape (or its own back button) returns here. Reorder by drag. */
 export default function SpreadsPanel() {
+  const canvasTool = useProjectStore(s=>s.canvasTool)
+  const pan = useRef<{x:number;y:number;left:number;top:number}|null>(null)
   const [photoMenu, setPhotoMenu] = useState<{ x: number; y: number; spreadId: string; frameId?: string; openedAt: number } | null>(null)
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
@@ -164,7 +166,12 @@ export default function SpreadsPanel() {
 
   return (
     <div className={`spreads-panel ${project.spreads.length === 0 ? 'spreads-panel--empty' : ''}`} style={{ '--spread-aspect': project.size.widthIn / project.size.heightIn } as CSSProperties}>
-      <div ref={spreadsRef} className="spreads-panel__row">
+      <div ref={spreadsRef} className="spreads-panel__row" style={{cursor:canvasTool==='pan'?'grab':undefined}}
+        onPointerDownCapture={e=>{if(canvasTool!=='pan'||e.button!==0||(e.target as HTMLElement).closest('button'))return;e.preventDefault();e.stopPropagation();pan.current={x:e.clientX,y:e.clientY,left:e.currentTarget.scrollLeft,top:e.currentTarget.scrollTop};e.currentTarget.setPointerCapture(e.pointerId)}}
+        onPointerMove={e=>{if(!pan.current)return;e.currentTarget.scrollLeft=pan.current.left+pan.current.x-e.clientX;e.currentTarget.scrollTop=pan.current.top+pan.current.y-e.clientY}}
+        onPointerUp={e=>{if(pan.current){pan.current=null;e.currentTarget.releasePointerCapture(e.pointerId)}}}
+        onPointerCancel={()=>{pan.current=null}}
+        onClickCapture={e=>{if(canvasTool==='pan'&&!(e.target as HTMLElement).closest('button')){e.preventDefault();e.stopPropagation()}}}>
         {cover ? (
           <div
             className={`spreads-panel__card spreads-panel__card--cover ${selectedSpreadId === cover.id ? 'is-selected' : ''}`}

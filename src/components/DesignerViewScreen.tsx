@@ -174,6 +174,8 @@ export default function DesignerViewScreen() {
               key={t.tool}
               className={`designer-view__tool ${canvasTool === t.tool ? 'is-active' : ''}`}
               title={t.title}
+              aria-label={t.title}
+              aria-pressed={canvasTool === t.tool}
               onClick={() => setCanvasTool(t.tool)}
             >
               <Icon name={t.icon} size={16} />

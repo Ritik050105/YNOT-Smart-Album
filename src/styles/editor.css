@@ -188,3 +188,62 @@
 .album-editor .spread-card-controls button { width: 30px; height: 30px; }
 .album-editor .spread-card-controls span { font-size: 14px; }
 .album-editor.designer-view .designer-canvas { background: #bfbfbf; box-shadow: none; border-radius: 0; }
+/* Responsive editing surfaces and album details. */
+.album-editor .editor-workspace > .app-sidebar--right { width: clamp(250px, 26vw, 340px); flex-shrink: 0; overflow: auto; }
+.album-editor .album-info-panel { color: #2d261f; --text-muted: #73695f; }
+.album-editor .album-info-panel__header { min-height: 76px; padding: 18px; align-items: center; }
+.album-editor .album-info-panel__header > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.album-editor .album-info-panel__header strong { font-size: 16px; font-weight: 650; color: #65432c; }
+.album-editor .album-info-panel__header .muted { margin-left: 0; font-size: 12px; }
+.album-editor .album-info-panel__header .btn { margin-left: auto; flex-shrink: 0; width: 30px; height: 30px; }
+.album-editor .album-info-panel .collapsible { margin: 0 16px; border-bottom: 1px solid #ece5de; }
+.album-editor .album-info-panel .collapsible__header { padding: 14px 0; background: #fff; border: 0; font-size: 12px; color: #65432c; }
+.album-editor .album-info-panel .collapsible__body { padding: 0 0 14px; gap: 10px; font-size: 12px; line-height: 1.6; }
+.album-editor .album-info-panel .collapsible__body p { margin: 0; }
+.album-editor .album-info-panel .field { grid-template-columns: minmax(80px,1fr) minmax(0,1fr); gap: 8px; font-size: 12px; }
+.album-editor .album-info-panel select { border: 1px solid #e4dcd3; padding: 7px; border-radius: 6px; font-size: 12px; }
+.album-editor .album-info-panel .btn { background: #f5f0ea; color: #65432c; border: 1px solid #e4dcd3; }
+.album-editor .photo-dock__toolbar { flex-wrap: wrap; overflow: visible; padding: 6px 10px; gap: 6px 10px; }
+.album-editor .photo-dock__import-actions { gap: 6px; }
+.album-editor .photo-dock__mode-tabs button { min-height: 34px; width: 34px; }
+.album-editor .photo-dock__bins { max-width: 100%; overflow-x: auto; }
+.album-editor .photo-dock__zoom { width: 80px; flex-basis: 80px; }
+.album-editor .photo-dock__inline-sort { margin-left: 0; }
+.album-editor .topbar { min-height: 56px; padding: 6px 12px; gap: 8px; }
+.album-editor .topbar__stats { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.album-editor .menubar { flex-wrap: wrap; }
+.font-picker { display: grid; gap: 6px; margin-bottom: 12px; }
+.font-picker__current { width: 100%; justify-content: space-between; font-size: 16px; }
+.font-picker__list { display: flex; flex-direction: column; max-height: 50vh; overflow: auto; margin-top: 12px; }
+.font-picker__list button { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: transparent; color: inherit; border: 0; border-radius: 6px; text-align: left; font-size: 18px; cursor: pointer; }
+.font-picker__list button:hover, .font-picker__list button.is-selected { background: #ece3d8; color: #543823; }
+.font-picker__list small { font: 10px 'Segoe UI', sans-serif; opacity: .6; }
+.missing-image-list { max-height: 45vh; overflow: auto; margin: 16px 0; }
+.missing-image-list > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+.missing-image-list span { min-width: 0; overflow-wrap: anywhere; }
+.missing-image-list small { display: block; opacity: .65; font-size: 11px; }
+@media (max-width: 900px) {
+ .album-editor .photo-dock__import-actions > button > span { display: none; }
+ .album-editor .photo-dock__import-actions > button { width: 34px; padding: 0; }
+ .album-editor .topbar > .btn--icon { width: 32px; height: 32px; }
+ .album-editor .topbar > .btn--primary { min-height: 34px; font-size: 12px; padding: 0 10px; }
+ .album-editor .app-sidebar { max-width: 40vw; }
+}
+@media (max-height: 650px) {
+ .album-editor .photo-dock__strip { min-height: 60px; padding: 8px; }
+ .album-editor .photo-dock--empty .photo-dock__strip { min-height: 80px; }
+ .album-editor .photo-dock__dropzone { min-height: 60px; }
+}
+
+.designer-canvas--frame { cursor: crosshair; }
+.frame-tool-hint { display:flex; align-items:center; gap:12px; flex-wrap:wrap; color:#fff; width:100%; font-size:12px; }
+.frame-tool-hint strong { color:#f0d3b8; }
+.frame-tool-hint .btn { margin-left:auto; }
+.designer-toolbar { max-width:calc(100% - 32px); flex-wrap:wrap; }
+
+@media (max-height: 650px) {
+ .album-editor:not(.designer-view):has(.photo-dock) .app-body { flex-basis: 40vh; min-height: 150px; }
+ .album-editor .photo-dock--empty .photo-dock__strip { padding: 8px; }
+ .album-editor .photo-dock__drop-icon > svg { width: 32px; height: 32px; }
+ .album-editor .photo-dock__dropzone { font-size: 11px; }
+}

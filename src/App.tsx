@@ -10,6 +10,8 @@ import MatchingTemplatesPanel from './components/MatchingTemplatesPanel'
 import KeyboardShortcuts from './components/KeyboardShortcuts'
 import GlobalDropZone from './components/GlobalDropZone'
 import MissingColorProfileDialog from './components/MissingColorProfileDialog'
+import MissingImagesDialog from './components/MissingImagesDialog'
+import { registerProjectFonts, ensureFontLoaded } from './engine/fonts'
 import HomeScreen from './components/HomeScreen'
 import Icon from './components/Icon'
 import NewProjectLoadingOverlay from './components/NewProjectLoadingOverlay'
@@ -28,6 +30,8 @@ import Modal from './components/Modal'
 import { confirmDiscardUnsaved } from '@/engine/unsavedChanges'
 
 export default function App() {
+  const customFonts = useProjectStore(s=>s.project.customFonts)
+  useEffect(()=>{ registerProjectFonts(customFonts ?? []); for(const f of customFonts ?? []) void ensureFontLoaded(f.family).catch(console.error) },[customFonts])
   const selectedPlaceholderId = useProjectStore(s => s.selectedPlaceholderId)
   const matchingTemplatesOpen = useProjectStore(s => s.matchingTemplatesOpen)
   const [resumePrompt, setResumePrompt] = useState<OpenSessionMarker | null>(null)
@@ -190,7 +194,7 @@ export default function App() {
 
   if (projectKind === 'slideshow') return <SlideshowScreen />
 
-  if (designerViewSpreadId) return <DesignerViewScreen />
+  if (designerViewSpreadId) return <><MissingImagesDialog /><DesignerViewScreen /></>
 
   return (
     <div className="app-shell album-editor">
@@ -198,6 +202,7 @@ export default function App() {
       <GlobalDropZone />
       <CoverSetup />
       <MissingColorProfileDialog />
+      <MissingImagesDialog />
       <MenuBar />
       <TopBar />
       <div className="editor-workspace">

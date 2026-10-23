@@ -14,6 +14,12 @@ ipcMain.handle('images:showFile', async (_event, filePath: string, reveal: boole
 })
 
 const isDev = !app.isPackaged
+ipcMain.handle('images:missingPaths', async (_event, paths: string[]) => {
+  if (!Array.isArray(paths) || paths.length > 100000 || paths.some(p => typeof p !== 'string' || !path.isAbsolute(p))) throw new Error('Invalid image paths')
+  const missing: string[] = []
+  for (const file of paths) { try { if (!(await fs.promises.stat(file)).isFile()) missing.push(file) } catch { missing.push(file) } }
+  return missing
+})
 ipcMain.handle('images:decodeTiff', (_event, data: Uint8Array) => decodeTiff(data))
 
 // Electron shows its own default File/Edit/View/Window/Help menu unless the app sets one

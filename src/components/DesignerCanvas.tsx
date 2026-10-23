@@ -228,6 +228,7 @@ export default function DesignerCanvas() {
   const multiSelectedPlaceholderIds = useProjectStore((s) => s.multiSelectedPlaceholderIds)
   const toggleMultiSelectPlaceholder = useProjectStore((s) => s.toggleMultiSelectPlaceholder)
   const clearMultiSelect = useProjectStore((s) => s.clearMultiSelect)
+  const setCanvasTool = useProjectStore(s => s.setCanvasTool)
   const selectedPhotoIds = useProjectStore((s) => s.selectedPhotoIds)
   const setSelectedPhotoIds = useProjectStore((s) => s.setSelectedPhotoIds)
   const updateTextBox = useProjectStore((s) => s.updateTextBox)
@@ -257,6 +258,16 @@ export default function DesignerCanvas() {
   const updateImageFrame = useProjectStore((s) => s.updateImageFrame)
   const drawStartRef = useRef<{ x: number; y: number } | null>(null)
   const [draftFrame, setDraftFrame] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+  useEffect(() => {
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || (canvasTool !== 'frame' && canvasTool !== 'text')) return
+      drawStartRef.current = null
+      setDraftFrame(null)
+      setCanvasTool('select')
+    }
+    window.addEventListener('keydown', cancel)
+    return () => window.removeEventListener('keydown', cancel)
+  }, [canvasTool, setCanvasTool])
   const frameNodeRef = useRef<Konva.Rect>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
   const selectedBox = boxes.find((box) => box.placeholderId === selectedPlaceholderId)
@@ -499,9 +510,12 @@ export default function DesignerCanvas() {
   }
 
   function handleStageMouseUp() {
-    if (drawStartRef.current && draftFrame && spread && (canvasTool === 'text' || (draftFrame.width >= 4 && draftFrame.height >= 4))) {
-      const rect = { x: draftFrame.x / STAGE_WIDTH, y: draftFrame.y / stageHeight, width: Math.min(1 - draftFrame.x / STAGE_WIDTH, (draftFrame.width >= 4 ? draftFrame.width : 300) / STAGE_WIDTH), height: Math.min(1 - draftFrame.y / stageHeight, (draftFrame.height >= 4 ? draftFrame.height : 80) / stageHeight) }
-      if (canvasTool === 'frame') addImageFrame(spread.id, rect)
+    if (drawStartRef.current && draftFrame && spread && (canvasTool === 'text' || canvasTool === 'frame')) {
+      const rect = { x: draftFrame.x / STAGE_WIDTH, y: draftFrame.y / stageHeight, width: Math.min(1 - draftFrame.x / STAGE_WIDTH, (draftFrame.width >= 4 ? draftFrame.width : 300) / STAGE_WIDTH), height: Math.min(1 - draftFrame.y / stageHeight, (draftFrame.height >= 4 ? draftFrame.height : canvasTool === 'frame' ? 240 : 80) / stageHeight) }
+      if (canvasTool === 'frame') {
+        addImageFrame(spread.id, rect, selectedPhotoIds.length === 1 ? selectedPhotoIds[0] : undefined)
+        setCanvasTool('select')
+      }
       else if (canvasTool === 'text') {
         const id = uuid()
         addTextBox(spread.id, { id, ...rect, text: '', fontFamily: 'Arial', fontSize: 24, color: '#222222', align: 'left', bold: false, italic: false })
@@ -613,6 +627,8 @@ export default function DesignerCanvas() {
   return (
     <div className="designer-canvas-wrap">
       <div className="designer-toolbar">
+        {selectedBox && !spread.placements.find(p => p.placeholderId === selectedBox.placeholderId)?.photoId && canvasTool === 'select' && <div className="frame-tool-hint"><strong>Empty image frame</strong><span>Drag handles to resize</span><button className="btn" onClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}>Add image…</button><button className="btn" onClick={() => useProjectStore.getState().removeImageFrame(spread.id, selectedBox.placeholderId)}>Remove frame</button></div>}
+        {canvasTool === 'frame' && <div className="frame-tool-hint" role="status"><strong>Image frame</strong><span>Drag to draw · Click for a standard frame</span><button className="btn" onClick={() => setCanvasTool('select')}>Done</button></div>}
         <button
           className="btn"
           onClick={() =>
@@ -682,7 +698,7 @@ export default function DesignerCanvas() {
       </div>
       <div className="designer-canvas-viewport" ref={viewportRef}>
       <div
-        className={`designer-canvas ${isSpaceDown || canvasTool === 'pan' ? 'designer-canvas--pan' : ''} ${canvasTool === 'zoom' ? 'designer-canvas--zoom' : ''}`}
+        className={`designer-canvas ${isSpaceDown || canvasTool === 'pan' ? 'designer-canvas--pan' : ''} ${canvasTool === 'zoom' ? 'designer-canvas--zoom' : ''} ${canvasTool === 'frame' ? 'designer-canvas--frame' : ''}`}
         ref={containerRef}
         // stopPropagation on every drag stage (not just drop) keeps GlobalDropZone's window-wide
         // "drop anywhere" overlay from popping up and covering the exact frame the user is
@@ -717,6 +733,41 @@ export default function DesignerCanvas() {
           {boxes.map((box) => {
             const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
             const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
+            if (!photo || !placement) return null
+            return (
+              <PlaceholderImage
+                key={box.placeholderId}
+                src={photo.src}
+                box={box}
+                allBoxes={boxes}
+                focalX={placement.focalX}
+                focalY={placement.focalY}
+                zoom={placement.zoom}
+                opacity={placement.opacity}
+                frameStyle={placement.frameStyle}
+                rotationDeg={placement.rotationDeg}
+                relightIntensity={placement.relightIntensity}
+                cornerRadiusPx={placement.cornerRadiusPx}
+                flipHorizontal={placement.flipHorizontal}
+                flipVertical={placement.flipVertical}
+                brightness={placement.brightness}
+                contrast={placement.contrast}
+                saturation={placement.saturation}
+                warmth={placement.warmth}
+                selected={selectedPlaceholderId === box.placeholderId}
+                multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
+                canDrag={canvasTool === 'select' && !isSpaceDown}
+                onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
+                onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}
+                onContextMenu={(e) => handlePlaceholderContextMenu(box.placeholderId, e.evt)}
+              />
+            )
+          })}
+
+          {boxes.map((box) => {
+            const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
+            const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
+            if (photo) return null
             return (
               <Rect
                 key={`bg-${box.placeholderId}`}
@@ -724,7 +775,7 @@ export default function DesignerCanvas() {
                 y={box.y}
                 width={box.width}
                 height={box.height}
-                fill={photo ? undefined : '#f1e8da'}
+                fill="#f5f0e9"
                 stroke={
                   multiSelectedPlaceholderIds.includes(box.placeholderId)
                     ? '#ff9f43'
@@ -735,7 +786,7 @@ export default function DesignerCanvas() {
                         : '#c7b8a2'
                 }
                 strokeWidth={multiSelectedPlaceholderIds.includes(box.placeholderId) ? 2.5 : 1}
-                dash={photo ? undefined : [6, 5]}
+                dash={[6, 5]}
                 onClick={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
                 onTap={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
                 onDblClick={() => !photo && handleEmptyFrameDoubleClick(box.placeholderId)}
@@ -774,40 +825,6 @@ export default function DesignerCanvas() {
                   fill="#a89b86"
                 />
               </Group>
-            )
-          })}
-
-          {boxes.map((box) => {
-            const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
-            const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
-            if (!photo || !placement) return null
-            return (
-              <PlaceholderImage
-                key={box.placeholderId}
-                src={photo.src}
-                box={box}
-                allBoxes={boxes}
-                focalX={placement.focalX}
-                focalY={placement.focalY}
-                zoom={placement.zoom}
-                opacity={placement.opacity}
-                frameStyle={placement.frameStyle}
-                rotationDeg={placement.rotationDeg}
-                relightIntensity={placement.relightIntensity}
-                cornerRadiusPx={placement.cornerRadiusPx}
-                flipHorizontal={placement.flipHorizontal}
-                flipVertical={placement.flipVertical}
-                brightness={placement.brightness}
-                contrast={placement.contrast}
-                saturation={placement.saturation}
-                warmth={placement.warmth}
-                selected={selectedPlaceholderId === box.placeholderId}
-                multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
-                canDrag={canvasTool === 'select' && !isSpaceDown}
-                onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
-                onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}
-                onContextMenu={(e) => handlePlaceholderContextMenu(box.placeholderId, e.evt)}
-              />
             )
           })}
 

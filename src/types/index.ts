@@ -174,6 +174,7 @@ export interface AlbumSize {
 }
 
 export interface Project {
+  customFonts?: { family: string; dataUrl: string }[]
   id: string
   name: string
   size: AlbumSize

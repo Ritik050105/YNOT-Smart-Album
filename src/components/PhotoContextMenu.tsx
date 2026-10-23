@@ -26,6 +26,7 @@ export default function PhotoContextMenu({ x, y, spreadId, frameId }: { x: numbe
   const horizontal = !!box && box.width >= box.height
   const run = (action: () => Promise<unknown>) => { void action().catch(e => setError(e instanceof Error ? e.message : String(e))) }
   const items: ContextMenuItem[] = [
+    ...(background?.mode === 'cover' ? [{label:'Detach Background Image',onClick:()=>state.detachBackground(spreadId)}] : []),
     { label: 'Cut', shortcut: 'Ctrl+X', disabled: !photo, onClick: () => state.cutPlacement(spreadId, frameId!) },
     { label: 'Copy', shortcut: 'Ctrl+C', disabled: !photo, onClick: () => state.copyPlacement(spreadId, frameId!) },
     { label: 'Copy Tone Adjustments', shortcut: 'Ctrl+Shift+C', disabled: !photo, onClick: () => state.copyToneAdjustments(spreadId, frameId!) },
@@ -48,7 +49,7 @@ export default function PhotoContextMenu({ x, y, spreadId, frameId }: { x: numbe
     { label: 'Reload from Original', shortcut: 'Ctrl+R', separator: true, disabled: !photo, onClick: () => state.resetPlacementToOriginal(spreadId, frameId!) },
     { label: 'Replace Image', shortcut: 'Ctrl+Shift+R', disabled: !placement && !background, onClick: () => input.current?.click() },
     // Projects embed their photos, so there is no missing linked file to relink.
-    { label: 'Relink Missing File…', separator: true, disabled: true, onClick: () => {} },
+    { label: 'Relink Missing File…', separator: true, disabled: !photo, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:relink-photo', {detail:photo?.id})) },
   ]
   return <>
     {open && <ContextMenu x={x} y={y} items={items} onClose={() => setOpen(false)} />}

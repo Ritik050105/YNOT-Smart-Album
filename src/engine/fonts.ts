@@ -61,10 +61,26 @@ export function getLocalFonts(): Promise<FontOption[]> {
 }
 
 const loadedFontLinks = new Set<string>()
+let projectFonts: {family:string;dataUrl:string}[] = []
+const uploadedFaces = new Map<string, {dataUrl:string; face:FontFace}>()
+export function registerProjectFonts(fonts: typeof projectFonts) {
+  projectFonts = fonts
+  for (const [family, entry] of uploadedFaces) if (!fonts.some(f=>f.family===family&&f.dataUrl===entry.dataUrl)) { document.fonts.delete(entry.face); uploadedFaces.delete(family) }
+}
+export async function loadUploadedFont(family:string,dataUrl:string) {
+  if (!/^data:(?:font\/[^;,]+|application\/[^;,]+|);base64,/i.test(dataUrl) || dataUrl.length>15000000) throw new Error('Invalid font file')
+  if (uploadedFaces.get(family)?.dataUrl===dataUrl) return
+  const face = await new FontFace(family,`url(${dataUrl})`).load()
+  const old = uploadedFaces.get(family); if(old)document.fonts.delete(old.face)
+  document.fonts.add(face); uploadedFaces.set(family,{dataUrl,face})
+  window.dispatchEvent(new CustomEvent('album-studio:font-loaded',{detail:{family}}))
+}
 
 /** Injects a <link> for a cloud font the first time it's used, and returns once the browser
  *  reports it loaded (or immediately for local fonts / already-loaded cloud fonts). */
 export async function ensureFontLoaded(family: string): Promise<void> {
+  const uploaded = projectFonts.find(f=>f.family===family)
+  if (uploaded) return loadUploadedFont(uploaded.family,uploaded.dataUrl)
   const font = CLOUD_FONTS.find((f) => f.family === family)
   if (!font) return
 

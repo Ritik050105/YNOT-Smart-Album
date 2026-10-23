@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { importAndDedupe, ImportSummary } from './importWorkflow'
 import { hasColorProfile, isMissingColorProfileDialogHidden } from './colorProfile'
@@ -13,6 +13,11 @@ export function useImportPhotos() {
   const setPhotoFavorite = useProjectStore((s) => s.setPhotoFavorite)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [lastSummary, setLastSummary] = useState<ImportSummary | null>(null)
+  useEffect(() => {
+    if (!lastSummary) return
+    const timer = window.setTimeout(() => setLastSummary(null), lastSummary.failures.length ? 12000 : 4000)
+    return () => window.clearTimeout(timer)
+  }, [lastSummary])
 
   async function handleFiles(fileList: FileList | File[] | null, opts?: { markFavorite?: boolean }) {
     const files = fileList ? Array.from(fileList) : []
