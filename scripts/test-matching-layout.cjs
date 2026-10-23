@@ -26,6 +26,8 @@ app.whenReady().then(async()=>{
     report.push({width,height,zoom,...metrics})
     if(width===720||zoom===2)await fs.writeFile(path.join(output,`matching-${width}x${height}-${zoom}x.png`),(await win.webContents.capturePage()).toPNG())
   }
+  assert.equal(await evaluate(`document.body.textContent.includes('Rearrange Timeline')`),true)
+  assert.equal(await evaluate(`document.querySelector('.matching-templates__info').querySelectorAll('button,.matching-template').length`),0,'Rearrange Timeline is information only')
   await evaluate(`document.querySelector('.matching-template__apply').dispatchEvent(new MouseEvent('mouseover',{bubbles:true}))`)
   await new Promise(r=>setTimeout(r,100))
   assert.equal(await evaluate('store.getState().project===window.original'),true)
@@ -53,6 +55,5 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('store.getState().project.spreads[0].templateId'),keyboardPreview,'Enter applies the arrow-selected preview even when an older thumbnail retains focus')
   assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),false)
   assert.deepEqual(await evaluate('store.getState().project.spreads[0].placements.map(p=>p.photoId)'),await evaluate('window.original.spreads[0].placements.map(p=>p.photoId)'), 'Applying templates preserves timeline order')
-  assert.equal(await evaluate(`document.body.textContent.includes('Rearrange Timeline')`),false)
   assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'results.json'),JSON.stringify(report,null,2));console.log('Inline matching-browser checks passed: eight viewport/scaling cases, one order-preserving virtualized row, no dialog, workspace/dock bounds, favorites, scroll, keyboard preview/cancel/apply and one-step history. Evidence:',output);win.destroy();app.quit()
 }).catch(error=>{console.error(error);app.exit(1)})

@@ -733,40 +733,6 @@ export default function DesignerCanvas() {
           {boxes.map((box) => {
             const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
             const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
-            if (!photo || !placement) return null
-            return (
-              <PlaceholderImage
-                key={box.placeholderId}
-                src={photo.src}
-                box={box}
-                allBoxes={boxes}
-                focalX={placement.focalX}
-                focalY={placement.focalY}
-                zoom={placement.zoom}
-                opacity={placement.opacity}
-                frameStyle={placement.frameStyle}
-                rotationDeg={placement.rotationDeg}
-                relightIntensity={placement.relightIntensity}
-                cornerRadiusPx={placement.cornerRadiusPx}
-                flipHorizontal={placement.flipHorizontal}
-                flipVertical={placement.flipVertical}
-                brightness={placement.brightness}
-                contrast={placement.contrast}
-                saturation={placement.saturation}
-                warmth={placement.warmth}
-                selected={selectedPlaceholderId === box.placeholderId}
-                multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
-                canDrag={canvasTool === 'select' && !isSpaceDown}
-                onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
-                onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}
-                onContextMenu={(e) => handlePlaceholderContextMenu(box.placeholderId, e.evt)}
-              />
-            )
-          })}
-
-          {boxes.map((box) => {
-            const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
-            const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
             if (photo) return null
             return (
               <Rect
@@ -775,7 +741,7 @@ export default function DesignerCanvas() {
                 y={box.y}
                 width={box.width}
                 height={box.height}
-                fill="#f5f0e9"
+                fill="rgba(0,0,0,0)"
                 stroke={
                   multiSelectedPlaceholderIds.includes(box.placeholderId)
                     ? '#ff9f43'
@@ -825,6 +791,40 @@ export default function DesignerCanvas() {
                   fill="#a89b86"
                 />
               </Group>
+            )
+          })}
+
+          {boxes.map((box) => {
+            const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
+            const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
+            if (!photo || !placement) return null
+            return (
+              <PlaceholderImage
+                key={box.placeholderId}
+                src={photo.src}
+                box={box}
+                allBoxes={boxes}
+                focalX={placement.focalX}
+                focalY={placement.focalY}
+                zoom={placement.zoom}
+                opacity={placement.opacity}
+                frameStyle={placement.frameStyle}
+                rotationDeg={placement.rotationDeg}
+                relightIntensity={placement.relightIntensity}
+                cornerRadiusPx={placement.cornerRadiusPx}
+                flipHorizontal={placement.flipHorizontal}
+                flipVertical={placement.flipVertical}
+                brightness={placement.brightness}
+                contrast={placement.contrast}
+                saturation={placement.saturation}
+                warmth={placement.warmth}
+                selected={selectedPlaceholderId === box.placeholderId}
+                multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
+                canDrag={canvasTool === 'select' && !isSpaceDown}
+                onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
+                onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}
+                onContextMenu={(e) => handlePlaceholderContextMenu(box.placeholderId, e.evt)}
+              />
             )
           })}
 

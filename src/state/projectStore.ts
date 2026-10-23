@@ -594,7 +594,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setTemplateFrameFilter: (f) => set({ templateFrameFilter: f }),
   toggleShowPhotoFileNames: () => set((s) => ({ showPhotoFileNames: !s.showPhotoFileNames })),
-  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId, matchingTemplatesOpen: false, templatePreview: null }),
+  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, multiSelectedPlaceholderIds: [], canvasTool: 'select', matchingTemplatesOpen: false, templatePreview: null }),
   exitDesignerView: (keepEmpty = false) => {
     const spread = get().project.spreads.find((s) => s.id === get().designerViewSpreadId)
     if (!keepEmpty && spread?.isCover && !spread.placements.some((p) => p.photoId) && !spread.textBoxes.some((t) => t.text.trim())) {
