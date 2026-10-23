@@ -69,7 +69,7 @@ export async function exportAlbumToPdf(
 
   const bytes = options.pdfX ? await savePdfX3(pdf, project.name) : await pdf.save()
   const fileName = `${projectFileBaseName(project)}${options.pdfX ? '-PDFX3' : ''}.pdf`
-  return saveOneFile(bytes, fileName, 'application/pdf', [{ name: 'PDF Document', extensions: ['pdf'] }])
+  return saveOneFile(bytes, fileName, 'application/pdf', [{ name: 'PDF Document', extensions: ['pdf'] }], true)
 }
 
 /** Split two-page interiors at the gutter; covers retain their own complete artwork. */
@@ -160,7 +160,7 @@ export async function exportAlbumToProofingGallery(project: Project): Promise<{ 
   const html = await buildProofingGalleryHtml(project)
   const bytes = new TextEncoder().encode(html)
   const fileName = `${projectFileBaseName(project)}-proofing.html`
-  return saveOneFile(bytes, fileName, 'text/html', [{ name: 'Proofing Gallery', extensions: ['html'] }])
+  return saveOneFile(bytes, fileName, 'text/html', [{ name: 'Proofing Gallery', extensions: ['html'] }], true)
 }
 
 /** Exports just one spread as a single-page PDF — for sending one page to a lab/client without
@@ -169,7 +169,7 @@ export async function exportSingleSpreadToPdf(project: Project, spread: Spread):
   const bytes = await buildSingleSpreadPdfBytes(project, spread)
   const spreadNumber = spread.order + 1
   const fileName = `${projectFileBaseName(project)}-${spread.isCover ? 'cover' : `spread-${String(spreadNumber).padStart(2, '0')}`}.pdf`
-  return saveOneFile(bytes, fileName, 'application/pdf', [{ name: 'PDF Document', extensions: ['pdf'] }])
+  return saveOneFile(bytes, fileName, 'application/pdf', [{ name: 'PDF Document', extensions: ['pdf'] }], true)
 }
 
 async function exportSpreadsAsRaster(

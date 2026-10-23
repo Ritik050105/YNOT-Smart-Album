@@ -212,11 +212,21 @@ window.albumStudio.pickDirectory=async()=>{writeSequence.push('choose');return {
 window.albumStudio.writeFileInDir=async(file)=>{writeSequence.push(`write:${file.fileName}`)}
 async function* streamedFiles() {
   writeSequence.push('render:1');yield {fileName:'1.psd',bytes:new Uint8Array([1]),mime:'image/vnd.adobe.photoshop'}
-  assert.equal(writeSequence.at(-1),'write:1.psd','Write each spread before rendering the next')
+  assert.match(writeSequence.at(-1),/^write:1-.+\.psd$/,'Write each spread before rendering the next')
   writeSequence.push('render:2');yield {fileName:'2.psd',bytes:new Uint8Array([2]),mime:'image/vnd.adobe.photoshop'}
 }
 await engine.saveManyFiles(streamedFiles())
-assert.deepEqual(writeSequence,['choose','render:1','write:1.psd','render:2','write:2.psd'])
+assert.deepEqual(writeSequence.filter(v=>!v.startsWith('write:')),['choose','render:1','render:2'])
+assert.equal(writeSequence[2].slice(8,-4),writeSequence[4].slice(8,-4),'Batch files share the export stamp')
+const defaultNames=[]
+window.albumStudio.saveFile=async(args)=>{defaultNames.push(args.defaultName);return {canceled:true}}
+await engine.saveOneFile(new Uint8Array(),'Untitled Album.pdf','application/pdf',[],true)
+await engine.saveOneFile(new Uint8Array(),'Untitled Album.pdf','application/pdf',[],true)
+assert.notEqual(defaultNames[0],defaultNames[1],'Repeated exports have unique default names')
+assert.match(defaultNames[0],/^Untitled Album-[^:]+\.pdf$/)
+await engine.saveOneFile(new Uint8Array(),'Album.ablm.json','application/json',[])
+assert.equal(defaultNames[2],'Album.ablm.json','Normal project saving keeps its filename')
+console.log('Export naming checks passed: unique defaults, preserved extensions, shared batch stamp, unchanged project saves.')
 window.albumStudio.pickDirectory=async()=>({canceled:true})
 assert.deepEqual(await engine.saveManyFiles((async function*(){throw new Error('Cancelled exports must not render')})()),{saved:false})
 console.log('PSD checks passed: editable text/style round-trips, cached previews and sequential export without rendering on cancellation.')

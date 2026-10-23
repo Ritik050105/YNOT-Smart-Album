@@ -7,6 +7,15 @@ export function projectFileBaseName(project: Project): string {
   return source.replace(/[^a-z0-9_\- ]/gi, '_').trim() || 'album'
 }
 
+function exportStamp(): string {
+  return `${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}`
+}
+
+function uniqueExportName(fileName: string, stamp = exportStamp()): string {
+  const dot = fileName.lastIndexOf('.')
+  return dot > 0 ? `${fileName.slice(0, dot)}-${stamp}${fileName.slice(dot)}` : `${fileName}-${stamp}`
+}
+
 /** Parses an "Output Range" field like "1, 2, 5-7" into 0-based spread indices, clamped to
  *  1..count and de-duplicated/sorted. Invalid or out-of-range tokens are silently dropped. */
 export function parseSpreadRange(text: string, count: number): number[] {
@@ -55,8 +64,10 @@ export async function saveOneFile(
   bytes: Uint8Array,
   fileName: string,
   mime: string,
-  filters: { name: string; extensions: string[] }[]
+  filters: { name: string; extensions: string[] }[],
+  uniqueExport = false
 ): Promise<{ saved: boolean; filePath?: string }> {
+  if (uniqueExport) fileName = uniqueExportName(fileName)
   if (window.albumStudio?.isElectron) {
     const result = await window.albumStudio.saveFile({ defaultName: fileName, filters, data: bytes })
     return result.canceled ? { saved: false } : { saved: true, filePath: result.filePath }
@@ -69,14 +80,15 @@ export async function saveOneFile(
 export async function saveManyFiles(
   files: Iterable<{ fileName: string; bytes: Uint8Array; mime: string }> | AsyncIterable<{ fileName: string; bytes: Uint8Array; mime: string }>
 ): Promise<{ saved: boolean; dirPath?: string }> {
+  const stamp = exportStamp()
   if (window.albumStudio?.isElectron) {
     const dir = await window.albumStudio.pickDirectory()
     if (dir.canceled || !dir.dirPath) return { saved: false }
     for await (const f of files) {
-      await window.albumStudio.writeFileInDir({ dirPath: dir.dirPath, fileName: f.fileName, data: f.bytes })
+      await window.albumStudio.writeFileInDir({ dirPath: dir.dirPath, fileName: uniqueExportName(f.fileName, stamp), data: f.bytes })
     }
     return { saved: true, dirPath: dir.dirPath }
   }
-  for await (const f of files) downloadInBrowser(f.bytes, f.fileName, f.mime)
+  for await (const f of files) downloadInBrowser(f.bytes, uniqueExportName(f.fileName, stamp), f.mime)
   return { saved: true }
 }
