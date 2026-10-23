@@ -13,6 +13,17 @@ ipcMain.handle('images:showFile', async (_event, filePath: string, reveal: boole
   else { const error = await shell.openPath(filePath); if (error) throw new Error(error) }
 })
 
+ipcMain.handle('export:revealLocation', async (_event, location: string) => {
+  if (typeof location !== 'string' || !path.isAbsolute(location)) throw new Error('Invalid export location')
+  const info = await fs.promises.stat(location).catch(() => null)
+  if (!info) throw new Error('The exported file or folder has moved or is unavailable.')
+  if (info.isDirectory()) {
+    const error = await shell.openPath(location)
+    if (error) throw new Error(error)
+  } else if (info.isFile()) shell.showItemInFolder(location)
+  else throw new Error('This export location cannot be opened.')
+})
+
 const isDev = !app.isPackaged
 ipcMain.handle('images:missingPaths', async (_event, paths: string[]) => {
   if (!Array.isArray(paths) || paths.length > 100000 || paths.some(p => typeof p !== 'string' || !path.isAbsolute(p))) throw new Error('Invalid image paths')

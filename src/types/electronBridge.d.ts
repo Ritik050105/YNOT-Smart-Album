@@ -16,6 +16,7 @@ export interface NewProjectPayload {
 
 export interface AlbumStudioBridge {
   getImagePath: (file: File) => string
+  revealExportLocation: (location: string) => Promise<void>
   showImageFile: (filePath: string, reveal: boolean) => Promise<void>
   missingImagePaths: (paths: string[]) => Promise<string[]>
   isElectron: true

@@ -247,3 +247,12 @@
  .album-editor .photo-dock__drop-icon > svg { width: 32px; height: 32px; }
  .album-editor .photo-dock__dropzone { font-size: 11px; }
 }
+
+.export-success__summary { display:flex; align-items:center; gap:16px; margin-bottom:24px; }
+.export-success__check { display:grid; place-items:center; flex:0 0 52px; height:52px; border-radius:50%; background:#27745525; color:#77d5a6; border:1px solid #77d5a640; }
+.export-success__summary h3 { margin:0 0 6px; font-size:20px; }
+.export-success__summary p { margin:0; color:var(--text-muted); }
+.export-success__file { padding:18px; border:1px solid var(--border-soft); border-radius:12px; background:var(--panel-alt); }
+.export-success__file > span { display:block; font-size:10px; letter-spacing:.1em; color:var(--text-muted); margin-bottom:10px; }
+.export-success__file strong { display:block; overflow-wrap:anywhere; font-size:15px; line-height:1.5; }
+.export-success__file p { overflow-wrap:anywhere; font-size:12px; color:var(--text-muted); margin:8px 0 16px; }

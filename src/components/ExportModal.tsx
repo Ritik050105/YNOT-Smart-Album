@@ -40,7 +40,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
 
   const [tab, setTab] = useState<ExportTab>('print')
   const [exporting, setExporting] = useState(false)
-  const [result, setResult] = useState<string | null>(null)
+  const [result, setResult] = useState<{filePath?:string;dirPath?:string} | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [enhancing, setEnhancing] = useState(false)
   const [enhanced, setEnhanced] = useState(false)
@@ -126,7 +126,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     setError(null)
     try {
       const outcome = tab === 'print' ? await handleExportPrint() : await handleExportManualProofing()
-      setResult(outcome.saved ? outcome.filePath ?? outcome.dirPath ?? 'Export complete.' : null)
+      setResult(outcome.saved ? outcome : null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed. Please try again.')
     } finally {
@@ -135,6 +135,28 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   }
 
   const rangeInvalid = rangeMode === 'range' && parseSpreadRange(rangeText, spreadCount).length === 0
+
+  if (result) {
+    const location = result.filePath ?? result.dirPath
+    const name = location?.split(/[\\/]/).pop()
+    return <Modal title={location ? 'Export successful' : 'Export ready'} onClose={onClose} width={540} className="export-success" footer={<>
+      <button className="btn" onClick={() => {setResult(null);setError(null)}}>Export again</button>
+      <div className="footer-spacer" />
+      <button className="btn btn--primary" autoFocus onClick={onClose}>Done</button>
+    </>}>
+      <div className="export-success__summary" role="status">
+        <span className="export-success__check"><Icon name="check" size={26}/></span>
+        <div><h3>{location ? 'Your export is saved' : 'Your download has started'}</h3><p>{location ? 'Ready to print or share.' : 'Check your browser downloads for the exported files.'}</p></div>
+      </div>
+      {location && <div className="export-success__file"><span>{result.dirPath ? 'OUTPUT FOLDER' : 'EXPORTED FILE'}</span><strong>{name}</strong><p>{location}</p>
+        {window.albumStudio?.revealExportLocation && <button className="btn" onClick={async () => {
+          try {setError(null);await window.albumStudio!.revealExportLocation(location)}
+          catch (err) {setError(err instanceof Error ? err.message : 'Could not open the saved location.')}
+        }}><Icon name="folder" size={15}/>Open location</button>}
+      </div>}
+      {error && <p role="alert">{error}</p>}
+    </Modal>
+  }
 
   return (
     <Modal
@@ -345,11 +367,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
         </section>
       )}
 
-      {result && (
-        <p className="muted" style={{ marginTop: 14 }}>
-          Saved to: {result}
-        </p>
-      )}
+
 
       {pendingPageLimit && (
         <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setPendingPageLimit(null)}>
