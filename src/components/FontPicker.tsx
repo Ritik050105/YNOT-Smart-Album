@@ -1,17 +1,39 @@
 import { useEffect, useRef, useState } from 'react'
 import { LOCAL_FONTS, CLOUD_FONTS, getLocalFonts, ensureFontLoaded, loadUploadedFont } from '@/engine/fonts'
 import { useProjectStore } from '@/state/projectStore'
-import Modal from './Modal'
 
 export default function FontPicker({value,onChange}:{value:string;onChange:(family:string)=>void}) {
   const [fonts,setFonts]=useState(LOCAL_FONTS),[open,setOpen]=useState(false),[search,setSearch]=useState(''),[error,setError]=useState('')
   const custom=useProjectStore(s=>s.project.customFonts)
   const input=useRef<HTMLInputElement>(null)
+  const picker=useRef<HTMLDivElement>(null)
+  const trigger=useRef<HTMLButtonElement>(null)
+  useEffect(()=>{
+    if(!open)return
+    const dismiss=(e:PointerEvent)=>{if(!picker.current?.contains(e.target as Node))setOpen(false)}
+    document.addEventListener('pointerdown',dismiss)
+    return()=>document.removeEventListener('pointerdown',dismiss)
+  },[open])
   useEffect(()=>{void getLocalFonts().then(setFonts)},[])
   useEffect(()=>{if(open) for(const font of CLOUD_FONTS) void ensureFontLoaded(font.family).catch(()=>{})},[open])
   const options=[...new Set([...fonts,...CLOUD_FONTS,...custom??[]].map(f=>f.family))].sort()
-  return <div className="font-picker">
-    <button className="btn font-picker__current" onClick={()=>setOpen(true)} style={{fontFamily:value}}> {value || 'Choose a font'} <span>⌄</span></button>
+  return <div className="font-picker" ref={picker} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setOpen(false)}} onKeyDown={e=>{
+    e.stopPropagation()
+    if(e.key==='Escape'){e.preventDefault();setOpen(false);trigger.current?.focus()}
+    if(open&&(e.key==='ArrowDown'||e.key==='ArrowUp')){
+      e.preventDefault()
+      const buttons=Array.from(picker.current?.querySelectorAll<HTMLButtonElement>('.font-picker__list button')??[])
+      const index=buttons.indexOf(document.activeElement as HTMLButtonElement)
+      buttons[(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus()
+    }
+  }}>
+    <div className="font-picker__anchor">
+    <button ref={trigger} aria-expanded={open} aria-label="Choose a font" className="btn font-picker__current" onClick={()=>{setSearch('');setOpen(!open)}} style={{fontFamily:value}}> {value || 'Choose a font'} <span>⌄</span></button>
+    {open&&<div className="font-picker__dropdown">
+      <input aria-label="Search fonts" placeholder="Search fonts…" value={search} onChange={e=>setSearch(e.target.value)} autoFocus />
+      <div className="font-picker__list">{options.filter(f=>f.toLowerCase().includes(search.toLowerCase())).map(f=><button key={f} className={f===value?'is-selected':''} style={{fontFamily:f}} onMouseEnter={()=>void ensureFontLoaded(f).catch(()=>{})} onClick={()=>{void ensureFontLoaded(f).catch(()=>{});onChange(f);setOpen(false);trigger.current?.focus()}}>{f}<small>{custom?.some(x=>x.family===f)?'Uploaded':CLOUD_FONTS.some(x=>x.family===f)?'Cloud':'Installed'}</small></button>)}</div>
+    </div>}
+    </div>
     <button className="btn" onClick={()=>input.current?.click()}>Upload a font…</button>
     <input ref={input} hidden type="file" accept=".ttf,.otf,.woff,.woff2" onChange={async e=>{
       const file=e.target.files?.[0];e.target.value='';if(!file)return
@@ -27,9 +49,6 @@ export default function FontPicker({value,onChange}:{value:string;onChange:(fami
       }catch(e){setError(e instanceof Error?e.message:String(e))}
     }}/>
     {error&&<p role="alert">{error}</p>}
-    {open&&<Modal title="Choose a typeface" onClose={()=>setOpen(false)} width={440}>
-      <input aria-label="Search fonts" placeholder="Search fonts…" value={search} onChange={e=>setSearch(e.target.value)} autoFocus />
-      <div className="font-picker__list">{options.filter(f=>f.toLowerCase().includes(search.toLowerCase())).map(f=><button key={f} className={f===value?'is-selected':''} style={{fontFamily:f}} onMouseEnter={()=>void ensureFontLoaded(f)} onClick={()=>{void ensureFontLoaded(f);onChange(f);setOpen(false)}}>{f}<small>{custom?.some(x=>x.family===f)?'Uploaded':CLOUD_FONTS.some(x=>x.family===f)?'Cloud':'Installed'}</small></button>)}</div>
-    </Modal>}
+
   </div>
 }

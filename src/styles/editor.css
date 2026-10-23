@@ -214,8 +214,13 @@
 .album-editor .menubar { flex-wrap: wrap; }
 .font-picker { display: grid; gap: 6px; margin-bottom: 12px; }
 .font-picker__current { width: 100%; justify-content: space-between; font-size: 16px; }
-.font-picker__list { display: flex; flex-direction: column; max-height: 50vh; overflow: auto; margin-top: 12px; }
-.font-picker__list button { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: transparent; color: inherit; border: 0; border-radius: 6px; text-align: left; font-size: 18px; cursor: pointer; }
+.font-picker__anchor { position: relative; min-width: 0; }
+.font-picker__dropdown { position: absolute; top: calc(100% + 4px); inset-inline: 0; z-index: 30; padding: 6px; border: 1px solid #d9cabc; border-radius: 9px; background: #fff; color: #30251e; box-shadow: 0 8px 24px #30251e26; }
+.font-picker__dropdown > input { width: 100%; min-width: 0; box-sizing: border-box; margin-bottom: 4px; }
+.font-picker__list { display: flex; flex-direction: column; max-height: min(220px, 30vh); overflow: auto; overscroll-behavior: contain; }
+.font-picker__list button { gap: 8px; flex-shrink: 0; overflow-wrap: anywhere; }
+.font-picker__list small { flex-shrink: 0; }
+.font-picker__list button { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: transparent; color: inherit; border: 0; border-radius: 6px; text-align: left; font-size: 15px; cursor: pointer; }
 .font-picker__list button:hover, .font-picker__list button.is-selected { background: #ece3d8; color: #543823; }
 .font-picker__list small { font: 10px 'Segoe UI', sans-serif; opacity: .6; }
 .missing-image-list { max-height: 45vh; overflow: auto; margin: 16px 0; }
