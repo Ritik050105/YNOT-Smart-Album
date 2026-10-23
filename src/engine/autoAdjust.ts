@@ -13,8 +13,9 @@ function loadImageElement(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
-    img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error(`Could not load image for auto adjust: ${src}`))
+    const timer = window.setTimeout(() => reject(new Error('Image took too long to load. Locate the original file and try again.')), 15000)
+    img.onload = () => { window.clearTimeout(timer); resolve(img) }
+    img.onerror = () => { window.clearTimeout(timer); reject(new Error('Could not load this image. Locate the original file and try again.')) }
     img.src = src
   })
 }

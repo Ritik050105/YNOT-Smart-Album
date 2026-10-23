@@ -26,6 +26,7 @@ export default function PhotoContextMenu({ x, y, spreadId, frameId }: { x: numbe
   const horizontal = !!box && box.width >= box.height
   const run = (action: () => Promise<unknown>) => { void action().catch(e => setError(e instanceof Error ? e.message : String(e))) }
   const items: ContextMenuItem[] = [
+    {label:'Auto Enhance',disabled:!photo && background?.mode !== 'cover',onClick:()=>run(()=>state.autoEnhanceImages([{spreadId,frameId}]))},
     ...(background?.mode === 'cover' ? [{label:'Detach Background Image',onClick:()=>state.detachBackground(spreadId)}] : []),
     { label: 'Cut', shortcut: 'Ctrl+X', disabled: !photo, onClick: () => state.cutPlacement(spreadId, frameId!) },
     { label: 'Copy', shortcut: 'Ctrl+C', disabled: !photo, onClick: () => state.copyPlacement(spreadId, frameId!) },

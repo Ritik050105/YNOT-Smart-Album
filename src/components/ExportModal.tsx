@@ -11,6 +11,7 @@ import {
   exportAlbumToProofingGallery,
   exportAlbumForManualProofing,
   checkPageLimits,
+  selectSpreads,
   ManualProofingOptions,
 } from '@/engine/exportAlbum'
 import { parseSpreadRange } from '@/engine/exportUtil'
@@ -41,6 +42,9 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   const [exporting, setExporting] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [enhancing, setEnhancing] = useState(false)
+  const [enhanced, setEnhanced] = useState(false)
+  const [enhanceError, setEnhanceError] = useState('')
   const [preflightWarning, setPreflightWarning] = useState<string | null>(null)
   const [pendingPageLimit, setPendingPageLimit] = useState<{ pageCount: number; min?: number; max?: number } | null>(null)
 
@@ -104,6 +108,8 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     if (tab === 'print' && !ignorePreflight) {
       const checks = exportPreflight(project, resolveRange(), includeCover)
       if (checks.coverNeedsReview || checks.lowResolution.length > 0) {
+        setEnhanced(false)
+        setEnhanceError('')
         setPreflightWarning([checks.coverNeedsReview ? 'The album page count has changed since the cover specifications were reviewed. Review the cover dimensions with your album company.' : '', checks.lowResolution.length ? `${checks.lowResolution.length} spread(s) contain images enlarged beyond 120% of the target resolution.` : ''].filter(Boolean).join(' '))
         return
       }
@@ -154,10 +160,28 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
       }
     >
       {error && <p role="alert">{error}</p>}
-      {preflightWarning && <Modal title="Review Before Printing" onClose={() => setPreflightWarning(null)} width={480} footer={<>
-        <button className="btn" onClick={() => setPreflightWarning(null)}>Review</button><div className="footer-spacer" />
-        <button className="btn btn--primary" onClick={() => { setPreflightWarning(null); void handleExport(false, true) }}>Ignore and Continue</button>
-      </>}><p>{preflightWarning}</p></Modal>}
+      {preflightWarning && <Modal title="Enhance images for print" onClose={() => { if (!enhancing) setPreflightWarning(null) }} width={540} footer={<>
+        <button className="btn" disabled={enhancing} onClick={() => { setPreflightWarning(null); onClose() }}>Back to editing</button>
+        <div className="footer-spacer" />
+        <button className="btn" disabled={enhancing} onClick={() => { setPreflightWarning(null); void handleExport(false, true) }}>Continue to export</button>
+      </>}>
+        <p>Balance exposure, contrast and color for the images in your selected export range, including backgrounds.</p>
+        <button className="btn btn--primary" disabled={enhancing || enhanced} onClick={async () => {
+          setEnhancing(true); setEnhanceError('')
+          try {
+            const targets = selectSpreads(project, resolveRange(), includeCover).flatMap(s => [
+              ...s.placements.filter(p => p.photoId).map(p => ({spreadId:s.id,frameId:p.placeholderId})),
+              ...(s.backgroundPattern?.mode === 'cover' ? [{spreadId:s.id}] : []),
+            ])
+            await useProjectStore.getState().autoEnhanceImages(targets)
+            setEnhanced(true)
+          } catch (err) { setEnhanceError(err instanceof Error ? err.message : 'Could not enhance images.') }
+          finally { setEnhancing(false) }
+        }}><Icon name="wand" size={16} />{enhancing ? 'Enhancing images…' : enhanced ? 'Images enhanced' : 'Auto Enhance'}</button>
+        {enhanced && <p role="status">Tone and color updated. You can review the result in the editor and undo the enhancement.</p>}
+        {enhanceError && <p role="alert">{enhanceError}</p>}
+        <p className="muted">{preflightWarning} Auto Enhance improves tone and color; it does not increase source resolution.</p>
+      </Modal>}
       <div className="tab-row">
         <button className={tab === 'cloud' ? 'is-active' : ''} onClick={() => { setTab('cloud'); setResult(null) }}>
           Cloud Proofing

@@ -298,6 +298,7 @@ interface ProjectState {
   /** "Auto Adjust" — analyzes the placed photo's own pixels and applies a corrective
    *  brightness/contrast/saturation pass (see engine/autoAdjust.ts). */
   autoAdjustPlacement: (spreadId: string, placeholderId: string) => Promise<void>
+  autoEnhanceImages: (targets: { spreadId: string; frameId?: string }[]) => Promise<void>
   addTextBox: (spreadId: string, box: TextBox) => void
   updateTextBox: (spreadId: string, textBoxId: string, patch: Partial<TextBox>) => void
   removeTextBox: (spreadId: string, textBoxId: string) => void
@@ -1095,14 +1096,31 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   autoAlignPlacement: (spreadId, placeholderId) =>
     get().updatePlacement(spreadId, placeholderId, { focalX: 0.5, focalY: 0.5, zoom: 1 }),
 
-  autoAdjustPlacement: async (spreadId, placeholderId) => {
-    const spread = get().project.spreads.find((s) => s.id === spreadId)
-    const placement = spread?.placements.find((pl) => pl.placeholderId === placeholderId)
-    const photo = placement?.photoId ? get().project.photos.find((p) => p.id === placement.photoId) : undefined
-    if (!photo) return
-    const adjustment = await computeAutoAdjust(photo.src).catch(() => null)
-    if (!adjustment) return
-    get().updatePlacement(spreadId, placeholderId, adjustment)
+  autoAdjustPlacement: (spreadId, placeholderId) => get().autoEnhanceImages([{spreadId,frameId:placeholderId}]),
+
+  autoEnhanceImages: async (targets) => {
+    const project = get().project
+    const corrections = new Map<string, Awaited<ReturnType<typeof computeAutoAdjust>>>()
+    const changes: {spreadId:string;frameId?:string;adjustment:Awaited<ReturnType<typeof computeAutoAdjust>>}[] = []
+    for (const target of targets) {
+      const spread = project.spreads.find(s => s.id === target.spreadId)
+      const placement = spread?.placements.find(p => p.placeholderId === target.frameId)
+      const background = !target.frameId && spread?.backgroundPattern?.mode === 'cover' ? spread.backgroundPattern : undefined
+      const src = background?.src ?? project.photos.find(p => p.id === placement?.photoId)?.src
+      if (!src) continue
+      if (!corrections.has(src)) corrections.set(src, await computeAutoAdjust(src))
+      changes.push({...target, adjustment: corrections.get(src)!})
+    }
+    if (get().project !== project) throw new Error('The album changed while enhancing. Please try again.')
+    if (!changes.length) return
+    withHistory(set, p => ({...p, spreads:p.spreads.map(s => {
+      const edits = changes.filter(c => c.spreadId === s.id)
+      const bg = edits.find(c => !c.frameId)
+      return {...s, placements:s.placements.map(pl => {
+        const edit = edits.find(c => c.frameId === pl.placeholderId)
+        return edit ? {...pl,...edit.adjustment} : pl
+      }), backgroundPattern:bg && s.backgroundPattern ? {...s.backgroundPattern,edits:{...defaultPlacement('background',null),...s.backgroundPattern.edits,...bg.adjustment}} : s.backgroundPattern}
+    })}))
   },
 
   addTextBox: (spreadId, box) =>

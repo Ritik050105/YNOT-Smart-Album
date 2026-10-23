@@ -333,13 +333,13 @@ export default function Inspector() {
                 setAutoAdjusting(true)
                 try {
                   await autoAdjustPlacement(spread.id, placement.placeholderId)
-                } finally {
+                } catch (error) { window.alert(error instanceof Error ? error.message : 'Could not enhance this image.') } finally {
                   setAutoAdjusting(false)
                 }
               }}
             >
               <Icon name="wand" size={11} />
-              {autoAdjusting ? 'Adjusting…' : 'Auto Adjust'}
+              {autoAdjusting ? 'Enhancing…' : 'Auto Enhance'}
             </button>
             <button
               className="btn btn--tiny"
@@ -597,18 +597,13 @@ function MultiSelectInspector({
   placeholderIds: string[]
   updateMultiplePlacements: (spreadId: string, placeholderIds: string[], patch: Partial<PlacedPhoto>) => void
 }) {
-  const autoAdjustPlacement = useProjectStore((s) => s.autoAdjustPlacement)
   const [autoAdjusting, setAutoAdjusting] = useState(false)
 
   async function autoAdjustAll() {
     setAutoAdjusting(true)
     try {
-      // Each photo analyzes separately (a batch patch can't apply — the correction differs per
-      // photo), so these run one at a time rather than as a single store update.
-      for (const placeholderId of placeholderIds) {
-        await autoAdjustPlacement(spreadId, placeholderId)
-      }
-    } finally {
+      await useProjectStore.getState().autoEnhanceImages(placeholderIds.map(frameId => ({spreadId,frameId})))
+    } catch (error) { window.alert(error instanceof Error ? error.message : 'Could not enhance these images.') } finally {
       setAutoAdjusting(false)
     }
   }
@@ -649,7 +644,7 @@ function MultiSelectInspector({
         <div className="text-style-row">
           <button className="btn btn--tiny" disabled={autoAdjusting} onClick={() => void autoAdjustAll()}>
             <Icon name="wand" size={11} />
-            {autoAdjusting ? 'Adjusting…' : 'Auto Adjust'}
+            {autoAdjusting ? 'Enhancing…' : 'Auto Enhance'}
           </button>
           <button
             className="btn btn--tiny"
