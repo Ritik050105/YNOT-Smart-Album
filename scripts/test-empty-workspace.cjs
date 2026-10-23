@@ -27,6 +27,8 @@ app.whenReady().then(async()=>{
   await fs.writeFile(path.join(out,`${w}-open.png`),(await win.webContents.capturePage()).toPNG())
   await evaluate(`document.querySelector('[aria-label="Show album sidebar"]').click()`);await new Promise(r=>setTimeout(r,100))
   assert.equal(await evaluate('store.getState().rightPanelOpen'),true)
+  assert.ok(await evaluate(`Array.from(document.querySelectorAll('.photo-dock__import-actions > button')).every(button=>{const b=button.getBoundingClientRect(),i=button.querySelector('svg').getBoundingClientRect();return Math.abs(b.left+b.width/2-i.left-i.width/2)<1&&Math.abs(b.top+b.height/2-i.top-i.height/2)<1})`),'Compact toolbar icons are centered when the right sidebar is open')
+
   assert.equal(await evaluate('store.getState().leftPanelOpen'),false)
   assert.ok(await evaluate('document.querySelector(".photo-dock").getBoundingClientRect().right<=document.querySelector(".editor-workspace > .app-sidebar--right").getBoundingClientRect().left+1'))
   assert.ok(await evaluate('Math.abs(document.querySelector(".editor-workspace > .app-sidebar--right").getBoundingClientRect().bottom-innerHeight)<2'))

@@ -70,7 +70,7 @@
 .album-editor .photo-dock__toolbar { min-height: 52px; padding: 0 12px 0 0; gap: 12px; background: #606060; flex-wrap: nowrap; overflow-x: auto; flex-shrink: 0; }
 .album-editor .photo-dock__toolbar > * { flex-shrink: 0; }
 .album-editor .photo-dock__import-actions { gap: 12px; }
-.album-editor .photo-dock__import-actions > .btn { min-height: 32px; padding: 0 14px; background: #909090; color: #fff; border-radius: 5px; }
+.album-editor .photo-dock__import-actions > .btn { justify-content: center; flex-shrink: 0; min-height: 32px; padding: 0 14px; background: #909090; color: #fff; border-radius: 5px; }
 .album-editor .photo-dock__mode-tabs { display: flex; align-self: stretch; }
 .album-editor .photo-dock__mode-tabs button { width: 50px; min-height: 52px; display: grid; place-items: center; border: 0; border-bottom: 3px solid transparent; background: #555; color: #ccc; cursor: pointer; }
 .album-editor .photo-dock__mode-tabs button.is-active { border-bottom-color: var(--accent); color: white; }
