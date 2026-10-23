@@ -22,7 +22,7 @@ app.whenReady().then(async()=>{
     for(let i=0;i<40;i++){await new Promise(r=>setTimeout(r,100));if(await evaluate(`Math.abs(innerWidth-${width/zoom})<=2&&Math.abs(innerHeight-${height/zoom})<=2`)){ready=true;break}}
     assert.ok(ready)
     const metrics=await evaluate(`({viewport:[innerWidth,innerHeight],rows:document.querySelectorAll('.matching-templates__row').length,tiles:document.querySelectorAll('.matching-template').length,panel:document.querySelector('.matching-templates').getBoundingClientRect().toJSON(),workspace:document.querySelector('#workspace').getBoundingClientRect().toJSON(),overflow:document.body.scrollWidth-innerWidth,modal:!!document.querySelector('[role=dialog]'),dockHidden:document.querySelector('#photo-dock').hidden,accent:getComputedStyle(document.querySelector('.album-editor')).getPropertyValue('--accent').trim()})`)
-    assert.equal(metrics.rows,2);assert.ok(metrics.tiles<=28&&metrics.tiles>0);assert.equal(metrics.modal,false);assert.equal(metrics.dockHidden,true);assert.equal(metrics.accent,'#ffe735');assert.ok(metrics.overflow<=1);assert.ok(metrics.workspace.height>=40,JSON.stringify(metrics));assert.ok(metrics.panel.right<=metrics.viewport[0]+1)
+    assert.equal(metrics.rows,1);assert.ok(metrics.tiles<=28&&metrics.tiles>0);assert.equal(metrics.modal,false);assert.equal(metrics.dockHidden,true);assert.equal(metrics.accent,'#ffe735');assert.ok(metrics.overflow<=1);assert.ok(metrics.workspace.height>=40,JSON.stringify(metrics));assert.ok(metrics.panel.right<=metrics.viewport[0]+1)
     report.push({width,height,zoom,...metrics})
     if(width===720||zoom===2)await fs.writeFile(path.join(output,`matching-${width}x${height}-${zoom}x.png`),(await win.webContents.capturePage()).toPNG())
   }
@@ -36,8 +36,8 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('store.getState().templatePreview'),null,'Reordering candidates after a favorite change clears the old preview and keyboard selection')
   await evaluate(`document.querySelector('.matching-template__favorite').focus();document.querySelector('.matching-template__favorite').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))`)
   assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true,'Favorite keyboard activation must not apply a layout')
-  await evaluate(`document.querySelectorAll('.matching-templates__strip')[1].scrollLeft=100000`);await new Promise(r=>setTimeout(r,150))
-  assert.ok(await evaluate(`document.querySelectorAll('.matching-templates__strip')[1].scrollLeft>1000`))
+  await evaluate(`document.querySelectorAll('.matching-templates__strip')[0].scrollLeft=100000`);await new Promise(r=>setTimeout(r,150))
+  assert.ok(await evaluate(`document.querySelectorAll('.matching-templates__strip')[0].scrollLeft>1000`))
   await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await new Promise(r=>setTimeout(r,100))
   assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),false);assert.equal(await evaluate('store.getState().templatePreview'),null)
   await evaluate(`store.getState().openMatchingTemplates('s')`);await new Promise(r=>setTimeout(r,100))
@@ -52,5 +52,7 @@ app.whenReady().then(async()=>{
   await evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))`);await new Promise(r=>setTimeout(r,100))
   assert.equal(await evaluate('store.getState().project.spreads[0].templateId'),keyboardPreview,'Enter applies the arrow-selected preview even when an older thumbnail retains focus')
   assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),false)
-  assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'results.json'),JSON.stringify(report,null,2));console.log('Inline matching-browser checks passed: eight viewport/scaling cases, two virtualized rows, no dialog, workspace/dock bounds, favorites, scroll, keyboard preview/cancel/apply and one-step history. Evidence:',output);win.destroy();app.quit()
+  assert.deepEqual(await evaluate('store.getState().project.spreads[0].placements.map(p=>p.photoId)'),await evaluate('window.original.spreads[0].placements.map(p=>p.photoId)'), 'Applying templates preserves timeline order')
+  assert.equal(await evaluate(`document.body.textContent.includes('Rearrange Timeline')`),false)
+  assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'results.json'),JSON.stringify(report,null,2));console.log('Inline matching-browser checks passed: eight viewport/scaling cases, one order-preserving virtualized row, no dialog, workspace/dock bounds, favorites, scroll, keyboard preview/cancel/apply and one-step history. Evidence:',output);win.destroy();app.quit()
 }).catch(error=>{console.error(error);app.exit(1)})
