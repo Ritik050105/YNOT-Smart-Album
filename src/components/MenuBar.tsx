@@ -79,8 +79,6 @@ export default function MenuBar() {
   const showGuides = useProjectStore((s) => s.showGuides)
   const toggleGuides = useProjectStore((s) => s.toggleGuides)
   const addGuide = useProjectStore((s) => s.addGuide)
-  const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
-  const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
   const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const enterDesignerView = useProjectStore((s) => s.enterDesignerView)
@@ -317,7 +315,6 @@ export default function MenuBar() {
         {
           label: 'Reset Panel Layout',
           onClick: () => {
-            if (!leftPanelOpen) toggleLeftPanel()
             if (!rightPanelOpen) toggleRightPanel()
             if (!bottomPanelOpen) toggleBottomPanel()
           },
@@ -348,7 +345,6 @@ export default function MenuBar() {
         { label: 'Fit Spread View', shortcut: 'Ctrl+0', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:zoom-fit')) },
         { label: 'Zoom to 100%', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:zoom-100')) },
         { label: `${showPhotoFileNames ? '✓ ' : ''}Show File Names in Image Browser`, onClick: toggleShowPhotoFileNames },
-        { label: `${leftPanelOpen ? '✓ ' : ''}Left Panel`, onClick: toggleLeftPanel },
         { label: `${rightPanelOpen ? '✓ ' : ''}Right Panel`, onClick: toggleRightPanel },
         { label: `${bottomPanelOpen ? '✓ ' : ''}Photo Dock (Image Browser)`, onClick: toggleBottomPanel },
       ],

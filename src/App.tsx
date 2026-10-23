@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import MenuBar from './components/MenuBar'
 import TopBar from './components/TopBar'
-import ImportPanel from './components/ImportPanel'
 import AlbumInfoPanel from './components/AlbumInfoPanel'
 import Inspector from './components/Inspector'
 import PhotoBin from './components/PhotoBin'
@@ -75,8 +74,6 @@ export default function App() {
   const currentFilePath = useProjectStore((s) => s.currentFilePath)
   const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
   const project = useProjectStore((s) => s.project)
-  const leftPanelOpen = useProjectStore((s) => s.leftPanelOpen)
-  const toggleLeftPanel = useProjectStore((s) => s.toggleLeftPanel)
   const revealLeftPanel = useProjectStore((s) => s.revealLeftPanel)
   const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
@@ -209,18 +206,6 @@ export default function App() {
       <div className="editor-workspace__content">
       <MatchingTemplatesPanel />
       <div className="app-body">
-        {leftPanelOpen && (
-          <aside className="app-sidebar app-sidebar--left">
-            <ImportPanel />
-          </aside>
-        )}
-        <button
-          className="panel-toggle panel-toggle--left"
-          onClick={toggleLeftPanel}
-          title={leftPanelOpen ? 'Collapse left panel' : 'Expand left panel'}
-        >
-          <Icon name={leftPanelOpen ? 'chevronLeft' : 'chevronRight'} size={12} />
-        </button>
         <main className="app-main">
           <SpreadsPanel />
         </main>
