@@ -143,6 +143,25 @@ app.whenReady().then(async()=>{
   const dragged=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(dragged[i].x-(originals[i].x+(i-picked)*30/sharedPoint.scale))<.01,'Picked anchor drag preview');
   const history=await evaluate('store.getState().history.length');win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:sharedPoint.x+30,y:sharedPoint.y});await wait();assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
  }
+ for(const cancel of [true,false]){
+  await evaluate(`store.getState().setGapAnchor('first')`);await openShared();
+  const inputGap=async value=>{await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait()};
+  const clickAnchor=async index=>{
+   const previous=await sharedRects();
+   const point=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.findOne('.gap-anchor-candidate-'+spacingIds[${index}]),p=n.getAbsoluteTransform().point({x:n.width()/2,y:3}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y)}})()`);
+   win.webContents.sendInputEvent({type:'mouseMove',...point});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});await wait();
+   assert.equal(await evaluate('store.getState().gapAnchor'),await evaluate(`'image:'+spacingIds[${index}]`));
+   const next=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(next[i].x-previous[i].x)<.01,'Switch preserves the visible preview');
+   assert.equal(await evaluate(`Konva.stages[0].find('.fixed-anchor-badge').length`),1,'One clear fixed-anchor badge');
+   assert.equal(await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').value`),index===1?'2':'2.2');
+  };
+  await inputGap('2');await clickAnchor(1);await inputGap('2.2');let preview=await sharedRects();assert.ok(Math.abs(preview[1].x-230)<.01,'New anchor keeps its preview position');
+  await clickAnchor(0);await inputGap('2.4');preview=await sharedRects();for(let i=0;i<3;i++){assert.ok(Math.abs(preview[i].x-[91,239,407][i])<.01);assert.equal(preview[i].width,originals[i].width);assert.equal(preview[i].height,originals[i].height)}
+  assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+  if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.deepEqual(await sharedRects(),originals)}
+  else {await fs.writeFile(path.join(out,'anchor-switch-preview.png'),(await win.webContents.capturePage()).toPNG());const history=await evaluate('store.getState().history.length');await evaluate(`document.querySelector('.canvas-gap-editor').requestSubmit()`);await wait();assert.equal(await evaluate('store.getState().history.length'),history+1);const saved=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(saved[i].x-preview[i].x)<.01,'Apply commits the visible preview');await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait()}
+ }
+ console.log('Anchor switching passed: direct clicks during preview, stable positions/value/sizes, badge, canvas Escape, Apply and single Undo');
  console.log('Picked anchors passed: actual canvas clicks, first/interior/last, typed and dragged preview, preserved sizes, Escape and Undo');
  await evaluate(`store.getState().setGapAnchor('first')`);await wait();
  console.log('Anchor UI passed: center/last inline choice, numeric/drag preview, unchanged sizes, Escape and single Undo');

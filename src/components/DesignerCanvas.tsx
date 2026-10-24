@@ -5,7 +5,7 @@ import { displayToIn, inToDisplay } from '@/engine/units'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
-import { Stage, Layer, Rect, Group, Image as KonvaImage, Text as KonvaText, Line, Transformer } from 'react-konva'
+import { Stage, Layer, Rect, Circle, Group, Image as KonvaImage, Text as KonvaText, Line, Transformer } from 'react-konva'
 import Konva from 'konva'
 import useImage from 'use-image'
 import { useProjectStore } from '@/state/projectStore'
@@ -262,14 +262,15 @@ export default function DesignerCanvas() {
   const size = baseSpread?.size ?? project.size
   const pickingGapAnchor=useProjectStore(s=>s.pickingGapAnchor)
   const gapAnchor=useProjectStore(s=>s.gapAnchor)
-  const [gapEditor,setGapEditor]=useState<{axis:'x'|'y';keys:string[];x:number;y:number;value:string;dirty?:boolean}|null>(null)
+  const [gapEditor,setGapEditor]=useState<{axis:'x'|'y';keys:string[];x:number;y:number;value:string;dirty?:boolean;previewBase?:Spread}|null>(null)
   const [gapDrag,setGapDrag]=useState<{axis:'x'|'y';keys:string[];gap:number;guide:SmartGuide;match?:SmartGuide;anchor:GapAnchor}|null>(null)
   const gapDragRef=useRef<{axis:'x'|'y';keys:string[];start:number;initial:number;gap:number;maximum:number;pixels:number;guide:SmartGuide;base:Spread;anchor:GapAnchor;moved:boolean;last:number;raw:number;fine:boolean;candidates:{gap:number;guide:SmartGuide}[]}|null>(null)
   const suppressGapClick=useRef(false)
   const gapMode=gapEditor?.axis==='x'?'horizontal':'vertical'
   const normalizedGap=gapEditor?displayToIn(Number(gapEditor.value),project.units,size.dpi)/(gapEditor.axis==='x'?size.widthIn:size.heightIn):NaN
-  const gapPreview=useMemo(()=>gapEditor?.dirty&&gapEditor.value.trim()!==''&&baseSpread?arrangeLayerSelection(baseSpread,project.size,gapEditor.keys,gapMode,'selection',normalizedGap,gapAnchor):baseSpread,[baseSpread,project.size,gapEditor,gapMode,normalizedGap,gapAnchor])
-  const gapCanApply=!!(gapEditor?.dirty&&gapPreview&&gapPreview!==baseSpread)
+  const gapBase=gapEditor?.previewBase??baseSpread
+  const gapPreview=useMemo(()=>gapEditor?.dirty&&gapEditor.value.trim()!==''&&gapBase?arrangeLayerSelection(gapBase,project.size,gapEditor.keys,gapMode,'selection',normalizedGap,gapAnchor):gapBase,[gapBase,project.size,gapEditor,gapMode,normalizedGap,gapAnchor])
+  const gapCanApply=!!(gapEditor?.dirty&&gapPreview&&gapPreview!==gapBase)
   // Preview only the canvas; project data and Undo history change once, on Apply.
   const spread=useMemo(()=>gapDrag&&baseSpread?arrangeLayerSelection(baseSpread,project.size,gapDrag.keys,gapDrag.axis==='x'?'horizontal':'vertical','selection',gapDrag.gap,gapDrag.anchor):gapPreview,[baseSpread,project.size,gapDrag,gapPreview])
   const [coverGuide] = useImage(spread?.coverDetails?.guideSrc ?? '')
@@ -279,6 +280,13 @@ export default function DesignerCanvas() {
 
   const stageHeight = STAGE_WIDTH / (size.widthIn / size.heightIn)
   useEffect(()=>setGapEditor(null),[selectedPlaceholderId,selectedTextBoxId,selectedLayerKeys,spread?.id,project.units,canvasTool])
+  useEffect(()=>setGapEditor(null),[baseSpread])
+  useEffect(()=>{
+    if(!gapEditor)return
+    const cancel=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();setGapEditor(null);useProjectStore.getState().setPickingGapAnchor(false)}}
+    window.addEventListener('keydown',cancel,true)
+    return()=>window.removeEventListener('keydown',cancel,true)
+  },[!!gapEditor])
   const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([])
   const [liveFrame, setLiveFrame] = useState<(GuideRect & {id:string}) | null>(null)
   useEffect(()=>{setSmartGuides([]);setLiveFrame(null)},[selectedPlaceholderId,selectedTextBoxId,spread?.id,canvasTool])
@@ -498,9 +506,18 @@ export default function DesignerCanvas() {
   }
   const activeGuideKeys=transformKeys.length?transformKeys:selectedPlaceholderId?['image:'+selectedPlaceholderId]:selectedTextBoxId?['text:'+selectedTextBoxId]:selectedLayerKeys
   const activeGeometry=spread&&activeGuideKeys.length?selectionGeometry(spread,activeGuideKeys,project.size):null
-  const pickedAnchor=gapAnchor.includes(':')?activeGeometry?.members.find(l=>l.kind+':'+l.id===gapAnchor):undefined
+  const anchorGeometry=gapEditor&&spread?selectionGeometry(spread,gapEditor.keys,project.size):activeGeometry
+  const pickedAnchor=gapAnchor.includes(':')?anchorGeometry?.members.find(l=>l.kind+':'+l.id===gapAnchor):undefined
   useEffect(()=>{if(gapAnchor.includes(':')&&!pickedAnchor)useProjectStore.getState().setGapAnchor('first')},[gapAnchor,!!pickedAnchor])
   useEffect(()=>{useProjectStore.getState().setPickingGapAnchor(false)},[selectedSpreadId,selectedPlaceholderId,selectedTextBoxId,selectedLayerKeys,canvasTool])
+  const anchorMembers=anchorGeometry?.members.filter(l=>!l.value.locked&&!l.value.hidden)??[]
+  const orderedAnchorMembers=[...anchorMembers].sort((a,b)=>a.rect[gapEditor?.axis??'x']-b.rect[gapEditor?.axis??'x'])
+  const markedAnchor=pickedAnchor??(gapEditor?(gapAnchor==='first'?orderedAnchorMembers[0]:gapAnchor==='last'?orderedAnchorMembers.at(-1):undefined):undefined)
+  function switchGapAnchor(anchor:GapAnchor){
+    // Rebase on the visible preview so choosing another anchor never jumps the layout.
+    if(gapEditor&&gapCanApply)setGapEditor({...gapEditor,previewBase:gapPreview})
+    useProjectStore.getState().setGapAnchor(anchor)
+  }
   const restingGuides=activeGeometry&&canvasTool==='select'?snapRect({x:activeGeometry.x*STAGE_WIDTH,y:activeGeometry.y*stageHeight,width:activeGeometry.width*STAGE_WIDTH,height:activeGeometry.height*stageHeight,keys:activeGuideKeys},guideTargets(activeGuideKeys),STAGE_WIDTH,stageHeight,0).guides.filter(g=>g.segments):[]
   const selectedGapUnits=guideTargets([]).filter(t=>t.keys?.length&&t.keys.every(k=>activeGuideKeys.includes(k)))
   const sharedGapGuides=selectedSpacingGuides(selectedGapUnits)
@@ -1177,16 +1194,24 @@ export default function DesignerCanvas() {
         </Layer>
         <Layer name="gap-anchor-picker">
           {pickedAnchor&&<Rect name="picked-gap-anchor" x={pickedAnchor.rect.x*STAGE_WIDTH} y={pickedAnchor.rect.y*stageHeight} width={pickedAnchor.rect.width*STAGE_WIDTH} height={pickedAnchor.rect.height*stageHeight} stroke="#9c6b49" strokeWidth={2/stageScale} dash={[5/stageScale,3/stageScale]} listening={false}/>}
-          {pickingGapAnchor&&activeGeometry?.members.filter(l=>!l.value.locked&&!l.value.hidden).map(l=><Rect key={l.kind+':'+l.id} name={`gap-anchor-candidate-${l.id}`} x={l.rect.x*STAGE_WIDTH} y={l.rect.y*stageHeight} width={l.rect.width*STAGE_WIDTH} height={l.rect.height*stageHeight} fill="rgba(156,107,73,.12)" stroke="#9c6b49" strokeWidth={1/stageScale} onMouseDown={e=>{e.cancelBubble=true}} onClick={e=>{e.cancelBubble=true;const state=useProjectStore.getState();state.setGapAnchor((l.kind+':'+l.id) as GapAnchor);state.setPickingGapAnchor(false)}}/>)}
+          {(pickingGapAnchor||gapEditor)&&anchorMembers.map(l=><Rect key={l.kind+':'+l.id} name={`gap-anchor-candidate-${l.id}`} x={l.rect.x*STAGE_WIDTH} y={l.rect.y*stageHeight} width={l.rect.width*STAGE_WIDTH} height={l.rect.height*stageHeight} fill={pickingGapAnchor?"rgba(156,107,73,.12)":"rgba(156,107,73,.001)"} stroke={pickingGapAnchor?"#9c6b49":undefined} strokeWidth={1/stageScale} onMouseDown={e=>{e.cancelBubble=true}} onClick={e=>{e.cancelBubble=true;switchGapAnchor((l.kind+':'+l.id) as GapAnchor)}}/>)}
+          {markedAnchor&&<Group name="fixed-anchor-badge" x={markedAnchor.rect.x*STAGE_WIDTH+4/stageScale} y={markedAnchor.rect.y*stageHeight+4/stageScale} scaleX={1/stageScale} scaleY={1/stageScale} listening={false}>
+            <Rect width={72} height={28} cornerRadius={7} fill="#795034" stroke="#fffaf4" strokeWidth={1}/>
+            <Circle x={14} y={7} radius={3} stroke="#fffaf4" strokeWidth={1.7}/>
+            <Line points={[14,10,14,23]} stroke="#fffaf4" strokeWidth={1.7}/>
+            <Line points={[8,14,20,14]} stroke="#fffaf4" strokeWidth={1.7}/>
+            <Line points={[5,17,8,22,14,24,20,22,23,17]} tension={.4} stroke="#fffaf4" strokeWidth={1.7}/>
+            <KonvaText text="Fixed" x={31} y={8} fontSize={12} fontStyle="bold" fill="#fffaf4"/>
+          </Group>}
         </Layer>
       </Stage>
       {pickingGapAnchor&&<div className="canvas-anchor-hint" role="status">Click a selected element to keep it fixed · Escape cancels</div>}
 
-      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,stagePos.x+gapEditor.x*stageScale)),top:Math.max(8,Math.min(viewportSize.height-235,stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().arrangeSelection(spread.id,gapEditor.keys,gapMode,'selection',normalizedGap,gapAnchor);setGapEditor(null);setSmartGuides([])}}}>
-        <label>Keep fixed<select aria-label="Canvas gap anchor" value={gapAnchor} onChange={e=>useProjectStore.getState().setGapAnchor(e.target.value as GapAnchor)}><option value="first">First element</option><option value="center">Center</option><option value="last">Last element</option>{gapAnchor.includes(':')&&<option value={gapAnchor}>Picked element</option>}</select></label>
+      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,stagePos.x+gapEditor.x*stageScale)),top:Math.max(8,Math.min(viewportSize.height-235,anchorGeometry?(stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+235<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-235):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
+        <label>Keep fixed<select aria-label="Canvas gap anchor" value={gapAnchor} onChange={e=>switchGapAnchor(e.target.value as GapAnchor)}><option value="first">First element</option><option value="center">Center</option><option value="last">Last element</option>{gapAnchor.includes(':')&&<option value={gapAnchor}>Picked element</option>}</select></label>
         <button className="btn btn--tiny" type="button" aria-pressed={pickingGapAnchor} onClick={()=>useProjectStore.getState().setPickingGapAnchor(!pickingGapAnchor)}>{pickingGapAnchor?'Cancel picking':'Pick anchor on canvas'}</button>
         <label>Gap ({project.units})<input aria-label="Canvas spacing gap" type="number" step="any" min="0" autoFocus value={gapEditor.value} onFocus={e=>e.target.select()} onChange={e=>setGapEditor({...gapEditor,value:e.target.value,dirty:true})}/></label>
-        <p>Preview adjusts these gaps together, keeping sizes unchanged and the chosen anchor fixed. Apply saves; Cancel restores.</p>
+        <p>Click a selected element to switch the fixed anchor. Preview keeps sizes unchanged. Apply saves; Escape or Cancel restores.</p>
         {gapEditor.dirty&&!gapCanApply&&<p role="status">Enter a gap that fits; the affected elements must be unlocked.</p>}
         <div><button className="btn btn--tiny" type="button" onClick={()=>setGapEditor(null)}>Cancel</button><button className="btn btn--tiny" type="submit" disabled={!gapCanApply}>Apply</button></div>
       </form>}
