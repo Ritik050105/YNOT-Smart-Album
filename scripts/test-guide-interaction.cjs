@@ -212,6 +212,15 @@ app.whenReady().then(async()=>{
   await shortcut(false);await assertRects(final);assert.equal(await evaluate(`document.querySelector('[aria-label="Reset gap preview"]').disabled`),false,'Undo restores pre-reset editing state');
   await shortcut(true);await assertRects(originals);await shortcut(false);await assertRects(final);
   await typeGap('1');await assertRects(await sharedRects());assert.equal(await evaluate(`document.querySelector('[aria-label="Gap change from original"]').textContent`),'−0.33 in decrease · −25%');await shortcut(false);await assertRects(final);
+  const typePercent=async value=>{await evaluate(`const input=document.querySelector('[aria-label="Gap percentage change"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait()};
+  for(const percent of [25,-25,-100,12.345]){
+   await typePercent(String(percent));const changed=await sharedRects();assert.ok(Math.abs(changed[1].x-final[1].x)<1e-8,'Percentage keeps the chosen anchor fixed');for(let i=0;i<3;i++){assert.equal(changed[i].width,originals[i].width);assert.equal(changed[i].height,originals[i].height)}
+   assert.ok(Math.abs(changed[1].x-changed[0].x-changed[0].width-60*(1+percent/100))<1e-8,'Percentage uses unrounded original gap');assert.equal(await evaluate('store.getState().history.length'),history);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+   await shortcut(false);await assertRects(final);await shortcut(true);await assertRects(changed);assert.equal(await evaluate(`document.querySelector('[aria-label="Gap percentage change"]').value`),String(percent));await shortcut(false);await assertRects(final);
+  }
+  for(const invalid of ['', '-101','100000']){await typePercent(invalid);assert.equal(await evaluate(`document.querySelector('.canvas-gap-editor [type="submit"]').disabled`),true,'Invalid or oversized percentage cannot apply');assert.equal(await evaluate('store.getState().history.length'),history);await shortcut(false);await assertRects(final)}
+  await typePercent('25');await evaluate(`document.querySelector('[aria-label="Reset gap preview"]').click()`);await wait();await assertRects(originals);assert.equal(await evaluate(`document.querySelector('[aria-label="Gap percentage change"]').value`),'0');await shortcut(false);await shortcut(false);await assertRects(final);
+  await typePercent('12.345');final=await sharedRects();
   assert.ok(Math.abs(final[1].x-beforeSwitch[1].x)<.01,'Switched anchor remains fixed across typing and another drag');for(let i=0;i<3;i++){assert.equal(final[i].width,originals[i].width);assert.equal(final[i].height,originals[i].height)}
   assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
   if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.deepEqual(await sharedRects(),originals);assert.equal(await evaluate('store.getState().history.length'),history)}
@@ -221,10 +230,12 @@ app.whenReady().then(async()=>{
  const zeroPoint=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.find('.spacing-measurement')[0],p=n.getAbsoluteTransform().point({x:n.width()/2,y:n.height()/2}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y)}})()`);
  win.webContents.sendInputEvent({type:'mouseMove',...zeroPoint});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...zeroPoint});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...zeroPoint});await wait();
  assert.equal(await evaluate(`document.querySelector('[aria-label="Gap change from original"]').textContent`),'No change · 0 in · 0%');
+ assert.equal(await evaluate(`document.querySelector('[aria-label="Gap percentage change"]').disabled`),true,'Zero original gap disables percentage input');
  await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'1');input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait();
  assert.equal(await evaluate(`document.querySelector('[aria-label="Gap change from original"]').textContent`),'+1 in increase · % unavailable from zero');
  await evaluate(`document.querySelector('[aria-label="Reset gap preview"]').click()`);await wait();assert.equal(await evaluate(`document.querySelector('[aria-label="Gap change from original"]').textContent`),'No change · 0 in · 0%');
  await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));store.getState().undo();store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+ console.log('Percentage input passed: positive/negative/decimal/zero-target values, fixed anchor and sizes, history, Reset, invalid/bounds rejection, Escape and one Apply/Undo');
  console.log('Percentage change passed: signed percentages from unrounded gaps, live dragging, history, Reset and zero-baseline handling');
  console.log('Gap delta passed: positive/negative/zero amounts, live drag indicator, typing, Undo/Redo and Reset');
  console.log('Gap comparison passed: stable original and current preview values through typing, dragging, Undo, Redo and Reset');

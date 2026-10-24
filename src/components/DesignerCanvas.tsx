@@ -262,7 +262,7 @@ export default function DesignerCanvas() {
   const size = baseSpread?.size ?? project.size
   const pickingGapAnchor=useProjectStore(s=>s.pickingGapAnchor)
   const gapAnchor=useProjectStore(s=>s.gapAnchor)
-  type GapEditor = {axis:'x'|'y';keys:string[];x:number;y:number;value:string;dirty?:boolean;previewBase?:Spread;exactGap?:number}
+  type GapEditor = {axis:'x'|'y';keys:string[];x:number;y:number;value:string;dirty?:boolean;previewBase?:Spread;exactGap?:number;percentValue?:string}
   type GapSnapshot = {editor:GapEditor;anchor:GapAnchor}
   const [gapEditor,renderGapEditor]=useState<GapEditor|null>(null)
   const gapHistory=useRef<{current:GapSnapshot|null;initial:GapSnapshot|null;past:GapSnapshot[];future:GapSnapshot[]}>({current:null,initial:null,past:[],future:[]})
@@ -544,6 +544,8 @@ export default function DesignerCanvas() {
   const activeGuideKeys=transformKeys.length?transformKeys:selectedPlaceholderId?['image:'+selectedPlaceholderId]:selectedTextBoxId?['text:'+selectedTextBoxId]:selectedLayerKeys
   const activeGeometry=spread&&activeGuideKeys.length?selectionGeometry(spread,activeGuideKeys,project.size):null
   const anchorGeometry=gapEditor&&spread?selectionGeometry(spread,gapEditor.keys,project.size):activeGeometry
+  const anchorRight=anchorGeometry?stagePos.x+(anchorGeometry.x+anchorGeometry.width)*STAGE_WIDTH*stageScale:undefined
+  const gapEditorBeside=anchorRight!==undefined&&anchorRight+242<=viewportSize.width
   const pickedAnchor=gapAnchor.includes(':')?anchorGeometry?.members.find(l=>l.kind+':'+l.id===gapAnchor):undefined
   useEffect(()=>{if(gapAnchor.includes(':')&&!pickedAnchor)useProjectStore.getState().setGapAnchor('first')},[gapAnchor,!!pickedAnchor])
   useEffect(()=>{useProjectStore.getState().setPickingGapAnchor(false)},[selectedSpreadId,selectedPlaceholderId,selectedTextBoxId,selectedLayerKeys,canvasTool])
@@ -1254,13 +1256,18 @@ export default function DesignerCanvas() {
       {gapDrag&&<div className="canvas-anchor-hint" aria-label="Live gap change">{gapChangeText}</div>}
       {pickingGapAnchor&&<div className="canvas-anchor-hint" role="status">Click a selected element to keep it fixed · Escape cancels</div>}
 
-      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,stagePos.x+gapEditor.x*stageScale)),top:Math.max(8,Math.min(viewportSize.height-335,anchorGeometry?(stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+335<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-335):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
+      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-440,anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+440<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-440):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
         <label>Keep fixed<select aria-label="Canvas gap anchor" value={gapAnchor} onChange={e=>switchGapAnchor(e.target.value as GapAnchor)}><option value="first">First element</option><option value="center">Center</option><option value="last">Last element</option>{gapAnchor.includes(':')&&<option value={gapAnchor}>Picked element</option>}</select></label>
         <button className="btn btn--tiny" type="button" aria-pressed={pickingGapAnchor} onClick={()=>useProjectStore.getState().setPickingGapAnchor(!pickingGapAnchor)}>{pickingGapAnchor?'Cancel picking':'Pick anchor on canvas'}</button>
         <div className="canvas-gap-editor__comparison">
           <label>Original<span className="canvas-gap-editor__original" aria-label="Original gap">{gapHistory.current.initial?.editor.value} {project.units}</span></label>
-          <label>Preview ({project.units})<input aria-label="Canvas spacing gap" type="number" step="any" min="0" autoFocus value={gapEditor.value} onFocus={e=>e.target.select()} onChange={e=>setGapEditor({...gapEditor,value:e.target.value,dirty:true,exactGap:undefined})}/></label>
+          <label>Preview ({project.units})<input aria-label="Canvas spacing gap" type="number" step="any" min="0" autoFocus value={gapEditor.value} onFocus={e=>e.target.select()} onChange={e=>setGapEditor({...gapEditor,value:e.target.value,dirty:true,exactGap:undefined,percentValue:undefined})}/></label>
         </div>
+        <label>Change (%)<input aria-label="Gap percentage change" type="number" step="any" min="-100" disabled={Math.abs(originalGapIn)<1e-10} title={Math.abs(originalGapIn)<1e-10?'Percentage editing requires a nonzero original gap':'Percentage change from the original gap; use a negative value to decrease it'} value={gapEditor.percentValue??(Number.isFinite(gapPercent)?gapPercent!:'')} onFocus={e=>e.target.select()} onChange={e=>{
+          const percentValue=e.target.value,percent=Number(percentValue),inches=originalGapIn*(1+percent/100)
+          const valid=percentValue.trim()!==''&&Number.isFinite(percent)&&percent>=-100&&Number.isFinite(inches)&&Math.abs(originalGapIn)>=1e-10
+          setGapEditor({...gapEditor,percentValue,dirty:true,value:valid?String(inToDisplay(inches,project.units,size.dpi)):'',exactGap:valid?inches/(gapEditor.axis==='x'?size.widthIn:size.heightIn):NaN})
+        }}/></label>
         <p className="canvas-gap-editor__change" aria-label="Gap change from original">{gapChangeText}</p>
         <div className="canvas-gap-editor__history">
           <button className="btn btn--tiny" type="button" aria-label="Undo gap change" aria-keyshortcuts="Control+Z" disabled={!gapHistory.current.past.length} onClick={()=>stepGapHistory(false)}>Undo<kbd>Ctrl+Z</kbd></button>
