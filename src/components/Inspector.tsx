@@ -117,12 +117,12 @@ export default function Inspector() {
     <>
     <div className="panel inspector">
 
-      {!placement && !textBox && <section>
+      {!placement && !textBox && <section className="smart-grid">
         <h4>
           <Icon name="sparkles" size={13} />
           Smart Grid Suggestions
         </h4>
-        <label>
+        <label className="smart-grid__filter">
           Frame ratio filter
           <select value={frameFilter} onChange={(e) => setFrameFilter(e.target.value as TemplateFrameFilter)}>
             <option value="all">All Templates</option>
@@ -137,6 +137,7 @@ export default function Inspector() {
             .map((t) => (
               <button
                 key={t.id}
+                aria-pressed={spread.templateId === t.id}
                 className={`template-swatch ${spread.templateId === t.id ? 'is-active' : ''}`}
                 onClick={() => applyTemplateToSpread(spread.id, t.id)}
                 onMouseEnter={(e) => setHoverPreview({ template: t, rect: e.currentTarget.getBoundingClientRect() })}
@@ -152,8 +153,11 @@ export default function Inspector() {
           <Icon name="grid" size={11} />
           Browse All Templates ({suggestions.length})
         </button>
+        <div className="smart-grid__group">
+        <span className="smart-grid__caption">Save this layout</span>
         <div className="save-template-row">
           <input
+            aria-label="Template name"
             placeholder="Template name"
             value={templateName}
             onChange={(e) => setTemplateName(e.target.value)}
@@ -171,23 +175,25 @@ export default function Inspector() {
           </button>
         </div>
 
+        </div>
+        <div className="smart-grid__group">
+        <span className="smart-grid__caption">Custom grid</span>
         <div className="custom-grid-row">
-          <span className="custom-grid-row__label">Custom grid</span>
-          <input
+          <label>Rows<input
             type="number"
             min={1}
             max={10}
             value={customRows}
             onChange={(e) => setCustomRows(Math.max(1, Math.min(10, Number(e.target.value))))}
           />
-          <span className="custom-grid-row__x">×</span>
-          <input
+          </label>
+          <label>Columns<input
             type="number"
             min={1}
             max={10}
             value={customCols}
             onChange={(e) => setCustomCols(Math.max(1, Math.min(10, Number(e.target.value))))}
-          />
+          /></label>
           <button
             className="btn btn--tiny"
             onClick={() => applyTemplateToSpread(spread.id, generateCustomGrid(customRows, customCols).id)}
@@ -202,8 +208,9 @@ export default function Inspector() {
           onClick={() => applyTemplateToAllSpreads(spread.templateId)}
         >
           <Icon name="layers" size={11} />
-          Apply Template to All Spreads
+          Apply to all spreads
         </button>
+        </div>
       </section>}
 
       {!placement && !textBox && <><section>
