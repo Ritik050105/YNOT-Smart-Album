@@ -310,3 +310,21 @@
 .designer-ruler--vertical .designer-ruler__cursor { height: 1px; left: 0; right: 0; }
 .designer-ruler--horizontal .designer-ruler__tick--minor { height: 5px; top: auto; bottom: 0; }
 .designer-ruler--vertical .designer-ruler__tick--minor { width: 5px; left: auto; right: 0; }
+
+/* Cover specifications keep the active choice and its next action together. */
+.cover-specifications .modal-card__header { padding:24px 28px; }
+.cover-specifications .modal-card__body { display:flex; flex-direction:column; gap:16px; }
+.cover-specifications .modal-card__body > * { flex-shrink:0; }
+.cover-choice { border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+.cover-choice.is-active { border-color:var(--accent); background:var(--accent-soft); }
+.cover-choice__heading { width:100%; padding:18px 20px; display:flex; flex-direction:column; gap:5px; align-items:flex-start; border:0; background:transparent; color:inherit; font:inherit; font-weight:600; cursor:pointer; text-align:left; }
+.cover-choice__heading span { font-size:12px; font-weight:400; opacity:.7; }
+.cover-choice__body { padding:0 20px 20px; }
+.cover-guide-drop { position:relative; display:flex; flex-direction:column; align-items:center; gap:12px; padding:24px; border:1px dashed var(--border); border-radius:8px; text-align:center; overflow-wrap:anywhere; }
+.cover-guide-drop.is-dragging { border-color:var(--accent); background:var(--accent-soft); }
+.cover-guide-remove { position:absolute; right:8px; top:8px; }
+.cover-guide-dpi { max-width:180px; margin:16px auto 0; }
+.cover-specifications .cover-setup__guide { max-height:100px; }
+.cover-guide-options summary { cursor:pointer; font-weight:600; padding:8px 0; }
+.cover-specifications__error { border-left:3px solid #d97745; padding:10px 14px; background:rgba(217,119,69,.12); margin:0; }
+@media(max-width:560px) { .cover-specifications .auto-build-range { flex-wrap:wrap; } .cover-choice__body { padding:0 12px 12px; } }

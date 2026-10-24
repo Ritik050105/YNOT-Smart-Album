@@ -120,7 +120,7 @@ export interface Spread {
   customBoxes?: PlaceholderRect[]
   /** Cover artwork has lab dimensions independent of the interior spreads. */
   size?: AlbumSize
-  coverDetails?: { wrapIn: number; spineIn: number; guideSrc?: string; reviewedPageCount: number }
+  coverDetails?: { wrapIn: number; spineIn: number; guideSrc?: string; guideName?: string; guidePixels?: { width: number; height: number }; reviewedPageCount: number }
   id: string
   order: number
   pageSide: PageSide
