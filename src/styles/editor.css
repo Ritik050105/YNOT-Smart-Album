@@ -452,3 +452,7 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 
 .canvas-gap-editor label { font-size:13px; white-space:nowrap; }
 .canvas-gap-editor select { width:124px; font-size:12px; }
+
+.canvas-gap-editor__history { margin-top:8px; }
+.canvas-gap-editor__history button { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px; }
+.canvas-gap-editor__history kbd { font-family:inherit; font-size:10px; opacity:.7; }
