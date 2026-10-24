@@ -1372,7 +1372,7 @@ export default function DesignerCanvas() {
                 left: stagePos.x + box.x * STAGE_WIDTH * stageScale,
                 top: stagePos.y + box.y * stageHeight * stageScale,
                 width: box.width * STAGE_WIDTH * stageScale,
-                minHeight: box.height * stageHeight * stageScale,
+                minHeight: box.fontSize * stageScale + 8,
                 fontSize: box.fontSize * stageScale,
                 fontFamily: fontPreview?.textBoxId === box.id ? fontPreview.family : box.fontFamily,
                 color: box.color,
@@ -1380,6 +1380,8 @@ export default function DesignerCanvas() {
                 fontStyle: box.italic ? 'italic' : 'normal',
                 textAlign: box.align,
               }}
+              ref={element => { if (element) { element.style.height = '0px'; element.style.height = `${element.scrollHeight + 3}px` } }}
+              onInput={e => { e.currentTarget.style.height = '0px'; e.currentTarget.style.height = `${e.currentTarget.scrollHeight + 3}px` }}
               autoFocus
               defaultValue={box.text}
               onBlur={(e) => {

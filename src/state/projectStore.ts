@@ -1,3 +1,4 @@
+import { fitTextBoxHeight } from '@/engine/textBoxSize'
 import { spreadLayers, layerMembers, transformLayerSelection, arrangeLayerSelection, LayerAlignment, LayerAlignmentTarget, GapAnchor } from '@/engine/spreadLayers'
 import { changesLockedLayer } from '@/engine/layerLocks'
 import { getPreferences } from './preferences'
@@ -1270,7 +1271,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   addTextBox: (spreadId, box) =>
     withHistory(set, (p) => ({
       ...p,
-      spreads: p.spreads.map((s) => (s.id === spreadId ? { ...s, textBoxes: [...s.textBoxes, box] } : s)),
+      spreads: p.spreads.map((s) => (s.id === spreadId ? { ...s, textBoxes: [...s.textBoxes, box.text ? fitTextBoxHeight(box, s.size ?? p.size) : box] } : s)),
     })),
 
   updateTextBox: (spreadId, textBoxId, patch) =>
@@ -1279,7 +1280,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       spreads: p.spreads.map((s) =>
         s.id !== spreadId
           ? s
-          : { ...s, textBoxes: s.textBoxes.map((t) => (t.id === textBoxId ? { ...t, ...patch } : t)) }
+          : { ...s, textBoxes: s.textBoxes.map((t) => (t.id === textBoxId ? (['text', 'fontFamily', 'fontSize', 'bold', 'italic', 'width'].some(key => key in patch) ? fitTextBoxHeight({ ...t, ...patch }, s.size ?? p.size) : { ...t, ...patch }) : t)) }
       ),
     })),
 
