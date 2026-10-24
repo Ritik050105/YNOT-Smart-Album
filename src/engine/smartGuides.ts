@@ -1,5 +1,14 @@
 export type GuideRect = {x:number;y:number;width:number;height:number;keys?:string[]}
 export type SmartGuide = {axis:'x'|'y';position:number;segments?:{from:number;to:number;keys?:string[]}[]}
+/** Adjacent stationary gaps in the same row or column provide spacing references. */
+export function nearbySpacingGaps(rect:GuideRect,targets:GuideRect[],axis:'x'|'y') {
+  const cross=axis==='x'?'y':'x',size=axis==='x'?'width':'height',crossSize=axis==='x'?'height':'width'
+  const row=targets.filter(t=>t[cross]<rect[cross]+rect[crossSize]&&t[cross]+t[crossSize]>rect[cross]).sort((a,b)=>a[axis]-b[axis])
+  return row.slice(1).flatMap((b,i)=>{
+    const a=row[i],from=a[axis]+a[size],to=b[axis],low=Math.max(a[cross],b[cross],rect[cross]),high=Math.min(a[cross]+a[crossSize],b[cross]+b[crossSize],rect[cross]+rect[crossSize])
+    return to>=from&&high>low?[{gap:to-from,guide:{axis,position:(low+high)/2,segments:[{from,to}]} as SmartGuide}]:[]
+  })
+}
 // Only compare neighboring elements sharing a row or column with the moving frame.
 function spacingTriples(rect:GuideRect,targets:GuideRect[],axis:'x'|'y') {
   const cross=axis==='x'?'y':'x',size=axis==='x'?'width':'height',crossSize=axis==='x'?'height':'width'

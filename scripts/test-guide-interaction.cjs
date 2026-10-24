@@ -106,7 +106,30 @@ app.whenReady().then(async()=>{
    if(cancel)assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Release after Escape does not commit');
    else {assert.equal(await evaluate('store.getState().history.length'),history+1,'Release makes one undo entry');assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===dragGapId).${axis}*${axis==='x'?900:450}-${initial+30/point.scale})<1`),'Released gap persisted');await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Undo restores drag')}
   }
+  for(const fine of [false,true]){
+   if(fine)win.webContents.sendInputEvent({type:'keyDown',keyCode:'SHIFT'});
+   const modifiers=fine?['shift']:[];
+   win.webContents.sendInputEvent({type:'mouseMove',x:point.x,y:point.y,modifiers});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:point.x,y:point.y,modifiers});await wait();
+   const distance=fine?30:4,end={x:point.x+(axis==='x'?distance:0),y:point.y+(axis==='y'?distance:0)};
+   win.webContents.sendInputEvent({type:'mouseMove',...end,modifiers});await wait();
+   const expected=fine?initial+3/point.scale:initial;
+   assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].${axis}()-${expected})<.01`),fine?'Shift uses one tenth movement without snap':'Drag snaps to reference gap');
+   if(!fine)assert.equal(await evaluate(`Konva.stages[0].find('.spacing-measurement').length`),2,'Matching reference gap is highlighted');
+   if(fine){
+    win.webContents.sendInputEvent({type:'keyUp',keyCode:'SHIFT'});await wait();assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].${axis}()-${expected})<.01`),'Releasing Shift does not jump');
+    end[axis]+=20;win.webContents.sendInputEvent({type:'mouseMove',...end});await wait();assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].${axis}()-${initial+23/point.scale})<.01`),'Normal speed resumes incrementally');
+   }
+   win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...end});await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Fine/snap drag cancels cleanly');
+  }
  }
+
+ await evaluate(`for(const y of [350,420])store.getState().addImageFrame(spreadId,{x:600/900,y:y/450,width:40/900,height:10/450});store.getState().selectPlaceholder(dragGapId)`);await wait();
+ const snapPoint=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.find('.spacing-measurement')[1],p=n.getAbsoluteTransform().point({x:n.width()/2,y:n.height()/2}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y),scale:stage.scaleX()}})()`);
+ win.webContents.sendInputEvent({type:'mouseMove',x:snapPoint.x,y:snapPoint.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:snapPoint.x,y:snapPoint.y});await wait();
+ const snapEnd={x:snapPoint.x,y:snapPoint.y+Math.round(10*snapPoint.scale)+2};win.webContents.sendInputEvent({type:'mouseMove',...snapEnd});await wait();assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].y()-280)<.01`),'Gap snaps from 50 to nearby 60 design-pixel spacing');
+ await fs.writeFile(path.join(out,'gap-snapping.png'),(await win.webContents.capturePage()).toPNG());
+ win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...snapEnd});await wait();
+ console.log('Spacing snap and Shift passed: both axes, highlighted references, fine movement, modifier transitions and cancellation');
  console.log('Spacing drag passed: real mouse horizontal/vertical dragging, zoom scaling, live preview, Escape cancellation, release commit and Undo');
  console.log('Live preview passed: visual movement without project changes, Escape/Cancel restoration, single Apply/Undo');
  console.log('Inline spacing passed: real label click, input validation, Escape, Enter, fixed leading frame and single Undo');

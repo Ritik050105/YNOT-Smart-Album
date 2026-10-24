@@ -1,6 +1,6 @@
 import { arrangeLayerSelection, spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences } from '@/state/preferences'
-import { snapRect, GuideRect, SmartGuide } from '@/engine/smartGuides'
+import { snapRect, nearbySpacingGaps, GuideRect, SmartGuide } from '@/engine/smartGuides'
 import { displayToIn, inToDisplay } from '@/engine/units'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -261,8 +261,8 @@ export default function DesignerCanvas() {
   const baseSpread: Spread | undefined = templatePreview?.id === selectedSpreadId ? templatePreview : project.spreads.find((s) => s.id === selectedSpreadId)
   const size = baseSpread?.size ?? project.size
   const [gapEditor,setGapEditor]=useState<{axis:'x'|'y';keys:string[];x:number;y:number;value:string;dirty?:boolean}|null>(null)
-  const [gapDrag,setGapDrag]=useState<{axis:'x'|'y';keys:string[];gap:number;guide:SmartGuide}|null>(null)
-  const gapDragRef=useRef<{axis:'x'|'y';keys:string[];start:number;initial:number;gap:number;maximum:number;pixels:number;guide:SmartGuide;base:Spread;moved:boolean}|null>(null)
+  const [gapDrag,setGapDrag]=useState<{axis:'x'|'y';keys:string[];gap:number;guide:SmartGuide;match?:SmartGuide}|null>(null)
+  const gapDragRef=useRef<{axis:'x'|'y';keys:string[];start:number;initial:number;gap:number;maximum:number;pixels:number;guide:SmartGuide;base:Spread;moved:boolean;last:number;raw:number;fine:boolean;candidates:{gap:number;guide:SmartGuide}[]}|null>(null)
   const suppressGapClick=useRef(false)
   const gapMode=gapEditor?.axis==='x'?'horizontal':'vertical'
   const normalizedGap=gapEditor?displayToIn(Number(gapEditor.value),project.units,size.dpi)/(gapEditor.axis==='x'?size.widthIn:size.heightIn):NaN
@@ -498,7 +498,7 @@ export default function DesignerCanvas() {
   const activeGeometry=spread&&activeGuideKeys.length?selectionGeometry(spread,activeGuideKeys,project.size):null
   const restingGuides=activeGeometry&&canvasTool==='select'?snapRect({x:activeGeometry.x*STAGE_WIDTH,y:activeGeometry.y*stageHeight,width:activeGeometry.width*STAGE_WIDTH,height:activeGeometry.height*stageHeight,keys:activeGuideKeys},guideTargets(activeGuideKeys),STAGE_WIDTH,stageHeight,0).guides.filter(g=>g.segments):[]
   const guideInteraction=Konva.isDragging()||transformerRef.current?.isTransforming()||textTransformerRef.current?.isTransforming()||groupTransformerRef.current?.isTransforming()
-  const displayedGuides=gapDrag?[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>({...s,to:s.from+gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)}))}]:guideInteraction||smartGuides.length?smartGuides:restingGuides
+  const displayedGuides=gapDrag?[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>({...s,to:s.from+gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)}))},...(gapDrag.match?[gapDrag.match]:[])]:guideInteraction||smartGuides.length?smartGuides:restingGuides
   function beginGapDrag(e:Konva.KonvaEventObject<MouseEvent>,g:SmartGuide,segment:NonNullable<SmartGuide['segments']>[number]) {
     e.cancelBubble=true
     if(e.evt.button!==0||!segment.keys||!baseSpread)return
@@ -506,15 +506,21 @@ export default function DesignerCanvas() {
     const axis=g.axis,dimension=axis==='x'?STAGE_WIDTH:stageHeight,initial=(segment.to-segment.from)/dimension
     const geometry=selectionGeometry(baseSpread,segment.keys,project.size)
     if(!geometry||arrangeLayerSelection(baseSpread,project.size,segment.keys,axis==='x'?'horizontal':'vertical','selection',initial)===baseSpread)return
-    gapDragRef.current={axis,keys:segment.keys,start:axis==='x'?e.evt.clientX:e.evt.clientY,initial,gap:initial,maximum:Math.max(0,initial+1-geometry[axis]-geometry[axis==='x'?'width':'height']),pixels:dimension*stageScale,guide:{...g,segments:[segment]},base:baseSpread,moved:false}
+    const moving=guideTargets([]).filter(t=>t.keys?.some(k=>segment.keys!.includes(k))).sort((a,b)=>a[axis]-b[axis]).at(-1)
+    const candidates=moving?nearbySpacingGaps(moving,guideTargets(moving.keys??[]),axis).map(c=>({...c,gap:c.gap/dimension})):[]
+    gapDragRef.current={axis,keys:segment.keys,start:axis==='x'?e.evt.clientX:e.evt.clientY,initial,gap:initial,maximum:Math.max(0,initial+1-geometry[axis]-geometry[axis==='x'?'width':'height']),pixels:dimension*stageScale,guide:{...g,segments:[segment]},base:baseSpread,moved:false,last:axis==='x'?e.evt.clientX:e.evt.clientY,raw:initial,fine:e.evt.shiftKey,candidates}
   }
   useEffect(()=>{
     const cancel=()=>{if(gapDragRef.current?.moved)suppressGapClick.current=true;gapDragRef.current=null;setGapDrag(null)}
     const move=(e:MouseEvent)=>{const d=gapDragRef.current;if(!d)return
       const delta=(d.axis==='x'?e.clientX:e.clientY)-d.start
       if(!d.moved&&Math.abs(delta)<3)return
-      d.moved=true;suppressGapClick.current=true;d.gap=Math.max(0,Math.min(d.maximum,d.initial+delta/d.pixels))
-      setGapEditor(null);setGapDrag({axis:d.axis,keys:d.keys,gap:d.gap,guide:d.guide})
+      const point=d.axis==='x'?e.clientX:e.clientY
+      if(d.fine!==e.shiftKey){d.raw=d.gap;d.fine=e.shiftKey}
+      d.raw=Math.max(0,Math.min(d.maximum,d.raw+(point-d.last)/d.pixels*(e.shiftKey ? 0.1 : 1)));d.last=point
+      const match=e.shiftKey?undefined:d.candidates.filter(c=>c.gap<=d.maximum&&Math.abs(c.gap-d.raw)<=6/d.pixels).sort((a,b)=>Math.abs(a.gap-d.raw)-Math.abs(b.gap-d.raw))[0]
+      d.moved=true;suppressGapClick.current=true;d.gap=match?.gap??d.raw
+      setGapEditor(null);setGapDrag({axis:d.axis,keys:d.keys,gap:d.gap,guide:d.guide,match:match?.guide})
     }
     const finish=()=>{const d=gapDragRef.current;if(!d)return
       if(d.moved&&Math.abs(d.gap-d.initial)>1e-10&&useProjectStore.getState().project.spreads.find(s=>s.id===d.base.id)===d.base)useProjectStore.getState().arrangeSelection(d.base.id,d.keys,d.axis==='x'?'horizontal':'vertical','selection',d.gap)

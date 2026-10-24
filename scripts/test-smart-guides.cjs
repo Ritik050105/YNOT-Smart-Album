@@ -29,3 +29,8 @@ for(const axis of ['x','y']){
 }
 assert.ok(!snapRect({x:322,y:300,width:40,height:40},[{x:100,y:100,width:40,height:40},{x:200,y:100,width:60,height:40}],900,900,6).guides.some(g=>g.segments),'Different rows do not attract');
 console.log('Equal spacing passed: both axes, middle and end positions, resizing, zoom threshold and row isolation');
+
+const {nearbySpacingGaps}=mod.exports;
+assert.deepEqual(nearbySpacingGaps({x:300,y:100,width:40,height:40},[{x:100,y:100,width:30,height:40},{x:200,y:100,width:40,height:40},{x:250,y:300,width:20,height:20}],'x').map(c=>c.gap),[70]);
+assert.deepEqual(nearbySpacingGaps({x:100,y:300,width:40,height:40},[{x:100,y:100,width:40,height:30},{x:100,y:190,width:40,height:40}],'y').map(c=>c.gap),[60]);
+console.log('Nearby gap references passed: both axes and unrelated-row exclusion');
