@@ -341,6 +341,19 @@ app.whenReady().then(async()=>{
  const snapEnd={x:snapPoint.x,y:snapPoint.y+Math.round(10*snapPoint.scale)+2};win.webContents.sendInputEvent({type:'mouseMove',...snapEnd});await wait();assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].y()-280)<.01`),'Gap snaps from 50 to nearby 60 design-pixel spacing');
  await fs.writeFile(path.join(out,'gap-snapping.png'),(await win.webContents.capturePage()).toPNG());
  win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...snapEnd});await wait();
+ const savedPresets=await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`);assert.ok(savedPresets.gapPresetPast.length);
+ await evaluate('store.getState().exitDesignerView(true)');await wait();await evaluate(`store.getState().enterDesignerView(spreadId);store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
+ await evaluate(`void Konva.stages[0].find('.spacing-measurement')[0].fire('click',{evt:new MouseEvent('click')})`);await wait();
+ await evaluate(`{const n=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(n,'2');n.dispatchEvent(new Event('input',{bubbles:true}))}`);await wait();
+ const reopenedPreview=await sharedRects(),reopenedHistory=await evaluate('store.getState().history.length');
+ const reopenedControls=await evaluate(`['Undo gap change','Redo gap change','Reset gap preview'].map(label=>document.querySelector('[aria-label="'+label+'"]').disabled)`);
+ for(const redo of [false,true]){
+  await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preset history"] button')).find(b=>b.textContent===${JSON.stringify(redo?'Redo presets':'Undo presets')}).click()`);await wait();
+  assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences')).gapPercentPresets`),redo?savedPresets.gapPercentPresets:savedPresets.gapPresetPast.at(-1));
+  assert.deepEqual(await sharedRects(),reopenedPreview);assert.equal(await evaluate('store.getState().history.length'),reopenedHistory);
+  assert.deepEqual(await evaluate(`['Undo gap change','Redo gap change','Reset gap preview'].map(label=>document.querySelector('[aria-label="'+label+'"]').disabled)`),reopenedControls);
+ }
+ console.log('Designer remount passed: saved preset Undo/Redo restored, new spacing preview and history untouched');
  console.log('Spacing snap and Shift passed: both axes, highlighted references, fine movement, modifier transitions and cancellation');
  console.log('Spacing drag passed: real mouse horizontal/vertical dragging, zoom scaling, live preview, Escape cancellation, release preview and Apply/Undo');
  console.log('Live preview passed: visual movement without project changes, Escape/Cancel restoration, single Apply/Undo');

@@ -231,18 +231,20 @@ export default function DesignerCanvas() {
   const gapPresets=usePreferences(s=>s.values.gapPercentPresets)
   const [presetDraft,setPresetDraft]=useState<string[]|null>(null)
   const [presetError,setPresetError]=useState('')
-  const [presetHistory,setPresetHistory]=useState<{past:number[][];future:number[][]}>({past:[],future:[]})
+  const presetPast=usePreferences(s=>s.values.gapPresetPast)
+  const presetFuture=usePreferences(s=>s.values.gapPresetFuture)
   const validPresets=!!presetDraft&&presetDraft.every(v=>v.trim()!==''&&Number.isFinite(Number(v))&&Number(v)>=-100)&&new Set(presetDraft.map(Number)).size===4
   function saveGapPresets(values:number[],direction?:'undo'|'redo'){
-    const previous=[...getPreferences().gapPercentPresets]
+    const preferences=getPreferences(),previous=[...preferences.gapPercentPresets]
+    const h={past:preferences.gapPresetPast,future:preferences.gapPresetFuture}
     try{
-      usePreferences.getState().save({...getPreferences(),gapPercentPresets:values})
-      if(previous.some((value,index)=>value!==values[index]))setPresetHistory(h=>direction==='undo'?{past:h.past.slice(0,-1),future:[...h.future,previous]}:direction==='redo'?{past:[...h.past,previous],future:h.future.slice(0,-1)}:{past:[...h.past,previous],future:[]})
+      const next=previous.some((value,index)=>value!==values[index])?(direction==='undo'?{past:h.past.slice(0,-1),future:[...h.future,previous]}:direction==='redo'?{past:[...h.past,previous],future:h.future.slice(0,-1)}:{past:[...h.past,previous],future:[]}):h
+      usePreferences.getState().save({...preferences,gapPercentPresets:values,gapPresetPast:next.past,gapPresetFuture:next.future})
       setPresetDraft(null);setPresetError('')
     }catch{setPresetError('Could not save presets. Please try again.')}
   }
   function stepPresetHistory(redo:boolean){
-    const values=(redo?presetHistory.future:presetHistory.past).at(-1)
+    const values=(redo?presetFuture:presetPast).at(-1)
     if(values)saveGapPresets(values,redo?'redo':'undo')
   }
   const project = useProjectStore((s) => s.project)
@@ -1298,8 +1300,8 @@ export default function DesignerCanvas() {
         </div>:<button className="btn btn--tiny" type="button" title="Customize four presets and save them for future sessions" onClick={()=>setPresetDraft(gapPresets.map(String))}>Customize presets</button>}
         <button className="btn btn--tiny" type="button" title="Save the original four presets without changing the spacing preview" disabled={!presetDraft&&gapPresets.every((value,index)=>value===preferenceDefaults.gapPercentPresets[index])} onClick={()=>saveGapPresets(preferenceDefaults.gapPercentPresets)}>Restore default presets</button>
         <div className="canvas-gap-editor__history" role="group" aria-label="Preset history">
-          <button className="btn btn--tiny" type="button" disabled={!presetHistory.past.length} title="Undo saved preset changes without changing spacing" onClick={()=>stepPresetHistory(false)}>Undo presets</button>
-          <button className="btn btn--tiny" type="button" disabled={!presetHistory.future.length} title="Redo saved preset changes without changing spacing" onClick={()=>stepPresetHistory(true)}>Redo presets</button>
+          <button className="btn btn--tiny" type="button" disabled={!presetPast.length} title="Undo saved preset changes without changing spacing" onClick={()=>stepPresetHistory(false)}>Undo presets</button>
+          <button className="btn btn--tiny" type="button" disabled={!presetFuture.length} title="Redo saved preset changes without changing spacing" onClick={()=>stepPresetHistory(true)}>Redo presets</button>
         </div>
         {presetError&&<p role="alert">{presetError}</p>}
         <p className="canvas-gap-editor__change" aria-label="Gap change from original">{gapChangeText}</p>
