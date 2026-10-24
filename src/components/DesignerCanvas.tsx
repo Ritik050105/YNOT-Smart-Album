@@ -258,15 +258,21 @@ export default function DesignerCanvas() {
   const removeGuide = useProjectStore((s) => s.removeGuide)
 
   const templatePreview = useProjectStore(s => s.templatePreview)
-  const spread: Spread | undefined = templatePreview?.id === selectedSpreadId ? templatePreview : project.spreads.find((s) => s.id === selectedSpreadId)
-  const size = spread?.size ?? project.size
+  const baseSpread: Spread | undefined = templatePreview?.id === selectedSpreadId ? templatePreview : project.spreads.find((s) => s.id === selectedSpreadId)
+  const size = baseSpread?.size ?? project.size
+  const [gapEditor,setGapEditor]=useState<{axis:'x'|'y';keys:string[];x:number;y:number;value:string;dirty?:boolean}|null>(null)
+  const gapMode=gapEditor?.axis==='x'?'horizontal':'vertical'
+  const normalizedGap=gapEditor?displayToIn(Number(gapEditor.value),project.units,size.dpi)/(gapEditor.axis==='x'?size.widthIn:size.heightIn):NaN
+  const gapPreview=useMemo(()=>gapEditor?.dirty&&gapEditor.value.trim()!==''&&baseSpread?arrangeLayerSelection(baseSpread,project.size,gapEditor.keys,gapMode,'selection',normalizedGap):baseSpread,[baseSpread,project.size,gapEditor,gapMode,normalizedGap])
+  const gapCanApply=!!(gapEditor?.dirty&&gapPreview&&gapPreview!==baseSpread)
+  // Preview only the canvas; project data and Undo history change once, on Apply.
+  const spread=gapPreview
   const [coverGuide] = useImage(spread?.coverDetails?.guideSrc ?? '')
   const [patternImage] = useImage(spread?.backgroundPattern?.src ?? '')
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
   const containerRef = useRef<HTMLDivElement>(null)
 
   const stageHeight = STAGE_WIDTH / (size.widthIn / size.heightIn)
-  const [gapEditor,setGapEditor]=useState<{axis:'x'|'y';keys:string[];x:number;y:number;value:string}|null>(null)
   useEffect(()=>setGapEditor(null),[selectedPlaceholderId,selectedTextBoxId,selectedLayerKeys,spread?.id,project.units,canvasTool])
   const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([])
   const [liveFrame, setLiveFrame] = useState<(GuideRect & {id:string}) | null>(null)
@@ -490,9 +496,6 @@ export default function DesignerCanvas() {
   const restingGuides=activeGeometry&&canvasTool==='select'?snapRect({x:activeGeometry.x*STAGE_WIDTH,y:activeGeometry.y*stageHeight,width:activeGeometry.width*STAGE_WIDTH,height:activeGeometry.height*stageHeight,keys:activeGuideKeys},guideTargets(activeGuideKeys),STAGE_WIDTH,stageHeight,0).guides.filter(g=>g.segments):[]
   const guideInteraction=Konva.isDragging()||transformerRef.current?.isTransforming()||textTransformerRef.current?.isTransforming()||groupTransformerRef.current?.isTransforming()
   const displayedGuides=guideInteraction||smartGuides.length?smartGuides:restingGuides
-  const gapMode=gapEditor?.axis==='x'?'horizontal':'vertical'
-  const normalizedGap=gapEditor?displayToIn(Number(gapEditor.value),project.units,size.dpi)/(gapEditor.axis==='x'?size.widthIn:size.heightIn):NaN
-  const gapCanApply=!!(gapEditor&&gapEditor.value.trim()!==''&&spread&&arrangeLayerSelection(spread,project.size,gapEditor.keys,gapMode,'selection',normalizedGap)!==spread)
   function alignRect(rect:GuideRect, id?:string, anchor?:string, threshold=6/stageScale) {
     const keys=transformKeys.length?transformKeys:id?spreadLayers(spread!).filter(l=>l.id===id).map(l=>l.kind+':'+l.id):[]
     const result=snapRect({...rect,keys},guideTargets(keys),STAGE_WIDTH,stageHeight,threshold,anchor,showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH) : [],showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight) : [])
@@ -1128,9 +1131,9 @@ export default function DesignerCanvas() {
       </Stage>
 
       {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{left:Math.max(8,Math.min(viewportSize.width-230,stagePos.x+gapEditor.x*stageScale)),top:Math.max(8,Math.min(viewportSize.height-155,stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().arrangeSelection(spread.id,gapEditor.keys,gapMode,'selection',normalizedGap);setGapEditor(null);setSmartGuides([])}}}>
-        <label>Gap ({project.units})<input aria-label="Canvas spacing gap" type="number" step="any" min="0" autoFocus value={gapEditor.value} onFocus={e=>e.target.select()} onChange={e=>setGapEditor({...gapEditor,value:e.target.value})}/></label>
-        <p>Moves the following element or group. The first stays in place.</p>
-        {!gapCanApply&&<p role="status">Enter a gap that fits; both elements must be unlocked.</p>}
+        <label>Gap ({project.units})<input aria-label="Canvas spacing gap" type="number" step="any" min="0" autoFocus value={gapEditor.value} onFocus={e=>e.target.select()} onChange={e=>setGapEditor({...gapEditor,value:e.target.value,dirty:true})}/></label>
+        <p>Preview moves the following element or group. Apply saves; Cancel restores.</p>
+        {gapEditor.dirty&&!gapCanApply&&<p role="status">Enter a gap that fits; both elements must be unlocked.</p>}
         <div><button className="btn btn--tiny" type="button" onClick={()=>setGapEditor(null)}>Cancel</button><button className="btn btn--tiny" type="submit" disabled={!gapCanApply}>Apply</button></div>
       </form>}
       {editingTextId &&
