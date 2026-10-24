@@ -96,7 +96,7 @@ export default function MatchingTemplatesPanel() {
       <button className="btn btn--icon btn--tiny" onClick={close} aria-label="Close matching templates" title="Close matching templates (Escape)"><Icon name="x" size={14} /></button>
     </header>
     {target !== 'spread' && <div className="matching-templates__info">Changes apply to the {target} page only. Images crossing the center line stay unchanged.</div>}
-    {count === 0 && <div className="matching-templates__info">No unlocked photos or frames on this page. Locked photos and background images stay unchanged.</div>}
+    {count === 0 && <div className="matching-templates__info">No visible, unlocked photos or frames on this page. Hidden photos, locked photos and background images stay unchanged.</div>}
     {count === 1 && <div className="matching-templates__info"><strong>Rearrange Timeline:</strong><span>A single image has no timeline order to rearrange.</span></div>}
     {(count > 1 ? ['Rearrange Timeline', 'Match Timeline Order'] : ['Match Timeline Order']).map((label, row) => <div className="matching-templates__row" key={label}>
       <span className="matching-templates__label">{label}:</span>

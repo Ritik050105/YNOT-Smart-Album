@@ -5,10 +5,10 @@ import { retemplateSpread } from './autoLayout'
 export type TemplateScope = 'spread' | 'left' | 'right'
 
 export function pagePlacements(spread: Spread, aspect: number, scope: TemplateScope) {
-  if (scope === 'spread') return spread.placements.filter(p=>!p.locked)
+  if (scope === 'spread') return spread.placements.filter(p=>!p.locked&&!p.hidden)
   const boxes = computePlaceholderBoxes(spread, DESIGN_WIDTH, DESIGN_WIDTH / aspect)
   return spread.placements.filter(p => {
-    if(p.locked)return false
+    if(p.locked||p.hidden)return false
     const box = boxes.find(b => b.placeholderId === p.placeholderId)
     return box && (scope === 'left' ? box.x + box.width <= DESIGN_WIDTH / 2 + .01 : box.x >= DESIGN_WIDTH / 2 - .01)
   })
