@@ -10,7 +10,6 @@ import {
   buildSpreadsFromGroups,
   DEFAULT_AUTO_LAYOUT_OPTIONS,
   AutoLayoutOptions,
-  retemplateSpread,
   splitSpreadIntoPages,
   mergeSpreads,
   flipSpreadHorizontally,
@@ -424,7 +423,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (!spread || !templateId) { set({ templatePreview: null }); return }
     const size = spread.size ?? project.size
     const selected = pagePlacements(spread, size.widthIn / size.heightIn, scope)
-    const count = selected.filter(p => p.photoId).length || selected.length || 1
+    const count = selected.filter(p => p.photoId).length || selected.length
+    if(!count){set({templatePreview:null});return}
     if (!templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, size.widthIn / size.heightIn / (scope === 'spread' ? 1 : 2)).some(t => t.id === templateId)) return
     set({ templatePreview: applyPageTemplate(spread, templateId, project.photos, size.widthIn / size.heightIn, keepOrder, scope) })
   },
@@ -894,7 +894,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const { project, userTemplates, templateFrameFilter } = get()
     const spread = project.spreads.find((item) => item.id === spreadId)
     if (!spread || spread.isCover || !spread.placements.length) return
-    const candidates = [...templatesForCount(spread.placements.length, project.enabledTemplateIds, templateFrameFilter, (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn)]
+    const eligible=pagePlacements(spread,(spread.size??project.size).widthIn/(spread.size??project.size).heightIn,'spread')
+    const count=eligible.filter(p=>p.photoId).length||eligible.length
+    if(!count)return
+    const candidates = [...templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn)]
     if (candidates.length < 2) return
     const current = candidates.findIndex((template) => template.id === spread.templateId)
     const next = current < 0 ? (direction > 0 ? 0 : candidates.length - 1) : (current + direction + candidates.length) % candidates.length
@@ -905,7 +908,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   applyTemplateToAllSpreads: (templateId) =>
     withHistory(set, (p) => ({
       ...p,
-      spreads: p.spreads.map((s) => s.isCover ? s : retemplateSpread(s, templateId)),
+      spreads: p.spreads.map((s) => s.isCover ? s : applyPageTemplate(s,templateId,p.photos,(s.size??p.size).widthIn/(s.size??p.size).heightIn,true,'spread')),
     })),
 
   updateSpread: (spreadId, patch) =>

@@ -1,3 +1,4 @@
+import { pagePlacements } from '@/engine/pageTemplates'
 import { usePreferences } from '@/state/preferences'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -97,17 +98,16 @@ export default function Inspector() {
   const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / spreadAspect).find(
     (b) => b.placeholderId === selectedPlaceholderId
   )
-  // This spread's own placed photos, in slot order, so quick-pick swatches/hover previews show
-  // real content — falling back to unplaced photos so there's still something to preview on a
-  // freshly auto-built or empty spread.
+  // Match only editable foreground photos, as in the template browser.
+  const templatePlacements=pagePlacements(spread,spreadAspect,'spread')
   const quickPickPhotos: (PhotoAsset | undefined)[] = (() => {
-    const placed = spread.placements
+    const placed = templatePlacements
       .map((p) => (p.photoId ? project.photos.find((ph) => ph.id === p.photoId) : undefined))
       .filter((p): p is PhotoAsset => !!p)
-    return placed.length > 0 ? placed : project.photos.slice(0, spread.placements.length)
+    return placed
   })()
   const suggestions = rankTemplates(quickPickPhotos.filter((photo): photo is PhotoAsset => !!photo),
-    templatesForCount(spread.placements.length, project.enabledTemplateIds, frameFilter, spreadAspect), spreadAspect, true, spread.marginPx, spread.gapPx).map((match) => match.template)
+    templatesForCount(templatePlacements.filter(p=>p.photoId).length||templatePlacements.length, project.enabledTemplateIds, frameFilter, spreadAspect), spreadAspect, true, spread.marginPx, spread.gapPx).map((match) => match.template)
 
 
   let dpi: number | null = null

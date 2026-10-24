@@ -31,7 +31,7 @@ export default function MatchingTemplatesPanel() {
   const size = spread?.size ?? project.size
   const target = spread?.pageSide === 'spread' ? scope : 'spread'
   const placements = useMemo(() => spread ? pagePlacements(spread, size.widthIn / size.heightIn, target) : [], [spread, size, target])
-  const count = placements.filter(p => p.photoId).length || placements.length || 1
+  const count = placements.filter(p => p.photoId).length || placements.length
   const aspect = size.widthIn / size.heightIn / (target === 'spread' ? 1 : 2)
   useEffect(() => { setScope('spread') }, [spreadId, open])
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function MatchingTemplatesPanel() {
     return () => window.removeEventListener('resize', resize)
   }, [aspect])
   const rows = useMemo(() => {
-    if (!open || !spread) return [[]]
+    if (!open || !spread || !count) return [[], []]
     const photos = placements.flatMap(p => { const photo = project.photos.find(photo => photo.id === p.photoId); return photo ? [photo] : [] })
     const candidates = templatesForCount(count, project.enabledTemplateIds, filter, aspect)
       .filter(t => !favoritesOnly || favorites.includes(t.id))
@@ -96,7 +96,8 @@ export default function MatchingTemplatesPanel() {
       <button className="btn btn--icon btn--tiny" onClick={close} aria-label="Close matching templates" title="Close matching templates (Escape)"><Icon name="x" size={14} /></button>
     </header>
     {target !== 'spread' && <div className="matching-templates__info">Changes apply to the {target} page only. Images crossing the center line stay unchanged.</div>}
-    {count <= 1 && <div className="matching-templates__info"><strong>Rearrange Timeline:</strong><span>A single image has no timeline order to rearrange.</span></div>}
+    {count === 0 && <div className="matching-templates__info">No unlocked photos or frames on this page. Locked photos and background images stay unchanged.</div>}
+    {count === 1 && <div className="matching-templates__info"><strong>Rearrange Timeline:</strong><span>A single image has no timeline order to rearrange.</span></div>}
     {(count > 1 ? ['Rearrange Timeline', 'Match Timeline Order'] : ['Match Timeline Order']).map((label, row) => <div className="matching-templates__row" key={label}>
       <span className="matching-templates__label">{label}:</span>
       <button className="btn btn--icon" aria-label={`Previous ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ left: -strips.current[row]!.clientWidth * 0.8, behavior: 'smooth' })}><Icon name="chevronLeft" size={14} /></button>
