@@ -1,7 +1,8 @@
 import { GapAnchor, arrangeLayerSelection, spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
-import { usePreferences, getPreferences, preferenceDefaults } from '@/state/preferences'
+import { usePreferences, getPreferences, preferenceDefaults, exportGapPresets, importGapPresets } from '@/state/preferences'
 import { snapRect, nearbySpacingGaps, selectedSpacingGuides, GuideRect, SmartGuide } from '@/engine/smartGuides'
 import { displayToIn, inToDisplay } from '@/engine/units'
+import { saveOneFile } from '@/engine/exportUtil'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
@@ -231,6 +232,21 @@ export default function DesignerCanvas() {
   const gapPresets=usePreferences(s=>s.values.gapPercentPresets)
   const [presetDraft,setPresetDraft]=useState<string[]|null>(null)
   const [presetError,setPresetError]=useState('')
+  const [presetTransferStatus,setPresetTransferStatus]=useState('')
+  const [presetTransferBusy,setPresetTransferBusy]=useState(false)
+  const presetFileInput=useRef<HTMLInputElement>(null)
+  async function exportPresetsFile(){
+    setPresetTransferBusy(true);setPresetError('');setPresetTransferStatus('')
+    try{const result=await saveOneFile(new TextEncoder().encode(exportGapPresets(getPreferences())),'YNOT-percentage-presets.json','application/json',[{name:'Percentage presets',extensions:['json']}]);setPresetTransferStatus(result.saved?'Presets and history exported.':'Export canceled.')}
+    catch{setPresetError('Could not export presets. Please try again.')}
+    finally{setPresetTransferBusy(false)}
+  }
+  async function importPresetsFile(file:File){
+    setPresetTransferBusy(true);setPresetError('');setPresetTransferStatus('')
+    try{const imported=importGapPresets(await file.text());usePreferences.getState().save({...getPreferences(),...imported});setPresetDraft(null);setPresetTransferStatus('Presets and history imported. Spacing is unchanged.')}
+    catch(error){setPresetError(error instanceof Error?error.message:'Could not import presets. Nothing was changed.')}
+    finally{setPresetTransferBusy(false)}
+  }
   const presetPast=usePreferences(s=>s.values.gapPresetPast)
   const presetFuture=usePreferences(s=>s.values.gapPresetFuture)
   const validPresets=!!presetDraft&&presetDraft.every(v=>v.trim()!==''&&Number.isFinite(Number(v))&&Number(v)>=-100)&&new Set(presetDraft.map(Number)).size===4
@@ -1282,7 +1298,7 @@ export default function DesignerCanvas() {
       {gapDrag&&<div className="canvas-anchor-hint" aria-label="Live gap change">{gapChangeText}</div>}
       {pickingGapAnchor&&<div className="canvas-anchor-hint" role="status">Click a selected element to keep it fixed · Escape cancels</div>}
 
-      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-(presetDraft?730:590),anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+(presetDraft?730:590)<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-(presetDraft?730:590)):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
+      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-(presetDraft?810:670),anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+(presetDraft?810:670)<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-(presetDraft?810:670)):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
         <label>Keep fixed<select aria-label="Canvas gap anchor" value={gapAnchor} onChange={e=>switchGapAnchor(e.target.value as GapAnchor)}><option value="first">First element</option><option value="center">Center</option><option value="last">Last element</option>{gapAnchor.includes(':')&&<option value={gapAnchor}>Picked element</option>}</select></label>
         <button className="btn btn--tiny" type="button" aria-pressed={pickingGapAnchor} onClick={()=>useProjectStore.getState().setPickingGapAnchor(!pickingGapAnchor)}>{pickingGapAnchor?'Cancel picking':'Pick anchor on canvas'}</button>
         <div className="canvas-gap-editor__comparison">
@@ -1303,6 +1319,11 @@ export default function DesignerCanvas() {
           <button className="btn btn--tiny" type="button" disabled={!presetPast.length} title="Undo saved preset changes without changing spacing" onClick={()=>stepPresetHistory(false)}>Undo presets</button>
           <button className="btn btn--tiny" type="button" disabled={!presetFuture.length} title="Redo saved preset changes without changing spacing" onClick={()=>stepPresetHistory(true)}>Redo presets</button>
         </div>
+        <div className="canvas-gap-editor__history">
+          <button className="btn btn--tiny" type="button" disabled={presetTransferBusy} onClick={()=>void exportPresetsFile()}>Export presets</button>
+          <button className="btn btn--tiny" type="button" disabled={presetTransferBusy} title="Replace saved presets and preset history from a file; spacing stays unchanged" onClick={()=>presetFileInput.current?.click()}>Import presets</button>
+        </div>
+        {presetTransferStatus&&<p role="status">{presetTransferStatus}</p>}
         {presetError&&<p role="alert">{presetError}</p>}
         <p className="canvas-gap-editor__change" aria-label="Gap change from original">{gapChangeText}</p>
         <div className="canvas-gap-editor__history">
@@ -1344,6 +1365,7 @@ export default function DesignerCanvas() {
       </div>
       </div>
       {photoContextMenu && spread && <PhotoContextMenu key={JSON.stringify(photoContextMenu)} x={photoContextMenu.x} y={photoContextMenu.y} spreadId={spread.id} frameId={photoContextMenu.placeholderId} />}
+      <input ref={presetFileInput} aria-label="Import percentage presets file" type="file" accept=".json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void importPresetsFile(file)}} />
       <input ref={framePickerInputRef} type="file" accept={IMAGE_FILE_ACCEPT} hidden onChange={(e) => void handleFramePicked(e)} />
     </div>
   )

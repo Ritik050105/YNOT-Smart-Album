@@ -353,6 +353,23 @@ app.whenReady().then(async()=>{
   assert.deepEqual(await sharedRects(),reopenedPreview);assert.equal(await evaluate('store.getState().history.length'),reopenedHistory);
   assert.deepEqual(await evaluate(`['Undo gap change','Redo gap change','Reset gap preview'].map(label=>document.querySelector('[aria-label="'+label+'"]').disabled)`),reopenedControls);
  }
+ await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preset history"] button')).find(b=>b.textContent==='Undo presets').click()`);await wait();
+ const beforeTransfer=await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`);
+ await evaluate(`window.originalBridge=window.albumStudio;window.albumStudio={...window.albumStudio,isElectron:true,saveFile:async args=>{window.presetExport={name:args.defaultName,text:new TextDecoder().decode(args.data)};return {canceled:false,filePath:'C:/Presets/test.json'}}};Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Export presets').click()`);await wait();
+ const exported=await evaluate('presetExport');assert.equal(exported.name,'YNOT-percentage-presets.json');const portable=JSON.parse(exported.text);
+ assert.deepEqual(portable,{format:'ynot-gap-presets',version:1,presets:beforeTransfer.gapPercentPresets,past:beforeTransfer.gapPresetPast,future:beforeTransfer.gapPresetFuture});
+ const importFile=async text=>{await evaluate(`{const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(text)}],'presets.json',{type:'application/json'}));const input=document.querySelector('[aria-label="Import percentage presets file"]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))}`);await wait()};
+ const transferred={format:'ynot-gap-presets',version:1,presets:[-45,-15,15,45],past:[[-40,-10,10,40]],future:[[-20,-5,5,20]]};
+ for(const text of [JSON.stringify(transferred),exported.text]){
+  const expected=JSON.parse(text);await importFile(text);const saved=await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`);
+  assert.deepEqual(saved,{...beforeTransfer,gapPercentPresets:expected.presets,gapPresetPast:expected.past,gapPresetFuture:expected.future});
+  assert.deepEqual(await sharedRects(),reopenedPreview);assert.equal(await evaluate('store.getState().history.length'),reopenedHistory);assert.deepEqual(await evaluate(`['Undo gap change','Redo gap change','Reset gap preview'].map(label=>document.querySelector('[aria-label="'+label+'"]').disabled)`),reopenedControls);
+  assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor__percentages button')).map(b=>b.getAttribute('aria-label'))`),expected.presets.map(p=>'Set gap change to '+p+'%'));
+ }
+ for(const text of ['broken JSON',JSON.stringify({...portable,version:99}),JSON.stringify({...portable,future:[[1,1,2,3]]})]){await importFile(text);assert.ok(await evaluate(`!!document.querySelector('.canvas-gap-editor [role="alert"]')`));assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`),beforeTransfer);assert.deepEqual(await sharedRects(),reopenedPreview)}
+ for(const redo of [true,false]){await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preset history"] button')).find(b=>b.textContent===${JSON.stringify(redo?'Redo presets':'Undo presets')}).click()`);await wait();assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences')).gapPercentPresets`),redo?portable.future.at(-1):portable.presets);assert.deepEqual(await sharedRects(),reopenedPreview)}
+ await evaluate(`window.albumStudio.saveFile=async()=>({canceled:true});Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Export presets').click()`);await wait();assert.ok(await evaluate(`document.querySelector('.canvas-gap-editor').textContent.includes('Export canceled.')`));await evaluate('window.albumStudio=window.originalBridge');
+ console.log('Preset transfer UI passed: export payload, import roundtrip and replacement, invalid files, canceled export, imported Redo/Undo, spacing and other preferences untouched');
  console.log('Designer remount passed: saved preset Undo/Redo restored, new spacing preview and history untouched');
  console.log('Spacing snap and Shift passed: both axes, highlighted references, fine movement, modifier transitions and cancellation');
  console.log('Spacing drag passed: real mouse horizontal/vertical dragging, zoom scaling, live preview, Escape cancellation, release preview and Apply/Undo');
