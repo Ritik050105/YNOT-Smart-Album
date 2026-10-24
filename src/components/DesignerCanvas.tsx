@@ -238,17 +238,17 @@ export default function DesignerCanvas() {
   const importPast=usePreferences(s=>s.values.gapImportPast)
   const importFuture=usePreferences(s=>s.values.gapImportFuture)
   function applyPresetImport(imported:ReturnType<typeof importGapPresets>,direction?:'undo'|'redo'){
-    const preferences=getPreferences(),previous=exportGapPresets(preferences)
-    const changed=exportGapPresets({...preferences,...imported})!==previous
-    const past=preferences.gapImportPast,future=preferences.gapImportFuture
-    const next=(changed||direction)?(direction==='undo'?{gapImportPast:past.slice(0,-1),gapImportFuture:[...future,previous]}:direction==='redo'?{gapImportPast:[...past,previous],gapImportFuture:future.slice(0,-1)}:{gapImportPast:[...past,previous],gapImportFuture:[]}):{}
+    const preferences=getPreferences(),previous=exportGapPresets(preferences,false)
+    const changed=exportGapPresets({...preferences,...imported},false)!==previous
+    const past=direction?preferences.gapImportPast:imported.gapImportPast??preferences.gapImportPast,future=preferences.gapImportFuture
+    const next=(changed||direction||imported.gapImportPast)?(direction==='undo'?{gapImportPast:past.slice(0,-1),gapImportFuture:[...future,previous]}:direction==='redo'?{gapImportPast:[...past,previous],gapImportFuture:future.slice(0,-1)}:{gapImportPast:[...past,previous],gapImportFuture:imported.gapImportFuture??[]}):{}
     usePreferences.getState().save({...preferences,...imported,...next})
     setPresetDraft(null);setPresetError('')
   }
   function stepImportHistory(redo:boolean){
     const snapshot=(redo?importFuture:importPast).at(-1)
     if(!snapshot)return
-    try{applyPresetImport(importGapPresets(snapshot),redo?'redo':'undo');setPresetTransferStatus(redo?'Import redone. Spacing is unchanged.':'Import undone. Previous presets and history restored.')}
+    try{applyPresetImport(importGapPresets(snapshot,true),redo?'redo':'undo');setPresetTransferStatus(redo?'Import redone. Spacing is unchanged.':'Import undone. Previous presets and history restored.')}
     catch{setPresetError('Could not restore the preset import. Please try again.')}
   }
   async function exportPresetsFile(){
