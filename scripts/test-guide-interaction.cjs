@@ -13,7 +13,8 @@ app.whenReady().then(async()=>{
  win.webContents.on('console-message',(_,level,message)=>{if(level===3)console.error(message)});await win.loadFile(path.join(out,'index.html'));const evaluate=async code=>{try{return await win.webContents.executeJavaScript(`(()=>eval(${JSON.stringify(code)}))()`)}catch(e){console.error(code);throw e}}
  await new Promise(r=>setTimeout(r,200));await evaluate(`window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))`)
 
- const wait=()=>new Promise(r=>setTimeout(r,100));await wait();
+ // Allow the offscreen renderer to settle layout and pointer updates under build load.
+ const wait=()=>new Promise(r=>setTimeout(r,200));await wait();
  await evaluate(`store.getState().addBlankSpread();window.spreadId=store.getState().project.spreads[0].id;store.getState().enterDesignerView(spreadId);store.setState({showGuides:true});store.getState().addGuide(spreadId,'vertical',.3);store.getState().addGuide(spreadId,'horizontal',.35)`);await wait();
  // Use real pointer dragging, including a nonzero stage origin and zoom.
  for(const axis of ['vertical','horizontal']){
@@ -196,7 +197,7 @@ app.whenReady().then(async()=>{
   win.webContents.sendInputEvent({type:'mouseMove',...point});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});await wait();const afterSwitch=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(afterSwitch[i].x-beforeSwitch[i].x)<.01);
   await typeGap('3');const beforeLastDrag=await sharedRects();let final=await dragAgain();
   const shortcut=async redo=>{await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').focus()`);const modifiers=redo?['control','shift']:['control'];if(cancel)await evaluate(`document.querySelector('[aria-label="${redo?'Redo gap change':'Undo gap change'}"]').click()`);else{win.webContents.sendInputEvent({type:'keyDown',keyCode:'Z',modifiers});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Z',modifiers})}await wait();assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),true,'Local history keeps editor open');assert.equal(await evaluate('store.getState().history.length'),history,'Local history never changes project history')};
-  const assertRects=async expected=>{const actual=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(actual[i].x-expected[i].x)<1e-8,'Local history restores exact geometry')};
+  const assertRects=async expected=>{const actual=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(actual[i].x-expected[i].x)<1e-8,'Local history restores exact geometry');assert.equal(await evaluate(`document.querySelector('[aria-label="Original gap"]').textContent`),'1.33 in','Original gap stays fixed across Undo/Redo/Reset');const shown=await evaluate(`Number(document.querySelector('[aria-label="Canvas spacing gap"]').value)`);assert.ok(Math.abs(shown-(expected[1].x-expected[0].x-expected[0].width)/45)<=.005001,'Preview value matches the current spacing')};
   await shortcut(false);await assertRects(beforeLastDrag);
   await shortcut(false);await assertRects(beforeSwitch);
   await shortcut(false);assert.equal(await evaluate('store.getState().gapAnchor'),'first');await assertRects(beforeSwitch);
@@ -214,6 +215,7 @@ app.whenReady().then(async()=>{
   if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.deepEqual(await sharedRects(),originals);assert.equal(await evaluate('store.getState().history.length'),history)}
   else{await applyReleasedGap();assert.equal(await evaluate('store.getState().history.length'),history+1);const saved=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(saved[i].x-final[i].x)<1e-8);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait()}
  }
+ console.log('Gap comparison passed: stable original and current preview values through typing, dragging, Undo, Redo and Reset');
  console.log('Reset passed: original spacing after mixed edits, editor stays open, local Undo/Redo, no project mutation, Escape and single Apply/Undo');
  console.log('Local gap history passed: Undo/Redo buttons and disabled states, real Ctrl+Z/Ctrl+Shift+Z, typing/anchor/drag snapshots, exact preview, redo branching, Escape and one project Undo');
  console.log('Persistent gap editor passed: drag/type/switch/drag, full-precision release, fixed anchor, size preservation, whole-session Escape and single Apply/Undo');

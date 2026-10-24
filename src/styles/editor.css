@@ -456,3 +456,11 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .canvas-gap-editor__history { margin-top:8px; }
 .canvas-gap-editor__history button { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px; }
 .canvas-gap-editor__history kbd { font-family:inherit; font-size:10px; opacity:.7; }
+
+.canvas-gap-editor .canvas-gap-editor__comparison { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0; }
+.canvas-gap-editor__comparison label { flex-direction:column; align-items:stretch; gap:5px; margin:0; }
+.canvas-gap-editor__comparison input { width:100%; box-sizing:border-box; }
+.canvas-gap-editor__original { padding:7px; border:1px solid #ded1c3; border-radius:8px; background:#f5efe8; color:#786654; font-variant-numeric:tabular-nums; }
+
+.canvas-gap-editor__comparison label + label { margin-top:0; }
+.canvas-gap-editor__comparison input, .canvas-gap-editor__original { height:34px; box-sizing:border-box; font-size:13px; }
