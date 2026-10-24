@@ -24,3 +24,13 @@ const empty=previewGapPresetImport(current,{...legacy,gapImportPast:[],gapImport
 assert.deepEqual(empty.gapImportPast,[exportGapPresets(current,false)]);
 assert.deepEqual(empty.gapImportFuture,[]);
 console.log('Import comparison passed: exact resulting histories, legacy no-op, legacy replacement, transferred/empty histories, untouched input and unrelated settings');
+
+const {summarizeGapPresetImport}=loaded.exports;
+assert.ok(summarizeGapPresetImport(current,current).every(row=>row.added===0&&row.changed===0&&row.removed===0));
+const a=[-25,-10,10,25],b=[-40,-20,20,40],c=[-50,-5,5,50];
+const counts=summarizeGapPresetImport({...current,gapPresetPast:[a,b],gapPresetFuture:[a]}, {...current,gapPercentPresets:b,gapPresetPast:[c,a,b],gapPresetFuture:[]});
+assert.deepEqual(counts.slice(0,3),[{label:'Presets',added:0,changed:4,removed:0},{label:'Preset Undo',added:1,changed:0,removed:0},{label:'Preset Redo',added:0,changed:0,removed:1}]);
+const changedCounts=summarizeGapPresetImport({...current,gapImportPast:[snapshot]}, {...current,gapImportPast:[JSON.stringify(JSON.parse(snapshot)),exportGapPresets({...current,gapPercentPresets:b},false)]});
+assert.deepEqual(changedCounts[3],{label:'Import Undo',added:1,changed:1,removed:0});
+assert.equal(JSON.stringify(current),original);
+console.log('Summary counts passed: additions, replacements, removals, semantic snapshots and no mutation');

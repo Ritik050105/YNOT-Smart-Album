@@ -29,7 +29,7 @@ export function PreviewCell({
         top: `${ph.y * 100}%`,
         width: `${ph.width * 100}%`,
         height: `${ph.height * 100}%`,
-        backgroundImage: photo ? `url(${photo.src})` : undefined,
+        backgroundImage: photo ? `url(${JSON.stringify(photo.src)})` : undefined,
         backgroundSize: crop && photo ? `${photo.width / crop.cropWidth * 100}% ${photo.height / crop.cropHeight * 100}%` : undefined,
         backgroundPosition: crop && photo ? `${photo.width > crop.cropWidth ? crop.cropX / (photo.width - crop.cropWidth) * 100 : 50}% ${photo.height > crop.cropHeight ? crop.cropY / (photo.height - crop.cropHeight) * 100 : 50}%` : undefined,
         transform: placement ? `scale(${placement.flipHorizontal ? -1 : 1}, ${placement.flipVertical ? -1 : 1})` : undefined,

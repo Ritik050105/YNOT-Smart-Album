@@ -500,3 +500,9 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 
 .preset-import-preview__filter { display:flex; align-items:center; gap:8px; margin:0 0 16px; font-size:13px; cursor:pointer; }
 .preset-import-preview [hidden] { display:none !important; }
+
+.preset-import-preview__summary { width:100%; border-collapse:collapse; margin:0 0 12px; font-size:12px; font-variant-numeric:tabular-nums; }
+.preset-import-preview__summary caption { text-align:left; font-weight:600; padding:0 0 10px; }
+.preset-import-preview__summary th, .preset-import-preview__summary td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:right; }
+.preset-import-preview__summary th:first-child { text-align:left; }
+.preset-import-preview__summary thead { background:var(--panel-alt); }

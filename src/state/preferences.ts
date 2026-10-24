@@ -54,3 +54,19 @@ export function previewGapPresetImport(current:Preferences, imported:ReturnType<
     gapImportFuture:imported.gapImportFuture??[],
   }:{})}
 }
+
+/** Compare preset slots and history positions (next action first), matching the preview. */
+export function summarizeGapPresetImport(current:Preferences, imported:Preferences) {
+  const count=(before:unknown[],after:unknown[])=>({
+    added:Math.max(0,after.length-before.length),
+    changed:before.slice(0,after.length).filter((value,index)=>JSON.stringify(value)!==JSON.stringify(after[index])).length,
+    removed:Math.max(0,before.length-after.length),
+  })
+  return [
+    {label:'Presets',...count(current.gapPercentPresets,imported.gapPercentPresets)},
+    ...(['gapPresetPast','gapPresetFuture','gapImportPast','gapImportFuture'] as const).map((key,index)=>({
+      label:['Preset Undo','Preset Redo','Import Undo','Import Redo'][index],
+      ...count([...current[key]].reverse().map(value=>typeof value==='string'?importGapPresets(value,true):value),[...imported[key]].reverse().map(value=>typeof value==='string'?importGapPresets(value,true):value)),
+    })),
+  ]
+}

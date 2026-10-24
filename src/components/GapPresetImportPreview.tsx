@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Modal from './Modal'
-import { importGapPresets, previewGapPresetImport, usePreferences } from '@/state/preferences'
+import { importGapPresets, previewGapPresetImport, summarizeGapPresetImport, usePreferences } from '@/state/preferences'
 
 type Presets = ReturnType<typeof importGapPresets>
 const percentages=(values:number[])=>values.map(value=>`${value>0?'+':''}${value}%`).join(' · ')
@@ -25,9 +25,12 @@ export default function GapPresetImportPreview({name,data,error,onImport,onCance
   const [onlyChanges,setOnlyChanges]=useState(false)
   const current=usePreferences(s=>s.values)
   const imported=previewGapPresetImport(current,data)
+  const summary=summarizeGapPresetImport(current,imported)
   const unchanged=same(current.gapPercentPresets,imported.gapPercentPresets)&&same(current.gapPresetPast,imported.gapPresetPast)&&same(current.gapPresetFuture,imported.gapPresetFuture)&&same(snapshots(current.gapImportPast),snapshots(imported.gapImportPast))&&same(snapshots(current.gapImportFuture),snapshots(imported.gapImportFuture))
   return <div onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();onCancel()}}}><Modal title="Preview preset import" subtitle={name} width={900} className="preset-import-preview" onClose={onCancel} footer={<><button className="btn" type="button" autoFocus onClick={onCancel}>Cancel</button><button className="btn btn--primary" type="button" onClick={onImport}>Import</button></>}>
     <p>Highlighted values and history entries differ. History is shown next action first.</p>
+    <table className="preset-import-preview__summary" aria-label="Import change summary"><caption>Changes on import</caption><thead><tr><th scope="col">Items</th><th scope="col">Added</th><th scope="col">Changed</th><th scope="col">Removed</th></tr></thead><tbody>{summary.map(row=><tr key={row.label}><th scope="row">{row.label}</th><td>{row.added}</td><td>{row.changed}</td><td>{row.removed}</td></tr>)}</tbody></table>
+    <p>Counts compare preset slots and history positions, next action first. Each import-history snapshot counts once, including its saved preset histories. The new Undo import entry is included.</p>
     <label className="preset-import-preview__filter"><input type="checkbox" checked={onlyChanges} onChange={e=>setOnlyChanges(e.target.checked)}/> Show only changes</label>
     {onlyChanges&&unchanged&&<p role="status">No changes. These presets and histories match your current saved settings.</p>}
     <table hidden={onlyChanges&&unchanged} className="preset-import-preview__comparison"><thead><tr><th scope="col">Current saved presets</th><th scope="col">Imported · after confirmation</th></tr></thead>

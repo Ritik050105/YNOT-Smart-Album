@@ -385,6 +385,8 @@ app.whenReady().then(async()=>{
  for(const identical of [false,true]){
   const candidate=identical?portable:{...portable,presets:[-45,...portable.presets.slice(1)],past:portable.past.map((values,index)=>index===0?[-55,-15,15,55]:values)};
   await importFile(JSON.stringify(candidate),false);
+  assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.preset-import-preview__summary tbody tr:first-child td')).map(n=>Number(n.textContent))`),[0,identical?0:1,0]);
+  if(identical)assert.ok(await evaluate(`Array.from(document.querySelectorAll('.preset-import-preview__summary td')).every(n=>n.textContent==='0')`));
   const unfiltered=await evaluate(`document.querySelector('.preset-import-preview__comparison').textContent`);
   await evaluate(`document.querySelector('.preset-import-preview__filter input').click()`);await wait();
   if(identical){assert.equal(await evaluate(`document.querySelector('.preset-import-preview__comparison').hidden`),true);assert.ok(await evaluate(`document.querySelector('.preset-import-preview [role="status"]').textContent.includes('No changes')`));}

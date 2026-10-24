@@ -3,7 +3,7 @@ import { pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { templatesForCount } from '@/engine/templates'
-import { rankTemplates } from '@/engine/templateMatching'
+import { rankTemplates, templateFramesInReadingOrder } from '@/engine/templateMatching'
 import { isEditableTarget } from '@/engine/keyboard'
 import TemplateThumb from './TemplatePreview'
 import Icon from './Icon'
@@ -45,7 +45,7 @@ export default function MatchingTemplatesPanel() {
     const candidates = templatesForCount(count, project.enabledTemplateIds, filter, aspect)
       .filter(t => !favoritesOnly || favorites.includes(t.id))
     return (count > 1 ? [false, true] : [true]).map(keepOrder => rankTemplates(photos, candidates, aspect, !autoRearrange || keepOrder, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2))
-      .map(match => match.template).sort((a, b) => Number(favorites.includes(b.id)) - Number(favorites.includes(a.id))))
+      .sort((a, b) => Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))))
   }, [open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
   useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
   useEffect(() => {
@@ -62,13 +62,13 @@ export default function MatchingTemplatesPanel() {
       const keepOrder = !autoRearrange || count <= 1 || row === 1
       let index = active?.index ?? -1
       if (event.key === 'Enter') {
-        const template = rows[row][Math.max(0, index)]
+        const template = rows[row][Math.max(0, index)]?.template
         if (template && spreadId) { apply(spreadId, template.id, keepOrder, target); close() }
         return
       }
       index += event.key === 'ArrowLeft' ? -1 : 1
       index = Math.max(0, Math.min(rows[row].length - 1, index))
-      const template = rows[row][index]
+      const template = rows[row][index]?.template
       if (!template) return
       setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target)
       const strip = strips.current[row], left = index * (tileWidth + 12)
@@ -102,9 +102,9 @@ export default function MatchingTemplatesPanel() {
       <button className="btn btn--icon" aria-label={`Previous ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ left: -strips.current[row]!.clientWidth * 0.8, behavior: 'smooth' })}><Icon name="chevronLeft" size={14} /></button>
       <div className="matching-templates__strip" ref={el => { strips.current[row] = el }} aria-label={label} onScroll={event => { const offset = Math.max(0, Math.floor(event.currentTarget.scrollLeft / (tileWidth + 12)) - 1); setOffsets(current => current.map((value, i) => i === row ? offset : value)) }}>
         <div style={{ position: 'relative', flex: '0 0 auto', width: Math.max(0, rows[row].length * (tileWidth + 12) - 12), height: tileWidth / aspect + 12 }}>
-        {rows[row].slice(offsets[row], offsets[row] + Math.ceil((strips.current[row]?.clientWidth ?? tileWidth * 10) / (tileWidth + 12)) + 3).map((template, slot) => { const index = offsets[row] + slot; return <div className={`matching-template ${active?.row === row && active.index === index ? 'is-previewing' : ''} ${spread.templateId === template.id ? 'is-current' : ''}`} key={template.id} style={{ position: 'absolute', left: index * (tileWidth + 12), width: tileWidth }}>
+        {rows[row].slice(offsets[row], offsets[row] + Math.ceil((strips.current[row]?.clientWidth ?? tileWidth * 10) / (tileWidth + 12)) + 3).map(({template, photos}, slot) => { const index = offsets[row] + slot; return <div className={`matching-template ${active?.row === row && active.index === index ? 'is-previewing' : ''} ${spread.templateId === template.id ? 'is-current' : ''}`} key={template.id} style={{ position: 'absolute', left: index * (tileWidth + 12), width: tileWidth }}>
           <button className="matching-template__apply" title={`${template.name} — preview, click to apply`} onMouseEnter={() => { setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onFocus={() => { setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onClick={() => { apply(spread.id, template.id, !autoRearrange || count <= 1 || row === 1, target); close() }}>
-            <TemplateThumb template={template} aspect={aspect} marginPx={spread.marginPx * (target === 'spread' ? 1 : 2)} gapPx={spread.gapPx * (target === 'spread' ? 1 : 2)} />
+            <TemplateThumb template={template} photos={templateFramesInReadingOrder(template).map(frame=>photos[template.placeholders.indexOf(frame)])} placements={placements} aspect={aspect} marginPx={spread.marginPx * (target === 'spread' ? 1 : 2)} gapPx={spread.gapPx * (target === 'spread' ? 1 : 2)} />
             <span className="sr-only">{label}: {template.name}</span>
           </button>
           <button className={`matching-template__favorite ${favorites.includes(template.id) ? 'is-favorite' : ''}`} aria-label={`${favorites.includes(template.id) ? 'Unfavorite' : 'Favorite'} ${template.name}`} aria-pressed={favorites.includes(template.id)} onClick={() => toggleFavorite(template.id)}><Icon name="heart" size={14} /></button>
