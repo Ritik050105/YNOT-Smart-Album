@@ -292,6 +292,11 @@ export default function DesignerCanvas() {
   const gapBase=gapEditor?.previewBase??baseSpread
   const gapPreview=useMemo(()=>gapEditor?.dirty&&gapEditor.value.trim()!==''&&gapBase?arrangeLayerSelection(gapBase,project.size,gapEditor.keys,gapMode,'selection',normalizedGap,gapAnchor):gapBase,[gapBase,project.size,gapEditor,gapMode,normalizedGap,gapAnchor])
   const gapCanApply=!!(gapEditor?.dirty&&gapPreview&&gapPreview!==gapBase)
+  const originalGap=gapHistory.current.initial?.editor
+  const originalGapIn=originalGap?(originalGap.exactGap!==undefined?originalGap.exactGap*(originalGap.axis==='x'?size.widthIn:size.heightIn):displayToIn(Number(originalGap.value),project.units,size.dpi)):NaN
+  const previewGapIn=gapDrag?gapDrag.gap*(gapDrag.axis==='x'?size.widthIn:size.heightIn):gapEditor&&(!gapEditor.dirty||gapCanApply)?normalizedGap*(gapEditor.axis==='x'?size.widthIn:size.heightIn):NaN
+  const gapChange=inToDisplay(previewGapIn-originalGapIn,project.units,size.dpi)
+  const gapChangeText=!Number.isFinite(gapChange)?'Enter a valid gap':gapChange===0?`No change · 0 ${project.units}`:`${gapChange>0?'+':'−'}${Math.abs(gapChange)} ${project.units} ${gapChange>0?'increase':'decrease'}`
   // Preview only the canvas; project data and Undo history change once, on Apply.
   const spread=useMemo(()=>gapDrag?arrangeLayerSelection(gapDrag.source,project.size,gapDrag.keys,gapDrag.axis==='x'?'horizontal':'vertical','selection',gapDrag.gap,gapDrag.anchor):gapPreview,[baseSpread,project.size,gapDrag,gapPreview])
   const [coverGuide] = useImage(spread?.coverDetails?.guideSrc ?? '')
@@ -1243,15 +1248,17 @@ export default function DesignerCanvas() {
           </Group>}
         </Layer>
       </Stage>
+      {gapDrag&&<div className="canvas-anchor-hint" aria-label="Live gap change">{gapChangeText}</div>}
       {pickingGapAnchor&&<div className="canvas-anchor-hint" role="status">Click a selected element to keep it fixed · Escape cancels</div>}
 
-      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,stagePos.x+gapEditor.x*stageScale)),top:Math.max(8,Math.min(viewportSize.height-285,anchorGeometry?(stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+285<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-285):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
+      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,stagePos.x+gapEditor.x*stageScale)),top:Math.max(8,Math.min(viewportSize.height-315,anchorGeometry?(stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+315<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-315):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
         <label>Keep fixed<select aria-label="Canvas gap anchor" value={gapAnchor} onChange={e=>switchGapAnchor(e.target.value as GapAnchor)}><option value="first">First element</option><option value="center">Center</option><option value="last">Last element</option>{gapAnchor.includes(':')&&<option value={gapAnchor}>Picked element</option>}</select></label>
         <button className="btn btn--tiny" type="button" aria-pressed={pickingGapAnchor} onClick={()=>useProjectStore.getState().setPickingGapAnchor(!pickingGapAnchor)}>{pickingGapAnchor?'Cancel picking':'Pick anchor on canvas'}</button>
         <div className="canvas-gap-editor__comparison">
           <label>Original<span className="canvas-gap-editor__original" aria-label="Original gap">{gapHistory.current.initial?.editor.value} {project.units}</span></label>
           <label>Preview ({project.units})<input aria-label="Canvas spacing gap" type="number" step="any" min="0" autoFocus value={gapEditor.value} onFocus={e=>e.target.select()} onChange={e=>setGapEditor({...gapEditor,value:e.target.value,dirty:true,exactGap:undefined})}/></label>
         </div>
+        <p className="canvas-gap-editor__change" aria-label="Gap change from original">{gapChangeText}</p>
         <div className="canvas-gap-editor__history">
           <button className="btn btn--tiny" type="button" aria-label="Undo gap change" aria-keyshortcuts="Control+Z" disabled={!gapHistory.current.past.length} onClick={()=>stepGapHistory(false)}>Undo<kbd>Ctrl+Z</kbd></button>
           <button className="btn btn--tiny" type="button" aria-label="Redo gap change" aria-keyshortcuts="Control+Shift+Z" disabled={!gapHistory.current.future.length} onClick={()=>stepGapHistory(true)}>Redo<kbd>Ctrl+Shift+Z</kbd></button>
