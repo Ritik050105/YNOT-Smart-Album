@@ -1,4 +1,4 @@
-import { groupGeometry } from '@/engine/spreadLayers'
+import { groupGeometry, spreadLayers } from '@/engine/spreadLayers'
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { isEditableTarget, modKeyLabel } from '@/engine/keyboard'
@@ -49,6 +49,17 @@ export default function KeyboardShortcuts() {
         if (!(mod && e.key.toLowerCase() === 's')) return
       }
 
+      if(mod&&!editable&&e.key.toLowerCase()==='g'&&s.designerViewSpreadId&&s.selectedSpreadId){
+        e.preventDefault()
+        const spread=s.project.spreads.find(sp=>sp.id===s.selectedSpreadId)
+        if(!spread)return
+        const keys=s.selectedLayerKeys.length?s.selectedLayerKeys:[...s.multiSelectedPlaceholderIds.map(id=>'image:'+id),...(s.selectedPlaceholderId?['image:'+s.selectedPlaceholderId]:[]),...(s.selectedTextBoxId?['text:'+s.selectedTextBoxId]:[])]
+        if(e.shiftKey){
+          const groups=new Set(spreadLayers(spread).filter(l=>keys.includes(l.kind+':'+l.id)).map(l=>l.value.groupId).filter((id):id is string=>!!id))
+          for(const id of groups)s.ungroupLayers(spread.id,id)
+        }else s.groupLayers(spread.id,keys)
+        return
+      }
       if (mod && !editable && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         s.undo()
@@ -79,6 +90,7 @@ export default function KeyboardShortcuts() {
       if (mod && !editable && e.key.toLowerCase() === 'a') {
         if (!s.selectedSpreadId) return
         const spread = s.project.spreads.find((sp) => sp.id === s.selectedSpreadId)
+        if(s.designerViewSpreadId&&spread){e.preventDefault();s.setLayerSelection(spreadLayers(spread).map(l=>l.kind+':'+l.id));return}
         const ids = spread?.placements.filter((p) => p.photoId).map((p) => p.placeholderId) ?? []
         if (ids.length > 0) {
           e.preventDefault()
@@ -168,7 +180,7 @@ export default function KeyboardShortcuts() {
         // selected, the first Escape just deselects (matching every other screen's Escape
         // behavior); a second press then exits, rather than the two meanings fighting each other.
         const nothingSelected =
-          !s.selectedPlaceholderId && !s.selectedTextBoxId && s.multiSelectedPlaceholderIds.length === 0 && s.selectedPhotoIds.length === 0
+          !s.selectedPlaceholderId && !s.selectedTextBoxId && s.multiSelectedPlaceholderIds.length === 0 && s.selectedLayerKeys.length === 0 && s.selectedPhotoIds.length === 0
         if (s.designerViewSpreadId && nothingSelected) {
           s.exitDesignerView()
           return
@@ -259,6 +271,8 @@ function ShortcutsHelpModal({ onClose }: { onClose: () => void }) {
         <section>
           <h4>Selection &amp; editing</h4>
           <Row keys="Delete / Backspace" label="Clear the selected photo(s), or delete the selected text box" />
+          <Row keys={`${modKeyLabel}+G / ${modKeyLabel}+Shift+G`} label="Group / ungroup selected layers" />
+          <Row keys="Shift+click / drag on empty canvas" label="Select multiple layers" />
           <Row keys="Escape" label="Deselect everything" />
           <Row keys={`${modKeyLabel}+A`} label="Select all photos in the current spread" />
           <Row keys="Shift / Ctrl+click" label="Multi-select photos on the canvas" />

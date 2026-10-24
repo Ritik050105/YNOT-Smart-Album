@@ -145,6 +145,8 @@ interface ProjectState {
   selectedTextBoxId: string | null
   /** Canvas multi-select (shift/ctrl+click on placed photos within the current spread), for
    *  batch tone/border editing — see updateMultiplePlacements. */
+  selectedLayerKeys: string[]
+  setLayerSelection: (keys: string[]) => void
   multiSelectedPlaceholderIds: string[]
   /** Photo dock multi-select, for the click-to-select / click-to-place workflow. */
   selectedPhotoIds: string[]
@@ -373,7 +375,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectedSpreadId: null,
   selectedPlaceholderId: null,
   selectedTextBoxId: null,
-  multiSelectedPlaceholderIds: [],
+  selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
   selectedPhotoIds: [],
   lastClickedPhotoId: null,
   toneClipboard: null,
@@ -403,7 +405,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   favoriteTemplateIds: loadTemplateFavorites(),
   openMatchingTemplates: (spreadId) => {
     const spread = get().project.spreads.find(s => s.id === spreadId && !s.isCover)
-    if (spread) set({ selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, multiSelectedPlaceholderIds: [], matchingTemplatesOpen: true, templatePreview: null })
+    if (spread) set({ selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [], matchingTemplatesOpen: true, templatePreview: null })
   },
   closeMatchingTemplates: () => set({ matchingTemplatesOpen: false, templatePreview: null }),
   previewMatchingTemplate: (templateId, keepOrder = true, scope = 'spread') => {
@@ -457,7 +459,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         selectedSpreadId: first.id,
         selectedPlaceholderId: null,
         selectedTextBoxId: null,
-        multiSelectedPlaceholderIds: [],
+        selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
       })
     }
   },
@@ -503,7 +505,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         selectedSpreadId: first.id,
         selectedPlaceholderId: null,
         selectedTextBoxId: null,
-        multiSelectedPlaceholderIds: [],
+        selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
       })
     }
   },
@@ -516,32 +518,39 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedSpreadId: id,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
-      multiSelectedPlaceholderIds: [],
+      selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
     }),
   selectPlaceholder: (id) =>
     set((s) => ({
       selectedPlaceholderId: id,
       selectedTextBoxId: null,
-      multiSelectedPlaceholderIds: [],
+      selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
       rightPanelOpen: id ? true : s.rightPanelOpen,
     })),
   selectTextBox: (id) =>
     set((s) => ({
       selectedTextBoxId: id,
       selectedPlaceholderId: null,
-      multiSelectedPlaceholderIds: [],
+      selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
       rightPanelOpen: id ? true : s.rightPanelOpen,
     })),
 
+  setLayerSelection: (keys) => set(s=>{
+    const spread=s.project.spreads.find(sp=>sp.id===s.selectedSpreadId)
+    if(!spread)return {}
+    const members=spreadLayers(spread).filter(l=>keys.includes(l.kind+':'+l.id)).flatMap(l=>layerMembers(spread,l.kind,l.id))
+    const valid=[...new Set(members.filter(l=>!l.value.locked&&!l.value.hidden).map(l=>l.kind+':'+l.id))]
+    return {selectedLayerKeys:valid,multiSelectedPlaceholderIds:spread.placements.filter(p=>valid.includes('image:'+p.placeholderId)).map(p=>p.placeholderId),selectedPlaceholderId:null,selectedTextBoxId:null,rightPanelOpen:valid.length?true:s.rightPanelOpen}
+  }),
   toggleMultiSelectPlaceholder: (id) =>
     set((s) => {
       const has = s.multiSelectedPlaceholderIds.includes(id)
       // Starting a multi-select from a single selection folds that selection in as the first member.
       const base = s.multiSelectedPlaceholderIds.length > 0 ? s.multiSelectedPlaceholderIds : s.selectedPlaceholderId ? [s.selectedPlaceholderId] : []
       const next = has ? base.filter((x) => x !== id) : [...base, id]
-      return { multiSelectedPlaceholderIds: next, selectedPlaceholderId: null, selectedTextBoxId: null }
+      return { selectedLayerKeys: [], multiSelectedPlaceholderIds: next, selectedPlaceholderId: null, selectedTextBoxId: null }
     }),
-  clearMultiSelect: () => set({ multiSelectedPlaceholderIds: [] }),
+  clearMultiSelect: () => set({ selectedLayerKeys: [], multiSelectedPlaceholderIds: [] }),
 
   setSelectedPhotoIds: (ids, lastClicked) => set({ selectedPhotoIds: ids, lastClickedPhotoId: lastClicked }),
   togglePhotoSelection: (photoId, allPhotoIdsInOrder, mode) =>
@@ -621,7 +630,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setTemplateFrameFilter: (f) => set({ templateFrameFilter: f }),
   toggleShowPhotoFileNames: () => set((s) => ({ showPhotoFileNames: !s.showPhotoFileNames })),
-  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, multiSelectedPlaceholderIds: [], canvasTool: 'select', matchingTemplatesOpen: false, templatePreview: null }),
+  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [], canvasTool: 'select', matchingTemplatesOpen: false, templatePreview: null }),
   exitDesignerView: (keepEmpty = false) => {
     const spread = get().project.spreads.find((s) => s.id === get().designerViewSpreadId)
     if (!keepEmpty && spread?.isCover && !spread.placements.some((p) => p.photoId) && !spread.textBoxes.some((t) => t.text.trim())) {
@@ -861,7 +870,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
     })
     if (get().selectedSpreadId === spreadId) {
-      set({ selectedSpreadId: null, selectedPlaceholderId: null, selectedTextBoxId: null, multiSelectedPlaceholderIds: [] })
+      set({ selectedSpreadId: null, selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [] })
     }
   },
 
@@ -880,7 +889,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const current = candidates.findIndex((template) => template.id === spread.templateId)
     const next = current < 0 ? (direction > 0 ? 0 : candidates.length - 1) : (current + direction + candidates.length) % candidates.length
     get().applyTemplateToSpread(spreadId, candidates[next].id)
-    if (get().selectedSpreadId === spreadId) set({ selectedPlaceholderId: null, selectedTextBoxId: null, multiSelectedPlaceholderIds: [] })
+    if (get().selectedSpreadId === spreadId) set({ selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [] })
   },
 
   applyTemplateToAllSpreads: (templateId) =>
@@ -1020,7 +1029,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const members=layerMembers(s,kind,id)
       return {...s,placements:s.placements.map(l=>members.some(m=>m.kind==='image'&&m.id===l.placeholderId)?{...l,hidden}:l),textBoxes:s.textBoxes.map(l=>members.some(m=>m.kind==='text'&&m.id===l.id)?{...l,hidden}:l)}
     })}),true)
-    if (hidden) set({selectedPlaceholderId:null, selectedTextBoxId:null, multiSelectedPlaceholderIds:[]})
+    if (hidden) set({selectedPlaceholderId:null, selectedTextBoxId:null, selectedLayerKeys:[], multiSelectedPlaceholderIds:[]})
   },
   moveLayer: (spreadId, kind, id, targetKind, targetId) => withHistory(set, p => {
     const spread = p.spreads.find(s => s.id === spreadId)
@@ -1376,7 +1385,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedSpreadId: null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
-      multiSelectedPlaceholderIds: [],
+      selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
       selectedPhotoIds: [],
       history: [],
       future: [],
@@ -1397,7 +1406,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedSpreadId: null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
-      multiSelectedPlaceholderIds: [],
+      selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
       selectedPhotoIds: [],
       history: [],
       future: [],
@@ -1417,7 +1426,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedSpreadId: null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
-      multiSelectedPlaceholderIds: [],
+      selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
       selectedPhotoIds: [],
       history: [],
       future: [],
@@ -1437,7 +1446,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedSpreadId: null,
       selectedPlaceholderId: null,
       selectedTextBoxId: null,
-      multiSelectedPlaceholderIds: [],
+      selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
       selectedPhotoIds: [],
       history: [],
       future: [],
