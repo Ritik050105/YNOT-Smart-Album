@@ -333,3 +333,10 @@
 .album-editor .spreads-panel__cover-divider { flex:0 0 2px; align-self:stretch; background:#858585; margin:-18px -22px -14px; pointer-events:none; }
 .album-editor .timeline-boundary { align-self:stretch; min-width:9px; width:9px; border-radius:0; margin:0; box-shadow:none; }
 .album-editor .timeline-boundary:hover, .album-editor .timeline-boundary:focus-visible { background:var(--accent); }
+/* Reveal the spread quietly, then emphasize controls when they are targeted. */
+.album-editor .spread-card-controls { color:#fff; transition:opacity 140ms ease; }
+.album-editor .spreads-panel__card:hover .spread-card-controls,
+.album-editor .spreads-panel__card.is-selected .spread-card-controls { opacity:.35; }
+.album-editor .spreads-panel__card .spread-card-controls:hover,
+.album-editor .spreads-panel__card .spread-card-controls:focus-within { opacity:1; }
+@media(prefers-reduced-motion:reduce) { .album-editor .spread-card-controls { transition:none; } }
