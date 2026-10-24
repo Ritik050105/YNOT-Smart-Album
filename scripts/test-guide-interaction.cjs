@@ -243,6 +243,18 @@ app.whenReady().then(async()=>{
     assert.deepEqual(await evaluate(`['Undo gap change','Redo gap change','Reset gap preview'].map(label=>document.querySelector('[aria-label="'+label+'"]').disabled)`),beforeControls);
     assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor__percentages button')).map(b=>b.getAttribute('aria-label'))`),[-25,-10,10,25].map(p=>'Set gap change to '+p+'%'));
     assert.equal(await evaluate(`!!document.querySelector('[aria-label="Gap preset 1"]')`),false);
+    const presetStep=async redo=>{const point=await evaluate(`(()=>{const b=Array.from(document.querySelectorAll('[aria-label="Preset history"] button')).find(b=>b.textContent===${JSON.stringify(redo?'Redo presets':'Undo presets')});b.scrollIntoView({block:'nearest'});const r=b.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()`);win.webContents.sendInputEvent({type:'mouseMove',...point});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});await wait();};
+    for(const redo of [false,true,false,true]){
+     await presetStep(redo);const expected=redo?[-25,-10,10,25]:presets;
+     assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences')).gapPercentPresets`),expected);
+     assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor__percentages button')).map(b=>b.getAttribute('aria-label'))`),expected.map(p=>'Set gap change to '+p+'%'));
+     await assertRects(previous);assert.equal(await evaluate('store.getState().gapAnchor'),anchor);assert.equal(await evaluate('store.getState().history.length'),history);
+     assert.deepEqual(await evaluate(`['Undo gap change','Redo gap change','Reset gap preview'].map(label=>document.querySelector('[aria-label="'+label+'"]').disabled)`),beforeControls);
+    }
+    assert.equal(await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preset history"] button')).find(b=>b.textContent==='Redo presets').disabled`),true);
+    await presetStep(false);await configurePresets([-30,-5,15,30]);assert.equal(await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preset history"] button')).find(b=>b.textContent==='Redo presets').disabled`),true,'Saving new presets clears only preset redo');
+    await presetStep(false);assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences')).gapPercentPresets`),presets);
+    await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Restore default presets').click()`);await wait();
     await shortcut(true);await shortcut(false);await assertRects(previous);
    }
   }
@@ -270,6 +282,7 @@ app.whenReady().then(async()=>{
  await evaluate(`document.querySelector('[aria-label="Reset gap preview"]').click()`);await wait();assert.equal(await evaluate(`document.querySelector('[aria-label="Gap change from original"]').textContent`),'No change · 0 in · 0%');
  await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));store.getState().undo();store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
  assert.equal(await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor__percentages button')).length`),0,'Closed editor removes quick buttons');
+ console.log('Preset Undo/Redo passed: real pointer clicks, saved custom/default restoration, independent spacing history, redo branching and persisted values');
  console.log('Restore default presets passed: persisted defaults, unchanged preview/anchor/project history, intact local Undo/Redo, customization open or closed');
  console.log('Custom presets passed: edit, validation, cancel, persistent save, decimal presets, real clicks and unchanged preview/history on save');
  console.log('Quick percentages passed: real clicks on all presets, live anchored geometry, unchanged sizes, history, Reset, Escape and one Apply/Undo');

@@ -231,10 +231,19 @@ export default function DesignerCanvas() {
   const gapPresets=usePreferences(s=>s.values.gapPercentPresets)
   const [presetDraft,setPresetDraft]=useState<string[]|null>(null)
   const [presetError,setPresetError]=useState('')
+  const [presetHistory,setPresetHistory]=useState<{past:number[][];future:number[][]}>({past:[],future:[]})
   const validPresets=!!presetDraft&&presetDraft.every(v=>v.trim()!==''&&Number.isFinite(Number(v))&&Number(v)>=-100)&&new Set(presetDraft.map(Number)).size===4
-  function saveGapPresets(values:number[]){
-    try{usePreferences.getState().save({...getPreferences(),gapPercentPresets:values});setPresetDraft(null);setPresetError('')}
-    catch{setPresetError('Could not save presets. Please try again.')}
+  function saveGapPresets(values:number[],direction?:'undo'|'redo'){
+    const previous=[...getPreferences().gapPercentPresets]
+    try{
+      usePreferences.getState().save({...getPreferences(),gapPercentPresets:values})
+      if(previous.some((value,index)=>value!==values[index]))setPresetHistory(h=>direction==='undo'?{past:h.past.slice(0,-1),future:[...h.future,previous]}:direction==='redo'?{past:[...h.past,previous],future:h.future.slice(0,-1)}:{past:[...h.past,previous],future:[]})
+      setPresetDraft(null);setPresetError('')
+    }catch{setPresetError('Could not save presets. Please try again.')}
+  }
+  function stepPresetHistory(redo:boolean){
+    const values=(redo?presetHistory.future:presetHistory.past).at(-1)
+    if(values)saveGapPresets(values,redo?'redo':'undo')
   }
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
@@ -1271,7 +1280,7 @@ export default function DesignerCanvas() {
       {gapDrag&&<div className="canvas-anchor-hint" aria-label="Live gap change">{gapChangeText}</div>}
       {pickingGapAnchor&&<div className="canvas-anchor-hint" role="status">Click a selected element to keep it fixed · Escape cancels</div>}
 
-      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-(presetDraft?690:550),anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+(presetDraft?690:550)<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-(presetDraft?690:550)):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
+      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-(presetDraft?730:590),anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+(presetDraft?730:590)<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-(presetDraft?730:590)):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
         <label>Keep fixed<select aria-label="Canvas gap anchor" value={gapAnchor} onChange={e=>switchGapAnchor(e.target.value as GapAnchor)}><option value="first">First element</option><option value="center">Center</option><option value="last">Last element</option>{gapAnchor.includes(':')&&<option value={gapAnchor}>Picked element</option>}</select></label>
         <button className="btn btn--tiny" type="button" aria-pressed={pickingGapAnchor} onClick={()=>useProjectStore.getState().setPickingGapAnchor(!pickingGapAnchor)}>{pickingGapAnchor?'Cancel picking':'Pick anchor on canvas'}</button>
         <div className="canvas-gap-editor__comparison">
@@ -1288,6 +1297,10 @@ export default function DesignerCanvas() {
           <div><button className="btn btn--tiny" type="button" onClick={()=>{setPresetDraft(null);setPresetError('')}}>Cancel presets</button><button className="btn btn--tiny" type="button" disabled={!validPresets} onClick={()=>saveGapPresets(presetDraft.map(Number))}>Save presets</button></div>
         </div>:<button className="btn btn--tiny" type="button" title="Customize four presets and save them for future sessions" onClick={()=>setPresetDraft(gapPresets.map(String))}>Customize presets</button>}
         <button className="btn btn--tiny" type="button" title="Save the original four presets without changing the spacing preview" disabled={!presetDraft&&gapPresets.every((value,index)=>value===preferenceDefaults.gapPercentPresets[index])} onClick={()=>saveGapPresets(preferenceDefaults.gapPercentPresets)}>Restore default presets</button>
+        <div className="canvas-gap-editor__history" role="group" aria-label="Preset history">
+          <button className="btn btn--tiny" type="button" disabled={!presetHistory.past.length} title="Undo saved preset changes without changing spacing" onClick={()=>stepPresetHistory(false)}>Undo presets</button>
+          <button className="btn btn--tiny" type="button" disabled={!presetHistory.future.length} title="Redo saved preset changes without changing spacing" onClick={()=>stepPresetHistory(true)}>Redo presets</button>
+        </div>
         {presetError&&<p role="alert">{presetError}</p>}
         <p className="canvas-gap-editor__change" aria-label="Gap change from original">{gapChangeText}</p>
         <div className="canvas-gap-editor__history">
