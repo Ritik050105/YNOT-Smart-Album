@@ -18,3 +18,14 @@ assert.equal(r.rect.x,400);assert.ok(r.guides.some(g=>g.position===450))
 r=snapRect({x:72,y:72,width:10,height:10},[],900,600,6,undefined,[75],[75])
 assert.equal(r.guides.length,2)
 console.log('Smart guides passed: edges, centers, zoom threshold, resize anchors, manual guides')
+
+for(const axis of ['x','y']){
+ const rct=(x,w)=>axis==='x'?{x,y:100,width:w,height:40}:{x:100,y:x,width:40,height:w};
+ let result=snapRect(rct(322,40),[rct(100,40),rct(200,60)],900,900,6);
+ assert.equal(result.rect[axis],320,'Match existing neighboring gap');assert.equal(result.guides.filter(g=>g.segments).length,1);assert.deepEqual(result.guides.find(g=>g.segments).segments,[{from:140,to:200},{from:260,to:320}]);
+ result=snapRect(rct(201,60),[rct(100,40),rct(320,40)],900,900,6);assert.equal(result.rect[axis],200,'Center between neighbors');
+ result=snapRect(rct(200,58),[rct(100,40),rct(320,40)],900,900,6,axis==='x'?'middle-right':'bottom-center');assert.equal(result.rect[axis==='x'?'width':'height'],60,'Resize to equal spacing');assert.ok(result.guides.some(g=>g.segments));
+ result=snapRect(rct(330,40),[rct(100,40),rct(200,60)],900,900,2);assert.equal(result.rect[axis],330);assert.ok(!result.guides.some(g=>g.segments),'No false equal-gap markers');
+}
+assert.ok(!snapRect({x:322,y:300,width:40,height:40},[{x:100,y:100,width:40,height:40},{x:200,y:100,width:60,height:40}],900,900,6).guides.some(g=>g.segments),'Different rows do not attract');
+console.log('Equal spacing passed: both axes, middle and end positions, resizing, zoom threshold and row isolation');

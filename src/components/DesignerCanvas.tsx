@@ -1,6 +1,6 @@
 import { spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences } from '@/state/preferences'
-import { snapRect, GuideRect } from '@/engine/smartGuides'
+import { snapRect, GuideRect, SmartGuide } from '@/engine/smartGuides'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
@@ -265,7 +265,7 @@ export default function DesignerCanvas() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const stageHeight = STAGE_WIDTH / (size.widthIn / size.heightIn)
-  const [smartGuides, setSmartGuides] = useState<{axis:'x'|'y';position:number}[]>([])
+  const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([])
   const [liveFrame, setLiveFrame] = useState<(GuideRect & {id:string}) | null>(null)
   useEffect(()=>{setSmartGuides([]);setLiveFrame(null)},[selectedPlaceholderId,selectedTextBoxId,spread?.id,canvasTool])
   const boxes = spread ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight).filter(b=>!spread.placements.find(p=>p.placeholderId===b.placeholderId)?.hidden) : []
@@ -306,8 +306,8 @@ export default function DesignerCanvas() {
   const [groupLive,setGroupLive]=useState<{x:number;y:number;scaleX:number;scaleY:number}|null>(null)
   useEffect(()=>{setGroupLive(null)},[selectionIdentity,spread])
   useEffect(()=>{if(groupNodeRef.current&&groupTransformerRef.current){groupTransformerRef.current.nodes([groupNodeRef.current]);groupTransformerRef.current.getLayer()?.batchDraw()}},[selectionIdentity,spread,canvasTool])
-  const updateGroupPreview=()=>{const n=groupNodeRef.current;if(n&&group)setGroupLive({x:n.x()-group.x*STAGE_WIDTH*n.scaleX(),y:n.y()-group.y*stageHeight*n.scaleY(),scaleX:n.scaleX(),scaleY:n.scaleY()})}
-  const commitGroup=()=>{const n=groupNodeRef.current;if(n&&spread&&transformKeys.length){useProjectStore.getState().transformSelection(spread.id,transformKeys,{x:n.x()/STAGE_WIDTH,y:n.y()/stageHeight,width:n.width()*n.scaleX()/STAGE_WIDTH,height:n.height()*n.scaleY()/stageHeight});n.scale({x:1,y:1});setGroupLive(null)}}
+  const updateGroupPreview=()=>{const n=groupNodeRef.current;if(n&&group){const resizing=!!groupTransformerRef.current?.isTransforming();const rect={x:n.x(),y:n.y(),width:n.width()*n.scaleX(),height:n.height()*n.scaleY()};if(!resizing)n.position(alignRect(rect));else alignRect(rect,undefined,groupTransformerRef.current?.getActiveAnchor()??undefined,0);setGroupLive({x:n.x()-group.x*STAGE_WIDTH*n.scaleX(),y:n.y()-group.y*stageHeight*n.scaleY(),scaleX:n.scaleX(),scaleY:n.scaleY()})}}
+  const commitGroup=()=>{const n=groupNodeRef.current;if(n&&spread&&transformKeys.length){useProjectStore.getState().transformSelection(spread.id,transformKeys,{x:n.x()/STAGE_WIDTH,y:n.y()/stageHeight,width:n.width()*n.scaleX()/STAGE_WIDTH,height:n.height()*n.scaleY()/stageHeight});n.scale({x:1,y:1});setGroupLive(null);setSmartGuides([])}}
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
   useEffect(()=>{if(selectedLayerKeys.length||(editingTextId&&selectedTextBoxId!==editingTextId))setEditingTextId(null)},[selectedLayerKeys,selectedTextBoxId,editingTextId])
   const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId?: string; openedAt: number } | null>(null)
@@ -472,9 +472,9 @@ export default function DesignerCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewportSize.width, viewportSize.height, stageHeight])
 
-  function alignRect(rect:GuideRect, id?:string, anchor?:string) {
-    const targets=[...boxes.filter(b=>b.placeholderId!==id),...(spread?.textBoxes??[]).filter(t=>t.id!==id&&!t.hidden).map(t=>({x:t.x*STAGE_WIDTH,y:t.y*stageHeight,width:t.width*STAGE_WIDTH,height:t.height*stageHeight}))]
-    const result=snapRect(rect,targets,STAGE_WIDTH,stageHeight,6/stageScale,anchor,showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH) : [],showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight) : [])
+  function alignRect(rect:GuideRect, id?:string, anchor?:string, threshold=6/stageScale) {
+    const targets=[...boxes.filter(b=>b.placeholderId!==id&&!transformKeys.includes('image:'+b.placeholderId)),...(spread?.textBoxes??[]).filter(t=>t.id!==id&&!t.hidden&&!transformKeys.includes('text:'+t.id)).map(t=>({x:t.x*STAGE_WIDTH,y:t.y*stageHeight,width:t.width*STAGE_WIDTH,height:t.height*stageHeight}))]
+    const result=snapRect(rect,targets,STAGE_WIDTH,stageHeight,threshold,anchor,showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH) : [],showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight) : [])
     setSmartGuides(result.guides)
     return result.rect
   }
@@ -1096,7 +1096,10 @@ export default function DesignerCanvas() {
         </Layer>}
         <Layer listening={false} name="selection-marquee">{marquee&&<Rect {...marquee} fill="rgba(156,107,73,.12)" stroke="#9c6b49" strokeWidth={1/stageScale}/>}</Layer>
         <Layer listening={false} name="smart-guides">
-          {smartGuides.map(g=><Line key={g.axis} points={g.axis==='x'?[g.position,0,g.position,stageHeight]:[0,g.position,STAGE_WIDTH,g.position]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false} />)}
+          {smartGuides.map((g,i)=>g.segments?<Group key={i} name="equal-spacing-guide">{g.segments.map((s,j)=>{
+            const x=g.axis==='x',tick=4/stageScale
+            return <Group key={j}><Line points={x?[s.from,g.position,s.to,g.position]:[g.position,s.from,g.position,s.to]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>{[s.from,s.to].map(p=><Line key={p} points={x?[p,g.position-tick,p,g.position+tick]:[g.position-tick,p,g.position+tick,p]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>)}<KonvaText text="=" x={x?(s.from+s.to)/2-4/stageScale:g.position+6/stageScale} y={x?g.position-17/stageScale:(s.from+s.to)/2-6/stageScale} fontSize={13/stageScale} fill="#9b59ff"/></Group>
+          })}</Group>:<Line key={i} points={g.axis==='x'?[g.position,0,g.position,stageHeight]:[0,g.position,STAGE_WIDTH,g.position]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false} />)}
         </Layer>
       </Stage>
 

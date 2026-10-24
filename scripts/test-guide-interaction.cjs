@@ -43,6 +43,16 @@ app.whenReady().then(async()=>{
  assert.ok(await evaluate(`Konva.stages[0].find('.smart-guides').flatMap(g=>g.find('Line')).length>0`),'Resize shows alignment guides');
  win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:resize.target,y:resize.y});await wait();
  assert.ok(await evaluate(`Math.abs((store.getState().project.spreads[0].customBoxes.at(-1).x+store.getState().project.spreads[0].customBoxes.at(-1).width)*900-540)<1`),'Resize edge persists at guide');
+
+ await evaluate(`for(const [x,w] of [[100,40],[200,60],[330,40]])store.getState().addImageFrame(spreadId,{x:x/900,y:250/450,width:w/900,height:40/450});window.spacingIds=store.getState().project.spreads[0].placements.slice(-3).map(p=>p.placeholderId);store.getState().selectPlaceholder(spacingIds[2])`);await wait();
+ const spacingPoint=await evaluate(`(()=>{const s=Konva.stages[0],p=s.getAbsoluteTransform().point({x:350,y:270}),r=s.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y),scale:s.scaleX()}})()`);
+ win.webContents.sendInputEvent({type:'mouseMove',x:spacingPoint.x,y:spacingPoint.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:spacingPoint.x,y:spacingPoint.y});await wait();
+ for(let i=1;i<=4;i++){win.webContents.sendInputEvent({type:'mouseMove',x:Math.round(spacingPoint.x-8*spacingPoint.scale*i/4),y:spacingPoint.y});await wait()}
+ assert.ok(await evaluate(`Konva.stages[0].find('.equal-spacing-guide').length>0`),'Real drag shows equal-gap marks');
+ await fs.writeFile(path.join(out,'equal-spacing.png'),(await win.webContents.capturePage()).toPNG());
+ win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:Math.round(spacingPoint.x-8*spacingPoint.scale),y:spacingPoint.y});await wait();
+ assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===spacingIds[2]).x*900-320)<.01`),'Equal spacing persists after drag');assert.equal(await evaluate(`Konva.stages[0].find('.equal-spacing-guide').length`),0,'Spacing marks clear after drag');
+ console.log('Equal spacing canvas test passed: real pointer snap, paired gap markers, persistence and cleanup');
  await fs.writeFile(path.join(out,'guides-fixed.png'),(await win.webContents.capturePage()).toPNG());
  console.log('Guide interactions passed: actual pointer drag on both axes at fit zoom, pan-origin clamp, persistence, Undo, visible-guide snapping and hidden-guide exclusion and pointer resize');win.destroy();app.quit();
 }).catch(e=>{console.error(e);app.exit(1)});
