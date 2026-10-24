@@ -13,6 +13,7 @@ export async function buildSpreadPsdBytes(
   size = spread.size ?? size
   const width = Math.round(size.widthIn * pixelsPerInch)
   const height = Math.round(size.heightIn * pixelsPerInch)
+  if (![width, height, pixelsPerInch].every(v => Number.isFinite(v) && v > 0) || width > 30000 || height > 30000) throw new Error('PSD supports dimensions up to 30,000 pixels per side. Reduce the spread size or export DPI.')
   const scale = width / DESIGN_WIDTH
   const layers: Layer[] = []
 
@@ -78,6 +79,6 @@ export async function buildSpreadPsdBytes(
     }
   }
   const composite = await renderSpreadToCanvas(spread, photosById, size, pixelsPerInch)
-  const psd: Psd = { width, height, canvas: composite, children: layers }
+  const psd: Psd = { width, height, canvas: composite, children: layers, imageResources: { resolutionInfo: { horizontalResolution: pixelsPerInch, horizontalResolutionUnit: 'PPI', widthUnit: 'Inches', verticalResolution: pixelsPerInch, verticalResolutionUnit: 'PPI', heightUnit: 'Inches' } } }
   return writePsdUint8Array(psd)
 }

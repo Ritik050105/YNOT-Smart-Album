@@ -317,7 +317,7 @@ ipcMain.handle('preferences:system', async (event, action: string, value?:string
 })
 ipcMain.handle('editor:open', async (_event,args:{app:string;photoshopPath:string;name:string;data:Uint8Array})=>{
   if(!args || !['photoshop','canva'].includes(args.app) || typeof args.name!=='string' || !/\.(png|psd)$/i.test(args.name) || !(args.data instanceof Uint8Array) || args.data.length>512*1024*1024)throw new Error('Invalid editor file.')
-  if(args.app==='photoshop' && (typeof args.photoshopPath!=='string'||!path.isAbsolute(args.photoshopPath)||path.basename(args.photoshopPath).toLowerCase()!=='photoshop.exe'||!fs.statSync(args.photoshopPath).isFile()))throw new Error('Choose Photoshop.exe in Tools → Preferences → Misc.')
+  if(args.app==='photoshop' && (typeof args.photoshopPath!=='string'||!path.isAbsolute(args.photoshopPath)||path.basename(args.photoshopPath).toLowerCase()!=='photoshop.exe'||!(await fs.promises.stat(args.photoshopPath).catch(() => null))?.isFile()))throw new Error('Choose Photoshop.exe in Tools → Preferences → Misc.')
   const folder=path.join(app.getPath('documents'),'YNOT External Edits');await fs.promises.mkdir(folder,{recursive:true})
   const file=path.join(folder,`${Date.now()}-${randomUUID().slice(0,8)}-${path.basename(args.name).replace(/[^a-z0-9_.-]/gi,'_')}`)
   writeFileAtomic(file,Buffer.from(args.data))
