@@ -400,3 +400,11 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .album-editor .album-info-panel .collapsible__header { color: var(--text); }
 .album-editor .album-info-panel select { background: var(--panel); color: var(--text); }
 .album-editor .inspector .btn.is-active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+.designer-layers { padding:16px; border-bottom:1px solid var(--border-soft); background:var(--panel); }
+.designer-layers summary { cursor:pointer; font-weight:600; color:var(--text); }
+.designer-layers summary span { color:var(--text-muted); margin-left:8px; font-weight:400; }
+.designer-layers__list { max-height:220px; overflow:auto; margin-top:12px; }
+.designer-layers__row { display:flex; align-items:center; gap:8px; padding:5px 0; }
+.designer-layers__select { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; padding:8px; border:0; border-radius:6px; background:transparent; color:var(--text); cursor:pointer; }
+.designer-layers__select:hover, .designer-layers__select[aria-pressed=true] { background:var(--accent-soft); color:var(--accent); }

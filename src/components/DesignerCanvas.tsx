@@ -629,6 +629,7 @@ export default function DesignerCanvas() {
   // Empty-frame double-click: remember which placeholder was double-clicked, then open the file
   // picker. The actual import + placement happens in handleFramePicked once a file is chosen.
   function handleEmptyFrameDoubleClick(placeholderId: string) {
+    if(spread?.placements.find(p=>p.placeholderId===placeholderId)?.locked)return
     framePickerTargetRef.current = placeholderId
     framePickerInputRef.current?.click()
   }
@@ -658,7 +659,7 @@ export default function DesignerCanvas() {
   return (
     <div className="designer-canvas-wrap">
       <div className="designer-toolbar">
-        {selectedBox && !spread.placements.find(p => p.placeholderId === selectedBox.placeholderId)?.photoId && canvasTool === 'select' && <div className="frame-tool-hint"><strong>Empty image frame</strong><span>Drag handles to resize</span><button className="btn" onClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}>Add image…</button><button className="btn" onClick={() => useProjectStore.getState().removeImageFrame(spread.id, selectedBox.placeholderId)}>Remove frame</button></div>}
+        {selectedBox && !spread.placements.find(p => p.placeholderId === selectedBox.placeholderId)?.locked && !spread.placements.find(p => p.placeholderId === selectedBox.placeholderId)?.photoId && canvasTool === 'select' && <div className="frame-tool-hint"><strong>Empty image frame</strong><span>Drag handles to resize</span><button className="btn" onClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}>Add image…</button><button className="btn" onClick={() => useProjectStore.getState().removeImageFrame(spread.id, selectedBox.placeholderId)}>Remove frame</button></div>}
         {canvasTool === 'frame' && <div className="frame-tool-hint" role="status"><strong>Image frame</strong><span>Drag to draw · Click for a standard frame</span><button className="btn" onClick={() => setCanvasTool('select')}>Done</button></div>}
         <button
           className="btn"
@@ -854,7 +855,7 @@ export default function DesignerCanvas() {
                 warmth={placement.warmth}
                 selected={selectedPlaceholderId === box.placeholderId}
                 multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
-                canDrag={canvasTool === 'select' && !isSpaceDown}
+                canDrag={canvasTool === 'select' && !isSpaceDown && !placement.locked}
                 onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
                 onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}
                 onContextMenu={(e) => handlePlaceholderContextMenu(box.placeholderId, e.evt)}
@@ -862,7 +863,8 @@ export default function DesignerCanvas() {
             )
           })}
 
-          {selectedBox && canvasTool === 'select' && <>
+          {boxes.filter(b=>spread.placements.find(p=>p.placeholderId===b.placeholderId)?.locked).map(b=><KonvaText key={`lock-${b.placeholderId}`} x={b.x+5/stageScale} y={b.y+5/stageScale} text="Locked" fontSize={12/stageScale} fill="#805638" listening={false} />)}
+          {selectedBox && !spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)?.locked && canvasTool === 'select' && <>
             <Rect ref={frameNodeRef} x={selectedBox.x} y={selectedBox.y} width={selectedBox.width} height={selectedBox.height}
               fill="rgba(0,0,0,0)" draggable
               onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:selectedBox.width,height:selectedBox.height},selectedBox.placeholderId);e.target.position(rect);setLiveFrame({...rect,id:selectedBox.placeholderId})}}
@@ -996,10 +998,10 @@ export default function DesignerCanvas() {
                 fontStyle={`${box.bold ? 'bold' : ''} ${box.italic ? 'italic' : ''}`.trim() || 'normal'}
                 fill={box.color}
                 align={box.align}
-                draggable
+                draggable={!box.locked && canvasTool === 'select' && !isSpaceDown}
                 onClick={() => selectTextBox(box.id)}
                 onTap={() => selectTextBox(box.id)}
-                onDblClick={() => setEditingTextId(box.id)}
+                onDblClick={() => { if(!box.locked) setEditingTextId(box.id) }}
                 onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:e.target.width(),height:e.target.height()},box.id);e.target.position(rect)}}
                 onTransform={e=>{const node=e.target;node.width(Math.max(4,node.width()*node.scaleX()));node.height(Math.max(4,node.height()*node.scaleY()));node.scale({x:1,y:1})}}
                 onTransformEnd={e=>{const node=e.target;updateTextBox(spread.id,box.id,{x:node.x()/STAGE_WIDTH,y:node.y()/stageHeight,width:node.width()/STAGE_WIDTH,height:node.height()/stageHeight});setSmartGuides([])}}
@@ -1015,7 +1017,7 @@ export default function DesignerCanvas() {
               />
             )
           })}
-          {selectedTextBoxId && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#9c6b49" anchorStroke="#9c6b49" />}
+          {selectedTextBoxId && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.locked && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#9c6b49" anchorStroke="#9c6b49" />}
         </Layer>
         {(gridMode==='on' || (gridMode==='auto' && (showGrid || !!liveFrame || !!draftFrame))) && <Layer listening={false} name="rule-of-thirds-grid">
           {[1 / 3, 2 / 3].flatMap(f => [

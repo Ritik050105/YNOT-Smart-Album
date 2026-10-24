@@ -90,6 +90,7 @@ export default function Inspector() {
   const placement = spread.placements.find((p) => p.placeholderId === selectedPlaceholderId)
   const textBox = spread.textBoxes.find((t) => t.id === selectedTextBoxId)
   const photo = placement?.photoId ? project.photos.find((p) => p.id === placement.photoId) : undefined
+  if (placement?.locked || textBox?.locked) return <div className="panel inspector"><strong>Layer locked</strong><p className="muted">Unlock this layer to edit, move or resize it.</p><button className="btn" onClick={()=>useProjectStore.getState().setLayerLocked(spread.id,placement?'image':'text',placement?.placeholderId??textBox!.id,false)}>Unlock layer</button></div>
   const spreadAspect = size.widthIn / size.heightIn
   const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / spreadAspect).find(
     (b) => b.placeholderId === selectedPlaceholderId

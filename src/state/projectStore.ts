@@ -1,3 +1,4 @@
+import { changesLockedLayer } from '@/engine/layerLocks'
 import { getPreferences } from './preferences'
 import { applyPageTemplate, pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { create } from 'zustand'
@@ -288,6 +289,7 @@ interface ProjectState {
   relinkPhoto: (photoId: string, replacement: PhotoAsset) => void
   addImageFrame: (spreadId: string, rect: { x: number; y: number; width: number; height: number }, photoId?: string) => void
   updateImageFrame: (spreadId: string, frameId: string, rect: { x: number; y: number; width: number; height: number }) => void
+  setLayerLocked: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, locked: boolean) => void
   removeImageFrame: (spreadId: string, frameId: string) => void
   setPlacementPhoto: (spreadId: string, placeholderId: string, photoId: string | null) => void
   swapPlacements: (spreadId: string, placeholderIdA: string, placeholderIdB: string) => void
@@ -331,10 +333,14 @@ interface ProjectState {
   setSlideDuration: (ms: number) => void
 }
 
-function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project) {
+function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project, changingLock = false) {
   set((s) => {
     const mutated = mutate(s.project)
     if (mutated === s.project) return {}
+    if (!changingLock && changesLockedLayer(s.project, mutated)) {
+      queueMicrotask(()=>window.dispatchEvent(new CustomEvent('album-studio:preference-notice',{detail:'Unlock the affected layer in Designer View → Layers before editing it.'})))
+      return {}
+    }
     if(!getPreferences().reuseImages){
       const counts=(p:Project)=>{const map=new Map<string,number>();for(const spread of p.spreads){for(const pl of spread.placements)if(pl.photoId)map.set(pl.photoId,(map.get(pl.photoId)??0)+1);const id=spread.backgroundPattern?.edits?.photoId;if(id)map.set(id,(map.get(id)??0)+1)}return map}
       const old=counts(s.project)
@@ -969,6 +975,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }) }))
   },
 
+  setLayerLocked: (spreadId, kind, id, locked) => withHistory(set, p => ({...p, spreads:p.spreads.map(s => s.id!==spreadId ? s : kind==='background' ? {...s,backgroundLocked:locked} : kind==='image' ? {...s,placements:s.placements.map(pl=>pl.placeholderId===id?{...pl,locked}:pl)} : {...s,textBoxes:s.textBoxes.map(t=>t.id===id?{...t,locked}:t)})}), true),
   removeImageFrame: (spreadId, frameId) => {
     withHistory(set, (p) => ({ ...p, spreads: p.spreads.map((s) => {
       if (s.id !== spreadId) return s

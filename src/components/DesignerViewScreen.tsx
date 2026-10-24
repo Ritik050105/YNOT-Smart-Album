@@ -1,3 +1,4 @@
+import DesignerLayers from './DesignerLayers'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { STAGE_WIDTH } from './DesignerCanvas'
@@ -137,6 +138,7 @@ export default function DesignerViewScreen() {
         </button>
         {!spread.isCover && <button className="btn" aria-pressed={matchingTemplatesOpen} onClick={() => matchingTemplatesOpen ? useProjectStore.getState().closeMatchingTemplates() : useProjectStore.getState().openMatchingTemplates(spread.id)}><Icon name="grid" size={14} /> Browse matching templates</button>}
         {spread.isCover && <button className="btn" onClick={() => window.dispatchEvent(new CustomEvent('album-studio:setup-cover'))}>Cover Specifications</button>}
+        <button className="btn" aria-pressed={rightPanelOpen} onClick={toggleRightPanel}>Layers</button>
         <div className="designer-view__spacer" />
         <span className="muted">
           {project.name} — designing {spreadLabel} @ {Math.round(canvasZoom * 100)}%
@@ -216,6 +218,7 @@ export default function DesignerViewScreen() {
         </button>
         {rightPanelOpen && (
           <aside className="app-sidebar app-sidebar--right">
+            <DesignerLayers spread={spread} />
             {selectedPlaceholderId || selectedTextBoxId ? <Inspector /> : <AlbumInfoPanel />}
           </aside>
         )}

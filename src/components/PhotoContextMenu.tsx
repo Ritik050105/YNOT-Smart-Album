@@ -26,7 +26,9 @@ export default function PhotoContextMenu({ x, y, spreadId, frameId }: { x: numbe
   const box = computePlaceholderBoxes(spread, 900, height).find(b => b.placeholderId === frameId)
   const horizontal = !!box && box.width >= box.height
   const run = (action: () => Promise<unknown>) => { void action().catch(e => setError(e instanceof Error ? e.message : String(e))) }
-  const items: ContextMenuItem[] = [
+  const locked=frameId ? !!placement?.locked : !!spread.backgroundLocked
+  const lockItem: ContextMenuItem={label:locked?'Unlock layer':'Lock layer',onClick:()=>state.setLayerLocked(spread.id,frameId?'image':'background',frameId??'background',!locked)}
+  const items: ContextMenuItem[] = [lockItem,
     {label:'Auto Enhance',disabled:!photo && background?.mode !== 'cover',onClick:()=>run(()=>state.autoEnhanceImages([{spreadId,frameId}]))},
     ...(background?.mode === 'cover' ? [{label:'Detach Background Image',onClick:()=>state.detachBackground(spreadId)}] : []),
     { label: 'Cut', shortcut: 'Ctrl+X', disabled: !photo, onClick: () => state.cutPlacement(spreadId, frameId!) },
@@ -56,7 +58,7 @@ export default function PhotoContextMenu({ x, y, spreadId, frameId }: { x: numbe
     { label: 'Relink Missing File…', separator: true, disabled: !photo, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:relink-photo', {detail:photo?.id})) },
   ]
   return <>
-    {open && <ContextMenu x={x} y={y} items={items} onClose={() => setOpen(false)} />}
+    {open && <ContextMenu x={x} y={y} items={locked ? [lockItem,...items.filter(item=>['Copy','Copy Filename(s)','Quick Preview','Show in Explorer','Reveal in Image Browser'].includes(item.label))] : items} onClose={() => setOpen(false)} />}
     <input ref={input} type="file" accept={IMAGE_FILE_ACCEPT} hidden onChange={e => {
       const file = e.target.files?.[0]; e.target.value = ''; if (!file) return
       run(async () => {

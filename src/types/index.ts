@@ -54,6 +54,7 @@ export interface TemplateDefinition {
 export type FrameStyle = 'none' | 'rounded' | 'polaroid' | 'shadow'
 
 export interface PlacedPhoto {
+  locked?: boolean
   placeholderId: string
   photoId: string | null
   /** Pan/zoom of the photo within its cropped placeholder, 0-1 normalized focal point. */
@@ -103,6 +104,7 @@ export type ToneAdjustments = Pick<
 >
 
 export interface TextBox {
+  locked?: boolean
   id: string
   x: number
   y: number
@@ -118,6 +120,7 @@ export interface TextBox {
 }
 
 export interface Spread {
+  backgroundLocked?: boolean
   backgroundPattern?: { name: string; src: string; tileSizePx: number; mode?: 'cover'; width?: number; height?: number; edits?: PlacedPhoto }
   /** Normalized frame positions after a layout is customized in Designer View. */
   customBoxes?: PlaceholderRect[]

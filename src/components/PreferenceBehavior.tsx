@@ -13,5 +13,5 @@ export default function PreferenceBehavior(){
  return()=>{window.removeEventListener('wheel',wheel);window.removeEventListener('pointerover',hint,true);titles.forEach((title,el)=>el.title=title)}
  },[p])
  useEffect(()=>{if(p.gridMode!=='auto')useProjectStore.setState({showGrid:p.gridMode==='on'})},[p.gridMode])
- return notice?<Modal title="Image reuse" onClose={()=>setNotice('')} footer={<button className="btn btn--primary" onClick={()=>setNotice('')}>OK</button>}><p>{notice}</p></Modal>:null
+ return notice?<Modal title="Action unavailable" onClose={()=>setNotice('')} footer={<button className="btn btn--primary" onClick={()=>setNotice('')}>OK</button>}><p>{notice}</p></Modal>:null
 }
