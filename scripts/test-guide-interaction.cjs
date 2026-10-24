@@ -87,6 +87,27 @@ app.whenReady().then(async()=>{
  assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===spacingIds[2]).x*900-350)<.01`),'Inline 2 inch gap moves following frame to 350');
  assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===spacingIds[1]).x*900-200)<.01`),'First frame stays anchored');assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),false);
  await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),beforeInline,'One Undo restores canvas gap edit');
+
+ for(const axis of ['x','y']){
+  if(axis==='y'){await evaluate(`for(const [y,h] of [[100,30],[180,40],[270,30]])store.getState().addImageFrame(spreadId,{x:600/900,y:y/450,width:40/900,height:h/450});window.dragGapId=store.getState().project.spreads[0].placements.at(-1).placeholderId;store.getState().selectPlaceholder(dragGapId)`);await wait()}
+  else await evaluate(`window.dragGapId=spacingIds[2]`);
+  const startProject=await evaluate('JSON.stringify(store.getState().project.spreads[0])'),history=await evaluate('store.getState().history.length');
+  const point=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.find('.spacing-measurement')[1],p=n.getAbsoluteTransform().point({x:n.width()/2,y:n.height()/2}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y),scale:stage.scaleX()}})()`);
+  const initial=axis==='x'?320:270;
+  for(const cancel of [true,false]){
+   win.webContents.sendInputEvent({type:'mouseMove',x:point.x,y:point.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:point.x,y:point.y});await wait();
+   const end={x:point.x+(axis==='x'?30:0),y:point.y+(axis==='y'?30:0)};
+   for(let i=1;i<=5;i++){win.webContents.sendInputEvent({type:'mouseMove',x:Math.round(point.x+(end.x-point.x)*i/5),y:Math.round(point.y+(end.y-point.y)*i/5)});await wait()}
+   assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].${axis}()-${initial+30/point.scale})<1`),'Label drag previews '+axis);
+   assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Drag preview leaves project unchanged');assert.equal(await evaluate('store.getState().history.length'),history);
+   assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),false,'Dragging does not open numeric editor');
+   if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].${axis}()-${initial})<.01`),'Escape restores preview')}
+   win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...end});await wait();
+   if(cancel)assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Release after Escape does not commit');
+   else {assert.equal(await evaluate('store.getState().history.length'),history+1,'Release makes one undo entry');assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===dragGapId).${axis}*${axis==='x'?900:450}-${initial+30/point.scale})<1`),'Released gap persisted');await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Undo restores drag')}
+  }
+ }
+ console.log('Spacing drag passed: real mouse horizontal/vertical dragging, zoom scaling, live preview, Escape cancellation, release commit and Undo');
  console.log('Live preview passed: visual movement without project changes, Escape/Cancel restoration, single Apply/Undo');
  console.log('Inline spacing passed: real label click, input validation, Escape, Enter, fixed leading frame and single Undo');
  console.log('Equal spacing canvas test passed: real pointer snap, paired gap markers, persistence and cleanup');
