@@ -5,6 +5,7 @@ export const preferenceDefaults = {
   altDrop:'add', spreadBar:'spread', hints:true, showCover:true,
   jpegQuality:100, sharpening:'none', scalingThreshold:120, animations:true, highResolution:true, classicHome:false,
   gapPercentPresets:[-25,-10,10,25], gapPresetPast:[] as number[][], gapPresetFuture:[] as number[][],
+  gapImportPast:[] as string[], gapImportFuture:[] as string[],
   metadata:['Color profile','Dimensions','Shutter speed','Aperture','ISO','Focal length','Date taken'],
 }
 export type Preferences = typeof preferenceDefaults
@@ -20,6 +21,7 @@ export function normalizePreferences(value: unknown): Preferences {
   if(Array.isArray(input.metadata))result.metadata=input.metadata.filter((s):s is string=>typeof s==='string')
   if(validPresets(input.gapPercentPresets))result.gapPercentPresets=[...input.gapPercentPresets]
   for(const key of ['gapPresetPast','gapPresetFuture'] as const){const stack=input[key];if(Array.isArray(stack)&&stack.every(validPresets))result[key]=stack.map(values=>[...values])}
+  for(const key of ['gapImportPast','gapImportFuture'] as const){const stack=input[key];if(Array.isArray(stack)&&stack.every(entry=>{if(typeof entry!=='string')return false;try{importGapPresets(entry);return true}catch{return false}}))result[key]=[...stack]}
   return result
 }
 function load(){try{return normalizePreferences(JSON.parse(localStorage.getItem('albumstudio.preferences')??'null'))}catch{return {...preferenceDefaults}}}

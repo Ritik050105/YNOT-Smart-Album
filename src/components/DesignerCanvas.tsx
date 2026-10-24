@@ -235,6 +235,22 @@ export default function DesignerCanvas() {
   const [presetTransferStatus,setPresetTransferStatus]=useState('')
   const [presetTransferBusy,setPresetTransferBusy]=useState(false)
   const presetFileInput=useRef<HTMLInputElement>(null)
+  const importPast=usePreferences(s=>s.values.gapImportPast)
+  const importFuture=usePreferences(s=>s.values.gapImportFuture)
+  function applyPresetImport(imported:ReturnType<typeof importGapPresets>,direction?:'undo'|'redo'){
+    const preferences=getPreferences(),previous=exportGapPresets(preferences)
+    const changed=exportGapPresets({...preferences,...imported})!==previous
+    const past=preferences.gapImportPast,future=preferences.gapImportFuture
+    const next=(changed||direction)?(direction==='undo'?{gapImportPast:past.slice(0,-1),gapImportFuture:[...future,previous]}:direction==='redo'?{gapImportPast:[...past,previous],gapImportFuture:future.slice(0,-1)}:{gapImportPast:[...past,previous],gapImportFuture:[]}):{}
+    usePreferences.getState().save({...preferences,...imported,...next})
+    setPresetDraft(null);setPresetError('')
+  }
+  function stepImportHistory(redo:boolean){
+    const snapshot=(redo?importFuture:importPast).at(-1)
+    if(!snapshot)return
+    try{applyPresetImport(importGapPresets(snapshot),redo?'redo':'undo');setPresetTransferStatus(redo?'Import redone. Spacing is unchanged.':'Import undone. Previous presets and history restored.')}
+    catch{setPresetError('Could not restore the preset import. Please try again.')}
+  }
   async function exportPresetsFile(){
     setPresetTransferBusy(true);setPresetError('');setPresetTransferStatus('')
     try{const result=await saveOneFile(new TextEncoder().encode(exportGapPresets(getPreferences())),'YNOT-percentage-presets.json','application/json',[{name:'Percentage presets',extensions:['json']}]);setPresetTransferStatus(result.saved?'Presets and history exported.':'Export canceled.')}
@@ -243,7 +259,7 @@ export default function DesignerCanvas() {
   }
   async function importPresetsFile(file:File){
     setPresetTransferBusy(true);setPresetError('');setPresetTransferStatus('')
-    try{const imported=importGapPresets(await file.text());usePreferences.getState().save({...getPreferences(),...imported});setPresetDraft(null);setPresetTransferStatus('Presets and history imported. Spacing is unchanged.')}
+    try{const imported=importGapPresets(await file.text());applyPresetImport(imported);setPresetTransferStatus('Presets and history imported. Spacing is unchanged.')}
     catch(error){setPresetError(error instanceof Error?error.message:'Could not import presets. Nothing was changed.')}
     finally{setPresetTransferBusy(false)}
   }
@@ -255,7 +271,7 @@ export default function DesignerCanvas() {
     const h={past:preferences.gapPresetPast,future:preferences.gapPresetFuture}
     try{
       const next=previous.some((value,index)=>value!==values[index])?(direction==='undo'?{past:h.past.slice(0,-1),future:[...h.future,previous]}:direction==='redo'?{past:[...h.past,previous],future:h.future.slice(0,-1)}:{past:[...h.past,previous],future:[]}):h
-      usePreferences.getState().save({...preferences,gapPercentPresets:values,gapPresetPast:next.past,gapPresetFuture:next.future})
+      usePreferences.getState().save({...preferences,gapPercentPresets:values,gapPresetPast:next.past,gapPresetFuture:next.future,gapImportFuture:next===h?preferences.gapImportFuture:[]})
       setPresetDraft(null);setPresetError('')
     }catch{setPresetError('Could not save presets. Please try again.')}
   }
@@ -1298,7 +1314,7 @@ export default function DesignerCanvas() {
       {gapDrag&&<div className="canvas-anchor-hint" aria-label="Live gap change">{gapChangeText}</div>}
       {pickingGapAnchor&&<div className="canvas-anchor-hint" role="status">Click a selected element to keep it fixed · Escape cancels</div>}
 
-      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-(presetDraft?810:670),anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+(presetDraft?810:670)<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-(presetDraft?810:670)):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
+      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-(presetDraft?850:710),anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+(presetDraft?850:710)<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-(presetDraft?850:710)):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
         <label>Keep fixed<select aria-label="Canvas gap anchor" value={gapAnchor} onChange={e=>switchGapAnchor(e.target.value as GapAnchor)}><option value="first">First element</option><option value="center">Center</option><option value="last">Last element</option>{gapAnchor.includes(':')&&<option value={gapAnchor}>Picked element</option>}</select></label>
         <button className="btn btn--tiny" type="button" aria-pressed={pickingGapAnchor} onClick={()=>useProjectStore.getState().setPickingGapAnchor(!pickingGapAnchor)}>{pickingGapAnchor?'Cancel picking':'Pick anchor on canvas'}</button>
         <div className="canvas-gap-editor__comparison">
@@ -1322,6 +1338,10 @@ export default function DesignerCanvas() {
         <div className="canvas-gap-editor__history">
           <button className="btn btn--tiny" type="button" disabled={presetTransferBusy} onClick={()=>void exportPresetsFile()}>Export presets</button>
           <button className="btn btn--tiny" type="button" disabled={presetTransferBusy} title="Replace saved presets and preset history from a file; spacing stays unchanged" onClick={()=>presetFileInput.current?.click()}>Import presets</button>
+        </div>
+        <div className="canvas-gap-editor__history" role="group" aria-label="Import history">
+          <button className="btn btn--tiny" type="button" disabled={presetTransferBusy||!importPast.length} title="Restore the previous preset values and both preset history stacks" onClick={()=>stepImportHistory(false)}>Undo import</button>
+          <button className="btn btn--tiny" type="button" disabled={presetTransferBusy||!importFuture.length} title="Restore the imported preset values and both preset history stacks" onClick={()=>stepImportHistory(true)}>Redo import</button>
         </div>
         {presetTransferStatus&&<p role="status">{presetTransferStatus}</p>}
         {presetError&&<p role="alert">{presetError}</p>}
