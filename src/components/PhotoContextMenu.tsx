@@ -45,7 +45,7 @@ export default function PhotoContextMenu({ x, y, spreadId, frameId }: { x: numbe
     { label: 'Flip Image Vertically', disabled: !photo, onClick: () => state.updatePlacement(spreadId, frameId!, { flipVertical: !placement!.flipVertical }) },
     { label: background ? 'Remove Spread Background Image' : 'Make Spread Background Image', disabled: !background && !photo, onClick: () => background ? state.updateSpread(spreadId, { backgroundPattern: undefined }) : state.makePhotoBackground(spreadId, frameId!) },
     { label: 'Quick Preview', shortcut: 'Space', separator: true, disabled: !src, onClick: () => setPreview(true) },
-    ...(['photoshop','canva'] as const).map(app=>({label:app==='photoshop'?'Open Image in Adobe Photoshop':'Open Image in Canva',disabled:!src,onClick:()=>openInEditor({app,src,name})})),
+    ...(['photoshop','canva'] as const).map(app=>({label:app==='photoshop'?'Open Image in Adobe Photoshop':'Open Image in Canva',disabled:!src,onClick:()=>openInEditor({app,src,name,photoId:photo?.id})})),
     ...(['photoshop','canva'] as const).map(app=>({label:app==='photoshop'?'Open Spread in Adobe Photoshop':'Open Spread in Canva',onClick:()=>openInEditor({app,spreadId})})),
     { label: 'Open in Photo Viewer', disabled: !photo?.sourcePath || !window.albumStudio?.showImageFile, onClick: () => run(() => window.albumStudio!.showImageFile(photo!.sourcePath!, false)) },
     { label: 'Show in Explorer', disabled: !photo?.sourcePath || !window.albumStudio?.showImageFile, onClick: () => run(() => window.albumStudio!.showImageFile(photo!.sourcePath!, true)) },

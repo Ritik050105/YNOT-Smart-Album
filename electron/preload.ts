@@ -16,7 +16,8 @@ export interface NewProjectPayload {
 
 export interface AlbumStudioBridge {
   preferencesSystem: (action: 'cacheSize' | 'clearCache' | 'choosePhotoshop' | 'projectDirectory', value?: string) => Promise<string | number | null>
-  openExternalEditor: (args: { app: 'photoshop' | 'canva'; photoshopPath: string; name: string; data: Uint8Array }) => Promise<string>
+  readExternalEdit: (file: string, revision?: string) => Promise<{data: Uint8Array; revision: string} | null>
+  openExternalEditor: (args: { app: 'photoshop' | 'canva'; photoshopPath: string; originalPath?: string; name: string; data: Uint8Array }) => Promise<string>
 
   isElectron: true
   getImagePath: (file: File) => string
@@ -55,6 +56,7 @@ const bridge: AlbumStudioBridge = {
   isElectron: true,
   getImagePath: file => webUtils.getPathForFile(file),
   preferencesSystem: (action, value) => ipcRenderer.invoke('preferences:system', action, value),
+  readExternalEdit: (file, revision) => ipcRenderer.invoke('editor:readEdit',file,revision),
   openExternalEditor: (args) => ipcRenderer.invoke('editor:open', args),
   revealExportLocation: (location) => ipcRenderer.invoke('export:revealLocation', location),
   showImageFile: (filePath, reveal) => ipcRenderer.invoke('images:showFile', filePath, reveal),

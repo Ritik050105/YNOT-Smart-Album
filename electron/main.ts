@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, screen, shell } from 'electron'
 import path from 'path'
 import { randomUUID } from 'crypto'
+import { findPhotoshop, ExternalEditFiles } from './externalEdits'
 import fs from 'fs'
 import { execFile, spawn } from 'child_process'
 import { writeFileAtomic } from './files'
@@ -78,6 +79,8 @@ function createWindow(splash?: BrowserWindow) {
     },
   })
   mainWindow = win
+  const owner=win.webContents.id
+  win.webContents.once('destroyed',()=>externalEditFiles.forget(owner))
   win.webContents.on('will-prevent-unload', (event) => {
     const choice = dialog.showMessageBoxSync(win, {
       type: 'question', title: 'Unsaved Album', message: 'Do you want to save your changes before closing?',
@@ -315,13 +318,22 @@ ipcMain.handle('preferences:system', async (event, action: string, value?:string
   }
   throw new Error('Unsupported preference action')
 })
-ipcMain.handle('editor:open', async (_event,args:{app:string;photoshopPath:string;name:string;data:Uint8Array})=>{
+ipcMain.handle('editor:open', async (_event,args:{app:string;photoshopPath:string;name:string;originalPath?:string;data:Uint8Array})=>{
   if(!args || !['photoshop','canva'].includes(args.app) || typeof args.name!=='string' || !/\.(png|psd)$/i.test(args.name) || !(args.data instanceof Uint8Array) || args.data.length>512*1024*1024)throw new Error('Invalid editor file.')
-  if(args.app==='photoshop' && (typeof args.photoshopPath!=='string'||!path.isAbsolute(args.photoshopPath)||path.basename(args.photoshopPath).toLowerCase()!=='photoshop.exe'||!(await fs.promises.stat(args.photoshopPath).catch(() => null))?.isFile()))throw new Error('Choose Photoshop.exe in Tools → Preferences → Misc.')
+  const photoshop = args.app==='photoshop' ? await findPhotoshop(args.photoshopPath) : ''
+  let bytes=Buffer.from(args.data),name=args.name
+  if(args.app==='photoshop' && args.originalPath && path.isAbsolute(args.originalPath) && /\.(png|jpe?g|tiff?|psd|bmp|webp)$/i.test(args.originalPath)) {
+    const original=await fs.promises.stat(args.originalPath).catch(()=>null)
+    if(original?.isFile()) { if(original.size>512*1024*1024)throw new Error('The original image exceeds the 512 MB limit.'); bytes=await fs.promises.readFile(args.originalPath); name=path.basename(args.originalPath) }
+  }
   const folder=path.join(app.getPath('documents'),'YNOT External Edits');await fs.promises.mkdir(folder,{recursive:true})
-  const file=path.join(folder,`${Date.now()}-${randomUUID().slice(0,8)}-${path.basename(args.name).replace(/[^a-z0-9_.-]/gi,'_')}`)
-  writeFileAtomic(file,Buffer.from(args.data))
-  if(args.app==='photoshop')await new Promise<void>((resolve,reject)=>{const child=spawn(args.photoshopPath,[file],{detached:true,stdio:'ignore',windowsHide:true});child.once('error',reject);child.once('spawn',()=>{child.unref();resolve()})})
+  const file=path.join(folder,`${Date.now()}-${randomUUID().slice(0,8)}-${path.basename(name).replace(/[^a-z0-9_.-]/gi,'_')}`)
+  writeFileAtomic(file,bytes)
+  if(args.app==='photoshop')await externalEditFiles.register(file,_event.sender.id)
+  if(args.app==='photoshop')await new Promise<void>((resolve,reject)=>{const child=spawn(photoshop,[file],{detached:true,stdio:'ignore',windowsHide:true});child.once('error',reject);child.once('spawn',()=>{child.unref();resolve()})})
   else {shell.showItemInFolder(file);await shell.openExternal('https://www.canva.com/')}
   return file
 })
+
+const externalEditFiles = new ExternalEditFiles()
+ipcMain.handle('editor:readEdit', (event,file:string,revision?:string) => externalEditFiles.read(file,event.sender.id,revision))

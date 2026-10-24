@@ -284,6 +284,7 @@ interface ProjectState {
   applyBackgroundToAllSpreads: (spreadId: string, pattern?: Spread['backgroundPattern']) => void
   makePhotoBackground: (spreadId: string, frameId: string) => void
   detachBackground: (spreadId: string) => void
+  applyExternalSpread: (spreadId: string, photo: PhotoAsset) => void
   relinkPhoto: (photoId: string, replacement: PhotoAsset) => void
   addImageFrame: (spreadId: string, rect: { x: number; y: number; width: number; height: number }, photoId?: string) => void
   updateImageFrame: (spreadId: string, frameId: string, rect: { x: number; y: number; width: number; height: number }) => void
@@ -930,6 +931,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return {...s, backgroundPattern:undefined, flipped:false, customBoxes:[{id,x:0,y:0,width:1,height:1,preferredOrientation:'any' as const},...boxes], placements:[{...defaultPlacement(id,photo.id),...bg.edits,placeholderId:id,photoId:photo.id},...s.placements]}
     })
     return {...p,photos,spreads}
+  }),
+  applyExternalSpread: (spreadId, photo) => withHistory(set, p => {
+    if (!p.spreads.some(s => s.id === spreadId)) return p
+    const frameId = uuid()
+    return {...p, photos:[...p.photos,photo], spreads:p.spreads.map(s => s.id !== spreadId ? s : {...s,
+      flipped:false, marginPx:0, gapPx:0, backgroundPattern:undefined, textBoxes:[],
+      customBoxes:[{id:frameId,x:0,y:0,width:1,height:1,preferredOrientation:'any' as const}],
+      placements:[defaultPlacement(frameId,photo.id)]})}
   }),
   relinkPhoto: (photoId, replacement) => withHistory(set, p => {
     const original = p.photos.find(a => a.id === photoId)

@@ -393,3 +393,6 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .image-design__mixer.inspector { position:fixed; width:400px; max-width:calc(100vw - 24px); box-sizing:border-box; margin:0; padding:20px; background:var(--panel-bg,#fff); box-shadow:0 12px 44px #26180e30; max-height:calc(100vh - 24px); overflow:auto; }
 .image-design__mixer p { display:flex; align-items:center; justify-content:space-between; }
 .image-design__mixer .slider-field { margin:14px 0; }
+
+.external-edit-notice { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:2500; max-width:min(650px,90vw); padding:14px 40px 14px 18px; background:#fffaf3; color:#61432f; border:1px solid #b18b67; border-radius:10px; box-shadow:0 8px 24px #0003; font-size:13px; }
+.external-edit-notice button { position:absolute; right:8px; top:8px; border:0; background:transparent; cursor:pointer; font-size:20px; color:inherit; }
