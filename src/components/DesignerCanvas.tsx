@@ -1,5 +1,5 @@
 import { GapAnchor, arrangeLayerSelection, spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
-import { usePreferences, getPreferences, preferenceDefaults, exportGapPresets, importGapPresets } from '@/state/preferences'
+import { usePreferences, getPreferences, preferenceDefaults, exportGapPresets, importGapPresets, previewGapPresetImport } from '@/state/preferences'
 import { snapRect, nearbySpacingGaps, selectedSpacingGuides, GuideRect, SmartGuide } from '@/engine/smartGuides'
 import { displayToIn, inToDisplay } from '@/engine/units'
 import { saveOneFile } from '@/engine/exportUtil'
@@ -241,10 +241,8 @@ export default function DesignerCanvas() {
   const importFuture=usePreferences(s=>s.values.gapImportFuture)
   function applyPresetImport(imported:ReturnType<typeof importGapPresets>,direction?:'undo'|'redo'){
     const preferences=getPreferences(),previous=exportGapPresets(preferences,false)
-    const changed=exportGapPresets({...preferences,...imported},false)!==previous
-    const past=direction?preferences.gapImportPast:imported.gapImportPast??preferences.gapImportPast,future=preferences.gapImportFuture
-    const next=(changed||direction||imported.gapImportPast)?(direction==='undo'?{gapImportPast:past.slice(0,-1),gapImportFuture:[...future,previous]}:direction==='redo'?{gapImportPast:[...past,previous],gapImportFuture:future.slice(0,-1)}:{gapImportPast:[...past,previous],gapImportFuture:imported.gapImportFuture??[]}):{}
-    usePreferences.getState().save({...preferences,...imported,...next})
+    const next=direction==='undo'?{gapImportPast:preferences.gapImportPast.slice(0,-1),gapImportFuture:[...preferences.gapImportFuture,previous]}:{gapImportPast:[...preferences.gapImportPast,previous],gapImportFuture:preferences.gapImportFuture.slice(0,-1)}
+    usePreferences.getState().save(direction?{...preferences,...imported,...next}:previewGapPresetImport(preferences,imported))
     setPresetDraft(null);setPresetError('')
   }
   function stepImportHistory(redo:boolean){

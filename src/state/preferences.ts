@@ -45,3 +45,12 @@ export function importGapPresets(text:string,snapshotOnly=false):Pick<Preference
   }
   return {gapPercentPresets:[...file.presets],gapPresetPast:file.past.map(values=>[...values]),gapPresetFuture:file.future.map(values=>[...values]),...history}
 }
+
+export function previewGapPresetImport(current:Preferences, imported:ReturnType<typeof importGapPresets>):Preferences {
+  const previous=exportGapPresets(current,false)
+  const changed=exportGapPresets({...current,...imported},false)!==previous
+  return {...current,...imported,...(changed||imported.gapImportPast?{
+    gapImportPast:[...(imported.gapImportPast??current.gapImportPast),previous],
+    gapImportFuture:imported.gapImportFuture??[],
+  }:{})}
+}

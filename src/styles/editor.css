@@ -481,11 +481,19 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .canvas-gap-editor__percentages button { overflow:hidden; text-overflow:ellipsis; }
 
 .preset-import-preview .modal-card__body { max-height:60vh; overflow:auto; }
-.preset-import-preview__values, .preset-import-preview__histories { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:12px 0; }
+.preset-import-preview__values { display:grid; gap:6px; margin:4px 0; }
 .preset-import-preview__values { grid-template-columns:repeat(4,minmax(0,1fr)); }
-.preset-import-preview__values span, .preset-import-preview__histories > details { padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--panel-alt); }
+.preset-import-preview__values span { padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--panel-alt); }
 .preset-import-preview__values span { text-align:center; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
 .preset-import-preview summary { cursor:pointer; font-weight:600; }
 .preset-import-preview ol { padding-left:20px; font-size:12px; }
 .preset-import-preview li { margin:10px 0; overflow-wrap:anywhere; }
 .preset-import-preview p { font-size:12px; line-height:1.5; color:var(--muted); }
+
+.preset-import-preview__comparison { width:100%; table-layout:fixed; border-collapse:collapse; }
+.preset-import-preview__comparison th, .preset-import-preview__comparison td { text-align:left; padding:10px; vertical-align:top; border:1px solid var(--border); overflow-wrap:anywhere; }
+.preset-import-preview__comparison thead th { width:50%; background:var(--panel-alt); }
+.preset-import-preview__comparison tbody th { font-size:12px; }
+.preset-import-preview__comparison th span { float:right; font-weight:400; color:var(--muted); }
+.preset-import-preview .preset-import-preview__changed { background:rgba(156,107,73,.14); outline:1px solid rgba(156,107,73,.4); border-radius:4px; }
+.preset-import-preview li.preset-import-preview__changed { padding:6px; }

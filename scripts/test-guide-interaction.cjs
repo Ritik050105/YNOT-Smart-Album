@@ -370,8 +370,11 @@ app.whenReady().then(async()=>{
  const transferred={format:'ynot-gap-presets',version:1,presets:[-45,-15,15,45],past:[[-40,-10,10,40]],future:[[-20,-5,5,20]]};
  const previewFile={...transferred,version:2,importPast:[JSON.stringify(portable)],importFuture:[JSON.stringify(transferred)]};
  for(const cancelWithEscape of [false,true]){
-  await importFile(JSON.stringify(previewFile),false);assert.ok(await evaluate(`document.querySelector('[aria-label="Preview preset import"]').textContent.includes('Import Undo (1)')&&document.querySelector('[aria-label="Preview preset import"]').textContent.includes('Import Redo (1)')`));
-  await evaluate(`document.querySelectorAll('[aria-label="Preview preset import"] details').forEach(d=>d.open=true)`);
+  await importFile(JSON.stringify(previewFile),false);assert.ok(await evaluate(`document.querySelector('[aria-label="Preview preset import"]').textContent.includes('Import Undo (2)')&&document.querySelector('[aria-label="Preview preset import"]').textContent.includes('Import Redo (1)')`));
+  await evaluate(`document.querySelectorAll('[aria-label="Preview preset import"] details').forEach(d=>d.open=true)`);await wait();
+  assert.ok(await evaluate(`document.querySelector('.preset-import-preview__comparison').textContent.includes('Current saved presets')&&document.querySelector('.preset-import-preview__comparison').textContent.includes('after confirmation')`));
+  assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('[aria-label="Percentage presets"] td')).map(n=>n.textContent)`),[beforeTransfer.gapPercentPresets,transferred.presets].map(values=>values.map(v=>(v>0?'+':'')+v+'%').join('')));
+  assert.ok(await evaluate(`document.querySelectorAll('.preset-import-preview__changed').length>0`));
   if(!cancelWithEscape)await fs.writeFile(path.join(out,'preset-import-preview.png'),(await win.webContents.capturePage()).toPNG());
   for(const modifiers of [['control'],['control','shift']]){win.webContents.sendInputEvent({type:'keyDown',keyCode:'Z',modifiers});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Z',modifiers});await wait();assert.deepEqual(await sharedRects(),reopenedPreview);}
   if(cancelWithEscape){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});}else await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preview preset import"] button')).find(b=>b.textContent==='Cancel').click()`);await wait();
