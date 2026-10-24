@@ -857,12 +857,6 @@ export default function DesignerCanvas() {
                 </>
               })()}
             </>}
-            {showGrid &&
-            [1 / 3, 2 / 3].flatMap((f) => [
-              <Line key={`v${f}`} points={[STAGE_WIDTH * f, 0, STAGE_WIDTH * f, stageHeight]} stroke="#ff5c7a" strokeWidth={1} dash={[4, 4]} listening={false} />,
-              <Line key={`h${f}`} points={[0, stageHeight * f, STAGE_WIDTH, stageHeight * f]} stroke="#ff5c7a" strokeWidth={1} dash={[4, 4]} listening={false} />,
-            ])}
-
           {showPrintGuides &&
             (() => {
               const pxPerIn = STAGE_WIDTH / size.widthIn
@@ -974,6 +968,15 @@ export default function DesignerCanvas() {
             )
           })}
         </Layer>
+        {showGrid && <Layer listening={false} name="rule-of-thirds-grid">
+          {[1 / 3, 2 / 3].flatMap(f => [
+            [STAGE_WIDTH * f, 0, STAGE_WIDTH * f, stageHeight],
+            [0, stageHeight * f, STAGE_WIDTH, stageHeight * f],
+          ]).map((points, index) => <Group key={index}>
+            <Line points={points} stroke="#242424" strokeWidth={3} strokeScaleEnabled={false} opacity={0.65} />
+            <Line points={points} stroke="#ffffff" strokeWidth={1} strokeScaleEnabled={false} />
+          </Group>)}
+        </Layer>}
       </Stage>
 
       {editingTextId &&
