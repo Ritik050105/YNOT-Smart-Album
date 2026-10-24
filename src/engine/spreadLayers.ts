@@ -39,6 +39,7 @@ export function selectionGeometry(spread: Spread, keys: string[], albumSize: Alb
 }
 
 type LayerRect = {x:number;y:number;width:number;height:number}
+export type GapAnchor = 'first'|'center'|'last'
 export type LayerAlignmentTarget = 'selection'|'left-page'|'right-page'|'spread'
 export type LayerAlignment = 'left'|'center'|'right'|'top'|'middle'|'bottom'|'horizontal'|'vertical'
 
@@ -59,7 +60,7 @@ export function transformLayerSelection(spread:Spread,size:AlbumSize,keys:string
 }
 
 /** Existing groups act as one unit, preserving the spacing inside each group. */
-export function arrangeLayerSelection(spread:Spread,size:AlbumSize,keys:string[],mode:LayerAlignment,target:LayerAlignmentTarget='selection',exactGap?:number) {
+export function arrangeLayerSelection(spread:Spread,size:AlbumSize,keys:string[],mode:LayerAlignment,target:LayerAlignmentTarget='selection',exactGap?:number,anchor:GapAnchor='first') {
   if(exactGap!==undefined&&(!Number.isFinite(exactGap)||exactGap<0||(mode!=='horizontal'&&mode!=='vertical')))return spread
   const g=selectionGeometry(spread,keys,size)
   if(!g||g.members.some(l=>l.value.locked||l.value.hidden))return spread
@@ -77,8 +78,8 @@ export function arrangeLayerSelection(spread:Spread,size:AlbumSize,keys:string[]
   const gap=exactGap??(distribute?(end-start-units.reduce((n,u)=>n+u[dimension],0))/(units.length+(target==='selection'?-1:1)):0)
   if(distribute&&target!=='selection'&&gap<0)return spread
   const packed=units.reduce((n,u)=>n+u[dimension],0)+gap*(units.length-1)
-  if(exactGap!==undefined&&packed>(target==='selection'?1-start:end-start)+1e-10)return spread
-  let cursor=exactGap!==undefined?(target==='selection'?start:start+(end-start-packed)/2):start+(distribute&&target!=='selection'?gap:0)
+  let cursor=exactGap!==undefined?(target==='selection'?(anchor==='first'?start:anchor==='last'?end-packed:(start+end-packed)/2):start+(end-start-packed)/2):start+(distribute&&target!=='selection'?gap:0)
+  if(exactGap!==undefined&&(cursor<(target==='selection'?0:start)-1e-10||cursor+packed>(target==='selection'?1:end)+1e-10))return spread
   const rects=new Map<string,LayerRect>()
   for(const unit of units){
     const position=distribute?cursor:['left','top'].includes(mode)?start:['right','bottom'].includes(mode)?end-unit[dimension]:(start+end-unit[dimension])/2

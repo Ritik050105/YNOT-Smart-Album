@@ -115,6 +115,19 @@ app.whenReady().then(async()=>{
   if(!cancel){assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait()}
   assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
  }
+
+ for(const anchor of ['center','last']){
+  const factor=anchor==='center'?.5:1;await openShared();await evaluate(`const select=document.querySelector('[aria-label="Canvas gap anchor"]');select.value=${JSON.stringify(anchor)};select.dispatchEvent(new Event('change',{bubbles:true}))`);await wait();
+  await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2');input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait();let preview=await sharedRects();
+  for(let i=0;i<3;i++){assert.ok(Math.abs(preview[i].x-([100,230,380][i]-60*factor))<.01,anchor+' numeric preview');assert.equal(preview[i].width,originals[i].width)}
+  await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+  win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x,y:sharedPoint.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:sharedPoint.x,y:sharedPoint.y});await wait();
+  for(let i=1;i<=5;i++){win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x+i*6,y:sharedPoint.y});await wait()}
+  preview=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(preview[i].x-(originals[i].x+(i-2*factor)*30/sharedPoint.scale))<.01,anchor+' drag preview');
+  const history=await evaluate('store.getState().history.length');win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:sharedPoint.x+30,y:sharedPoint.y});await wait();assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
+ }
+ await evaluate(`store.getState().setGapAnchor('first')`);await wait();
+ console.log('Anchor UI passed: center/last inline choice, numeric/drag preview, unchanged sizes, Escape and single Undo');
  await evaluate(`store.getState().selectPlaceholder(spacingIds[2])`);await wait();
  console.log('Shared gap editing passed: real label clicks/drags, all gaps preview together, unchanged element sizes, Escape and one-step Undo');
  for(const axis of ['x','y']){

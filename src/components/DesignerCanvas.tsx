@@ -1,4 +1,4 @@
-import { arrangeLayerSelection, spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
+import { GapAnchor, arrangeLayerSelection, spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences } from '@/state/preferences'
 import { snapRect, nearbySpacingGaps, selectedSpacingGuides, GuideRect, SmartGuide } from '@/engine/smartGuides'
 import { displayToIn, inToDisplay } from '@/engine/units'
@@ -260,16 +260,17 @@ export default function DesignerCanvas() {
   const templatePreview = useProjectStore(s => s.templatePreview)
   const baseSpread: Spread | undefined = templatePreview?.id === selectedSpreadId ? templatePreview : project.spreads.find((s) => s.id === selectedSpreadId)
   const size = baseSpread?.size ?? project.size
+  const gapAnchor=useProjectStore(s=>s.gapAnchor)
   const [gapEditor,setGapEditor]=useState<{axis:'x'|'y';keys:string[];x:number;y:number;value:string;dirty?:boolean}|null>(null)
-  const [gapDrag,setGapDrag]=useState<{axis:'x'|'y';keys:string[];gap:number;guide:SmartGuide;match?:SmartGuide}|null>(null)
-  const gapDragRef=useRef<{axis:'x'|'y';keys:string[];start:number;initial:number;gap:number;maximum:number;pixels:number;guide:SmartGuide;base:Spread;moved:boolean;last:number;raw:number;fine:boolean;candidates:{gap:number;guide:SmartGuide}[]}|null>(null)
+  const [gapDrag,setGapDrag]=useState<{axis:'x'|'y';keys:string[];gap:number;guide:SmartGuide;match?:SmartGuide;anchor:GapAnchor}|null>(null)
+  const gapDragRef=useRef<{axis:'x'|'y';keys:string[];start:number;initial:number;gap:number;maximum:number;pixels:number;guide:SmartGuide;base:Spread;anchor:GapAnchor;moved:boolean;last:number;raw:number;fine:boolean;candidates:{gap:number;guide:SmartGuide}[]}|null>(null)
   const suppressGapClick=useRef(false)
   const gapMode=gapEditor?.axis==='x'?'horizontal':'vertical'
   const normalizedGap=gapEditor?displayToIn(Number(gapEditor.value),project.units,size.dpi)/(gapEditor.axis==='x'?size.widthIn:size.heightIn):NaN
-  const gapPreview=useMemo(()=>gapEditor?.dirty&&gapEditor.value.trim()!==''&&baseSpread?arrangeLayerSelection(baseSpread,project.size,gapEditor.keys,gapMode,'selection',normalizedGap):baseSpread,[baseSpread,project.size,gapEditor,gapMode,normalizedGap])
+  const gapPreview=useMemo(()=>gapEditor?.dirty&&gapEditor.value.trim()!==''&&baseSpread?arrangeLayerSelection(baseSpread,project.size,gapEditor.keys,gapMode,'selection',normalizedGap,gapAnchor):baseSpread,[baseSpread,project.size,gapEditor,gapMode,normalizedGap,gapAnchor])
   const gapCanApply=!!(gapEditor?.dirty&&gapPreview&&gapPreview!==baseSpread)
   // Preview only the canvas; project data and Undo history change once, on Apply.
-  const spread=useMemo(()=>gapDrag&&baseSpread?arrangeLayerSelection(baseSpread,project.size,gapDrag.keys,gapDrag.axis==='x'?'horizontal':'vertical','selection',gapDrag.gap):gapPreview,[baseSpread,project.size,gapDrag,gapPreview])
+  const spread=useMemo(()=>gapDrag&&baseSpread?arrangeLayerSelection(baseSpread,project.size,gapDrag.keys,gapDrag.axis==='x'?'horizontal':'vertical','selection',gapDrag.gap,gapDrag.anchor):gapPreview,[baseSpread,project.size,gapDrag,gapPreview])
   const [coverGuide] = useImage(spread?.coverDetails?.guideSrc ?? '')
   const [patternImage] = useImage(spread?.backgroundPattern?.src ?? '')
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
@@ -500,18 +501,20 @@ export default function DesignerCanvas() {
   const selectedGapUnits=guideTargets([]).filter(t=>t.keys?.length&&t.keys.every(k=>activeGuideKeys.includes(k)))
   const sharedGapGuides=selectedSpacingGuides(selectedGapUnits)
   const guideInteraction=Konva.isDragging()||transformerRef.current?.isTransforming()||textTransformerRef.current?.isTransforming()||groupTransformerRef.current?.isTransforming()
-  const displayedGuides=gapDrag?[...(sharedGapGuides.length?sharedGapGuides:[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>({...s,to:s.from+gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)}))}]),...(gapDrag.match?[gapDrag.match]:[])]:guideInteraction||smartGuides.length?smartGuides:sharedGapGuides.length?sharedGapGuides:restingGuides
+  const displayedGuides=gapDrag?[...(sharedGapGuides.length?sharedGapGuides:[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>{const delta=gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)-(s.to-s.from),factor=gapDrag.anchor==='first'?0:gapDrag.anchor==='last'?1:.5;return {...s,from:s.from-delta*factor,to:s.to+delta*(1-factor)}})}]),...(gapDrag.match?[gapDrag.match]:[])]:guideInteraction||smartGuides.length?smartGuides:sharedGapGuides.length?sharedGapGuides:restingGuides
   function beginGapDrag(e:Konva.KonvaEventObject<MouseEvent>,g:SmartGuide,segment:NonNullable<SmartGuide['segments']>[number]) {
     e.cancelBubble=true
     if(e.evt.button!==0||!segment.keys||!baseSpread)return
     suppressGapClick.current=false
     const axis=g.axis,dimension=axis==='x'?STAGE_WIDTH:stageHeight,initial=(segment.to-segment.from)/dimension
     const geometry=selectionGeometry(baseSpread,segment.keys,project.size)
-    if(!geometry||arrangeLayerSelection(baseSpread,project.size,segment.keys,axis==='x'?'horizontal':'vertical','selection',initial)===baseSpread)return
+    if(!geometry||arrangeLayerSelection(baseSpread,project.size,segment.keys,axis==='x'?'horizontal':'vertical','selection',initial,gapAnchor)===baseSpread)return
     const editedUnits=guideTargets([]).filter(t=>t.keys?.some(k=>segment.keys!.includes(k))).sort((a,b)=>a[axis]-b[axis])
-    const moving=editedUnits.at(-1),movingKeys=editedUnits.slice(1).flatMap(t=>t.keys??[])
+    const moving=gapAnchor==='last'?editedUnits[0]:editedUnits.at(-1),movingKeys=(gapAnchor==='first'?editedUnits.slice(1):gapAnchor==='last'?editedUnits.slice(0,-1):editedUnits).flatMap(t=>t.keys??[])
+    const remainingBefore=geometry[axis],remainingAfter=1-geometry[axis]-geometry[axis==='x'?'width':'height']
+    const room=gapAnchor==='first'?remainingAfter:gapAnchor==='last'?remainingBefore:2*Math.min(remainingBefore,remainingAfter)
     const candidates=moving?nearbySpacingGaps(moving,guideTargets(movingKeys),axis).map(c=>({...c,gap:c.gap/dimension})):[]
-    gapDragRef.current={axis,keys:segment.keys,start:axis==='x'?e.evt.clientX:e.evt.clientY,initial,gap:initial,maximum:Math.max(0,initial+(1-geometry[axis]-geometry[axis==='x'?'width':'height'])/Math.max(1,editedUnits.length-1)),pixels:dimension*stageScale,guide:{...g,segments:[segment]},base:baseSpread,moved:false,last:axis==='x'?e.evt.clientX:e.evt.clientY,raw:initial,fine:e.evt.shiftKey,candidates}
+    gapDragRef.current={axis,keys:segment.keys,start:axis==='x'?e.evt.clientX:e.evt.clientY,initial,gap:initial,maximum:Math.max(0,initial+room/Math.max(1,editedUnits.length-1)),pixels:dimension*stageScale,guide:{...g,segments:[segment]},base:baseSpread,anchor:gapAnchor,moved:false,last:axis==='x'?e.evt.clientX:e.evt.clientY,raw:initial,fine:e.evt.shiftKey,candidates}
   }
   useEffect(()=>{
     const cancel=()=>{if(gapDragRef.current?.moved)suppressGapClick.current=true;gapDragRef.current=null;setGapDrag(null)}
@@ -523,10 +526,10 @@ export default function DesignerCanvas() {
       d.raw=Math.max(0,Math.min(d.maximum,d.raw+(point-d.last)/d.pixels*(e.shiftKey ? 0.1 : 1)));d.last=point
       const match=e.shiftKey?undefined:d.candidates.filter(c=>c.gap<=d.maximum&&Math.abs(c.gap-d.raw)<=6/d.pixels).sort((a,b)=>Math.abs(a.gap-d.raw)-Math.abs(b.gap-d.raw))[0]
       d.moved=true;suppressGapClick.current=true;d.gap=match?.gap??d.raw
-      setGapEditor(null);setGapDrag({axis:d.axis,keys:d.keys,gap:d.gap,guide:d.guide,match:match?.guide})
+      setGapEditor(null);setGapDrag({axis:d.axis,keys:d.keys,gap:d.gap,guide:d.guide,match:match?.guide,anchor:d.anchor})
     }
     const finish=()=>{const d=gapDragRef.current;if(!d)return
-      if(d.moved&&Math.abs(d.gap-d.initial)>1e-10&&useProjectStore.getState().project.spreads.find(s=>s.id===d.base.id)===d.base)useProjectStore.getState().arrangeSelection(d.base.id,d.keys,d.axis==='x'?'horizontal':'vertical','selection',d.gap)
+      if(d.moved&&Math.abs(d.gap-d.initial)>1e-10&&useProjectStore.getState().project.spreads.find(s=>s.id===d.base.id)===d.base)useProjectStore.getState().arrangeSelection(d.base.id,d.keys,d.axis==='x'?'horizontal':'vertical','selection',d.gap,d.anchor)
       cancel()
     }
     const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&gapDragRef.current){e.preventDefault();e.stopImmediatePropagation();cancel()}}
@@ -1168,9 +1171,10 @@ export default function DesignerCanvas() {
         </Layer>
       </Stage>
 
-      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{left:Math.max(8,Math.min(viewportSize.width-230,stagePos.x+gapEditor.x*stageScale)),top:Math.max(8,Math.min(viewportSize.height-155,stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().arrangeSelection(spread.id,gapEditor.keys,gapMode,'selection',normalizedGap);setGapEditor(null);setSmartGuides([])}}}>
+      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{left:Math.max(8,Math.min(viewportSize.width-230,stagePos.x+gapEditor.x*stageScale)),top:Math.max(8,Math.min(viewportSize.height-200,stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().arrangeSelection(spread.id,gapEditor.keys,gapMode,'selection',normalizedGap,gapAnchor);setGapEditor(null);setSmartGuides([])}}}>
+        <label>Keep fixed<select aria-label="Canvas gap anchor" value={gapAnchor} onChange={e=>useProjectStore.getState().setGapAnchor(e.target.value as GapAnchor)}><option value="first">First element</option><option value="center">Center</option><option value="last">Last element</option></select></label>
         <label>Gap ({project.units})<input aria-label="Canvas spacing gap" type="number" step="any" min="0" autoFocus value={gapEditor.value} onFocus={e=>e.target.select()} onChange={e=>setGapEditor({...gapEditor,value:e.target.value,dirty:true})}/></label>
-        <p>Preview adjusts these gaps together, keeping sizes unchanged and the first element fixed. Apply saves; Cancel restores.</p>
+        <p>Preview adjusts these gaps together, keeping sizes unchanged and the chosen anchor fixed. Apply saves; Cancel restores.</p>
         {gapEditor.dirty&&!gapCanApply&&<p role="status">Enter a gap that fits; the affected elements must be unlocked.</p>}
         <div><button className="btn btn--tiny" type="button" onClick={()=>setGapEditor(null)}>Cancel</button><button className="btn btn--tiny" type="submit" disabled={!gapCanApply}>Apply</button></div>
       </form>}

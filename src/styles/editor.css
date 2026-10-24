@@ -444,3 +444,6 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .canvas-gap-editor input { width:95px; min-width:0; padding:7px; }
 .canvas-gap-editor p { font-size:11px; line-height:1.4; margin:8px 0; }
 .canvas-gap-editor > div { display:flex; justify-content:flex-end; gap:8px; }
+
+.canvas-gap-editor select { min-width:0; max-width:135px; padding:6px; }
+.canvas-gap-editor label + label { margin-top:8px; }
