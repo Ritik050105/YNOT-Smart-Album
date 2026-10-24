@@ -204,6 +204,7 @@ interface ProjectState {
    *  overview's row of spread cards. */
   designerViewSpreadId: string | null
   matchingTemplatesOpen: boolean
+  fontPreview: { textBoxId: string; family: string } | null
   templatePreview: Spread | null
   favoriteTemplateIds: string[]
   openMatchingTemplates: (spreadId: string) => void
@@ -334,6 +335,7 @@ function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => vo
     const nextProject = { ...mutated, updatedAt: new Date().toISOString() }
     return {
       project: nextProject,
+      fontPreview: null,
       templatePreview: null,
       matchingTemplatesOpen: false,
       history: [...s.history, s.project].slice(-50),
@@ -374,6 +376,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   canvasPan: { x: 0, y: 0 },
   designerViewSpreadId: null,
   matchingTemplatesOpen: false,
+  fontPreview: null,
   templatePreview: null,
   favoriteTemplateIds: loadTemplateFavorites(),
   openMatchingTemplates: (spreadId) => {
@@ -485,6 +488,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectSpread: (id) =>
     set({
       matchingTemplatesOpen: false,
+      fontPreview: null,
       templatePreview: null,
       selectedSpreadId: id,
       selectedPlaceholderId: null,
@@ -1289,6 +1293,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   newProjectFile: () =>
     set({
       matchingTemplatesOpen: false,
+      fontPreview: null,
       templatePreview: null,
       project: newProject({ name: 'Untitled Album' }),
       selectedSpreadId: null,
@@ -1328,6 +1333,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   createSimpleProject: (kind, name, clientName) =>
     set({
       matchingTemplatesOpen: false,
+      fontPreview: null,
       templatePreview: null,
       project: newProject({ name, kind, clientName }),
       selectedSpreadId: null,

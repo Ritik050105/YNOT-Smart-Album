@@ -218,6 +218,7 @@ export default function DesignerCanvas() {
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
+  const fontPreview = useProjectStore(s => s.fontPreview)
   const selectedTextBoxId = useProjectStore((s) => s.selectedTextBoxId)
   const selectPlaceholder = useProjectStore((s) => s.selectPlaceholder)
   const selectTextBox = useProjectStore((s) => s.selectTextBox)
@@ -952,7 +953,7 @@ export default function DesignerCanvas() {
                 y={y}
                 width={box.width * STAGE_WIDTH}
                 text={box.text}
-                fontFamily={box.fontFamily}
+                fontFamily={fontPreview?.textBoxId === box.id ? fontPreview.family : box.fontFamily}
                 fontSize={box.fontSize}
                 fontStyle={`${box.bold ? 'bold' : ''} ${box.italic ? 'italic' : ''}`.trim() || 'normal'}
                 fill={box.color}
@@ -988,7 +989,7 @@ export default function DesignerCanvas() {
                 width: box.width * STAGE_WIDTH * stageScale,
                 minHeight: box.height * stageHeight * stageScale,
                 fontSize: box.fontSize * stageScale,
-                fontFamily: box.fontFamily,
+                fontFamily: fontPreview?.textBoxId === box.id ? fontPreview.family : box.fontFamily,
                 color: box.color,
                 fontWeight: box.bold ? 'bold' : 'normal',
                 fontStyle: box.italic ? 'italic' : 'normal',

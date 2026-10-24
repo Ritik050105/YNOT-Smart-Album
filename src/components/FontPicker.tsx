@@ -5,6 +5,13 @@ import { useProjectStore } from '@/state/projectStore'
 export default function FontPicker({value,onChange}:{value:string;onChange:(family:string)=>void}) {
   const [fonts,setFonts]=useState(LOCAL_FONTS),[open,setOpen]=useState(false),[search,setSearch]=useState(''),[error,setError]=useState('')
   const custom=useProjectStore(s=>s.project.customFonts)
+  const textBoxId=useProjectStore(s=>s.selectedTextBoxId)
+  const pointer=useRef<{x:number;y:number}|null>(null)
+  const previewFont=(family:string)=>{
+    if(textBoxId)useProjectStore.setState({fontPreview:{textBoxId,family}})
+    void ensureFontLoaded(family).catch(()=>{})
+  }
+  useEffect(()=>()=>{useProjectStore.setState({fontPreview:null})},[open,textBoxId])
   const input=useRef<HTMLInputElement>(null)
   const picker=useRef<HTMLDivElement>(null)
   const trigger=useRef<HTMLButtonElement>(null)
@@ -31,7 +38,11 @@ export default function FontPicker({value,onChange}:{value:string;onChange:(fami
     <button ref={trigger} aria-expanded={open} aria-label="Choose a font" className="btn font-picker__current" onClick={()=>{setSearch('');setOpen(!open)}} style={{fontFamily:value}}> {value || 'Choose a font'} <span>⌄</span></button>
     {open&&<div className="font-picker__dropdown">
       <input aria-label="Search fonts" placeholder="Search fonts…" value={search} onChange={e=>setSearch(e.target.value)} autoFocus />
-      <div className="font-picker__list">{options.filter(f=>f.toLowerCase().includes(search.toLowerCase())).map(f=><button key={f} className={f===value?'is-selected':''} style={{fontFamily:f}} onMouseEnter={()=>void ensureFontLoaded(f).catch(()=>{})} onClick={()=>{void ensureFontLoaded(f).catch(()=>{});onChange(f);setOpen(false);trigger.current?.focus()}}>{f}<small>{custom?.some(x=>x.family===f)?'Uploaded':CLOUD_FONTS.some(x=>x.family===f)?'Cloud':'Installed'}</small></button>)}</div>
+      <div className="font-picker__list" onPointerMove={e=>{pointer.current={x:e.clientX,y:e.clientY}}} onMouseLeave={()=>{pointer.current=null;useProjectStore.setState({fontPreview:null})}} onScroll={()=>{
+        const point=pointer.current
+        const button=point&&document.elementFromPoint(point.x,point.y)?.closest<HTMLButtonElement>('button[data-font]')
+        if(button?.dataset.font)previewFont(button.dataset.font)
+      }}>{options.filter(f=>f.toLowerCase().includes(search.toLowerCase())).map(f=><button key={f} data-font={f} className={f===value?'is-selected':''} style={{fontFamily:f}} onMouseEnter={()=>previewFont(f)} onFocus={()=>previewFont(f)} onClick={()=>{void ensureFontLoaded(f).catch(()=>{});onChange(f);setOpen(false);trigger.current?.focus()}}>{f}<small>{custom?.some(x=>x.family===f)?'Uploaded':CLOUD_FONTS.some(x=>x.family===f)?'Cloud':'Installed'}</small></button>)}</div>
     </div>}
     </div>
     <button className="btn" onClick={()=>input.current?.click()}>Upload a font…</button>
