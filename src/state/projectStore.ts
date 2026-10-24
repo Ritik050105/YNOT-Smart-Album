@@ -1,4 +1,4 @@
-import { spreadLayers, layerMembers, transformLayerSelection, arrangeLayerSelection, LayerAlignment } from '@/engine/spreadLayers'
+import { spreadLayers, layerMembers, transformLayerSelection, arrangeLayerSelection, LayerAlignment, LayerAlignmentTarget } from '@/engine/spreadLayers'
 import { changesLockedLayer } from '@/engine/layerLocks'
 import { getPreferences } from './preferences'
 import { applyPageTemplate, pagePlacements, TemplateScope } from '@/engine/pageTemplates'
@@ -295,7 +295,7 @@ interface ProjectState {
   groupLayers: (spreadId: string, keys: string[]) => void
   ungroupLayers: (spreadId: string, groupId: string) => void
   transformSelection: (spreadId: string, keys: string[], rect: {x:number;y:number;width:number;height:number}) => void
-  arrangeSelection: (spreadId: string, keys: string[], mode: LayerAlignment) => void
+  arrangeSelection: (spreadId: string, keys: string[], mode: LayerAlignment, target?: LayerAlignmentTarget) => void
   transformGroup: (spreadId: string, groupId: string, rect: {x:number;y:number;width:number;height:number}) => void
   setLayerHidden: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, hidden: boolean) => void
   moveLayer: (spreadId: string, kind: 'image' | 'text', id: string, targetKind: 'image' | 'text', targetId: string) => void
@@ -1023,10 +1023,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const updated=transformLayerSelection(spread,p.size,keys,boundedFrameRect(rect))
     return updated===spread?p:{...p,spreads:p.spreads.map(s=>s.id===spreadId?updated:s)}
   }),
-  arrangeSelection: (spreadId, keys, mode) => withHistory(set,p=>{
+  arrangeSelection: (spreadId, keys, mode, target) => withHistory(set,p=>{
     const spread=p.spreads.find(s=>s.id===spreadId)
     if(!spread)return p
-    const updated=arrangeLayerSelection(spread,p.size,keys,mode)
+    const updated=arrangeLayerSelection(spread,p.size,keys,mode,target)
     return updated===spread?p:{...p,spreads:p.spreads.map(s=>s.id===spreadId?updated:s)}
   }),
   setLayerHidden: (spreadId, kind, id, hidden) => {

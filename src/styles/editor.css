@@ -433,3 +433,6 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .layer-arrange { padding: 10px 0; border-block: 1px solid var(--border-soft); margin: 10px 0; }
 .layer-arrange strong { display: block; font-size: 11px; color: var(--text-muted); margin: 6px 0; }
 .layer-arrange__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+
+.layer-arrange__target { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; margin: 2px 0 10px; }
+.layer-arrange__target select { min-width: 0; flex: 1; max-width: 170px; }
