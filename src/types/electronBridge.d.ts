@@ -18,6 +18,7 @@ export interface AlbumStudioBridge {
   getImagePath: (file: File) => string
   revealExportLocation: (location: string) => Promise<void>
   showImageFile: (filePath: string, reveal: boolean) => Promise<void>
+  readSiblingImage: (locatedPath: string, fileName: string) => Promise<{ sourcePath: string; fileName: string; lastModified: number; data: Uint8Array } | null>
   missingImagePaths: (paths: string[]) => Promise<string[]>
   isElectron: true
   readRecovery: () => Promise<{ filePath: string | null; contents: string } | null>

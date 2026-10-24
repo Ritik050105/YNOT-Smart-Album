@@ -1,0 +1,23 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs/promises')
+const os = require('node:os')
+const path = require('node:path')
+const {readSiblingImage} = require('../dist-electron/siblingImages')
+;(async()=>{
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'ynot-relink-'))
+ try {
+  const located=path.join(folder,'chosen.png')
+  await fs.writeFile(located,'chosen')
+  await fs.writeFile(path.join(folder,'Sibling.PNG'),'sibling')
+  await fs.mkdir(path.join(folder,'nested'))
+  await fs.writeFile(path.join(folder,'nested','hidden.png'),'hidden')
+  const found=await readSiblingImage(located,'sibling.png')
+  assert.equal(found.sourcePath,path.join(folder,'Sibling.PNG'))
+  assert.equal(Buffer.from(found.data).toString(),'sibling')
+  assert.equal(await readSiblingImage(located,'missing.png'),null)
+  assert.equal(await readSiblingImage(located,'hidden.png'),null)
+  await assert.rejects(readSiblingImage(located,'../hidden.png'))
+  await assert.rejects(readSiblingImage(located,'file.exe'))
+  console.log('Sibling image lookup passed: case-insensitive match, missing file, folder boundary and image validation')
+ } finally {await fs.rm(folder,{recursive:true,force:true})}
+})().catch(e=>{console.error(e);process.exitCode=1})

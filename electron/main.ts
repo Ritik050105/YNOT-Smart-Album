@@ -4,6 +4,7 @@ import fs from 'fs'
 import { execFile } from 'child_process'
 import { writeFileAtomic } from './files'
 import { decodeTiff } from './images'
+import { readSiblingImage } from './siblingImages'
 import { readRecovery, writeRecovery, clearRecovery } from './recovery'
 import { fitWindowSize } from './windowSizing'
 
@@ -31,6 +32,7 @@ ipcMain.handle('images:missingPaths', async (_event, paths: string[]) => {
   for (const file of paths) { try { if (!(await fs.promises.stat(file)).isFile()) missing.push(file) } catch { missing.push(file) } }
   return missing
 })
+ipcMain.handle('images:readSibling', (_event, locatedPath: string, fileName: string) => readSiblingImage(locatedPath, fileName))
 ipcMain.handle('images:decodeTiff', (_event, data: Uint8Array) => decodeTiff(data))
 
 // Electron shows its own default File/Edit/View/Window/Help menu unless the app sets one

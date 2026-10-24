@@ -49,7 +49,7 @@ export default function MissingImagesDialog() {
   }, [photos, projectId])
   if (!missing.length || dismissed) return null
   return <Modal title="Locate missing images" onClose={()=>setDismissed(true)} width={560}>
-    <p>These original files were moved or cannot be loaded. Choose their new location to reconnect them. Layouts, edits and bins are preserved.</p>
+    <p>These original files were moved or cannot be loaded. Locate one image to also reconnect other missing images found in the same folder. Layouts, edits and bins are preserved.</p>
     <div className="missing-image-list">{photos.filter(p=>missing.includes(p.id)).map(p=><div key={p.id}><span title={p.sourcePath ?? p.fileName}>{p.fileName}<small>{p.sourcePath ?? 'Image preview unavailable'}</small></span><button className="btn" disabled={busy} onClick={()=>{target.current=p.id;picker.current?.click()}}>Locate…</button></div>)}</div>
     <input ref={picker} hidden type="file" accept={IMAGE_FILE_ACCEPT} onChange={async e=>{
       const file=e.target.files?.[0],id=target.current; e.target.value=''
@@ -59,9 +59,23 @@ export default function MissingImagesDialog() {
         const result=await importPhotoFiles([file]); const photo=result.assets[0]
         if(!photo)throw new Error(result.failures[0]?.reason ?? 'This image could not be loaded.')
         if(useProjectStore.getState().project.id!==projectId)return
-        useProjectStore.getState().relinkPhoto(id,photo);setMissing(ids=>ids.filter(x=>x!==id))
+        const replacements = [{id, photo}]
+        if (photo.sourcePath && window.albumStudio?.readSiblingImage) {
+          for (const candidate of photos.filter(p=>p.id!==id && missing.includes(p.id))) {
+            // Duplicate names from different original folders need an explicit choice.
+            if (photos.filter(p=>missing.includes(p.id) && p.fileName.toLowerCase()===candidate.fileName.toLowerCase()).length>1) continue
+            const sibling = await window.albumStudio.readSiblingImage(photo.sourcePath,candidate.fileName)
+            if (!sibling || sibling.sourcePath.toLowerCase()===photo.sourcePath.toLowerCase()) continue
+            const imported = await importPhotoFiles([new File([new Uint8Array(sibling.data)],sibling.fileName,{lastModified:sibling.lastModified})])
+            if (imported.assets[0]) replacements.push({id:candidate.id,photo:{...imported.assets[0],sourcePath:sibling.sourcePath}})
+          }
+        }
+        if(useProjectStore.getState().project.id!==projectId)return
+        for (const replacement of replacements) useProjectStore.getState().relinkPhoto(replacement.id,replacement.photo)
+        setMissing(ids=>ids.filter(x=>!replacements.some(r=>r.id===x)))
       }catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}
     }}/>
+    {busy&&<p role="status">Reconnecting images and checking the folder…</p>}
     {error&&<p role="alert">{error}</p>}
     <button className="btn" onClick={()=>setDismissed(true)}>Continue for now</button>
   </Modal>
