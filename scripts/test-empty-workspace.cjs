@@ -61,6 +61,16 @@ app.whenReady().then(async()=>{
   assert.ok(await evaluate('document.querySelector("[data-spread-drag]").getBoundingClientRect().height')<dimensions[1])
   await evaluate('store.setState({bottomPanelOpen:false})')
  }
+ for(const bottom of [false,true])for(const right of [false,true]){
+   await evaluate(`store.setState({bottomPanelOpen:${bottom},rightPanelOpen:${right}})`)
+   await new Promise(r=>setTimeout(r,180))
+   assert.ok(await evaluate(`(()=>{const bar=document.querySelector('.spread-card-controls'),bounds=bar.getBoundingClientRect(),items=[...bar.querySelectorAll('button'),bar.querySelector(':scope > span')].map(e=>e.getBoundingClientRect());return items.every((r,i)=>r.left>=bounds.left-1&&r.right<=bounds.right+1&&items.slice(i+1).every(s=>Math.min(r.right,s.right)-Math.max(r.left,s.left)<=1||Math.min(r.bottom,s.bottom)-Math.max(r.top,s.top)<=1))})()`),'Spread toolbar controls never overlap after panel toggles')
+   assert.ok(await evaluate(`(()=>{const card=document.querySelector('[data-spread-drag]').getBoundingClientRect(),icon=document.querySelector('[title="Browse matching templates"]').getBoundingClientRect();return Math.abs(icon.left+icon.width/2-card.left-card.width/2)<1})()`),'Template icon remains centered')
+ }
+ await evaluate('store.getState().selectSpread(store.getState().project.spreads[0].id)')
+ await new Promise(r=>setTimeout(r,50))
+ await fs.writeFile(path.join(out,'spread-toolbar-compact.png'),(await win.webContents.capturePage()).toPNG())
+ await evaluate('store.setState({bottomPanelOpen:false,rightPanelOpen:true})')
  assert.equal(await evaluate('document.querySelectorAll(".spread-card-controls__actions button svg path").length'),2,'Both spread actions have visible icons')
  await evaluate(`store.setState({history:[]});document.querySelector('[aria-label="Flip spread horizontally"]').click()`)
  assert.equal(await evaluate('store.getState().history.length'),1,'Flip button uses the undoable spread action')

@@ -1,3 +1,4 @@
+import { applyPageTemplate, pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { create } from 'zustand'
 import { v4 as uuid } from 'uuid'
 import { Project, PhotoAsset, Spread, TemplateDefinition, TextBox, ToneAdjustments, ProjectFile } from '@/types'
@@ -209,7 +210,7 @@ interface ProjectState {
   favoriteTemplateIds: string[]
   openMatchingTemplates: (spreadId: string) => void
   closeMatchingTemplates: () => void
-  previewMatchingTemplate: (templateId: string | null, keepOrder?: boolean) => void
+  previewMatchingTemplate: (templateId: string | null, keepOrder?: boolean, scope?: TemplateScope) => void
   toggleTemplateFavorite: (templateId: string) => void
   autoLayoutOptions: AutoLayoutOptions
   history: Project[]
@@ -275,7 +276,7 @@ interface ProjectState {
   configureCover: (size: AlbumSize, details: NonNullable<Spread['coverDetails']>, photoIds?: string[]) => void
   duplicateSpread: (spreadId: string) => void
   deleteSpread: (spreadId: string) => void
-  applyTemplateToSpread: (spreadId: string, templateId: string, keepOrder?: boolean) => void
+  applyTemplateToSpread: (spreadId: string, templateId: string, keepOrder?: boolean, scope?: TemplateScope) => void
   cycleSpreadTemplate: (spreadId: string, direction: -1 | 1) => void
   applyTemplateToAllSpreads: (templateId: string) => void
   updateSpread: (spreadId: string, patch: Partial<Spread>) => void
@@ -384,14 +385,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (spread) set({ selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, multiSelectedPlaceholderIds: [], matchingTemplatesOpen: true, templatePreview: null })
   },
   closeMatchingTemplates: () => set({ matchingTemplatesOpen: false, templatePreview: null }),
-  previewMatchingTemplate: (templateId, keepOrder = true) => {
+  previewMatchingTemplate: (templateId, keepOrder = true, scope = 'spread') => {
     const { project, selectedSpreadId, templateFrameFilter } = get()
     const spread = project.spreads.find(s => s.id === selectedSpreadId && !s.isCover)
     if (!spread || !templateId) { set({ templatePreview: null }); return }
-    const count = spread.placements.filter(p => p.photoId).length || spread.placements.length
     const size = spread.size ?? project.size
-    if (!templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, size.widthIn / size.heightIn).some(t => t.id === templateId)) return
-    set({ templatePreview: retemplateSpread(spread, templateId, project.photos, size.widthIn / size.heightIn, keepOrder) })
+    const selected = pagePlacements(spread, size.widthIn / size.heightIn, scope)
+    const count = selected.filter(p => p.photoId).length || selected.length || 1
+    if (!templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, size.widthIn / size.heightIn / (scope === 'spread' ? 1 : 2)).some(t => t.id === templateId)) return
+    set({ templatePreview: applyPageTemplate(spread, templateId, project.photos, size.widthIn / size.heightIn, keepOrder, scope) })
   },
   toggleTemplateFavorite: (templateId) => {
     const ids = get().favoriteTemplateIds
@@ -841,9 +843,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  applyTemplateToSpread: (spreadId, templateId, keepOrder = true) =>
+  applyTemplateToSpread: (spreadId, templateId, keepOrder = true, scope = 'spread') =>
     withHistory(set, (p) => {
-      const spreads = p.spreads.map((s) => (s.id === spreadId ? retemplateSpread(s, templateId, p.photos, (s.size ?? p.size).widthIn / (s.size ?? p.size).heightIn, keepOrder) : s))
+      const spreads = p.spreads.map((s) => (s.id === spreadId ? applyPageTemplate(s, templateId, p.photos, (s.size ?? p.size).widthIn / (s.size ?? p.size).heightIn, keepOrder, scope) : s))
       return spreads.some((spread, i) => spread !== p.spreads[i]) ? { ...p, spreads } : p
     }),
 

@@ -292,3 +292,15 @@
 .inspector .slider-field--range input[type=range] { display: block; grid-column: 2; grid-row: 1; width: 100%; min-width: 0; margin: 0; accent-color: #78553d; cursor: pointer; }
 .inspector .slider-field--range .slider-field__input { padding: 4px; }
 .inspector .slider-field--range .slider-field__suffix { right: 3px; }
+
+.album-editor .spreads-panel__card { container-type: inline-size; container-name: spread-card; }
+.album-editor .spread-card-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 2px; box-sizing: border-box; }
+.album-editor .spread-card-controls button { flex: 0 0 24px; width: 24px; height: 28px; }
+.album-editor .spread-card-controls__templates { position: static; transform: none; justify-self: center; }
+.album-editor .spread-card-controls > span { justify-self: end; }
+@container spread-card (max-width: 210px) {
+  .album-editor .spread-card-controls { height: 58px; grid-template-rows: 28px 28px; }
+  .album-editor .spread-card-controls__actions { grid-column: 1 / 3; grid-row: 1; }
+  .album-editor .spread-card-controls > span { grid-column: 3; grid-row: 1; }
+  .album-editor .spread-card-controls__templates { grid-column: 1 / -1; grid-row: 2; }
+}

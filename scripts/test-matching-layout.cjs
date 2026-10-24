@@ -12,7 +12,7 @@ app.whenReady().then(async()=>{
   await fs.writeFile(path.join(output,'fixture.js'),result.outputFiles[0].text);await fs.copyFile('src/styles/app.css',path.join(output,'app.css'));await fs.copyFile('src/styles/editor.css',path.join(output,'editor.css'))
   await fs.writeFile(path.join(output,'index.html'),'<html><head><link rel="stylesheet" href="app.css"><link rel="stylesheet" href="editor.css"></head><body><div id="root"></div><script src="fixture.js"></script></body></html>')
   const win=new BrowserWindow({show:false,frame:false,width:1280,height:800,webPreferences:{offscreen:true,contextIsolation:true,sandbox:true}}),errors=[]
-  win.webContents.on('console-message',(_,level,message)=>{if(level===3)errors.push(message)})
+  win.webContents.on('console-message',(_,level,message)=>{if(level===3){errors.push(message);console.error(message)}})
   await win.loadFile(path.join(output,'index.html'));const evaluate=code=>win.webContents.executeJavaScript(code)
   for(let i=0;i<40&&!await evaluate('!!document.querySelector(".matching-template")');i++)await new Promise(r=>setTimeout(r,100))
   const report=[]
@@ -60,5 +60,28 @@ app.whenReady().then(async()=>{
   await new Promise(r=>setTimeout(r,150))
   assert.equal(await evaluate(`document.querySelectorAll('.matching-templates__row').length`),1,'Single-image spreads only show Match Timeline Order templates')
   assert.equal(await evaluate(`document.querySelector('.matching-templates__info').querySelectorAll('button,.matching-template').length`),0,'Single-image rearrange row is information only')
+  await evaluate(`store.setState(s=>({project:{...s.project,spreads:[{...window.original.spreads[0],pageSide:'spread',flipped:false,customBoxes:[{id:'l',x:0,y:0,width:.45,height:1},{id:'r',x:.55,y:0,width:.45,height:1},{id:'cross',x:.4,y:.1,width:.2,height:.2}],placements:[{...window.original.spreads[0].placements[0],placeholderId:'l',photoId:'0',zoom:1.7},{...window.original.spreads[0].placements[1],placeholderId:'r',photoId:'1',rotationDeg:12},{...window.original.spreads[0].placements[2],placeholderId:'cross',photoId:'2'}]}]}}));store.getState().openMatchingTemplates('s')`)
+  await new Promise(r=>setTimeout(r,100))
+  for(const side of ['left','right']) {
+    const opposite=side==='left'?'r':'l'
+    const before=await evaluate('JSON.stringify(store.getState().project.spreads[0])')
+    await evaluate(`var scopeSelect=document.querySelector('[aria-label="Template page"]');scopeSelect.value='${side}';scopeSelect.dispatchEvent(new Event('change',{bubbles:true}))`)
+    await new Promise(r=>setTimeout(r,100))
+    await evaluate(`document.querySelector('.matching-template__apply').dispatchEvent(new MouseEvent('mouseover',{bubbles:true}))`)
+    await new Promise(r=>setTimeout(r,100))
+    const preview=await evaluate('store.getState().templatePreview')
+    assert.ok(preview,'Page template previews')
+    for(const id of [opposite,'cross']){
+      assert.deepEqual(preview.customBoxes.find(b=>b.id===id),JSON.parse(before).customBoxes.find(b=>b.id===id)&&{...JSON.parse(before).customBoxes.find(b=>b.id===id),preferredOrientation:'any'})
+      assert.deepEqual(preview.placements.find(p=>p.placeholderId===id),JSON.parse(before).placements.find(p=>p.placeholderId===id),'Opposite and crossing image edits stay unchanged')
+    }
+    const target=preview.customBoxes.find(b=>b.id.startsWith('page-'+side))
+    assert.ok(target&&(side==='left'?target.x+target.width<=.5:target.x>=.5),'Page layout stays on selected side')
+    await evaluate(`document.querySelector('.matching-template__apply').click()`)
+    assert.deepEqual(await evaluate('store.getState().project.spreads[0]'),preview,'Applied page matches preview')
+    await evaluate(`store.getState().undo();store.getState().openMatchingTemplates('s')`)
+    await new Promise(r=>setTimeout(r,100))
+    assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),before,'Undo restores both pages')
+  }
   assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'results.json'),JSON.stringify(report,null,2));console.log('Inline matching-browser checks passed: eight viewport/scaling cases, two virtualized rows for multiple images and information-only rearrange row for one image, no dialog, workspace/dock bounds, favorites, scroll, keyboard preview/cancel/apply and one-step history. Evidence:',output);win.destroy();app.quit()
 }).catch(error=>{console.error(error);app.exit(1)})
