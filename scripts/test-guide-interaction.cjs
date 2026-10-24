@@ -62,6 +62,7 @@ app.whenReady().then(async()=>{
  await evaluate(`const n=Konva.stages[0].find('Transformer')[0].nodes()[0];n.fire('dragend',{target:n});undefined`);await wait();
  const beforeInline=await evaluate('JSON.stringify(store.getState().project.spreads[0])');
  const labelPoint=await evaluate(`(()=>{const s=Konva.stages[0],n=s.find('.spacing-measurement')[1],p=n.getAbsoluteTransform().point({x:n.width()/2,y:n.height()/2}),r=s.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y)}})()`);
+ const applyReleasedGap=async()=>{assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),true,'Released drag keeps the editor open');await evaluate(`document.querySelector('.canvas-gap-editor').requestSubmit()`);await wait()};
  const clickLabel=async()=>{win.webContents.sendInputEvent({type:'mouseMove',...labelPoint});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...labelPoint});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...labelPoint});await wait()};
  await clickLabel();assert.equal(await evaluate(`!!document.querySelector('[aria-label="Canvas spacing gap"]')`),true,'Real canvas label click opens inline editor');
  await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'-1');input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait();assert.equal(await evaluate(`document.querySelector('.canvas-gap-editor [type="submit"]').disabled`),true);
@@ -112,7 +113,7 @@ app.whenReady().then(async()=>{
   if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait()}
   else await fs.writeFile(path.join(out,'shared-gap-preview.png'),(await win.webContents.capturePage()).toPNG());
   win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...end});await wait();
-  if(!cancel){assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait()}
+  if(!cancel){await applyReleasedGap();assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait()}
   assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
  }
 
@@ -124,7 +125,7 @@ app.whenReady().then(async()=>{
   win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x,y:sharedPoint.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:sharedPoint.x,y:sharedPoint.y});await wait();
   for(let i=1;i<=5;i++){win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x+i*6,y:sharedPoint.y});await wait()}
   preview=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(preview[i].x-(originals[i].x+(i-2*factor)*30/sharedPoint.scale))<.01,anchor+' drag preview');
-  const history=await evaluate('store.getState().history.length');win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:sharedPoint.x+30,y:sharedPoint.y});await wait();assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
+  const history=await evaluate('store.getState().history.length');win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:sharedPoint.x+30,y:sharedPoint.y});await wait();await applyReleasedGap();assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
  }
  await openShared();await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Pick anchor on canvas').click()`);await wait();
  win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.equal(await evaluate('store.getState().pickingGapAnchor'),false);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
@@ -141,7 +142,7 @@ app.whenReady().then(async()=>{
   win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x,y:sharedPoint.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:sharedPoint.x,y:sharedPoint.y});await wait();
   for(let i=1;i<=5;i++){win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x+i*6,y:sharedPoint.y});await wait()}
   const dragged=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(dragged[i].x-(originals[i].x+(i-picked)*30/sharedPoint.scale))<.01,'Picked anchor drag preview');
-  const history=await evaluate('store.getState().history.length');win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:sharedPoint.x+30,y:sharedPoint.y});await wait();assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
+  const history=await evaluate('store.getState().history.length');win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:sharedPoint.x+30,y:sharedPoint.y});await wait();await applyReleasedGap();assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
  }
  for(const cancel of [true,false]){
   await evaluate(`store.getState().setGapAnchor('first')`);await openShared();
@@ -176,9 +177,27 @@ app.whenReady().then(async()=>{
   if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait()}
   win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:point.x+45,y:point.y});await wait();
   if(cancel){assert.deepEqual(await sharedRects(),originals);assert.equal(await evaluate('store.getState().history.length'),history)}
-  else {const committed=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(committed[i].x-preview[i].x)<.01,'Release commits the full preview');assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait()}
+  else {assert.equal(await evaluate('store.getState().history.length'),history);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await applyReleasedGap();const committed=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(committed[i].x-preview[i].x)<.01,'Apply commits the full preview');assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait()}
  }
- console.log('Switched-anchor dragging passed: preview continuity, fixed anchor, equal gaps, sizes, normal/Shift, Escape, release and one Undo');
+ for(const cancel of [true,false]){
+  await evaluate(`store.getState().setGapAnchor('first')`);await openShared();
+  const history=await evaluate('store.getState().history.length');
+  const typeGap=async value=>{await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait()};
+  const dragAgain=async()=>{
+   const point=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.find('.spacing-measurement')[0],p=n.getAbsoluteTransform().point({x:n.width()/2,y:n.height()/2}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y)}})()`);
+   win.webContents.sendInputEvent({type:'mouseMove',...point});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});await wait();for(let step=1;step<=4;step++){win.webContents.sendInputEvent({type:'mouseMove',x:point.x+step*7,y:point.y});await wait()}
+   const dragging=await sharedRects();win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:point.x+28,y:point.y});await wait();const released=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(released[i].x-dragging[i].x)<1e-8,'Release preserves full precision');assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),true);assert.equal(await evaluate('store.getState().history.length'),history);return released;
+  };
+  await typeGap('2');await dragAgain();await typeGap('2.75');const beforeSwitch=await sharedRects();
+  const point=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.findOne('.gap-anchor-candidate-'+spacingIds[1]),p=n.getAbsoluteTransform().point({x:n.width()/2,y:3}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y)}})()`);
+  win.webContents.sendInputEvent({type:'mouseMove',...point});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});await wait();const afterSwitch=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(afterSwitch[i].x-beforeSwitch[i].x)<.01);
+  await typeGap('3');const final=await dragAgain();assert.ok(Math.abs(final[1].x-beforeSwitch[1].x)<.01,'Switched anchor remains fixed across typing and another drag');for(let i=0;i<3;i++){assert.equal(final[i].width,originals[i].width);assert.equal(final[i].height,originals[i].height)}
+  assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+  if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.deepEqual(await sharedRects(),originals);assert.equal(await evaluate('store.getState().history.length'),history)}
+  else{await applyReleasedGap();assert.equal(await evaluate('store.getState().history.length'),history+1);const saved=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(saved[i].x-final[i].x)<1e-8);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait()}
+ }
+ console.log('Persistent gap editor passed: drag/type/switch/drag, full-precision release, fixed anchor, size preservation, whole-session Escape and single Apply/Undo');
+ console.log('Switched-anchor dragging passed: preview continuity, fixed anchor, equal gaps, sizes, normal/Shift, Escape, release preview and one Apply/Undo');
  console.log('Anchor switching passed: direct clicks during preview, stable positions/value/sizes, badge, canvas Escape, Apply and single Undo');
  console.log('Picked anchors passed: actual canvas clicks, first/interior/last, typed and dragged preview, preserved sizes, Escape and Undo');
  await evaluate(`store.getState().setGapAnchor('first')`);await wait();
@@ -201,7 +220,7 @@ app.whenReady().then(async()=>{
    if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].${axis}()-${initial})<.01`),'Escape restores preview')}
    win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...end});await wait();
    if(cancel)assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Release after Escape does not commit');
-   else {assert.equal(await evaluate('store.getState().history.length'),history+1,'Release makes one undo entry');assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===dragGapId).${axis}*${axis==='x'?900:450}-${initial+30/point.scale})<1`),'Released gap persisted');await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Undo restores drag')}
+   else {await applyReleasedGap();assert.equal(await evaluate('store.getState().history.length'),history+1,'Apply makes one undo entry');assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===dragGapId).${axis}*${axis==='x'?900:450}-${initial+30/point.scale})<1`),'Released gap persisted');await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Undo restores drag')}
   }
   for(const fine of [false,true]){
    if(fine)win.webContents.sendInputEvent({type:'keyDown',keyCode:'SHIFT'});
@@ -227,7 +246,7 @@ app.whenReady().then(async()=>{
  await fs.writeFile(path.join(out,'gap-snapping.png'),(await win.webContents.capturePage()).toPNG());
  win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...snapEnd});await wait();
  console.log('Spacing snap and Shift passed: both axes, highlighted references, fine movement, modifier transitions and cancellation');
- console.log('Spacing drag passed: real mouse horizontal/vertical dragging, zoom scaling, live preview, Escape cancellation, release commit and Undo');
+ console.log('Spacing drag passed: real mouse horizontal/vertical dragging, zoom scaling, live preview, Escape cancellation, release preview and Apply/Undo');
  console.log('Live preview passed: visual movement without project changes, Escape/Cancel restoration, single Apply/Undo');
  console.log('Inline spacing passed: real label click, input validation, Escape, Enter, fixed leading frame and single Undo');
  console.log('Equal spacing canvas test passed: real pointer snap, paired gap markers, persistence and cleanup');
