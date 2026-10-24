@@ -390,7 +390,7 @@ export default function Inspector() {
           />
           </details>}
           <details className="inspector-group" open><summary>Transform &amp; frame</summary>
-          <SliderField buttons
+          <SliderField
             label="Opacity"
             value={placement.opacity}
             min={0}
@@ -446,35 +446,35 @@ export default function Inspector() {
             />
           </label>
           </details>
-          {photo && <details className="inspector-group"><summary>Tone &amp; color</summary><SliderField buttons
+          {photo && <details className="inspector-group"><summary>Tone &amp; color</summary><SliderField
             label="Warmth"
             value={placement.warmth}
             min={-100}
             max={100}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { warmth: v })}
           />
-          <SliderField buttons
+          <SliderField
             label="Brightness"
             value={placement.brightness}
             min={-100}
             max={100}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { brightness: v })}
           />
-          <SliderField buttons
+          <SliderField
             label="Contrast"
             value={placement.contrast}
             min={-100}
             max={100}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { contrast: v })}
           />
-          <SliderField buttons
+          <SliderField
             label="Saturation"
             value={placement.saturation}
             min={-100}
             max={100}
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { saturation: v })}
           />
-          <SliderField buttons
+          <SliderField
             label="Relight"
             value={placement.relightIntensity}
             min={-100}
@@ -604,6 +604,7 @@ function MultiSelectInspector({
   placeholderIds: string[]
   updateMultiplePlacements: (spreadId: string, placeholderIds: string[], patch: Partial<PlacedPhoto>) => void
 }) {
+  const firstPlacement = useProjectStore(s => s.project.spreads.find(spread => spread.id === spreadId)?.placements.find(p => placeholderIds.includes(p.placeholderId)))
   const [autoAdjusting, setAutoAdjusting] = useState(false)
 
   async function autoAdjustAll() {
@@ -661,9 +662,9 @@ function MultiSelectInspector({
             Auto Align
           </button>
         </div>
-        <SliderField buttons
+        <SliderField
           label="Opacity"
-          value={1}
+          value={firstPlacement?.opacity ?? 1}
           min={0}
           max={1}
           step={0.01}
@@ -677,30 +678,30 @@ function MultiSelectInspector({
           suffix="px"
           onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { borderWidth: v })}
         />
-        <SliderField buttons
+        <SliderField
           label="Warmth"
-          value={0}
+          value={firstPlacement?.warmth ?? 0}
           min={-100}
           max={100}
           onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { warmth: v })}
         />
-        <SliderField buttons
+        <SliderField
           label="Brightness"
-          value={0}
+          value={firstPlacement?.brightness ?? 0}
           min={-100}
           max={100}
           onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { brightness: v })}
         />
-        <SliderField buttons
+        <SliderField
           label="Contrast"
-          value={0}
+          value={firstPlacement?.contrast ?? 0}
           min={-100}
           max={100}
           onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { contrast: v })}
         />
-        <SliderField buttons
+        <SliderField
           label="Saturation"
-          value={0}
+          value={firstPlacement?.saturation ?? 0}
           min={-100}
           max={100}
           onChange={(v) => updateMultiplePlacements(spreadId, placeholderIds, { saturation: v })}

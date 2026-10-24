@@ -27,7 +27,7 @@ export default function SliderField({
   function nudge(direction: number) { onChange(clamp(Number((value + direction * step).toFixed(6)))) }
 
   return (
-    <div className="slider-field">
+    <div className={`slider-field ${buttons ? 'slider-field--buttons' : 'slider-field--range'}`}>
       <span className="row">
         <span>{label}</span>
         <span className="slider-field__input-wrap">

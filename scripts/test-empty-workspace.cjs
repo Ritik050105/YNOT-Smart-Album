@@ -106,11 +106,18 @@ app.whenReady().then(async()=>{
    await new Promise(r=>setTimeout(r,80))
    assert.equal(await evaluate(`store.getState().project.spreads[0].placements[0].${key}`),value)
  }
+ await evaluate(`Array.from(document.querySelectorAll('.inspector-group')).find(e=>e.querySelector('summary')?.textContent==='Tone & color').open=true`)
+ for(const [label,key,value] of [['Opacity','opacity',.6],['Warmth','warmth',25],['Brightness','brightness',-15],['Contrast','contrast',20],['Saturation','saturation',10],['Relight','relightIntensity',5]]) {
+   assert.ok(await evaluate(`document.querySelector('[aria-label="${label} slider"]').getBoundingClientRect().width>20`),'Slider is visible: '+label)
+   await evaluate(`const e=document.querySelector('[aria-label="${label} slider"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${value});e.dispatchEvent(new Event('input',{bubbles:true}))`)
+   await new Promise(r=>setTimeout(r,50))
+   assert.equal(await evaluate(`store.getState().project.spreads[0].placements[0].${key}`),value,label+' slider updates photo')
+ }
  await evaluate(`const e=document.querySelector('[aria-label="Swap image with"]');e.value=e.options[1].value;e.dispatchEvent(new Event('change',{bubbles:true}))`)
  await new Promise(r=>setTimeout(r,100))
  assert.deepEqual(await evaluate('store.getState().project.spreads[0].placements.map(p=>[p.photoId,p.zoom])'),[['b',1],['a',2]],'Swap carries photo adjustments')
  await fs.writeFile(path.join(out,'inspector-organized.png'),(await win.webContents.capturePage()).toPNG())
- for(const [action,key,expected] of [['Increase scale','zoom',1.05],['Move crop left','focalX',.49],['Move crop down','focalY',.51],['Rotate clockwise','rotationDeg',1],['Decrease opacity','opacity',.99]]) {
+ for(const [action,key,expected] of [['Increase scale','zoom',1.05],['Move crop left','focalX',.49],['Move crop down','focalY',.51],['Rotate clockwise','rotationDeg',1]]) {
    await evaluate(`document.querySelector('[aria-label="${action}"]').click()`)
    await new Promise(r=>setTimeout(r,50))
    assert.equal(await evaluate(`store.getState().project.spreads[0].placements[0].${key}`),expected,action)
