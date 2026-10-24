@@ -1,7 +1,7 @@
-import { spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
+import { arrangeLayerSelection, spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences } from '@/state/preferences'
 import { snapRect, GuideRect, SmartGuide } from '@/engine/smartGuides'
-import { inToDisplay } from '@/engine/units'
+import { displayToIn, inToDisplay } from '@/engine/units'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
@@ -266,6 +266,8 @@ export default function DesignerCanvas() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const stageHeight = STAGE_WIDTH / (size.widthIn / size.heightIn)
+  const [gapEditor,setGapEditor]=useState<{axis:'x'|'y';keys:string[];x:number;y:number;value:string}|null>(null)
+  useEffect(()=>setGapEditor(null),[selectedPlaceholderId,selectedTextBoxId,selectedLayerKeys,spread?.id,project.units,canvasTool])
   const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([])
   const [liveFrame, setLiveFrame] = useState<(GuideRect & {id:string}) | null>(null)
   useEffect(()=>{setSmartGuides([]);setLiveFrame(null)},[selectedPlaceholderId,selectedTextBoxId,spread?.id,canvasTool])
@@ -473,9 +475,27 @@ export default function DesignerCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewportSize.width, viewportSize.height, stageHeight])
 
+  function guideTargets(excluded:string[]) {
+    if(!spread)return []
+    const layers=spreadLayers(spread).filter(l=>!l.value.hidden&&!excluded.includes(l.kind+':'+l.id))
+    const units=[...new Set(layers.map(l=>l.value.groupId??l.kind+':'+l.id))]
+    return units.flatMap(id=>{
+      const keys=layers.filter(l=>(l.value.groupId??l.kind+':'+l.id)===id).map(l=>l.kind+':'+l.id)
+      const g=selectionGeometry(spread,keys,project.size)
+      return g?[{x:g.x*STAGE_WIDTH,y:g.y*stageHeight,width:g.width*STAGE_WIDTH,height:g.height*stageHeight,keys}]:[]
+    })
+  }
+  const activeGuideKeys=transformKeys.length?transformKeys:selectedPlaceholderId?['image:'+selectedPlaceholderId]:selectedTextBoxId?['text:'+selectedTextBoxId]:selectedLayerKeys
+  const activeGeometry=spread&&activeGuideKeys.length?selectionGeometry(spread,activeGuideKeys,project.size):null
+  const restingGuides=activeGeometry&&canvasTool==='select'?snapRect({x:activeGeometry.x*STAGE_WIDTH,y:activeGeometry.y*stageHeight,width:activeGeometry.width*STAGE_WIDTH,height:activeGeometry.height*stageHeight,keys:activeGuideKeys},guideTargets(activeGuideKeys),STAGE_WIDTH,stageHeight,0).guides.filter(g=>g.segments):[]
+  const guideInteraction=Konva.isDragging()||transformerRef.current?.isTransforming()||textTransformerRef.current?.isTransforming()||groupTransformerRef.current?.isTransforming()
+  const displayedGuides=guideInteraction||smartGuides.length?smartGuides:restingGuides
+  const gapMode=gapEditor?.axis==='x'?'horizontal':'vertical'
+  const normalizedGap=gapEditor?displayToIn(Number(gapEditor.value),project.units,size.dpi)/(gapEditor.axis==='x'?size.widthIn:size.heightIn):NaN
+  const gapCanApply=!!(gapEditor&&gapEditor.value.trim()!==''&&spread&&arrangeLayerSelection(spread,project.size,gapEditor.keys,gapMode,'selection',normalizedGap)!==spread)
   function alignRect(rect:GuideRect, id?:string, anchor?:string, threshold=6/stageScale) {
-    const targets=[...boxes.filter(b=>b.placeholderId!==id&&!transformKeys.includes('image:'+b.placeholderId)),...(spread?.textBoxes??[]).filter(t=>t.id!==id&&!t.hidden&&!transformKeys.includes('text:'+t.id)).map(t=>({x:t.x*STAGE_WIDTH,y:t.y*stageHeight,width:t.width*STAGE_WIDTH,height:t.height*stageHeight}))]
-    const result=snapRect(rect,targets,STAGE_WIDTH,stageHeight,threshold,anchor,showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH) : [],showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight) : [])
+    const keys=transformKeys.length?transformKeys:id?spreadLayers(spread!).filter(l=>l.id===id).map(l=>l.kind+':'+l.id):[]
+    const result=snapRect({...rect,keys},guideTargets(keys),STAGE_WIDTH,stageHeight,threshold,anchor,showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH) : [],showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight) : [])
     setSmartGuides(result.guides)
     return result.rect
   }
@@ -529,6 +549,7 @@ export default function DesignerCanvas() {
     return ()=>window.removeEventListener('keydown',cancel,true)
   },[])
   function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
+    setGapEditor(null)
     if (isSpaceDown || canvasTool === 'pan' || e.evt.button === 1) {
       e.evt.preventDefault()
       isPanningRef.current = true
@@ -1096,16 +1117,22 @@ export default function DesignerCanvas() {
           </Group>)}
         </Layer>}
         <Layer listening={false} name="selection-marquee">{marquee&&<Rect {...marquee} fill="rgba(156,107,73,.12)" stroke="#9c6b49" strokeWidth={1/stageScale}/>}</Layer>
-        <Layer listening={false} name="smart-guides">
-          {smartGuides.map((g,i)=>g.segments?<Group key={i} name="equal-spacing-guide">{g.segments.map((s,j)=>{
+        <Layer name="smart-guides">
+          {displayedGuides.map((g,i)=>g.segments?<Group key={i} name="equal-spacing-guide">{g.segments.map((s,j)=>{
             const x=g.axis==='x',tick=4/stageScale
             const label=`${inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi)} ${project.units}`
             const labelWidth=(label.length*8+12)/stageScale
-            return <Group key={j}><Line points={x?[s.from,g.position,s.to,g.position]:[g.position,s.from,g.position,s.to]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>{[s.from,s.to].map(p=><Line key={p} points={x?[p,g.position-tick,p,g.position+tick]:[g.position-tick,p,g.position+tick,p]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>)}<KonvaText name="spacing-measurement" text={label} width={labelWidth} align="center" x={x?(s.from+s.to)/2-labelWidth/2:g.position+6/stageScale} y={x?g.position-17/stageScale:(s.from+s.to)/2-6/stageScale} fontSize={13/stageScale} fill="#9b59ff"/></Group>
-          })}</Group>:<Line key={i} points={g.axis==='x'?[g.position,0,g.position,stageHeight]:[0,g.position,STAGE_WIDTH,g.position]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false} />)}
+            return <Group key={j}><Line listening={false} points={x?[s.from,g.position,s.to,g.position]:[g.position,s.from,g.position,s.to]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>{[s.from,s.to].map(p=><Line listening={false} key={p} points={x?[p,g.position-tick,p,g.position+tick]:[g.position-tick,p,g.position+tick,p]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>)}<KonvaText name="spacing-measurement" listening={canvasTool==='select'&&!!s.keys?.length} onMouseDown={e=>{e.cancelBubble=true}} onTouchStart={e=>{e.cancelBubble=true}} onClick={e=>{e.cancelBubble=true;if(s.keys){const pos=e.target.position();setGapEditor({axis:g.axis,keys:s.keys,x:pos.x,y:pos.y,value:String(inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi))})}}} onTap={e=>{e.cancelBubble=true;if(s.keys){const pos=e.target.position();setGapEditor({axis:g.axis,keys:s.keys,x:pos.x,y:pos.y,value:String(inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi))})}}} text={label} width={labelWidth} align="center" x={x?(s.from+s.to)/2-labelWidth/2:g.position+6/stageScale} y={x?g.position-17/stageScale:(s.from+s.to)/2-6/stageScale} fontSize={13/stageScale} fill="#9b59ff"/></Group>
+          })}</Group>:<Line listening={false} key={i} points={g.axis==='x'?[g.position,0,g.position,stageHeight]:[0,g.position,STAGE_WIDTH,g.position]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false} />)}
         </Layer>
       </Stage>
 
+      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{left:Math.max(8,Math.min(viewportSize.width-230,stagePos.x+gapEditor.x*stageScale)),top:Math.max(8,Math.min(viewportSize.height-155,stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().arrangeSelection(spread.id,gapEditor.keys,gapMode,'selection',normalizedGap);setGapEditor(null);setSmartGuides([])}}}>
+        <label>Gap ({project.units})<input aria-label="Canvas spacing gap" type="number" step="any" min="0" autoFocus value={gapEditor.value} onFocus={e=>e.target.select()} onChange={e=>setGapEditor({...gapEditor,value:e.target.value})}/></label>
+        <p>Moves the following element or group. The first stays in place.</p>
+        {!gapCanApply&&<p role="status">Enter a gap that fits; both elements must be unlocked.</p>}
+        <div><button className="btn btn--tiny" type="button" onClick={()=>setGapEditor(null)}>Cancel</button><button className="btn btn--tiny" type="submit" disabled={!gapCanApply}>Apply</button></div>
+      </form>}
       {editingTextId &&
         (() => {
           const box = spread.textBoxes.find((t) => t.id === editingTextId)

@@ -1,5 +1,5 @@
-export type GuideRect = {x:number;y:number;width:number;height:number}
-export type SmartGuide = {axis:'x'|'y';position:number;segments?:{from:number;to:number}[]}
+export type GuideRect = {x:number;y:number;width:number;height:number;keys?:string[]}
+export type SmartGuide = {axis:'x'|'y';position:number;segments?:{from:number;to:number;keys?:string[]}[]}
 // Only compare neighboring elements sharing a row or column with the moving frame.
 function spacingTriples(rect:GuideRect,targets:GuideRect[],axis:'x'|'y') {
   const cross=axis==='x'?'y':'x',size=axis==='x'?'width':'height',crossSize=axis==='x'?'height':'width'
@@ -38,9 +38,9 @@ export function snapRect(rect:GuideRect, targets:GuideRect[], width:number, heig
     const size=axis==='x'?'width':'height',cross=axis==='x'?'y':'x',crossSize=axis==='x'?'height':'width'
     for(const [a,b,c] of spacingTriples(result,targets,axis)){
       const gap=b[axis]-a[axis]-a[size]
-      if(gap<1||Math.abs(gap-(c[axis]-b[axis]-b[size]))>.01)continue
+      if(gap<0||Math.abs(gap-(c[axis]-b[axis]-b[size]))>.01)continue
       const position=(Math.max(a[cross],b[cross],c[cross])+Math.min(a[cross]+a[crossSize],b[cross]+b[crossSize],c[cross]+c[crossSize]))/2
-      guides.push({axis,position,segments:[{from:a[axis]+a[size],to:b[axis]},{from:b[axis]+b[size],to:c[axis]}]})
+      guides.push({axis,position,segments:[{from:a[axis]+a[size],to:b[axis],...(a.keys&&b.keys?{keys:[...a.keys,...b.keys]}:{})},{from:b[axis]+b[size],to:c[axis],...(b.keys&&c.keys?{keys:[...b.keys,...c.keys]}:{})}]})
     }
   }
   return {rect:result,guides}

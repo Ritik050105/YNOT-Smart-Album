@@ -438,3 +438,9 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .layer-arrange__target select { min-width: 0; flex: 1; max-width: 170px; }
 
 .layer-arrange__target input { width:100px; min-width:0; padding:7px 9px; }
+
+.canvas-gap-editor { position:absolute; z-index:30; width:216px; padding:12px; border:1px solid #cdb9a4; border-radius:12px; background:#fffaf4; color:#4b3527; box-shadow:0 8px 28px #0003; }
+.canvas-gap-editor label { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.canvas-gap-editor input { width:95px; min-width:0; padding:7px; }
+.canvas-gap-editor p { font-size:11px; line-height:1.4; margin:8px 0; }
+.canvas-gap-editor > div { display:flex; justify-content:flex-end; gap:8px; }

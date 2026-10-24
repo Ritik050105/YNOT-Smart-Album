@@ -52,12 +52,27 @@ app.whenReady().then(async()=>{
  assert.ok(await evaluate(`Konva.stages[0].find('.spacing-measurement').every(n=>n.text()==='1.33 in')`),'Measurements use physical inches');
  await fs.writeFile(path.join(out,'equal-spacing.png'),(await win.webContents.capturePage()).toPNG());
  win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:Math.round(spacingPoint.x-8*spacingPoint.scale),y:spacingPoint.y});await wait();
- assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===spacingIds[2]).x*900-320)<.01`),'Equal spacing persists after drag');assert.equal(await evaluate(`Konva.stages[0].find('.equal-spacing-guide').length`),0,'Spacing marks clear after drag');
+ assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===spacingIds[2]).x*900-320)<.01`),'Equal spacing persists after drag');assert.ok(await evaluate(`Konva.stages[0].find('.spacing-measurement').length===2&&Konva.stages[0].find('.spacing-measurement').every(n=>n.isListening())`),'Spacing measurements remain clickable after drag');
 
  for(const [unit,expected] of [['cm','3.39 cm'],['px','400 px']]){
   await evaluate(`store.getState().updateProjectSettings({units:${JSON.stringify(unit)}})`);await wait();await evaluate(`const n=Konva.stages[0].find('Transformer')[0].nodes()[0];n.position({x:322,y:250});n.fire('dragmove',{target:n});undefined`);await wait();assert.ok(await evaluate(`Konva.stages[0].find('.spacing-measurement').length===2&&Konva.stages[0].find('.spacing-measurement').every(n=>n.text()===${JSON.stringify(expected)})`),'Measurement in '+unit);
  }
  await evaluate(`store.getState().updateProjectSettings({units:'in'})`);await wait();
+
+ await evaluate(`const n=Konva.stages[0].find('Transformer')[0].nodes()[0];n.fire('dragend',{target:n});undefined`);await wait();
+ const beforeInline=await evaluate('JSON.stringify(store.getState().project.spreads[0])');
+ const labelPoint=await evaluate(`(()=>{const s=Konva.stages[0],n=s.find('.spacing-measurement')[1],p=n.getAbsoluteTransform().point({x:n.width()/2,y:n.height()/2}),r=s.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y)}})()`);
+ const clickLabel=async()=>{win.webContents.sendInputEvent({type:'mouseMove',...labelPoint});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...labelPoint});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...labelPoint});await wait()};
+ await clickLabel();assert.equal(await evaluate(`!!document.querySelector('[aria-label="Canvas spacing gap"]')`),true,'Real canvas label click opens inline editor');
+ await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'-1');input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait();assert.equal(await evaluate(`document.querySelector('.canvas-gap-editor [type="submit"]').disabled`),true);
+ await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),beforeInline,'Escape does not edit');assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),false);
+ await clickLabel();await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2');input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait();
+ await fs.writeFile(path.join(out,'inline-gap.png'),(await win.webContents.capturePage()).toPNG());
+ win.webContents.sendInputEvent({type:'keyDown',keyCode:'ENTER'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ENTER'});await wait();
+ assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===spacingIds[2]).x*900-350)<.01`),'Inline 2 inch gap moves following frame to 350');
+ assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===spacingIds[1]).x*900-200)<.01`),'First frame stays anchored');assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),false);
+ await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),beforeInline,'One Undo restores canvas gap edit');
+ console.log('Inline spacing passed: real label click, input validation, Escape, Enter, fixed leading frame and single Undo');
  console.log('Equal spacing canvas test passed: real pointer snap, paired gap markers, persistence and cleanup');
  await fs.writeFile(path.join(out,'guides-fixed.png'),(await win.webContents.capturePage()).toPNG());
  console.log('Guide interactions passed: actual pointer drag on both axes at fit zoom, pan-origin clamp, persistence, Undo, visible-guide snapping and hidden-guide exclusion and pointer resize');win.destroy();app.quit();
