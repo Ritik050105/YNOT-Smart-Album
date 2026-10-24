@@ -4,14 +4,23 @@ import { retemplateSpread } from './autoLayout'
 
 export type TemplateScope = 'spread' | 'left' | 'right'
 
-export function pagePlacements(spread: Spread, aspect: number, scope: TemplateScope) {
-  if (scope === 'spread') return spread.placements.filter(p=>!p.locked&&!p.hidden)
+export function pagePlacements(spread: Spread, aspect: number, scope: TemplateScope, includeProtected = false) {
+  if (scope === 'spread') return spread.placements.filter(p=>includeProtected||(!p.locked&&!p.hidden))
   const boxes = computePlaceholderBoxes(spread, DESIGN_WIDTH, DESIGN_WIDTH / aspect)
   return spread.placements.filter(p => {
-    if(p.locked||p.hidden)return false
+    if(!includeProtected&&(p.locked||p.hidden))return false
     const box = boxes.find(b => b.placeholderId === p.placeholderId)
     return box && (scope === 'left' ? box.x + box.width <= DESIGN_WIDTH / 2 + .01 : box.x >= DESIGN_WIDTH / 2 - .01)
   })
+}
+
+export function templatePhotoCounts(spread:Spread, aspect:number, scope:TemplateScope) {
+  const photos=pagePlacements(spread,aspect,scope,true).filter(p=>p.photoId)
+  const included=photos.filter(p=>!p.locked&&!p.hidden).length
+  const locked=photos.filter(p=>p.locked).length
+  const hidden=photos.filter(p=>p.hidden).length
+  const background=spread.backgroundPattern?.mode==='cover'?1:0
+  return {included,excluded:photos.length-included+background,locked,hidden,background,overlap:photos.filter(p=>p.locked&&p.hidden).length}
 }
 
 export function applyPageTemplate(spread: Spread, templateId: string, photos: PhotoAsset[], aspect: number, keepOrder: boolean, scope: TemplateScope) {

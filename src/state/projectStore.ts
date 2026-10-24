@@ -346,7 +346,7 @@ interface ProjectState {
   setSlideDuration: (ms: number) => void
 }
 
-function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project, changingLock = false) {
+function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project, changingLock = false, keepTemplateBrowser = false) {
   set((s) => {
     const mutated = mutate(s.project)
     if (mutated === s.project) return {}
@@ -366,7 +366,7 @@ function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => vo
       ...(added?{selectedSpreadId:added.id}:{}),
       fontPreview: null,
       templatePreview: null,
-      matchingTemplatesOpen: false,
+      matchingTemplatesOpen: keepTemplateBrowser ? s.matchingTemplatesOpen : false,
       history: [...s.history, s.project].slice(-50),
       future: [],
       isDirty: true,
@@ -1046,7 +1046,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       if(kind==='background')return {...s,backgroundHidden:hidden}
       const members=layerMembers(s,kind,id)
       return {...s,placements:s.placements.map(l=>members.some(m=>m.kind==='image'&&m.id===l.placeholderId)?{...l,hidden}:l),textBoxes:s.textBoxes.map(l=>members.some(m=>m.kind==='text'&&m.id===l.id)?{...l,hidden}:l)}
-    })}),true)
+    })}),true,true)
     if (hidden) set({selectedPlaceholderId:null, selectedTextBoxId:null, selectedLayerKeys:[], multiSelectedPlaceholderIds:[]})
   },
   moveLayer: (spreadId, kind, id, targetKind, targetId) => withHistory(set, p => {
@@ -1072,7 +1072,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if(kind==='background')return {...s,backgroundLocked:locked}
     const members=layerMembers(s,kind,id)
     return {...s,placements:s.placements.map(l=>members.some(m=>m.kind==='image'&&m.id===l.placeholderId)?{...l,locked}:l),textBoxes:s.textBoxes.map(l=>members.some(m=>m.kind==='text'&&m.id===l.id)?{...l,locked}:l)}
-  })}),true),
+  })}),true,true),
   removeImageFrame: (spreadId, frameId) => {
     withHistory(set, (p) => ({ ...p, spreads: p.spreads.map((s) => {
       if (s.id !== spreadId) return s

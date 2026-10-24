@@ -115,5 +115,16 @@ app.whenReady().then(async()=>{
   }
   }
   assert.deepEqual(await evaluate(`(()=>{const placements=window.original.spreads[0].placements.slice(0,4).map((p,i)=>({...p,placeholderId:String(i),hidden:i%2===1}));const spread={...window.original.spreads[0],flipped:false,placements,customBoxes:placements.map((p,i)=>({id:p.placeholderId,x:i<2?0:.6,y:0,width:.3,height:1}))};return ['left','right'].map(side=>window.pagePlacements(spread,3,side).map(p=>p.placeholderId))})()`),[['0'],['2']],'Both page scopes exclude hidden photos');
+  await evaluate(`store.setState(s=>({project:{...s.project,spreads:[{...window.original.spreads[0],placements:window.original.spreads[0].placements.slice(0,3),backgroundPattern:{name:'Background',src:s.project.photos[29].src,tileSizePx:900,mode:'cover'}}]}}));store.getState().openMatchingTemplates('s')`);await new Promise(r=>setTimeout(r,150));
+  const countLabels=()=>evaluate(`Array.from(document.querySelector('[aria-label="Template photo counts"]').children).slice(0,5).map(n=>n.textContent)`);
+  const labels=(included,excluded,locked,hidden)=>['Included: '+included,'Excluded: '+excluded,'Locked: '+locked,'Hidden: '+hidden,'Background: 1'];
+  assert.deepEqual(await countLabels(),labels(3,1,0,0));
+  for(const [method,value,expected] of [['setLayerLocked',true,labels(2,2,1,0)],['setLayerHidden',true,labels(2,2,1,1)],['setLayerLocked',false,labels(2,2,0,1)],['setLayerHidden',false,labels(3,1,0,0)]]){
+    await evaluate(`store.getState()[${JSON.stringify(method)}]('s','image',window.original.spreads[0].placements[0].placeholderId,${value})`);await new Promise(r=>setTimeout(r,150));
+    assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true,'Lock/visibility changes keep browser open');
+    assert.deepEqual(await countLabels(),expected);
+    if(method==='setLayerHidden'&&value){assert.ok(await evaluate(`document.querySelector('[aria-label="Template photo counts"]').textContent.includes('1 both locked and hidden')`));await fs.writeFile(path.join(output,'template-photo-counts.png'),(await win.webContents.capturePage()).toPNG());}
+  }
+  console.log('Live photo counts passed: include/exclude, background, locked/hidden overlap, lock/unlock/hide/show without reopening');
   assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'results.json'),JSON.stringify(report,null,2));console.log('Inline matching-browser checks passed: eight viewport/scaling cases, two virtualized rows for multiple images and information-only rearrange row for one image, no dialog, workspace/dock bounds, favorites, scroll, keyboard preview/cancel/apply and one-step history. Evidence:',output);win.destroy();app.quit()
 }).catch(error=>{console.error(error);app.exit(1)})

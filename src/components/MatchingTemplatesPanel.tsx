@@ -1,5 +1,5 @@
 import { usePreferences } from '@/state/preferences'
-import { pagePlacements, TemplateScope } from '@/engine/pageTemplates'
+import { pagePlacements, templatePhotoCounts, TemplateScope } from '@/engine/pageTemplates'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { templatesForCount } from '@/engine/templates'
@@ -82,6 +82,7 @@ export default function MatchingTemplatesPanel() {
     return () => { useProjectStore.getState().previewMatchingTemplate(null) }
   }, [open, spreadId, !!spread, close])
   if (!open || !spread) return null
+  const photoCounts=templatePhotoCounts(spread,size.widthIn/size.heightIn,target)
   const number = project.spreads.filter(s => !s.isCover).sort((a, b) => a.order - b.order).findIndex(s => s.id === spread.id) + 1
   return <section className="matching-templates" aria-label="Matching templates" onMouseLeave={() => { setActive(null); preview(null) }}>
     <header className="matching-templates__header">
@@ -95,6 +96,12 @@ export default function MatchingTemplatesPanel() {
       <button className={`btn btn--tiny ${favoritesOnly ? 'is-active' : ''}`} aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly(!favoritesOnly)}><Icon name="heart" size={12} /> Favorites</button>
       <button className="btn btn--icon btn--tiny" onClick={close} aria-label="Close matching templates" title="Close matching templates (Escape)"><Icon name="x" size={14} /></button>
     </header>
+    <div className="matching-templates__photo-counts" role="status" aria-label="Template photo counts" title="Counts refer to photo placements, not unique source files." aria-live="polite">
+      <strong>Included: {photoCounts.included}</strong><span>Excluded: {photoCounts.excluded}</span>
+      <span>Locked: {photoCounts.locked}</span><span>Hidden: {photoCounts.hidden}</span><span>Background: {photoCounts.background}</span>
+      {photoCounts.overlap>0&&<small>{photoCounts.overlap} both locked and hidden; counted once in excluded.</small>}
+      {target!=='spread'&&<small>Foreground counts cover the selected page only.</small>}
+    </div>
     {target !== 'spread' && <div className="matching-templates__info">Changes apply to the {target} page only. Images crossing the center line stay unchanged.</div>}
     {count === 0 && <div className="matching-templates__info">No visible, unlocked photos or frames on this page. Hidden photos, locked photos and background images stay unchanged.</div>}
     {count === 1 && <div className="matching-templates__info"><strong>Rearrange Timeline:</strong><span>A single image has no timeline order to rearrange.</span></div>}

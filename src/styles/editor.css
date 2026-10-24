@@ -506,3 +506,7 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .preset-import-preview__summary th, .preset-import-preview__summary td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:right; }
 .preset-import-preview__summary th:first-child { text-align:left; }
 .preset-import-preview__summary thead { background:var(--panel-alt); }
+
+.matching-templates__photo-counts { display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; padding:8px 16px; font-size:12px; border-bottom:1px solid var(--border); }
+.matching-templates__photo-counts strong { color:var(--accent); }
+.matching-templates__photo-counts small { color:var(--muted); }
