@@ -458,12 +458,12 @@ export default function DesignerCanvas() {
 
   function alignRect(rect:GuideRect, id?:string, anchor?:string) {
     const targets=[...boxes.filter(b=>b.placeholderId!==id),...(spread?.textBoxes??[]).filter(t=>t.id!==id).map(t=>({x:t.x*STAGE_WIDTH,y:t.y*stageHeight,width:t.width*STAGE_WIDTH,height:t.height*stageHeight}))]
-    const result=snapRect(rect,targets,STAGE_WIDTH,stageHeight,6/stageScale,anchor,spread?.guides.vertical.map(v=>v*STAGE_WIDTH),spread?.guides.horizontal.map(v=>v*stageHeight))
+    const result=snapRect(rect,targets,STAGE_WIDTH,stageHeight,6/stageScale,anchor,showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH) : [],showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight) : [])
     setSmartGuides(result.guides)
     return result.rect
   }
   function alignTransform(old: {x:number;y:number;width:number;height:number;rotation:number}, next: typeof old) {
-    if(next.width<4||next.height<4)return old
+    if(next.width<4*stageScale||next.height<4*stageScale)return old
     const rect=alignRect({x:(next.x-stagePos.x)/stageScale,y:(next.y-stagePos.y)/stageScale,width:next.width/stageScale,height:next.height/stageScale},selectedPlaceholderId??selectedTextBoxId??undefined,(selectedPlaceholderId ? transformerRef.current : textTransformerRef.current)?.getActiveAnchor()??undefined)
     return {...next,x:rect.x*stageScale+stagePos.x,y:rect.y*stageScale+stagePos.y,width:rect.width*stageScale,height:rect.height*stageScale}
   }
@@ -938,12 +938,15 @@ export default function DesignerCanvas() {
             spread.guides.vertical.map((pos, i) => (
               <Line
                 key={`v-guide-${i}`}
-                points={[pos * STAGE_WIDTH, 0, pos * STAGE_WIDTH, stageHeight]}
+                name="manual-guide-vertical"
+                x={pos * STAGE_WIDTH}
+                points={[0, 0, 0, stageHeight]}
                 stroke="#4aa3ff"
                 strokeWidth={1}
-                hitStrokeWidth={10}
-                draggable
-                dragBoundFunc={(pos2) => ({ x: pos2.x, y: 0 })}
+                strokeScaleEnabled={false}
+                hitStrokeWidth={10 / stageScale}
+                draggable={canvasTool === 'select' && !isSpaceDown}
+                dragBoundFunc={(point) => ({ x: Math.max(stagePos.x, Math.min(stagePos.x + STAGE_WIDTH * stageScale, point.x)), y: stagePos.y })}
                 onDragMove={(e) => {
                   const x = Math.min(STAGE_WIDTH, Math.max(0, e.target.x()))
                   e.target.x(x)
@@ -957,12 +960,15 @@ export default function DesignerCanvas() {
             spread.guides.horizontal.map((pos, i) => (
               <Line
                 key={`h-guide-${i}`}
-                points={[0, pos * stageHeight, STAGE_WIDTH, pos * stageHeight]}
+                name="manual-guide-horizontal"
+                y={pos * stageHeight}
+                points={[0, 0, STAGE_WIDTH, 0]}
                 stroke="#4aa3ff"
                 strokeWidth={1}
-                hitStrokeWidth={10}
-                draggable
-                dragBoundFunc={(pos2) => ({ x: 0, y: pos2.y })}
+                strokeScaleEnabled={false}
+                hitStrokeWidth={10 / stageScale}
+                draggable={canvasTool === 'select' && !isSpaceDown}
+                dragBoundFunc={(point) => ({ x: stagePos.x, y: Math.max(stagePos.y, Math.min(stagePos.y + stageHeight * stageScale, point.y)) })}
                 onDragMove={(e) => {
                   const y = Math.min(stageHeight, Math.max(0, e.target.y()))
                   e.target.y(y)
