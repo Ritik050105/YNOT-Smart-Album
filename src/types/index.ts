@@ -3,6 +3,7 @@ export type PageSide = 'single' | 'left' | 'right' | 'spread'
 export interface PhotoAsset {
   isBlackAndWhite?: boolean
   cameraModel?: string
+  metadata?: Record<string,string>
   id: string
   fileName: string
   sourcePath?: string
@@ -67,6 +68,7 @@ export interface PlacedPhoto {
   brightness: number
   contrast: number
   saturation: number
+  blackWhiteMix?: number[]
   /** "Art gallery" framing + a gentle tilt ("skew") for a scattered-print look. */
   frameStyle: FrameStyle
   rotationDeg: number
@@ -91,6 +93,7 @@ export type ToneAdjustments = Pick<
   | 'brightness'
   | 'contrast'
   | 'saturation'
+  | 'blackWhiteMix'
   | 'relightIntensity'
   | 'borderWidth'
   | 'borderColor'

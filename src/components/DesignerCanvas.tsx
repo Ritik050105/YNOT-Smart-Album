@@ -1,3 +1,4 @@
+import { usePreferences, getPreferences } from '@/state/preferences'
 import { snapRect, GuideRect } from '@/engine/smartGuides'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -13,7 +14,7 @@ import { quotesForEventType } from '@/engine/textSuggestions'
 import { isEditableTarget } from '@/engine/keyboard'
 import { importAndDedupe } from '@/engine/importWorkflow'
 import { readDraggedPattern } from '@/engine/patterns'
-import { imageToneFilter } from '@/engine/imageTone'
+import { imageToneFilter, applyBlackWhiteMix } from '@/engine/imageTone'
 import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
 import PhotoContextMenu from './PhotoContextMenu'
@@ -51,6 +52,9 @@ function PlaceholderImage({
   brightness,
   contrast,
   saturation,
+  blackWhiteMix,
+  borderWidth,
+  borderColor,
   warmth,
   selected,
   multiSelected,
@@ -75,6 +79,9 @@ function PlaceholderImage({
   brightness: number
   contrast: number
   saturation: number
+  blackWhiteMix?: number[]
+  borderWidth: number
+  borderColor: string
   warmth: number
   selected: boolean
   multiSelected: boolean
@@ -100,8 +107,9 @@ function PlaceholderImage({
     if (!ctx) return undefined
     ctx.filter = imageToneFilter({ brightness, contrast, saturation })
     ctx.drawImage(img, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, 0, 0, canvas.width, canvas.height)
+    applyBlackWhiteMix(ctx, blackWhiteMix)
     return canvas
-  }, [img, brightness, contrast, saturation, crop?.cropX, crop?.cropY, crop?.cropWidth, crop?.cropHeight, photoW, photoH])
+  }, [img, brightness, contrast, saturation, blackWhiteMix, crop?.cropX, crop?.cropY, crop?.cropWidth, crop?.cropHeight, photoW, photoH])
 
   const centerX = box.x + box.width / 2
   const centerY = box.y + box.height / 2
@@ -168,6 +176,7 @@ function PlaceholderImage({
           cornerRadius={frameStyle === 'rounded' ? cornerRadiusPx : 0}
           globalCompositeOperation="overlay" listening={false} />
       )}
+      {borderWidth > 0 && frameStyle !== 'polaroid' && <Rect x={localPhotoX + borderWidth / 2} y={localPhotoY + borderWidth / 2} width={Math.max(0, photoW - borderWidth)} height={Math.max(0, photoH - borderWidth)} stroke={borderColor} strokeWidth={borderWidth} cornerRadius={frameStyle === 'rounded' ? Math.max(0, cornerRadiusPx - borderWidth / 2) : 0} listening={false}/>}
       {multiSelected && (
         <Rect
           x={localBoxX}
@@ -216,6 +225,7 @@ function PlaceholderImage({
 }
 
 export default function DesignerCanvas() {
+  const gridMode=usePreferences(s=>s.values.gridMode)
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
@@ -591,7 +601,7 @@ export default function DesignerCanvas() {
     // pixels, but box positions are in the Stage's unscaled content space.
     const x = (e.clientX - rect.left - stagePos.x) / stageScale
     const y = (e.clientY - rect.top - stagePos.y) / stageScale
-    const target = findBoxAt(x, y)
+    const target = e.altKey && getPreferences().altDrop==='add' ? undefined : findBoxAt(x, y)
     const pattern = readDraggedPattern(e.dataTransfer)
     if (pattern) { updateSpread(spread.id, { backgroundPattern: pattern }); return }
 
@@ -838,6 +848,9 @@ export default function DesignerCanvas() {
                 brightness={placement.brightness}
                 contrast={placement.contrast}
                 saturation={placement.saturation}
+                blackWhiteMix={placement.blackWhiteMix}
+                borderWidth={placement.borderWidth}
+                borderColor={placement.borderColor}
                 warmth={placement.warmth}
                 selected={selectedPlaceholderId === box.placeholderId}
                 multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
@@ -998,7 +1011,7 @@ export default function DesignerCanvas() {
           })}
           {selectedTextBoxId && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#9c6b49" anchorStroke="#9c6b49" />}
         </Layer>
-        {showGrid && <Layer listening={false} name="rule-of-thirds-grid">
+        {(gridMode==='on' || (gridMode==='auto' && (showGrid || !!liveFrame || !!draftFrame))) && <Layer listening={false} name="rule-of-thirds-grid">
           {[1 / 3, 2 / 3].flatMap(f => [
             [STAGE_WIDTH * f, 0, STAGE_WIDTH * f, stageHeight],
             [0, stageHeight * f, STAGE_WIDTH, stageHeight * f],

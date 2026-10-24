@@ -6,6 +6,7 @@ import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { defaultPlacement } from '@/engine/autoLayout'
 import ContextMenu, { ContextMenuItem } from './ContextMenu'
 import Modal from './Modal'
+import { openInEditor } from './ExternalEditor'
 
 export default function PhotoContextMenu({ x, y, spreadId, frameId }: { x: number; y: number; spreadId: string; frameId?: string }) {
   const state = useProjectStore()
@@ -44,6 +45,8 @@ export default function PhotoContextMenu({ x, y, spreadId, frameId }: { x: numbe
     { label: 'Flip Image Vertically', disabled: !photo, onClick: () => state.updatePlacement(spreadId, frameId!, { flipVertical: !placement!.flipVertical }) },
     { label: background ? 'Remove Spread Background Image' : 'Make Spread Background Image', disabled: !background && !photo, onClick: () => background ? state.updateSpread(spreadId, { backgroundPattern: undefined }) : state.makePhotoBackground(spreadId, frameId!) },
     { label: 'Quick Preview', shortcut: 'Space', separator: true, disabled: !src, onClick: () => setPreview(true) },
+    ...(['photoshop','canva'] as const).map(app=>({label:app==='photoshop'?'Open Image in Adobe Photoshop':'Open Image in Canva',disabled:!src,onClick:()=>openInEditor({app,src,name})})),
+    ...(['photoshop','canva'] as const).map(app=>({label:app==='photoshop'?'Open Spread in Adobe Photoshop':'Open Spread in Canva',onClick:()=>openInEditor({app,spreadId})})),
     { label: 'Open in Photo Viewer', disabled: !photo?.sourcePath || !window.albumStudio?.showImageFile, onClick: () => run(() => window.albumStudio!.showImageFile(photo!.sourcePath!, false)) },
     { label: 'Show in Explorer', disabled: !photo?.sourcePath || !window.albumStudio?.showImageFile, onClick: () => run(() => window.albumStudio!.showImageFile(photo!.sourcePath!, true)) },
     { label: 'Reveal in Image Browser', disabled: !photo, onClick: () => { state.setSelectedPhotoIds([photo!.id], photo!.id); useProjectStore.setState({ bottomPanelOpen: true }) } },

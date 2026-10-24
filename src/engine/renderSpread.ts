@@ -1,8 +1,9 @@
+import { getPreferences } from '@/state/preferences'
 import { PhotoAsset, Spread, AlbumSize, PlacedPhoto, TextBox } from '@/types'
 import { computeCoverCrop } from './cropFit'
 import { DESIGN_WIDTH, PlaceholderBox, computePlaceholderBoxes } from './layoutMath'
 import { ensureFontLoaded } from './fonts'
-import { imageToneFilter } from './imageTone'
+import { imageToneFilter, applyBlackWhiteMix } from './imageTone'
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -45,6 +46,12 @@ export async function renderSpreadToCanvas(
   }
   for (const box of spread.textBoxes) await drawTextBox(ctx, box, widthPx, heightPx)
 
+  const amount=({none:0,low:.15,medium:.3,high:.5} as Record<string,number>)[getPreferences().sharpening]??0
+  if(amount && pixelsPerInch>=size.dpi){
+    const image=ctx.getImageData(0,0,widthPx,heightPx),source=new Uint8ClampedArray(image.data)
+    for(let y=1;y<heightPx-1;y++)for(let x=1;x<widthPx-1;x++){const i=(y*widthPx+x)*4;for(let k=0;k<3;k++)image.data[i+k]=source[i+k]*(1+4*amount)-amount*(source[i-4+k]+source[i+4+k]+source[i-widthPx*4+k]+source[i+widthPx*4+k])}
+    ctx.putImageData(image,0,0)
+  }
   return canvas
 }
 
@@ -144,7 +151,18 @@ export async function drawPlacement(ctx: CanvasRenderingContext2D, ph: Placehold
         ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1)
         ctx.translate(-cx, -cy)
       }
-      ctx.drawImage(img, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, photoX, photoY, photoW, photoH)
+      if (placement?.blackWhiteMix) {
+        const toned = document.createElement('canvas')
+        toned.width = Math.max(1, Math.ceil(photoW)); toned.height = Math.max(1, Math.ceil(photoH))
+        const toneCtx = toned.getContext('2d')!
+        toneCtx.filter = ctx.filter
+        toneCtx.drawImage(img, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, 0, 0, toned.width, toned.height)
+        applyBlackWhiteMix(toneCtx, placement.blackWhiteMix)
+        ctx.filter = 'none'
+        ctx.drawImage(toned, photoX, photoY, photoW, photoH)
+      } else {
+        ctx.drawImage(img, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, photoX, photoY, photoW, photoH)
+      }
       if (flipH || flipV) ctx.restore()
       ctx.filter = 'none'
       ctx.globalAlpha = 1
@@ -170,7 +188,10 @@ export async function drawPlacement(ctx: CanvasRenderingContext2D, ph: Placehold
     if (borderWidth > 0 && frameStyle !== 'polaroid') {
       ctx.strokeStyle = placement?.borderColor ?? '#ffffff'
       ctx.lineWidth = borderWidth
-      ctx.strokeRect(photoX + borderWidth / 2, photoY + borderWidth / 2, photoW - borderWidth, photoH - borderWidth)
+      ctx.beginPath()
+      if (frameStyle === 'rounded') roundedRectPath(ctx, photoX + borderWidth / 2, photoY + borderWidth / 2, Math.max(0, photoW - borderWidth), Math.max(0, photoH - borderWidth), Math.max(0, (placement?.cornerRadiusPx ?? 24) * scale - borderWidth / 2))
+      else ctx.rect(photoX + borderWidth / 2, photoY + borderWidth / 2, photoW - borderWidth, photoH - borderWidth)
+      ctx.stroke()
     }
 
     ctx.restore()

@@ -1,3 +1,4 @@
+import { getPreferences } from '@/state/preferences'
 import exifr from 'exifr'
 import { v4 as uuid } from 'uuid'
 import { PhotoAsset } from '@/types'
@@ -56,8 +57,10 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
   const src = await imageFileSource(file)
   let capturedAt: string | null = null
   let cameraModel: string | undefined
+  let metadata: Record<string,string> = {}
   try {
-    const exif = await exifr.parse(file, ['DateTimeOriginal', 'CreateDate', 'ModifyDate', 'Make', 'Model'])
+    const exif = await exifr.parse(file, ['DateTimeOriginal', 'CreateDate', 'ModifyDate', 'Make', 'Model','ColorSpace','ExposureTime','FNumber','ISO','ExposureCompensation','FocalLength','LensModel','Flash'])
+    if(exif)for(const [label,key] of Object.entries({'Color profile':'ColorSpace','Shutter speed':'ExposureTime','Aperture':'FNumber','ISO':'ISO','Exposure compensation':'ExposureCompensation','Focal length':'FocalLength','Lens model':'LensModel','Flash fired':'Flash'})){if(exif[key]!=null)metadata[label]=label === 'Color profile' && exif[key] === 1 ? 'sRGB' : String(exif[key])}
     cameraModel = [exif?.Make, exif?.Model].filter(Boolean).join(' ') || undefined
     const date: Date | undefined = exif?.DateTimeOriginal ?? exif?.CreateDate ?? exif?.ModifyDate
     if (date instanceof Date && !isNaN(date.getTime())) capturedAt = date.toISOString()
@@ -79,12 +82,12 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
     width,
     height,
     capturedAt,
-    cameraModel,
+    cameraModel, metadata,
     isBlackAndWhite,
     orientation: orientationFor(width, height),
     megapixels: Math.round((width * height) / 1_000_000),
     mimeType: /\.(psd|tiff?)$/i.test(file.name) ? 'image/png' : file.type || 'image/jpeg',
-    bins: [],
+    bins: getPreferences().autoBins && (file.webkitRelativePath ?? '').includes('/') ? [file.webkitRelativePath.split('/').slice(-2,-1)[0]] : [],
     favorite: false,
   }
 }

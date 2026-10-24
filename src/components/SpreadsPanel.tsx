@@ -1,3 +1,5 @@
+import { usePreferences, getPreferences } from '@/state/preferences'
+import { openInEditor } from './ExternalEditor'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { CSSProperties, Fragment, useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
@@ -18,6 +20,7 @@ import { computePlaceholderBoxes } from '@/engine/layoutMath'
  *  selects a spread; double-click opens it in the focused Designer View to actually work on it —
  *  Escape (or its own back button) returns here. Reorder by drag. */
 export default function SpreadsPanel() {
+  const showCoverButton=usePreferences(s=>s.values.showCover)
   const canvasTool = useProjectStore(s=>s.canvasTool)
   const pan = useRef<{x:number;y:number;left:number;top:number}|null>(null)
   const [photoMenu, setPhotoMenu] = useState<{ x: number; y: number; spreadId: string; frameId?: string; openedAt: number } | null>(null)
@@ -55,6 +58,7 @@ export default function SpreadsPanel() {
   const timelineRef = useRef<HTMLDivElement>(null)
   const spreadsRef = useRef<HTMLDivElement>(null)
   const { drag, target } = useTimelineDrag((source, destination) => {
+    if(destination.replace && destination.spreadId && destination.beforeFrameId && source.photoIds[0]){useProjectStore.getState().setPlacementPhoto(destination.spreadId,destination.beforeFrameId,source.photoIds[0]);return}
     if (source.spreadId && !source.frameId) {
       if (destination.cover) return
       const interiors = useProjectStore.getState().project.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
@@ -111,7 +115,8 @@ export default function SpreadsPanel() {
     if (pattern) { updateSpread(spreadId, { backgroundPattern: pattern }); return }
     const frame = readTimelineFrame(e.dataTransfer)
     const photoIds = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id))
-    if (frame) moveTimelinePhoto(frame.spreadId, frame.frameId, spreadId, beforeFrameId)
+    if(e.altKey && getPreferences().altDrop==='replace' && beforeFrameId && photoIds[0])useProjectStore.getState().setPlacementPhoto(spreadId,beforeFrameId,photoIds[0])
+    else if (frame) moveTimelinePhoto(frame.spreadId, frame.frameId, spreadId, beforeFrameId)
     else if (photoIds.length) insertTimelinePhotos(photoIds, spreadId, beforeFrameId)
     else if (e.dataTransfer.files.length) void handleTimelineFiles(e.dataTransfer.files, spreadId, beforeFrameId)
   }
@@ -129,6 +134,7 @@ export default function SpreadsPanel() {
       return [
         { label: 'Edit in Designer View', onClick: () => enterDesignerView(spreadId) },
         { label: 'Flip Cover Horizontally', onClick: () => flipSpread(spreadId) },
+        ...(['photoshop','canva'] as const).map(app=>({label:app==='photoshop'?'Open in Adobe Photoshop':'Open in Canva',onClick:()=>openInEditor({app,spreadId})})),
         { label: 'Export Cover…', onClick: () => void exportSpread(spread) },
         { label: 'Delete Cover', danger: true, onClick: () => deleteSpread(spreadId) },
       ]
@@ -149,6 +155,7 @@ export default function SpreadsPanel() {
         onClick: () => applyTemplateToAllSpreads(spread.templateId),
       },
       { label: 'Edit in Designer View', onClick: () => enterDesignerView(spreadId) },
+      ...(['photoshop','canva'] as const).map(app=>({label:app==='photoshop'?'Open in Adobe Photoshop':'Open in Canva',onClick:()=>openInEditor({app,spreadId})})),
       { label: 'Export Spread…', onClick: () => void exportSpread(spread) },
       {
         label: 'Split Spread',
@@ -166,6 +173,7 @@ export default function SpreadsPanel() {
 
   return (
     <div className={`spreads-panel ${project.spreads.length === 0 ? 'spreads-panel--empty' : ''}`} style={{ '--spread-aspect': project.size.widthIn / project.size.heightIn } as CSSProperties}>
+      {showCoverButton && <button className="go-cover-button btn btn--tiny" onClick={()=>{spreadsRef.current?.scrollTo({left:0,behavior:'smooth'});if(cover)selectSpread(cover.id)}}>Go to Cover</button>}
       <div ref={spreadsRef} className="spreads-panel__row" style={{cursor:canvasTool==='pan'?'grab':undefined}}
         onPointerDownCapture={e=>{if(canvasTool!=='pan'||e.button!==0||(e.target as HTMLElement).closest('button'))return;e.preventDefault();e.stopPropagation();pan.current={x:e.clientX,y:e.clientY,left:e.currentTarget.scrollLeft,top:e.currentTarget.scrollTop};e.currentTarget.setPointerCapture(e.pointerId)}}
         onPointerMove={e=>{if(!pan.current)return;e.currentTarget.scrollLeft=pan.current.left+pan.current.x-e.clientX;e.currentTarget.scrollTop=pan.current.top+pan.current.y-e.clientY}}

@@ -1,3 +1,4 @@
+import { usePreferences } from '@/state/preferences'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useProjectStore } from '@/state/projectStore'
@@ -11,9 +12,11 @@ import FontPicker from './FontPicker'
 import Icon from './Icon'
 import SliderField from './SliderField'
 import ColorField from './ColorField'
+import ImageDesign from './ImageDesign'
 import { inToDisplay, displayToIn } from '@/engine/units'
 
 export default function Inspector() {
+  const metadataFields=usePreferences(s=>s.values.metadata)
 
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
@@ -284,6 +287,8 @@ export default function Inspector() {
       </>}
       {placement && (
         <section>
+          {photo && <div className="image-design__heading"><strong title={photo.fileName}>{photo.fileName}</strong><span title={dpi !== null && dpi < size.dpi ? 'Low image resolution' : 'Image resolution'}>{dpi !== null && dpi < size.dpi ? '⚠' : '◈'}</span></div>}
+          <ImageDesign placement={placement} photo={photo} width={boxForSelected?.width ?? 300} height={boxForSelected?.height ?? 200} update={patch => updatePlacement(spread.id, placement.placeholderId, patch)}/>
           {boxForSelected && <details className="inspector-group">
             <summary>Frame position &amp; size</summary>
             <div className="frame-dimensions">
@@ -302,11 +307,11 @@ export default function Inspector() {
             </div>
             <button className="btn btn--tiny" onClick={() => removeImageFrame(spread.id, placement.placeholderId)}>Delete Frame</button>
           </details>}
-          {photo && <details className="inspector-group" open><summary>Image &amp; crop</summary>
+          {photo && <details className="inspector-group"><summary>Image &amp; crop</summary>
           {photo && (
             <div className={`dpi-badge ${dpi !== null && dpi < size.dpi ? 'dpi-badge--warn' : ''}`}>
               <Icon name="info" size={12} />
-              <span className="inspector-photo-meta"><span title={photo.fileName}>{photo.fileName}</span><small>{photo.width} × {photo.height}px{dpi !== null && <> · {dpi} DPI{dpi < size.dpi && ' · Low resolution'}</>}</small></span>
+              <span className="inspector-photo-meta"><span title={photo.fileName}>{photo.fileName}</span><small>{metadataFields.includes('Dimensions') && <>{photo.width} × {photo.height}px</>}{dpi !== null && <> · {dpi} DPI{dpi < size.dpi && ' · Low resolution'}</>}</small></span>
             </div>
           )}
           <div className="text-style-row">
@@ -323,7 +328,7 @@ export default function Inspector() {
               title="Toggle black & white"
               onClick={() =>
                 updatePlacement(spread.id, placement.placeholderId, {
-                  saturation: placement.saturation <= -100 ? 0 : -100,
+                  saturation: placement.saturation <= -100 ? 0 : -100, blackWhiteMix: undefined,
                 })
               }
             >
@@ -365,14 +370,6 @@ export default function Inspector() {
           </label>
           <button className="btn btn--tiny" onClick={() => useProjectStore.getState().makePhotoBackground(spread.id, placement.placeholderId)}>Set as fixed background</button>
           <SliderField buttons
-            label="Scale"
-            value={placement.zoom}
-            min={1}
-            max={5}
-            step={0.05}
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { zoom: v })}
-          />
-          <SliderField buttons
             label="Focal X"
             value={placement.focalX}
             min={0}
@@ -389,98 +386,6 @@ export default function Inspector() {
             onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { focalY: v })}
           />
           </details>}
-          <details className="inspector-group" open><summary>Transform &amp; frame</summary>
-          <SliderField
-            label="Opacity"
-            value={placement.opacity}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { opacity: v })}
-          />
-          <label>
-            Frame
-            <select
-              value={placement.frameStyle}
-              onChange={(e) =>
-                updatePlacement(spread.id, placement.placeholderId, { frameStyle: e.target.value as typeof placement.frameStyle })
-              }
-            >
-              <option value="none">None</option>
-              <option value="rounded">Rounded</option>
-              <option value="polaroid">Polaroid</option>
-              <option value="shadow">Drop Shadow</option>
-            </select>
-          </label>
-          {placement.frameStyle === 'rounded' && (
-            <SliderField buttons
-              label="Radius"
-              value={placement.cornerRadiusPx}
-              min={0}
-              max={200}
-              suffix="px"
-              onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { cornerRadiusPx: v })}
-            />
-          )}
-          <SliderField buttons
-            label="Angle"
-            value={placement.rotationDeg}
-            min={-180}
-            max={180}
-            suffix="°"
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { rotationDeg: v })}
-          />
-          <SliderField buttons
-            label="Border width"
-            value={placement.borderWidth}
-            min={0}
-            max={60}
-            suffix="px"
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { borderWidth: v })}
-          />
-          <label>
-            Border color
-            <ColorField
-              value={placement.borderColor}
-              onChange={(hex) => updatePlacement(spread.id, placement.placeholderId, { borderColor: hex })}
-            />
-          </label>
-          </details>
-          {photo && <details className="inspector-group"><summary>Tone &amp; color</summary><SliderField
-            label="Warmth"
-            value={placement.warmth}
-            min={-100}
-            max={100}
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { warmth: v })}
-          />
-          <SliderField
-            label="Brightness"
-            value={placement.brightness}
-            min={-100}
-            max={100}
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { brightness: v })}
-          />
-          <SliderField
-            label="Contrast"
-            value={placement.contrast}
-            min={-100}
-            max={100}
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { contrast: v })}
-          />
-          <SliderField
-            label="Saturation"
-            value={placement.saturation}
-            min={-100}
-            max={100}
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { saturation: v })}
-          />
-          <SliderField
-            label="Relight"
-            value={placement.relightIntensity}
-            min={-100}
-            max={100}
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { relightIntensity: v })}
-          />
           <div className="text-style-row">
             <button className="btn btn--tiny" onClick={() => copyToneAdjustments(spread.id, placement.placeholderId)}>
               <Icon name="save" size={11} />
@@ -495,7 +400,12 @@ export default function Inspector() {
               Paste Tone
             </button>
           </div>
-          </details>}
+          {photo && <details className="inspector-group" open><summary>Image Information</summary><dl className="inspector-metadata">
+            {boxForSelected && <div><dt>Frame W × H</dt><dd>{inToDisplay(boxForSelected.width / 900 * size.widthIn, project.units, size.dpi)} × {inToDisplay(boxForSelected.height / 900 * size.widthIn, project.units, size.dpi)} {project.units}</dd></div>}
+            <div><dt>Effective PPI</dt><dd>{dpi ?? 'Unavailable'}</dd></div>
+            {Object.entries({'Color profile':'No color profile detected', ...photo.metadata, Dimensions:`${photo.width} × ${photo.height} px`, 'Camera model':photo.cameraModel, 'Date taken':photo.capturedAt ? new Date(photo.capturedAt).toLocaleString() : 'Unavailable'}).filter(([key,value])=>value && metadataFields.includes(key)).map(([key,value])=><div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}
+          </dl><p className="image-design__usage">Used {project.spreads.reduce((count, item) => count + item.placements.filter(p => p.photoId === photo.id).length + (item.backgroundPattern?.edits?.photoId === photo.id ? 1 : 0), 0)} times</p></details>}
+
         </section>
       )}
 
@@ -639,6 +549,7 @@ function MultiSelectInspector({
               brightness: 0,
               contrast: 0,
               saturation: 0,
+              blackWhiteMix: undefined,
               frameStyle: 'none',
               rotationDeg: 0,
               relightIntensity: 0,

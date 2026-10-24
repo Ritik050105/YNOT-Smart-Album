@@ -1,3 +1,4 @@
+import { getPreferences } from './preferences'
 import { applyPageTemplate, pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { create } from 'zustand'
 import { v4 as uuid } from 'uuid'
@@ -333,9 +334,16 @@ function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => vo
   set((s) => {
     const mutated = mutate(s.project)
     if (mutated === s.project) return {}
+    if(!getPreferences().reuseImages){
+      const counts=(p:Project)=>{const map=new Map<string,number>();for(const spread of p.spreads){for(const pl of spread.placements)if(pl.photoId)map.set(pl.photoId,(map.get(pl.photoId)??0)+1);const id=spread.backgroundPattern?.edits?.photoId;if(id)map.set(id,(map.get(id)??0)+1)}return map}
+      const old=counts(s.project)
+      if([...counts(mutated)].some(([id,count])=>count>1&&count>(old.get(id)??0))){queueMicrotask(()=>window.dispatchEvent(new CustomEvent('album-studio:preference-notice',{detail:'This image is already used. Enable image reuse in Tools → Preferences → General to place another copy.'})));return {}}
+    }
+    const added=getPreferences().navigateNew?mutated.spreads.find(spread=>!s.project.spreads.some(old=>old.id===spread.id)):undefined
     const nextProject = { ...mutated, updatedAt: new Date().toISOString() }
     return {
       project: nextProject,
+      ...(added?{selectedSpreadId:added.id}:{}),
       fontPreview: null,
       templatePreview: null,
       matchingTemplatesOpen: false,
@@ -477,7 +485,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const appended = newSpreads.map((s, i) => ({ ...s, order: maxOrder + 1 + i }))
     withHistory(set, (p) => ({ ...p, spreads: [...p.spreads, ...appended] }))
     const first = appended[0]
-    if (first) {
+    if (first && getPreferences().navigateNew && get().project.spreads.some(s => s.id === first.id)) {
       set({
         selectedSpreadId: first.id,
         selectedPlaceholderId: null,
@@ -1036,6 +1044,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                       rotationDeg: 0,
                       relightIntensity: 0,
                       cornerRadiusPx: 24,
+                      blackWhiteMix: undefined,
                       flipHorizontal: false,
                       flipVertical: false,
                     }
@@ -1078,6 +1087,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     } = placement
     set({
       toneClipboard: {
+        blackWhiteMix: placement.blackWhiteMix,
         opacity,
         warmth,
         brightness,

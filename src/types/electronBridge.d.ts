@@ -15,6 +15,9 @@ export interface NewProjectPayload {
 }
 
 export interface AlbumStudioBridge {
+  preferencesSystem: (action: 'cacheSize' | 'clearCache' | 'choosePhotoshop' | 'projectDirectory', value?: string) => Promise<string | number | null>
+  openExternalEditor: (args: { app: 'photoshop' | 'canva'; photoshopPath: string; name: string; data: Uint8Array }) => Promise<string>
+
   getImagePath: (file: File) => string
   revealExportLocation: (location: string) => Promise<void>
   showImageFile: (filePath: string, reveal: boolean) => Promise<void>

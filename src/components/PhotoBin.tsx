@@ -1,3 +1,5 @@
+import ContextMenu from './ContextMenu'
+import { openInEditor } from './ExternalEditor'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -64,6 +66,7 @@ export default function PhotoBin() {
   const { handleFiles, importing, progress, lastSummary } = useImportPhotos()
   const importInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
+  const [editorMenu,setEditorMenu]=useState<{x:number;y:number;src:string;name:string}|null>(null)
   const [browserTool, setBrowserTool] = useState<'search' | 'filter' | 'sort' | null>(null)
   const [descending, setDescending] = useState(false)
   const favoritesInputRef = useRef<HTMLInputElement>(null)
@@ -341,6 +344,7 @@ export default function PhotoBin() {
               key={photo.id}
                 className={`photo-dock__item ${used ? 'is-used' : 'is-unused'} ${selected ? 'is-selected' : ''}`}
                 data-dock-photo={photo.id}
+                onContextMenu={e=>{e.preventDefault();setEditorMenu({x:e.clientX,y:e.clientY,src:photo.src,name:photo.fileName})}}
               aria-label={`${photo.fileName}${used ? ' — used in album; drag to reuse' : ''}`}
               style={{ width: `calc(var(--photo-size, 120px) * ${Math.min(1.7, Math.max(0.45, photo.width / photo.height || 1))})` }}
               tabIndex={-1}
@@ -440,6 +444,7 @@ export default function PhotoBin() {
             </div>
           )
         })}
+        {editorMenu && <ContextMenu x={editorMenu.x} y={editorMenu.y} onClose={()=>setEditorMenu(null)} items={(['photoshop','canva'] as const).map(app=>({label:app==='photoshop'?'Open in Adobe Photoshop':'Open in Canva',onClick:()=>openInEditor({app,src:editorMenu.src,name:editorMenu.name})}))}/>}
         {photos.length === 0 ? <button className="photo-dock__dropzone" disabled={importing}
           onClick={() => importInputRef.current?.click()}
           onDragOver={e => { e.preventDefault(); e.stopPropagation() }}

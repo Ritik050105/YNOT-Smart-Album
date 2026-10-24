@@ -1,3 +1,4 @@
+import { usePreferences } from '@/state/preferences'
 import { useEffect, useRef, useState } from 'react'
 import { Spread, PhotoAsset, AlbumSize } from '@/types'
 import { renderSpreadToCanvas } from '@/engine/renderSpread'
@@ -12,6 +13,7 @@ interface Props {
 
 /** Use the export renderer so crops, text, flips and adjustments survive leaving Designer View. */
 export default function SpreadThumbnail({ spread, photosById, size, width = 420, responsive }: Props) {
+  const highResolution=usePreferences(s=>s.values.highResolution)
   size = spread.size ?? size
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [failed, setFailed] = useState(false)
@@ -26,7 +28,7 @@ export default function SpreadThumbnail({ spread, photosById, size, width = 420,
   useEffect(() => {
     let cancelled = false
     setFailed(false)
-    void renderSpreadToCanvas(spread, photosById, size, renderWidth / size.widthIn).then((rendered) => {
+    void renderSpreadToCanvas(spread, photosById, size, (highResolution ? renderWidth : Math.min(420,renderWidth)) / size.widthIn).then((rendered) => {
       const canvas = canvasRef.current
       if (cancelled || !canvas) return
       canvas.width = rendered.width
@@ -34,7 +36,7 @@ export default function SpreadThumbnail({ spread, photosById, size, width = 420,
       canvas.getContext('2d')?.drawImage(rendered, 0, 0)
     }).catch(() => { if (!cancelled) setFailed(true) })
     return () => { cancelled = true }
-  }, [spread, photosById, size, renderWidth])
+  }, [spread, photosById, size, renderWidth, highResolution])
 
   return (
     <div className="spread-thumb" style={{ width: responsive ? '100%' : width, aspectRatio: size.widthIn / size.heightIn, background: spread.backgroundColor }}>

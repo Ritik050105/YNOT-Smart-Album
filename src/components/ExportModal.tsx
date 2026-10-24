@@ -1,3 +1,4 @@
+import { getPreferences } from '@/state/preferences'
 import { useState } from 'react'
 import Modal from './Modal'
 import Icon from './Icon'
@@ -54,7 +55,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   const [rangeText, setRangeText] = useState('')
   const [singlePages, setSinglePages] = useState(false)
   const [includeCover, setIncludeCover] = useState(false)
-  const [jpegQuality, setJpegQuality] = useState(100)
+  const [jpegQuality, setJpegQuality] = useState(getPreferences().jpegQuality)
 
   // "Manual Proofing" state
   const [proofWidth, setProofWidth] = useState(1600)
@@ -110,7 +111,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
       if (checks.coverNeedsReview || checks.lowResolution.length > 0) {
         setEnhanced(false)
         setEnhanceError('')
-        setPreflightWarning([checks.coverNeedsReview ? 'The album page count has changed since the cover specifications were reviewed. Review the cover dimensions with your album company.' : '', checks.lowResolution.length ? `${checks.lowResolution.length} spread(s) contain images enlarged beyond 120% of the target resolution.` : ''].filter(Boolean).join(' '))
+        setPreflightWarning([checks.coverNeedsReview ? 'The album page count has changed since the cover specifications were reviewed. Review the cover dimensions with your album company.' : '', checks.lowResolution.length ? `${checks.lowResolution.length} spread(s) contain images enlarged beyond ${getPreferences().scalingThreshold}% of the target resolution.` : ''].filter(Boolean).join(' '))
         return
       }
     }
@@ -127,6 +128,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     try {
       const outcome = tab === 'print' ? await handleExportPrint() : await handleExportManualProofing()
       setResult(outcome.saved ? outcome : null)
+      if(outcome.saved && getPreferences().revealExport && window.albumStudio){const location=outcome.filePath??('dirPath' in outcome?outcome.dirPath:undefined);if(location)await window.albumStudio.revealExportLocation(location)}
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed. Please try again.')
     } finally {

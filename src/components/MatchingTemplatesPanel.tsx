@@ -1,3 +1,4 @@
+import { usePreferences } from '@/state/preferences'
 import { pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
@@ -9,6 +10,7 @@ import Icon from './Icon'
 
 /** Template previews leave the album unchanged until applied. */
 export default function MatchingTemplatesPanel() {
+  const autoRearrange=usePreferences(s=>s.values.autoRearrange)
   const project = useProjectStore(s => s.project)
   const spreadId = useProjectStore(s => s.selectedSpreadId)
   const open = useProjectStore(s => s.matchingTemplatesOpen)
@@ -42,9 +44,9 @@ export default function MatchingTemplatesPanel() {
     const photos = placements.flatMap(p => { const photo = project.photos.find(photo => photo.id === p.photoId); return photo ? [photo] : [] })
     const candidates = templatesForCount(count, project.enabledTemplateIds, filter, aspect)
       .filter(t => !favoritesOnly || favorites.includes(t.id))
-    return (count > 1 ? [false, true] : [true]).map(keepOrder => rankTemplates(photos, candidates, aspect, keepOrder, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2))
+    return (count > 1 ? [false, true] : [true]).map(keepOrder => rankTemplates(photos, candidates, aspect, !autoRearrange || keepOrder, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2))
       .map(match => match.template).sort((a, b) => Number(favorites.includes(b.id)) - Number(favorites.includes(a.id))))
-  }, [open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target])
+  }, [open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
   useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
   useEffect(() => {
     if (!open) return
@@ -57,7 +59,7 @@ export default function MatchingTemplatesPanel() {
       event.preventDefault(); event.stopPropagation()
       const focusedRow = strips.current.findIndex(strip => event.target instanceof Node && strip?.contains(event.target))
       const row = Math.min(active?.row ?? Math.max(0, focusedRow), rows.length - 1)
-      const keepOrder = count <= 1 || row === 1
+      const keepOrder = !autoRearrange || count <= 1 || row === 1
       let index = active?.index ?? -1
       if (event.key === 'Enter') {
         const template = rows[row][Math.max(0, index)]
@@ -68,13 +70,13 @@ export default function MatchingTemplatesPanel() {
       index = Math.max(0, Math.min(rows[row].length - 1, index))
       const template = rows[row][index]
       if (!template) return
-      setActive({ row, index }); preview(template.id, count <= 1 || row === 1, target)
+      setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target)
       const strip = strips.current[row], left = index * (tileWidth + 12)
       if (strip && (left < strip.scrollLeft || left + tileWidth > strip.scrollLeft + strip.clientWidth)) strip.scrollLeft = left
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, rows, active, preview, close, apply, spreadId, tileWidth, count, target])
+  }, [open, rows, active, preview, close, apply, spreadId, tileWidth, count, target, autoRearrange])
   useEffect(() => {
     if (open && !spread) close()
     return () => { useProjectStore.getState().previewMatchingTemplate(null) }
@@ -101,7 +103,7 @@ export default function MatchingTemplatesPanel() {
       <div className="matching-templates__strip" ref={el => { strips.current[row] = el }} aria-label={label} onScroll={event => { const offset = Math.max(0, Math.floor(event.currentTarget.scrollLeft / (tileWidth + 12)) - 1); setOffsets(current => current.map((value, i) => i === row ? offset : value)) }}>
         <div style={{ position: 'relative', flex: '0 0 auto', width: Math.max(0, rows[row].length * (tileWidth + 12) - 12), height: tileWidth / aspect + 12 }}>
         {rows[row].slice(offsets[row], offsets[row] + Math.ceil((strips.current[row]?.clientWidth ?? tileWidth * 10) / (tileWidth + 12)) + 3).map((template, slot) => { const index = offsets[row] + slot; return <div className={`matching-template ${active?.row === row && active.index === index ? 'is-previewing' : ''} ${spread.templateId === template.id ? 'is-current' : ''}`} key={template.id} style={{ position: 'absolute', left: index * (tileWidth + 12), width: tileWidth }}>
-          <button className="matching-template__apply" title={`${template.name} — preview, click to apply`} onMouseEnter={() => { setActive({ row, index }); preview(template.id, count <= 1 || row === 1, target) }} onFocus={() => { setActive({ row, index }); preview(template.id, count <= 1 || row === 1, target) }} onClick={() => { apply(spread.id, template.id, count <= 1 || row === 1, target); close() }}>
+          <button className="matching-template__apply" title={`${template.name} — preview, click to apply`} onMouseEnter={() => { setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onFocus={() => { setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onClick={() => { apply(spread.id, template.id, !autoRearrange || count <= 1 || row === 1, target); close() }}>
             <TemplateThumb template={template} aspect={aspect} marginPx={spread.marginPx * (target === 'spread' ? 1 : 2)} gapPx={spread.gapPx * (target === 'spread' ? 1 : 2)} />
             <span className="sr-only">{label}: {template.name}</span>
           </button>

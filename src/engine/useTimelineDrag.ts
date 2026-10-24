@@ -1,9 +1,10 @@
+import { getPreferences } from '@/state/preferences'
 import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { draggedPhotoIds } from './photoDrag'
 
 export interface TimelineSource { spreadId?: string; frameId?: string; photoIds: string[] }
-export interface TimelineTarget { spreadId: string | null; beforeFrameId?: string; cover?: boolean }
+export interface TimelineTarget { spreadId: string | null; beforeFrameId?: string; cover?: boolean; replace?: boolean }
 
 function targetAt(x: number, y: number): TimelineTarget | null {
   const element = document.elementFromPoint(x, y)
@@ -101,7 +102,10 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
       if (current.active) {
         suppressClickUntil = performance.now() + 250
         const destination = targetAt(event.clientX, event.clientY)
-        if (destination) commit.current(current.source, destination)
+        if (destination) {
+          if(event.altKey){const frame=document.elementFromPoint(event.clientX,event.clientY)?.closest<HTMLElement>('[data-timeline-frame]');destination.replace=getPreferences().altDrop==='replace';if(frame)destination.beforeFrameId=frame.dataset.timelineFrame}
+          commit.current(current.source, destination)
+        }
       }
       cancel()
     }

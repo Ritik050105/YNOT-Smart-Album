@@ -1,3 +1,4 @@
+import { usePreferences } from '@/state/preferences'
 import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { openProjectFromFile, openProjectFromPath } from '@/engine/projectFile'
@@ -34,6 +35,7 @@ const KIND_FOR_TAB: Record<HomeTab, 'album' | 'gallery' | 'slideshow'> = {
  *  own dedicated screen — GalleryScreen's flat favorite-marking grid, or SlideshowScreen's
  *  ordered play-through — instead of the album editor. */
 export default function HomeScreen() {
+  const classic=usePreferences(s=>s.values.classicHome)
   const loadProjectFile = useProjectStore((s) => s.loadProjectFile)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
   const createSimpleProject = useProjectStore((s) => s.createSimpleProject)
@@ -160,7 +162,7 @@ export default function HomeScreen() {
   const tabLabel = tab === 'albums' ? 'album' : tab === 'galleries' ? 'gallery' : 'slideshow'
 
   return (
-    <div className="home-screen">
+    <div className={`home-screen ${classic ? "home-screen--classic" : ""}`}>
       <header className="home-screen__header">
         <span className="home-screen__mark">
           <img src={ynotMark} alt="YNOT Photography" />

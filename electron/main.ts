@@ -1,7 +1,8 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, screen, shell } from 'electron'
 import path from 'path'
+import { randomUUID } from 'crypto'
 import fs from 'fs'
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { writeFileAtomic } from './files'
 import { decodeTiff } from './images'
 import { readSiblingImage } from './siblingImages'
@@ -172,7 +173,7 @@ ipcMain.handle(
   'export:saveFile',
   async (_evt, args: { defaultName: string; filters: { name: string; extensions: string[] }[]; data: Uint8Array }) => {
     const { canceled, filePath } = await dialog.showSaveDialog({
-      defaultPath: args.defaultName,
+      defaultPath: /\.ablm(?:\.json)?$/i.test(args.defaultName) && desktopPreferences().projectDirectory ? path.join(desktopPreferences().projectDirectory!,path.basename(args.defaultName)) : args.defaultName,
       filters: args.filters,
     })
     if (canceled || !filePath) return { canceled: true as const }
@@ -201,6 +202,7 @@ ipcMain.handle(
 // (project files are self-contained JSON with photos embedded as data URLs).
 ipcMain.handle('project:open', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
+    defaultPath: desktopPreferences().projectDirectory,
     properties: ['openFile'],
     filters: [{ name: 'YNOT Album Studio Project', extensions: ['ablm', 'json'] }],
   })
@@ -295,3 +297,31 @@ for (const [channel, handler] of Object.entries({
     return handler(snapshot)
   })
 }
+
+const preferenceFile = () => path.join(app.getPath('userData'), 'desktop-preferences.json')
+function desktopPreferences(): {projectDirectory?:string} { try{return JSON.parse(fs.readFileSync(preferenceFile(),'utf8'))}catch{return {}} }
+ipcMain.handle('preferences:system', async (event, action: string, value?:string) => {
+  if(action==='cacheSize')return event.sender.session.getCacheSize()
+  if(action==='clearCache'){await event.sender.session.clearCache();return event.sender.session.getCacheSize()}
+  if(action==='choosePhotoshop'){
+    const result=await dialog.showOpenDialog({title:'Choose Adobe Photoshop',properties:['openFile'],filters:[{name:'Adobe Photoshop',extensions:['exe']}]})
+    if(result.canceled)return null
+    const file=result.filePaths[0];if(path.basename(file).toLowerCase()!=='photoshop.exe')throw new Error('Choose Photoshop.exe from your Adobe installation.')
+    return file
+  }
+  if(action==='projectDirectory'){
+    if(typeof value!=='string'||!path.isAbsolute(value)||!fs.statSync(value).isDirectory())throw new Error('Choose an existing project folder.')
+    writeFileAtomic(preferenceFile(),Buffer.from(JSON.stringify({projectDirectory:value})));return value
+  }
+  throw new Error('Unsupported preference action')
+})
+ipcMain.handle('editor:open', async (_event,args:{app:string;photoshopPath:string;name:string;data:Uint8Array})=>{
+  if(!args || !['photoshop','canva'].includes(args.app) || typeof args.name!=='string' || !/\.(png|psd)$/i.test(args.name) || !(args.data instanceof Uint8Array) || args.data.length>512*1024*1024)throw new Error('Invalid editor file.')
+  if(args.app==='photoshop' && (typeof args.photoshopPath!=='string'||!path.isAbsolute(args.photoshopPath)||path.basename(args.photoshopPath).toLowerCase()!=='photoshop.exe'||!fs.statSync(args.photoshopPath).isFile()))throw new Error('Choose Photoshop.exe in Tools → Preferences → Misc.')
+  const folder=path.join(app.getPath('documents'),'YNOT External Edits');await fs.promises.mkdir(folder,{recursive:true})
+  const file=path.join(folder,`${Date.now()}-${randomUUID().slice(0,8)}-${path.basename(args.name).replace(/[^a-z0-9_.-]/gi,'_')}`)
+  writeFileAtomic(file,Buffer.from(args.data))
+  if(args.app==='photoshop')await new Promise<void>((resolve,reject)=>{const child=spawn(args.photoshopPath,[file],{detached:true,stdio:'ignore',windowsHide:true});child.once('error',reject);child.once('spawn',()=>{child.unref();resolve()})})
+  else {shell.showItemInFolder(file);await shell.openExternal('https://www.canva.com/')}
+  return file
+})
