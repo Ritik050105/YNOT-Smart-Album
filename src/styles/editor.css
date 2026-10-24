@@ -393,7 +393,7 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .album-editor .photo-dock__item.is-used { border-color: var(--border); }
 .album-editor .photo-dock__item.is-selected { border-color: var(--accent); }
 .album-editor .spreads-panel__card--drop { background: var(--panel); }
-.album-editor .spread-card-controls { background: #292d29; color: #fff; }
+.album-editor .spread-card-controls { background: #252932; color: #fff; }
 .album-editor .spread-card-controls .btn { color: #fff; background: transparent; border-color: transparent; }
 .album-editor .spread-card-controls .btn:hover:not(:disabled) { background: #ffffff24; }
 .album-editor .album-info-panel { background: var(--panel); color: var(--text); }
@@ -439,7 +439,7 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 
 .layer-arrange__target input { width:100px; min-width:0; padding:7px 9px; }
 
-.canvas-gap-editor { position:absolute; z-index:30; width:216px; padding:12px; border:1px solid #cdb9a4; border-radius:12px; background:#fffaf4; color:#4b3527; box-shadow:0 8px 28px #0003; }
+.canvas-gap-editor { position:absolute; z-index:30; width:216px; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--panel); color:var(--text); box-shadow:0 8px 28px #0003; }
 .canvas-gap-editor label { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .canvas-gap-editor input { width:95px; min-width:0; padding:7px; }
 .canvas-gap-editor p { font-size:11px; line-height:1.4; margin:8px 0; }
@@ -448,7 +448,7 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .canvas-gap-editor select { min-width:0; max-width:135px; padding:6px; }
 .canvas-gap-editor label + label { margin-top:8px; }
 
-.canvas-anchor-hint { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); padding:10px 16px; border-radius:10px; background:#fffaf4; color:#4b3527; box-shadow:0 3px 14px #0002; pointer-events:none; z-index:31; }
+.canvas-anchor-hint { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); padding:10px 16px; border-radius:10px; background:var(--panel); color:var(--text); box-shadow:0 3px 14px #0002; pointer-events:none; z-index:31; }
 
 .canvas-gap-editor label { font-size:13px; white-space:nowrap; }
 .canvas-gap-editor select { width:124px; font-size:12px; }
@@ -460,16 +460,16 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .canvas-gap-editor .canvas-gap-editor__comparison { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0; }
 .canvas-gap-editor__comparison label { flex-direction:column; align-items:stretch; gap:5px; margin:0; }
 .canvas-gap-editor__comparison input { width:100%; box-sizing:border-box; }
-.canvas-gap-editor__original { padding:7px; border:1px solid #ded1c3; border-radius:8px; background:#f5efe8; color:#786654; font-variant-numeric:tabular-nums; }
+.canvas-gap-editor__original { padding:7px; border:1px solid var(--border-soft); border-radius:8px; background:var(--panel-alt); color:var(--text-muted); font-variant-numeric:tabular-nums; }
 
 .canvas-gap-editor__comparison label + label { margin-top:0; }
 .canvas-gap-editor__comparison input, .canvas-gap-editor__original { height:34px; box-sizing:border-box; font-size:13px; }
 
-.canvas-gap-editor .canvas-gap-editor__change { margin:6px 0; padding:6px 8px; border-radius:7px; background:#f5efe8; color:#795034; font-size:12px; font-variant-numeric:tabular-nums; }
+.canvas-gap-editor .canvas-gap-editor__change { margin:6px 0; padding:6px 8px; border-radius:7px; background:var(--accent-soft); color:var(--accent); font-size:12px; font-variant-numeric:tabular-nums; }
 
 .canvas-gap-editor .canvas-gap-editor__percentages { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; margin-top:8px; }
 .canvas-gap-editor__percentages button { justify-content:center; padding:6px 0; font-size:11px; }
-.canvas-gap-editor__percentages button[aria-pressed="true"] { background:#795034; color:#fffaf4; border-color:#795034; }
+.canvas-gap-editor__percentages button[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
 
 .canvas-gap-editor { max-height:calc(100% - 42px); overflow-y:auto; }
 .canvas-gap-editor .canvas-gap-editor__customize { display:block; margin-top:8px; }
@@ -488,13 +488,13 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .preset-import-preview summary { cursor:pointer; font-weight:600; }
 .preset-import-preview ol { padding-left:20px; font-size:12px; }
 .preset-import-preview li { margin:10px 0; overflow-wrap:anywhere; }
-.preset-import-preview p { font-size:12px; line-height:1.5; color:var(--muted); }
+.preset-import-preview p { font-size:12px; line-height:1.5; color:var(--text-muted); }
 
 .preset-import-preview__comparison { width:100%; table-layout:fixed; border-collapse:collapse; }
 .preset-import-preview__comparison th, .preset-import-preview__comparison td { text-align:left; padding:10px; vertical-align:top; border:1px solid var(--border); overflow-wrap:anywhere; }
 .preset-import-preview__comparison thead th { width:50%; background:var(--panel-alt); }
 .preset-import-preview__comparison tbody th { font-size:12px; }
-.preset-import-preview__comparison th span { float:right; font-weight:400; color:var(--muted); }
+.preset-import-preview__comparison th span { float:right; font-weight:400; color:var(--text-muted); }
 .preset-import-preview .preset-import-preview__changed { background:rgba(156,107,73,.14); outline:1px solid rgba(156,107,73,.4); border-radius:4px; }
 .preset-import-preview li.preset-import-preview__changed { padding:6px; }
 
@@ -509,7 +509,7 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 
 .matching-templates__photo-counts { display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; padding:8px 16px; font-size:12px; border-bottom:1px solid var(--border); }
 .matching-templates__photo-counts strong { color:var(--accent); }
-.matching-templates__photo-counts small { color:var(--muted); }
+.matching-templates__photo-counts small { color:var(--text-muted); }
 
 .matching-templates { position:relative; }
 .matching-templates__count-button { border:0; background:transparent; color:inherit; padding:0; font:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
@@ -521,5 +521,21 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .matching-templates__excluded article { display:grid; grid-template-columns:64px minmax(0,1fr); gap:12px; padding:10px 0; border-top:1px solid var(--border); }
 .matching-templates__excluded img, .matching-templates__missing-thumb { width:64px; height:64px; object-fit:contain; background:var(--panel-alt); border-radius:6px; }
 .matching-templates__excluded article strong { display:block; overflow-wrap:anywhere; font-size:12px; }
-.matching-templates__excluded small { display:block; color:var(--muted); margin-top:4px; }
+.matching-templates__excluded small { display:block; color:var(--text-muted); margin-top:4px; }
 .matching-templates__excluded-actions { display:flex; gap:6px; margin-top:8px; }
+
+/* Navigation, work surface and editing controls have distinct visual levels. */
+.album-editor .menubar { background: var(--panel-alt); border-bottom: 1px solid var(--border-soft); }
+.album-editor .photo-dock { background: var(--bg); }
+.album-editor .photo-dock__toolbar { background: var(--panel); border-bottom: 1px solid var(--border-soft); }
+.album-editor .inspector, .album-editor .album-info-panel { border-left: 1px solid var(--border-soft); }
+.album-editor .btn--ghost { background: transparent; border-color: transparent; }
+.album-editor .inspector .collapsible__header { color: var(--text); }
+.album-editor .inspector :is(input[type=text], input[type=number], select),
+.album-editor .album-info-panel select { background: var(--field); color: var(--text); }
+.album-editor .photo-dock__bins button.is-active { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.album-editor .album-info-panel .btn:not(.btn--primary):not(.is-active) { color: var(--text); }
+.matching-templates__header { background: var(--panel); }
+.matching-templates__photo-counts { background: var(--panel-alt); }
+.matching-templates__excluded { box-shadow: var(--shadow-lg); }
+.designer-layers__row + .designer-layers__row { border-top: 1px solid var(--border-soft); }
