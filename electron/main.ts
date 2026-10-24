@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, screen, shell } from 'electron'
 import path from 'path'
 import { randomUUID } from 'crypto'
-import { findPhotoshop, ExternalEditFiles } from './externalEdits'
+import { findPhotoshop, findCanva, ExternalEditFiles } from './externalEdits'
 import fs from 'fs'
 import { execFile, spawn } from 'child_process'
 import { writeFileAtomic } from './files'
@@ -306,10 +306,11 @@ function desktopPreferences(): {projectDirectory?:string} { try{return JSON.pars
 ipcMain.handle('preferences:system', async (event, action: string, value?:string) => {
   if(action==='cacheSize')return event.sender.session.getCacheSize()
   if(action==='clearCache'){await event.sender.session.clearCache();return event.sender.session.getCacheSize()}
-  if(action==='choosePhotoshop'){
-    const result=await dialog.showOpenDialog({title:'Choose Adobe Photoshop',properties:['openFile'],filters:[{name:'Adobe Photoshop',extensions:['exe']}]})
+  if(action==='choosePhotoshop'||action==='chooseCanva'){
+    const editor=action==='chooseCanva'?'Canva':'Photoshop'
+    const result=await dialog.showOpenDialog({title:`Choose ${editor}`,properties:['openFile'],filters:[{name:editor,extensions:['exe']}]})
     if(result.canceled)return null
-    const file=result.filePaths[0];if(path.basename(file).toLowerCase()!=='photoshop.exe')throw new Error('Choose Photoshop.exe from your Adobe installation.')
+    const file=result.filePaths[0];if(path.basename(file).toLowerCase()!==editor.toLowerCase()+'.exe')throw new Error(`Choose ${editor}.exe from its installation folder.`)
     return file
   }
   if(action==='projectDirectory'){
@@ -318,9 +319,9 @@ ipcMain.handle('preferences:system', async (event, action: string, value?:string
   }
   throw new Error('Unsupported preference action')
 })
-ipcMain.handle('editor:open', async (_event,args:{app:string;photoshopPath:string;name:string;originalPath?:string;data:Uint8Array})=>{
+ipcMain.handle('editor:open', async (_event,args:{app:string;photoshopPath:string;canvaPath?:string;name:string;originalPath?:string;data:Uint8Array})=>{
   if(!args || !['photoshop','canva'].includes(args.app) || typeof args.name!=='string' || !/\.(png|psd)$/i.test(args.name) || !(args.data instanceof Uint8Array) || args.data.length>512*1024*1024)throw new Error('Invalid editor file.')
-  const photoshop = args.app==='photoshop' ? await findPhotoshop(args.photoshopPath) : ''
+  const executable = args.app==='photoshop' ? await findPhotoshop(args.photoshopPath) : await findCanva(args.canvaPath)
   let bytes=Buffer.from(args.data),name=args.name
   if(args.app==='photoshop' && args.originalPath && path.isAbsolute(args.originalPath) && /\.(png|jpe?g|tiff?|psd|bmp|webp)$/i.test(args.originalPath)) {
     const original=await fs.promises.stat(args.originalPath).catch(()=>null)
@@ -329,9 +330,8 @@ ipcMain.handle('editor:open', async (_event,args:{app:string;photoshopPath:strin
   const folder=path.join(app.getPath('documents'),'YNOT External Edits');await fs.promises.mkdir(folder,{recursive:true})
   const file=path.join(folder,`${Date.now()}-${randomUUID().slice(0,8)}-${path.basename(name).replace(/[^a-z0-9_.-]/gi,'_')}`)
   writeFileAtomic(file,bytes)
-  if(args.app==='photoshop')await externalEditFiles.register(file,_event.sender.id)
-  if(args.app==='photoshop')await new Promise<void>((resolve,reject)=>{const child=spawn(photoshop,[file],{detached:true,stdio:'ignore',windowsHide:true});child.once('error',reject);child.once('spawn',()=>{child.unref();resolve()})})
-  else {shell.showItemInFolder(file);await shell.openExternal('https://www.canva.com/')}
+  await externalEditFiles.register(file,_event.sender.id)
+  await new Promise<void>((resolve,reject)=>{const child=spawn(executable,[file],{detached:true,stdio:'ignore',windowsHide:true});child.once('error',reject);child.once('spawn',()=>{child.unref();resolve()})})
   return file
 })
 

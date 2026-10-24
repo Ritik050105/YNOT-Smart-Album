@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 export const preferenceDefaults = {
-  projectDirectory:'', photoshopPath:'', autoBins:true, reuseImages:true, revealExport:false,
+  projectDirectory:'', photoshopPath:'', canvaPath:'', autoBins:true, reuseImages:true, revealExport:false,
   autoRearrange:true, scrollAxis:'auto', scrollSpeed:1, navigateNew:true, gridMode:'auto',
   altDrop:'add', spreadBar:'spread', hints:true, showCover:true,
   jpegQuality:100, sharpening:'none', scalingThreshold:120, animations:true, highResolution:true, classicHome:false,

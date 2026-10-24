@@ -24,6 +24,18 @@ export async function findPhotoshop(configured: string, roots = [process.env.Pro
   throw new Error('Photoshop was not found. Install Adobe Photoshop or choose Photoshop.exe in Tools → Preferences → Misc.')
 }
 
+export async function findCanva(configured = '', roots = [process.env.LOCALAPPDATA, process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter((s): s is string => !!s)) {
+  const valid = async (file:string) => path.isAbsolute(file) && path.basename(file).toLowerCase()==='canva.exe' && !!(await fs.promises.stat(file).catch(()=>null))?.isFile()
+  if(configured && await valid(configured))return configured
+  for(const hive of ['HKCU','HKLM'])try {
+    const {stdout}=await exec('reg.exe',['query',`${hive}\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Canva.exe`,'/ve'],{windowsHide:true})
+    const file=stdout.match(/REG_SZ\s+(.+)/)?.[1].trim().replace(/^"|"$/g,'')
+    if(file && await valid(file))return file
+  }catch{/* Canva does not always register App Paths. */}
+  for(const root of roots)for(const relative of ['Canva/Canva.exe','Programs/Canva/Canva.exe']){const file=path.join(root,relative);if(await valid(file))return file}
+  throw new Error('Canva Desktop was not found. Install Canva for Windows, or choose Canva.exe in Tools → Preferences → Misc. YNOT will not open a browser.')
+}
+
 export class ExternalEditFiles {
   private files = new Map<string, {owner:number; revision:string}>()
   async register(file: string, owner: number) {
