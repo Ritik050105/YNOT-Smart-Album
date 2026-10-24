@@ -31,7 +31,7 @@
 .album-editor .spreads-panel__column { position: relative; }
 .album-editor .spreads-panel__card { border-radius: 0; border: 0; box-shadow: 0 2px 4px #0003; }
 .album-editor .spread-thumb { border-radius: 0; }
-.album-editor .spreads-panel__card.is-selected { border: 0; box-shadow: 0 2px 4px #0003; }
+.album-editor .spreads-panel__card.is-selected { border: 0; box-shadow: 0 0 0 3px var(--accent), var(--shadow-md); }
 .album-editor .spreads-panel__column.is-selected::after { content: ''; position: absolute; bottom: -8px; left: calc(50% - 8px); border: 8px solid transparent; border-bottom: 0; border-top-color: var(--text); }
 .album-editor .spreads-panel__card--drop { background: var(--panel); color: var(--text-faint); padding: 24px; }
 .album-editor .spreads-panel__card--drop::before { content: ''; position: absolute; inset: 24px; border: 1px dashed var(--border); pointer-events: none; }
@@ -544,3 +544,7 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .album-editor .menubar__dropdown-item.is-danger:disabled { color:var(--text-faint); }
 
 .album-editor .menubar__dropdown-item.is-danger:hover:not(:disabled) { background:var(--danger-soft); color:var(--danger); }
+
+/* Selection overlays stay outside the export canvas and never intercept clicks. */
+.spread-thumb__selection { position:absolute; pointer-events:none; border:3px solid var(--accent); box-shadow:0 0 0 1px #fff, inset 0 0 0 1px #fff; box-sizing:border-box; }
+.album-editor .spreads-panel__photos img.is-selected { border-color:var(--accent); outline:1px solid var(--accent); }

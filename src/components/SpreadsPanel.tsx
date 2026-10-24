@@ -25,6 +25,7 @@ export default function SpreadsPanel() {
   const pan = useRef<{x:number;y:number;left:number;top:number}|null>(null)
   const [photoMenu, setPhotoMenu] = useState<{ x: number; y: number; spreadId: string; frameId?: string; openedAt: number } | null>(null)
   const project = useProjectStore((s) => s.project)
+  const selectedPlaceholderId = useProjectStore(s => s.selectedPlaceholderId)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectSpread = useProjectStore((s) => s.selectSpread)
   const reorderSpreads = useProjectStore((s) => s.reorderSpreads)
@@ -197,7 +198,7 @@ export default function SpreadsPanel() {
             onDrop={(e) => { const pattern = readDraggedPattern(e.dataTransfer); if (pattern) { e.preventDefault(); e.stopPropagation(); updateSpread(cover.id, { backgroundPattern: pattern }) } }}
             title="Front / Spine / Back — double-click to design, right-click for more options"
           >
-            <SpreadThumbnail spread={cover} photosById={photosById} size={project.size} responsive />
+            <SpreadThumbnail selectedPlaceholderId={selectedSpreadId === cover.id ? selectedPlaceholderId : null} spread={cover} photosById={photosById} size={project.size} responsive />
             {exportingId === cover.id && (
               <div className="spreads-panel__exporting">
                 <Icon name="download" size={14} />
@@ -268,7 +269,7 @@ export default function SpreadsPanel() {
               e.preventDefault(); e.stopPropagation(); selectSpread(spread.id)
               setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: box?.placeholderId })
             }}>
-            <SpreadThumbnail spread={spread} photosById={photosById} size={project.size} responsive />
+            <SpreadThumbnail selectedPlaceholderId={selectedSpreadId === spread.id ? selectedPlaceholderId : null} spread={spread} photosById={photosById} size={project.size} responsive />
             <div className="spread-card-controls" onDoubleClick={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
               <div className="spread-card-controls__actions">
                 <button title="Flip spread horizontally" aria-label="Flip spread horizontally" onClick={() => flipSpread(spread.id)}><Icon name="flipSpread" size={16} /></button>
@@ -363,7 +364,7 @@ export default function SpreadsPanel() {
                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); selectSpread(spread.id); setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: placement.placeholderId }) }}
                   data-timeline-frame={placement.placeholderId}
                   onClick={e => { e.stopPropagation(); selectSpread(spread.id); useProjectStore.getState().selectPlaceholder(placement.placeholderId) }}
-                  className={target?.spreadId === spread.id && target.beforeFrameId === placement.placeholderId ? 'is-insert-before' : ''}
+                  className={`${selectedSpreadId === spread.id && selectedPlaceholderId === placement.placeholderId ? 'is-selected' : ''} ${target?.spreadId === spread.id && target.beforeFrameId === placement.placeholderId ? 'is-insert-before' : ''}`}
                   onDrop={(e) => handleSpreadDrop(e, spread.id, placement.placeholderId)} />
               </Fragment> : null
             })}

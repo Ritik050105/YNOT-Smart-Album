@@ -19,6 +19,7 @@ app.whenReady().then(async()=>{
   if(screen==='missing')await run(`window.albumStudio={missingImagePaths:async paths=>paths};store.setState(s=>({project:{...s.project,photos:s.project.photos.map(p=>({...p,sourcePath:'C:/Missing/'+p.id+'.jpg'}))}}))`);
   await run(`window.screen('${screen}')`);await wait();
   if(screen==='editor'){await run(`store.getState().createProjectFromWizard({name:'Palette review',size:{...store.getState().project.size,widthIn:20,heightIn:10}});window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))`);await wait();await run(`window.seed();store.setState({bottomPanelOpen:true,rightPanelOpen:true})`);await wait();}
+  if(screen==='editor'){await run(`document.querySelector('[data-timeline-frame]').click()`);await wait();}
   if(screen==='designer'){await run(`store.getState().enterDesignerView('palette')`);await wait();}
   if(screen==='templates'){await run(`store.getState().openMatchingTemplates('palette')`);await wait();}
   if(screen.startsWith('preferences-')){await run(`Array.from(document.querySelectorAll('.preferences-tabs button')).find(b=>b.textContent===${JSON.stringify(screen.slice(12))}).click()`);await wait();}
@@ -32,6 +33,7 @@ app.whenReady().then(async()=>{
    const metrics=await run(`(()=>{const s=getComputedStyle(document.documentElement),e=document.querySelector('.btn--primary:not(:disabled)'),b=e&&getComputedStyle(e);return {text:s.getPropertyValue('--text').trim(),accent:s.getPropertyValue('--accent').trim(),button:b&&[b.color,b.backgroundColor],overflow:document.documentElement.scrollWidth>innerWidth}})()`);
    assert.equal(metrics.accent,theme==='light'?'#3157c8':'#a8bdff',screen);
    if(screen==='home')assert.deepEqual(await run(`(()=>{const s=getComputedStyle(document.querySelector('.home-screen__mark'));return [s.backgroundImage,s.backgroundColor,s.boxShadow,!!document.querySelector('.brand-mark')]})()`),['none','rgba(0, 0, 0, 0)','none',true]);
+   if(screen==='editor'){assert.equal(await run(`!!document.querySelector('.spread-thumb__selection') && !!document.querySelector('[data-timeline-frame].is-selected') && getComputedStyle(document.querySelector('.spreads-panel__card.is-selected')).boxShadow.includes('3px')`),true,'Spread and photo selections are visible');}
    if(screen==='editor')assert.equal(await run(`Array.from(document.querySelectorAll('.photo-dock__item.is-used, .photo-dock__item.is-used img')).every(e=>getComputedStyle(e).opacity==='1')`),true,'Used photos stay clear');
    if(metrics.button){const [a,b]=metrics.button.map(lum);assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,`${screen}/${theme} primary contrast ${metrics.button}`)}
    assert.equal(await run(`!!document.querySelector('.app-shell, .home-screen, .modal-card, .context-menu, .menubar__dropdown')`),true,screen+' renders');
