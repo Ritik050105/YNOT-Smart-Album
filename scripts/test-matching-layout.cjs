@@ -125,6 +125,32 @@ app.whenReady().then(async()=>{
     assert.deepEqual(await countLabels(),expected);
     if(method==='setLayerHidden'&&value){assert.ok(await evaluate(`document.querySelector('[aria-label="Template photo counts"]').textContent.includes('1 both locked and hidden')`));await fs.writeFile(path.join(output,'template-photo-counts.png'),(await win.webContents.capturePage()).toPNG());}
   }
+  await evaluate(`store.getState().setLayerLocked('s','image',window.original.spreads[0].placements[0].placeholderId,true);store.getState().setLayerHidden('s','image',window.original.spreads[0].placements[0].placeholderId,true)`);await new Promise(r=>setTimeout(r,100));
+  const historyBeforeDetails=await evaluate('store.getState().history.length');
+  const openDetails=async category=>{await evaluate(`document.querySelector('[data-exclusion="${category}"]').click()`);await new Promise(r=>setTimeout(r,100));};
+  const detailAction=async action=>{await evaluate(`Array.from(document.querySelectorAll('.matching-templates__excluded button')).find(b=>b.textContent===${JSON.stringify(action)}).click()`);await new Promise(r=>setTimeout(r,100));};
+  await openDetails('excluded');
+  assert.equal(await evaluate(`document.querySelectorAll('[data-excluded-layer]').length`),2,'Overlapping foreground exclusions appear once, plus background');
+  assert.equal(await evaluate('store.getState().history.length'),historyBeforeDetails,'Browsing details is read-only');
+  await fs.writeFile(path.join(output,'excluded-photo-details.png'),(await win.webContents.capturePage()).toPNG());
+  await openDetails('locked');await detailAction('Unlock');
+  assert.deepEqual(await countLabels(),labels(2,2,0,1));
+  assert.equal(await evaluate(`document.querySelectorAll('[data-excluded-layer]').length`),0);
+  await openDetails('hidden');await detailAction('Show');
+  assert.deepEqual(await countLabels(),labels(3,1,0,0));
+  assert.equal(await evaluate(`document.querySelector('.matching-template').querySelectorAll('.gallery-cell').length`),3);
+  await openDetails('background');
+  assert.equal(await evaluate(`document.querySelectorAll('[data-excluded-layer="background:background"]').length`),1);
+  await evaluate(`store.getState().setLayerLocked('s','background','background',true);store.getState().setLayerHidden('s','background','background',true)`);await new Promise(r=>setTimeout(r,100));
+  await detailAction('Unlock');await detailAction('Show');
+  assert.deepEqual(await countLabels(),labels(3,1,0,0),'Background remains excluded after show/unlock');
+  await evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))`);await new Promise(r=>setTimeout(r,100));
+  assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true,'Details keyboard actions never apply templates');
+  await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await new Promise(r=>setTimeout(r,100));
+  assert.equal(await evaluate(`!!document.querySelector('.matching-templates__excluded')`),false);
+  assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true,'Escape closes details only');
+  assert.equal(await evaluate(`document.activeElement.dataset.exclusion`),'background','Focus returns to count');
+  console.log('Excluded details passed: categories, unique rows, read-only inspection, Unlock/Show updates, background actions and keyboard isolation');
   console.log('Live photo counts passed: include/exclude, background, locked/hidden overlap, lock/unlock/hide/show without reopening');
   assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'results.json'),JSON.stringify(report,null,2));console.log('Inline matching-browser checks passed: eight viewport/scaling cases, two virtualized rows for multiple images and information-only rearrange row for one image, no dialog, workspace/dock bounds, favorites, scroll, keyboard preview/cancel/apply and one-step history. Evidence:',output);win.destroy();app.quit()
 }).catch(error=>{console.error(error);app.exit(1)})

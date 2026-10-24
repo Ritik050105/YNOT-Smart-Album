@@ -1,3 +1,4 @@
+import ExcludedTemplatePhotos, { ExclusionFilter } from './ExcludedTemplatePhotos'
 import { usePreferences } from '@/state/preferences'
 import { pagePlacements, templatePhotoCounts, TemplateScope } from '@/engine/pageTemplates'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -21,6 +22,10 @@ export default function MatchingTemplatesPanel() {
   const setFilter = useProjectStore(s => s.setTemplateFrameFilter)
   const favorites = useProjectStore(s => s.favoriteTemplateIds)
   const toggleFavorite = useProjectStore(s => s.toggleTemplateFavorite)
+  const [excludedFilter,setExcludedFilter]=useState<ExclusionFilter|null>(null)
+  const excludedTrigger=useRef<HTMLButtonElement|null>(null)
+  const closeExcluded=()=>{setExcludedFilter(null);excludedTrigger.current?.focus()}
+  useEffect(()=>{setExcludedFilter(null)},[spreadId,open])
   const [scope, setScope] = useState<TemplateScope>('spread')
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [active, setActive] = useState<{ row: number; index: number } | null>(null)
@@ -52,7 +57,9 @@ export default function MatchingTemplatesPanel() {
     if (!open) return
     function onKey(event: KeyboardEvent) {
       if (document.querySelector('.modal-backdrop')) return
+      if (event.key === 'Escape' && excludedFilter) {event.preventDefault();event.stopPropagation();closeExcluded();return}
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); return }
+      if (event.target instanceof Element && event.target.closest('.matching-templates__excluded, [data-exclusion]')) return
       if (isEditableTarget(event.target)) return
       if (event.key === 'Enter' && event.target instanceof Element && event.target.closest('.matching-templates button') && !event.target.closest('.matching-template__apply')) return
       if (!['ArrowLeft', 'ArrowRight', 'Enter'].includes(event.key) || event.ctrlKey || event.metaKey || event.altKey) return
@@ -76,7 +83,7 @@ export default function MatchingTemplatesPanel() {
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, rows, active, preview, close, apply, spreadId, tileWidth, count, target, autoRearrange])
+  }, [open, rows, active, preview, close, apply, spreadId, tileWidth, count, target, autoRearrange, excludedFilter])
   useEffect(() => {
     if (open && !spread) close()
     return () => { useProjectStore.getState().previewMatchingTemplate(null) }
@@ -96,11 +103,14 @@ export default function MatchingTemplatesPanel() {
       <button className={`btn btn--tiny ${favoritesOnly ? 'is-active' : ''}`} aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly(!favoritesOnly)}><Icon name="heart" size={12} /> Favorites</button>
       <button className="btn btn--icon btn--tiny" onClick={close} aria-label="Close matching templates" title="Close matching templates (Escape)"><Icon name="x" size={14} /></button>
     </header>
+    <div className="matching-templates__count-wrap">
     <div className="matching-templates__photo-counts" role="status" aria-label="Template photo counts" title="Counts refer to photo placements, not unique source files." aria-live="polite">
-      <strong>Included: {photoCounts.included}</strong><span>Excluded: {photoCounts.excluded}</span>
-      <span>Locked: {photoCounts.locked}</span><span>Hidden: {photoCounts.hidden}</span><span>Background: {photoCounts.background}</span>
+      <strong>Included: {photoCounts.included}</strong>
+      {(['excluded','locked','hidden','background'] as const).map(key=><button type="button" className="matching-templates__count-button" data-exclusion={key} key={key} aria-expanded={excludedFilter===key} onClick={e=>{excludedTrigger.current=e.currentTarget;setExcludedFilter(excludedFilter===key?null:key)}}>{key[0].toUpperCase()+key.slice(1)}: {photoCounts[key]}</button>)}
       {photoCounts.overlap>0&&<small>{photoCounts.overlap} both locked and hidden; counted once in excluded.</small>}
       {target!=='spread'&&<small>Foreground counts cover the selected page only.</small>}
+    </div>
+    {excludedFilter&&<ExcludedTemplatePhotos spread={spread} photos={project.photos} aspect={size.widthIn/size.heightIn} scope={target} filter={excludedFilter} onClose={closeExcluded}/>}
     </div>
     {target !== 'spread' && <div className="matching-templates__info">Changes apply to the {target} page only. Images crossing the center line stay unchanged.</div>}
     {count === 0 && <div className="matching-templates__info">No visible, unlocked photos or frames on this page. Hidden photos, locked photos and background images stay unchanged.</div>}
