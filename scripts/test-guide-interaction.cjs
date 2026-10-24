@@ -204,11 +204,17 @@ app.whenReady().then(async()=>{
   await shortcut(true);await assertRects(beforeLastDrag);
   await shortcut(true);await assertRects(final);
   await shortcut(false);await typeGap('3.1');final=await sharedRects();assert.equal(await evaluate(`document.querySelector('[aria-label="Redo gap change"]').disabled`),true,'New changes disable Redo');await shortcut(true);await assertRects(final);
+  await evaluate(`document.querySelector('[aria-label="Reset gap preview"]').click()`);await wait();await assertRects(originals);
+  assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),true,'Reset leaves editor open');assert.equal(await evaluate(`document.querySelector('[aria-label="Reset gap preview"]').disabled`),true,'Reset disables at the original state');assert.equal(await evaluate(`document.querySelector('.canvas-gap-editor [type="submit"]').disabled`),true,'Reset does not create a no-op Apply');
+  assert.equal(await evaluate('store.getState().history.length'),history);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+  await shortcut(false);await assertRects(final);assert.equal(await evaluate(`document.querySelector('[aria-label="Reset gap preview"]').disabled`),false,'Undo restores pre-reset editing state');
+  await shortcut(true);await assertRects(originals);await shortcut(false);await assertRects(final);
   assert.ok(Math.abs(final[1].x-beforeSwitch[1].x)<.01,'Switched anchor remains fixed across typing and another drag');for(let i=0;i<3;i++){assert.equal(final[i].width,originals[i].width);assert.equal(final[i].height,originals[i].height)}
   assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
   if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.deepEqual(await sharedRects(),originals);assert.equal(await evaluate('store.getState().history.length'),history)}
   else{await applyReleasedGap();assert.equal(await evaluate('store.getState().history.length'),history+1);const saved=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(saved[i].x-final[i].x)<1e-8);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait()}
  }
+ console.log('Reset passed: original spacing after mixed edits, editor stays open, local Undo/Redo, no project mutation, Escape and single Apply/Undo');
  console.log('Local gap history passed: Undo/Redo buttons and disabled states, real Ctrl+Z/Ctrl+Shift+Z, typing/anchor/drag snapshots, exact preview, redo branching, Escape and one project Undo');
  console.log('Persistent gap editor passed: drag/type/switch/drag, full-precision release, fixed anchor, size preservation, whole-session Escape and single Apply/Undo');
  console.log('Switched-anchor dragging passed: preview continuity, fixed anchor, equal gaps, sizes, normal/Shift, Escape, release preview and one Apply/Undo');

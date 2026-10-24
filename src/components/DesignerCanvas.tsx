@@ -265,12 +265,18 @@ export default function DesignerCanvas() {
   type GapEditor = {axis:'x'|'y';keys:string[];x:number;y:number;value:string;dirty?:boolean;previewBase?:Spread;exactGap?:number}
   type GapSnapshot = {editor:GapEditor;anchor:GapAnchor}
   const [gapEditor,renderGapEditor]=useState<GapEditor|null>(null)
-  const gapHistory=useRef<{current:GapSnapshot|null;past:GapSnapshot[];future:GapSnapshot[]}>({current:null,past:[],future:[]})
+  const gapHistory=useRef<{current:GapSnapshot|null;initial:GapSnapshot|null;past:GapSnapshot[];future:GapSnapshot[]}>({current:null,initial:null,past:[],future:[]})
   function setGapEditor(editor:GapEditor|null,anchor:GapAnchor=useProjectStore.getState().gapAnchor){
     const history=gapHistory.current
-    if(!editor){history.current=null;history.past=[];history.future=[]}
-    else {if(history.current)history.past.push(history.current);history.current={editor,anchor};history.future=[]}
+    if(!editor){history.current=null;history.initial=null;history.past=[];history.future=[]}
+    else {if(history.current)history.past.push(history.current);history.current={editor,anchor};history.initial??=history.current;history.future=[]}
     renderGapEditor(editor)
+  }
+  function resetGapPreview(){
+    const initial=gapHistory.current.initial
+    if(!initial)return
+    setGapEditor({...initial.editor},initial.anchor)
+    useProjectStore.getState().setGapAnchor(initial.anchor)
   }
   function stepGapHistory(redo:boolean){
     const history=gapHistory.current,from=redo?history.future:history.past,to=redo?history.past:history.future,next=from.pop()
@@ -1249,7 +1255,7 @@ export default function DesignerCanvas() {
         </div>
         <p>Click a selected element to switch anchors. Apply saves; Escape cancels all.</p>
         {gapEditor.dirty&&!gapCanApply&&<p role="status">Enter a gap that fits; the affected elements must be unlocked.</p>}
-        <div><button className="btn btn--tiny" type="button" onClick={()=>setGapEditor(null)}>Cancel</button><button className="btn btn--tiny" type="submit" disabled={!gapCanApply}>Apply</button></div>
+        <div><button className="btn btn--tiny" type="button" aria-label="Reset gap preview" title="Restore the spacing from when this editor opened" disabled={!gapEditor.dirty&&gapAnchor===gapHistory.current.initial?.anchor} onClick={resetGapPreview}>Reset</button><button className="btn btn--tiny" type="button" onClick={()=>setGapEditor(null)}>Cancel</button><button className="btn btn--tiny" type="submit" disabled={!gapCanApply}>Apply</button></div>
       </form>}
       {editingTextId &&
         (() => {
