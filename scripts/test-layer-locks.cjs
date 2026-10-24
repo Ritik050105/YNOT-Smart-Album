@@ -175,6 +175,13 @@ app.whenReady().then(async()=>{
   for(let i=0;i<before.members.length;i++){assert.equal(after.members[i].rect.width,before.members[i].rect.width);assert.equal(after.members[i].rect.height,before.members[i].rect.height)}
   const rects=after.members.map(m=>m.rect).sort((a,b)=>a[axis]-b[axis]);assert.ok(rects.slice(1).every((r,i)=>Math.abs(r[axis]-rects[i][axis]-rects[i][dimension]-.025)<1e-10));await evaluate('store.getState().undo()');assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),projectBefore);
  }
+ for(const anchor of await evaluate('distKeys'))for(const mode of ['horizontal','vertical']){
+  const before=await evaluate('geometry(distKeys)'),axis=mode==='horizontal'?'x':'y';
+  const projectBefore=await evaluate('JSON.stringify(store.getState().project.spreads[0])');await evaluate(`store.getState().arrangeSelection(sid,distKeys,${JSON.stringify(mode)},'selection',.025,${JSON.stringify(anchor)})`);const after=await evaluate('geometry(distKeys)');
+  const selected=before.members.findIndex(l=>l.kind+':'+l.id===anchor);assert.ok(Math.abs(before.members[selected].rect[axis]-after.members[selected].rect[axis])<1e-10,'Clicked element stays fixed');
+  for(let i=0;i<before.members.length;i++){assert.equal(after.members[i].rect.width,before.members[i].rect.width);assert.equal(after.members[i].rect.height,before.members[i].rect.height)}
+  await evaluate('store.getState().undo()');assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),projectBefore);
+ }
  console.log('Gap anchors passed: first/center/last, both axes, preserved sizes, exact gaps and Undo');
  // Fill the photo dock and verify wrapping, vertical overflow and row navigation.
  await evaluate(`const p=store.getState().project;store.setState({bottomPanelOpen:true,project:{...p,photos:[...p.photos,...Array.from({length:36},(_,i)=>({...p.photos[0],id:'dock'+i,fileName:'Photo '+(i+1)}))]}})`);await wait();

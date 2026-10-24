@@ -145,6 +145,8 @@ interface ProjectState {
   selectedTextBoxId: string | null
   /** Canvas multi-select (shift/ctrl+click on placed photos within the current spread), for
    *  batch tone/border editing — see updateMultiplePlacements. */
+  pickingGapAnchor: boolean
+  setPickingGapAnchor: (picking: boolean) => void
   gapAnchor: GapAnchor
   setGapAnchor: (anchor: GapAnchor) => void
   selectedLayerKeys: string[]
@@ -379,8 +381,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectedSpreadId: null,
   selectedPlaceholderId: null,
   selectedTextBoxId: null,
+  pickingGapAnchor: false,
+  setPickingGapAnchor: (pickingGapAnchor) => set({pickingGapAnchor}),
   gapAnchor: 'first',
-  setGapAnchor: (gapAnchor) => set({gapAnchor}),
+  setGapAnchor: (gapAnchor) => set({gapAnchor,pickingGapAnchor:false}),
   selectedLayerKeys: [], multiSelectedPlaceholderIds: [],
   selectedPhotoIds: [],
   lastClickedPhotoId: null,

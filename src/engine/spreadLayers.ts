@@ -39,7 +39,7 @@ export function selectionGeometry(spread: Spread, keys: string[], albumSize: Alb
 }
 
 type LayerRect = {x:number;y:number;width:number;height:number}
-export type GapAnchor = 'first'|'center'|'last'
+export type GapAnchor = 'first'|'center'|'last'|`image:${string}`|`text:${string}`
 export type LayerAlignmentTarget = 'selection'|'left-page'|'right-page'|'spread'
 export type LayerAlignment = 'left'|'center'|'right'|'top'|'middle'|'bottom'|'horizontal'|'vertical'
 
@@ -79,6 +79,11 @@ export function arrangeLayerSelection(spread:Spread,size:AlbumSize,keys:string[]
   if(distribute&&target!=='selection'&&gap<0)return spread
   const packed=units.reduce((n,u)=>n+u[dimension],0)+gap*(units.length-1)
   let cursor=exactGap!==undefined?(target==='selection'?(anchor==='first'?start:anchor==='last'?end-packed:(start+end-packed)/2):start+(end-start-packed)/2):start+(distribute&&target!=='selection'?gap:0)
+  if(exactGap!==undefined&&target==='selection'&&anchor.includes(':')){
+    const index=units.findIndex(u=>u.members.some(l=>l.kind+':'+l.id===anchor))
+    if(index<0)return spread
+    cursor=units[index][axis]-units.slice(0,index).reduce((sum,u)=>sum+u[dimension],0)-gap*index
+  }
   if(exactGap!==undefined&&(cursor<(target==='selection'?0:start)-1e-10||cursor+packed>(target==='selection'?1:end)+1e-10))return spread
   const rects=new Map<string,LayerRect>()
   for(const unit of units){

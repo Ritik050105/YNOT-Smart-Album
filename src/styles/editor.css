@@ -447,3 +447,5 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 
 .canvas-gap-editor select { min-width:0; max-width:135px; padding:6px; }
 .canvas-gap-editor label + label { margin-top:8px; }
+
+.canvas-anchor-hint { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); padding:10px 16px; border-radius:10px; background:#fffaf4; color:#4b3527; box-shadow:0 3px 14px #0002; pointer-events:none; z-index:31; }

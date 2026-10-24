@@ -78,7 +78,7 @@ app.whenReady().then(async()=>{
  await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2');input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait();
  for(const cancel of ['Escape','Cancel']){
   if(cancel==='Escape')await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
-  else await evaluate(`document.querySelector('.canvas-gap-editor [type="button"]').click()`);
+  else await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Cancel').click()`);
   await wait();assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].x()-320)<.01`),cancel+' restores original canvas geometry');assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),beforeInline);
   await clickLabel();await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2');input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait();
  }
@@ -126,6 +126,24 @@ app.whenReady().then(async()=>{
   preview=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(preview[i].x-(originals[i].x+(i-2*factor)*30/sharedPoint.scale))<.01,anchor+' drag preview');
   const history=await evaluate('store.getState().history.length');win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:sharedPoint.x+30,y:sharedPoint.y});await wait();assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
  }
+ await openShared();await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Pick anchor on canvas').click()`);await wait();
+ win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.equal(await evaluate('store.getState().pickingGapAnchor'),false);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+ await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Cancel').click()`);await wait();
+ for(const picked of [0,1,2]){
+  await openShared();await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Pick anchor on canvas').click()`);await wait();
+  const point=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.findOne('.gap-anchor-candidate-'+spacingIds[${picked}]),p=n.getAbsoluteTransform().point({x:n.width()/2,y:n.height()/2}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y)}})()`);
+  win.webContents.sendInputEvent({type:'mouseMove',...point});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});await wait();
+  assert.equal(await evaluate('store.getState().gapAnchor'),await evaluate(`'image:'+spacingIds[${picked}]`));assert.equal(await evaluate('store.getState().selectedLayerKeys.length'),3);
+  await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2');input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait();const preview=await sharedRects();
+  for(let i=0;i<3;i++){assert.ok(Math.abs(preview[i].x-([100,230,380][i]-30*picked))<.01,'Picked anchor numeric preview');assert.equal(preview[i].width,originals[i].width);assert.equal(preview[i].height,originals[i].height)}
+  assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+  await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await wait();assert.deepEqual(await sharedRects(),originals);
+  win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x,y:sharedPoint.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:sharedPoint.x,y:sharedPoint.y});await wait();
+  for(let i=1;i<=5;i++){win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x+i*6,y:sharedPoint.y});await wait()}
+  const dragged=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(dragged[i].x-(originals[i].x+(i-picked)*30/sharedPoint.scale))<.01,'Picked anchor drag preview');
+  const history=await evaluate('store.getState().history.length');win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:sharedPoint.x+30,y:sharedPoint.y});await wait();assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
+ }
+ console.log('Picked anchors passed: actual canvas clicks, first/interior/last, typed and dragged preview, preserved sizes, Escape and Undo');
  await evaluate(`store.getState().setGapAnchor('first')`);await wait();
  console.log('Anchor UI passed: center/last inline choice, numeric/drag preview, unchanged sizes, Escape and single Undo');
  await evaluate(`store.getState().selectPlaceholder(spacingIds[2])`);await wait();
