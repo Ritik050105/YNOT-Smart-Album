@@ -328,3 +328,8 @@
 .cover-guide-options summary { cursor:pointer; font-weight:600; padding:8px 0; }
 .cover-specifications__error { border-left:3px solid #d97745; padding:10px 14px; background:rgba(217,119,69,.12); margin:0; }
 @media(max-width:560px) { .cover-specifications .auto-build-range { flex-wrap:wrap; } .cover-choice__body { padding:0 12px 12px; } }
+
+/* Full-height separators keep cover and timeline groups visually distinct. */
+.album-editor .spreads-panel__cover-divider { flex:0 0 2px; align-self:stretch; background:#858585; margin:-18px -22px -14px; pointer-events:none; }
+.album-editor .timeline-boundary { align-self:stretch; min-width:9px; width:9px; border-radius:0; margin:0; box-shadow:none; }
+.album-editor .timeline-boundary:hover, .album-editor .timeline-boundary:focus-visible { background:var(--accent); }

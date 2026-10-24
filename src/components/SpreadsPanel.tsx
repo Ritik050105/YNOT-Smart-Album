@@ -232,6 +232,7 @@ export default function SpreadsPanel() {
           </div>
         ) : null}
 
+        {(cover || spreads.length > 0) && <div className="spreads-panel__cover-divider" role="separator" aria-orientation="vertical" aria-label="Cover and album spreads" />}
         {spreads.map((spread, index) => (
           <div
             key={spread.id}
@@ -359,7 +360,7 @@ export default function SpreadsPanel() {
               </Fragment> : null
             })}
           </div>
-          {index < spreads.length - 1 && <button className="timeline-boundary" title={`Remove cut after spread ${index + 1} (merge with next)`} onClick={() => mergeWithNext(spread.id)} />}
+          {index < spreads.length - 1 && <button className="timeline-boundary" aria-label={`Merge spread ${index + 1} with next spread`} title={`Remove cut after spread ${index + 1} (merge with next)`} onClick={() => mergeWithNext(spread.id)} />}
         </Fragment>)}
         <div className="timeline-new-spread" data-new-spread onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const ids = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id)); if (ids.length) insertTimelinePhotos(ids, null); else void handleNewSpreadDrop(e.dataTransfer.files) }}>Drop images to add a spread</div>
       </div>}
