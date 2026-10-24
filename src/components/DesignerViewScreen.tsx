@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { STAGE_WIDTH } from './DesignerCanvas'
 import { inToDisplay } from '@/engine/units'
@@ -19,49 +19,31 @@ import TopBar from './TopBar'
 import MatchingTemplatesPanel from './MatchingTemplatesPanel'
 
 const RULER_THICKNESS = 20
-/** How far past the spread's own edges the ruler draws ticks, in inches — covers typical panning
- *  without having to recompute the tick range on every pan/zoom change. */
-const RULER_OVERDRAW_IN = 30
-
-function Ruler({
-  orientation,
-  sizeIn,
-  pxPerIn,
-  zoom,
-  panPx,
-  unit,
-  dpi,
-}: {
-  orientation: 'horizontal' | 'vertical'
-  sizeIn: number
-  pxPerIn: number
-  zoom: number
-  panPx: number
-  unit: 'in' | 'cm' | 'px'
-  dpi: number
+function Ruler({orientation,pxPerIn,zoom,panPx,unit,dpi,pointer}: {
+  orientation:'horizontal'|'vertical';sizeIn:number;pxPerIn:number;zoom:number;panPx:number;unit:'in'|'cm'|'px';dpi:number;pointer:{x:number;y:number}|null
 }) {
-  // One tick per whole display-unit (1in / 1cm / 100px) — the ruler's own "grid", independent of
-  // the project's internal inch storage.
-  const stepIn = unit === 'cm' ? 1 / 2.54 : unit === 'px' ? 100 / dpi : 1
-  const ticks: { pos: number; label: string }[] = []
-  for (let v = -RULER_OVERDRAW_IN; v <= sizeIn + RULER_OVERDRAW_IN; v += stepIn) {
-    const pos = panPx + v * pxPerIn * zoom
-    ticks.push({ pos, label: String(Math.round(inToDisplay(v, unit, dpi))) })
+  const ref=useRef<HTMLDivElement>(null)
+  const [geometry,setGeometry]=useState({length:0,offset:0,start:0})
+  useLayoutEffect(()=>{
+    const ruler=ref.current,viewport=ruler?.parentElement?.querySelector('.designer-canvas-viewport')
+    if(!ruler||!viewport)return
+    const measure=()=>{const r=ruler.getBoundingClientRect(),v=viewport.getBoundingClientRect();setGeometry(orientation==='horizontal'?{length:r.width,offset:v.left-r.left,start:r.left}:{length:r.height,offset:v.top-r.top,start:r.top})}
+    measure();const observer=new ResizeObserver(measure);observer.observe(ruler);observer.observe(viewport)
+    return()=>observer.disconnect()
+  },[orientation,zoom,panPx])
+  const pixelsPerUnit=pxPerIn*zoom / inToDisplay(1,unit,dpi)
+  const raw=60/pixelsPerUnit,power=10**Math.floor(Math.log10(raw))
+  const major=[1,2,5,10].find(v=>v*power>=raw)!*power,minor=major/5
+  const origin=panPx+geometry.offset
+  const ticks=[]
+  for(let i=Math.floor(-origin/pixelsPerUnit/minor);i<=Math.ceil((geometry.length-origin)/pixelsPerUnit/minor);i++){
+    ticks.push({pos:origin+i*minor*pixelsPerUnit,major:i%5===0,label:Number((i*minor).toFixed(4))})
   }
-
-  return (
-    <div className={`designer-ruler designer-ruler--${orientation}`}>
-      {ticks.map((t, i) => (
-        <span
-          key={i}
-          className="designer-ruler__tick"
-          style={orientation === 'horizontal' ? { left: t.pos } : { top: t.pos }}
-        >
-          {t.label}
-        </span>
-      ))}
-    </div>
-  )
+  const cursor=pointer?(orientation==='horizontal'?pointer.x:pointer.y)-geometry.start:null
+  return <div ref={ref} className={`designer-ruler designer-ruler--${orientation}`} data-origin={origin}>
+    {ticks.map((t,i)=><span key={i} className={`designer-ruler__tick ${t.major?'':'designer-ruler__tick--minor'}`} style={orientation==='horizontal'?{left:t.pos}:{top:t.pos}}>{t.major?t.label:''}</span>)}
+    {cursor!==null&&cursor>=0&&cursor<=geometry.length&&<span className="designer-ruler__cursor" style={orientation==='horizontal'?{left:cursor}:{top:cursor}} />}
+  </div>
 }
 
 /** The focused single-spread editor — the only place actual spread editing happens; the main
@@ -88,6 +70,7 @@ export default function DesignerViewScreen() {
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
 
+  const [rulerPointer,setRulerPointer]=useState<{x:number;y:number}|null>(null)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -183,9 +166,9 @@ export default function DesignerViewScreen() {
           ))}
         </div>
 
-        <div className="designer-view__canvas-area">
+        <div className="designer-view__canvas-area" onPointerMove={e=>setRulerPointer({x:e.clientX,y:e.clientY})} onPointerLeave={()=>setRulerPointer(null)}>
           <div className="designer-view__corner" />
-          <Ruler
+          <Ruler pointer={rulerPointer}
             orientation="horizontal"
             sizeIn={size.widthIn}
             pxPerIn={pxPerInWidth}
@@ -194,7 +177,7 @@ export default function DesignerViewScreen() {
             unit={project.units}
             dpi={size.dpi}
           />
-          <Ruler
+          <Ruler pointer={rulerPointer}
             orientation="vertical"
             sizeIn={size.heightIn}
             pxPerIn={pxPerInHeight}

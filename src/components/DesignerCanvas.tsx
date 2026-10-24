@@ -1,3 +1,4 @@
+import { snapRect, GuideRect } from '@/engine/smartGuides'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
@@ -254,6 +255,9 @@ export default function DesignerCanvas() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const stageHeight = STAGE_WIDTH / (size.widthIn / size.heightIn)
+  const [smartGuides, setSmartGuides] = useState<{axis:'x'|'y';position:number}[]>([])
+  const [liveFrame, setLiveFrame] = useState<(GuideRect & {id:string}) | null>(null)
+  useEffect(()=>{setSmartGuides([]);setLiveFrame(null)},[selectedPlaceholderId,selectedTextBoxId,spread?.id,canvasTool])
   const boxes = spread ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight) : []
   const addImageFrame = useProjectStore((s) => s.addImageFrame)
   const updateImageFrame = useProjectStore((s) => s.updateImageFrame)
@@ -270,6 +274,9 @@ export default function DesignerCanvas() {
     return () => window.removeEventListener('keydown', cancel)
   }, [canvasTool, setCanvasTool])
   const frameNodeRef = useRef<Konva.Rect>(null)
+  const textNodeRef = useRef<Konva.Text>(null)
+  const textTransformerRef = useRef<Konva.Transformer>(null)
+  useEffect(()=>{if(textNodeRef.current&&textTransformerRef.current){textTransformerRef.current.nodes([textNodeRef.current]);textTransformerRef.current.getLayer()?.batchDraw()}},[selectedTextBoxId,spread?.textBoxes])
   const transformerRef = useRef<Konva.Transformer>(null)
   const selectedBox = boxes.find((box) => box.placeholderId === selectedPlaceholderId)
   useEffect(() => {
@@ -439,6 +446,18 @@ export default function DesignerCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewportSize.width, viewportSize.height, stageHeight])
 
+  function alignRect(rect:GuideRect, id?:string, anchor?:string) {
+    const targets=[...boxes.filter(b=>b.placeholderId!==id),...(spread?.textBoxes??[]).filter(t=>t.id!==id).map(t=>({x:t.x*STAGE_WIDTH,y:t.y*stageHeight,width:t.width*STAGE_WIDTH,height:t.height*stageHeight}))]
+    const result=snapRect(rect,targets,STAGE_WIDTH,stageHeight,6/stageScale,anchor,spread?.guides.vertical.map(v=>v*STAGE_WIDTH),spread?.guides.horizontal.map(v=>v*stageHeight))
+    setSmartGuides(result.guides)
+    return result.rect
+  }
+  function alignTransform(old: {x:number;y:number;width:number;height:number;rotation:number}, next: typeof old) {
+    if(next.width<4||next.height<4)return old
+    const rect=alignRect({x:(next.x-stagePos.x)/stageScale,y:(next.y-stagePos.y)/stageScale,width:next.width/stageScale,height:next.height/stageScale},selectedPlaceholderId??selectedTextBoxId??undefined,(selectedPlaceholderId ? transformerRef.current : textTransformerRef.current)?.getActiveAnchor()??undefined)
+    return {...next,x:rect.x*stageScale+stagePos.x,y:rect.y*stageScale+stagePos.y,width:rect.width*stageScale,height:rect.height*stageScale}
+  }
+
   function handleWheel(e: Konva.KonvaEventObject<WheelEvent>) {
     e.evt.preventDefault()
     const stage = e.target.getStage()
@@ -502,7 +521,7 @@ export default function DesignerCanvas() {
       const x = Math.max(0, Math.min(STAGE_WIDTH, point.x))
       const y = Math.max(0, Math.min(stageHeight, point.y))
       const start = drawStartRef.current
-      setDraftFrame({ x: Math.min(x, start.x), y: Math.min(y, start.y), width: Math.abs(x - start.x), height: Math.abs(y - start.y) })
+      setDraftFrame(alignRect({ x: Math.min(x, start.x), y: Math.min(y, start.y), width: Math.abs(x - start.x), height: Math.abs(y - start.y) },undefined,`${y < start.y ? 'top' : 'bottom'}-${x < start.x ? 'left' : 'right'}`))
       return
     }
     if (!isPanningRef.current || !panStartRef.current) return
@@ -526,6 +545,7 @@ export default function DesignerCanvas() {
     }
     drawStartRef.current = null
     setDraftFrame(null)
+    setSmartGuides([])
     isPanningRef.current = false
     panStartRef.current = null
   }
@@ -803,7 +823,7 @@ export default function DesignerCanvas() {
               <PlaceholderImage
                 key={box.placeholderId}
                 src={photo.src}
-                box={box}
+                box={liveFrame?.id === box.placeholderId ? {...box,...liveFrame} : box}
                 allBoxes={boxes}
                 focalX={placement.focalX}
                 focalY={placement.focalY}
@@ -832,17 +852,20 @@ export default function DesignerCanvas() {
           {selectedBox && canvasTool === 'select' && <>
             <Rect ref={frameNodeRef} x={selectedBox.x} y={selectedBox.y} width={selectedBox.width} height={selectedBox.height}
               fill="rgba(0,0,0,0)" draggable
-              onDragEnd={(e) => updateImageFrame(spread.id, selectedBox.placeholderId, { x: e.target.x() / STAGE_WIDTH, y: e.target.y() / stageHeight, width: selectedBox.width / STAGE_WIDTH, height: selectedBox.height / stageHeight })}
+              onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:selectedBox.width,height:selectedBox.height},selectedBox.placeholderId);e.target.position(rect);setLiveFrame({...rect,id:selectedBox.placeholderId})}}
+              onTransform={()=>{const node=frameNodeRef.current;if(node)setLiveFrame({id:selectedBox.placeholderId,x:node.x(),y:node.y(),width:node.width()*node.scaleX(),height:node.height()*node.scaleY()})}}
+              onDragEnd={(e) => {updateImageFrame(spread.id, selectedBox.placeholderId, { x: e.target.x() / STAGE_WIDTH, y: e.target.y() / stageHeight, width: selectedBox.width / STAGE_WIDTH, height: selectedBox.height / stageHeight });setSmartGuides([]);setLiveFrame(null)}}
               onTransformEnd={() => {
                 const node = frameNodeRef.current
                 if (!node) return
                 const rect = { x: node.x() / STAGE_WIDTH, y: node.y() / stageHeight, width: node.width() * node.scaleX() / STAGE_WIDTH, height: node.height() * node.scaleY() / stageHeight }
                 node.scale({ x: 1, y: 1 })
                 updateImageFrame(spread.id, selectedBox.placeholderId, rect)
+                setSmartGuides([]);setLiveFrame(null)
               }}
               onDblClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}
               onContextMenu={(e) => handlePlaceholderContextMenu(selectedBox.placeholderId, e.evt)} />
-            <Transformer ref={transformerRef} borderStroke="#9c6b49" anchorStroke="#9c6b49" rotateEnabled={false} flipEnabled={false} boundBoxFunc={(old, next) => next.width < 4 || next.height < 4 ? old : next} />
+            <Transformer ref={transformerRef} borderStroke="#9c6b49" anchorStroke="#9c6b49" rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} />
           </>}
           {draftFrame && <Rect {...draftFrame} stroke="#9c6b49" strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />}
 
@@ -943,9 +966,11 @@ export default function DesignerCanvas() {
             return (
               <KonvaText
                 key={box.id}
+                ref={selectedTextBoxId===box.id?textNodeRef:undefined}
                 x={x}
                 y={y}
                 width={box.width * STAGE_WIDTH}
+                height={box.height * stageHeight}
                 text={box.text}
                 fontFamily={fontPreview?.textBoxId === box.id ? fontPreview.family : box.fontFamily}
                 fontSize={box.fontSize}
@@ -956,7 +981,11 @@ export default function DesignerCanvas() {
                 onClick={() => selectTextBox(box.id)}
                 onTap={() => selectTextBox(box.id)}
                 onDblClick={() => setEditingTextId(box.id)}
+                onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:e.target.width(),height:e.target.height()},box.id);e.target.position(rect)}}
+                onTransform={e=>{const node=e.target;node.width(Math.max(4,node.width()*node.scaleX()));node.height(Math.max(4,node.height()*node.scaleY()));node.scale({x:1,y:1})}}
+                onTransformEnd={e=>{const node=e.target;updateTextBox(spread.id,box.id,{x:node.x()/STAGE_WIDTH,y:node.y()/stageHeight,width:node.width()/STAGE_WIDTH,height:node.height()/stageHeight});setSmartGuides([])}}
                 onDragEnd={(e) => {
+                  setSmartGuides([])
                   updateTextBox(spread.id, box.id, {
                     x: e.target.x() / STAGE_WIDTH,
                     y: e.target.y() / stageHeight,
@@ -967,6 +996,7 @@ export default function DesignerCanvas() {
               />
             )
           })}
+          {selectedTextBoxId && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#9c6b49" anchorStroke="#9c6b49" />}
         </Layer>
         {showGrid && <Layer listening={false} name="rule-of-thirds-grid">
           {[1 / 3, 2 / 3].flatMap(f => [
@@ -977,6 +1007,9 @@ export default function DesignerCanvas() {
             <Line points={points} stroke="#ffffff" strokeWidth={1} strokeScaleEnabled={false} />
           </Group>)}
         </Layer>}
+        <Layer listening={false} name="smart-guides">
+          {smartGuides.map(g=><Line key={g.axis} points={g.axis==='x'?[g.position,0,g.position,stageHeight]:[0,g.position,STAGE_WIDTH,g.position]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false} />)}
+        </Layer>
       </Stage>
 
       {editingTextId &&

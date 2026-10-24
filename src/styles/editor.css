@@ -304,3 +304,9 @@
   .album-editor .spread-card-controls > span { grid-column: 3; grid-row: 1; }
   .album-editor .spread-card-controls__templates { grid-column: 1 / -1; grid-row: 2; }
 }
+
+.designer-ruler__cursor { position: absolute; pointer-events: none; background: #ffe735; z-index: 2; }
+.designer-ruler--horizontal .designer-ruler__cursor { width: 1px; top: 0; bottom: 0; }
+.designer-ruler--vertical .designer-ruler__cursor { height: 1px; left: 0; right: 0; }
+.designer-ruler--horizontal .designer-ruler__tick--minor { height: 5px; top: auto; bottom: 0; }
+.designer-ruler--vertical .designer-ruler__tick--minor { width: 5px; left: auto; right: 0; }
