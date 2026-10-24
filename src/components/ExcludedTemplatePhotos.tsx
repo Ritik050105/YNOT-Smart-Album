@@ -6,6 +6,7 @@ import { useProjectStore } from '@/state/projectStore'
 export type ExclusionFilter='excluded'|'locked'|'hidden'|'background'
 export default function ExcludedTemplatePhotos({spread,photos,aspect,scope,filter,onClose}:{spread:Spread;photos:PhotoAsset[];aspect:number;scope:TemplateScope;filter:ExclusionFilter;onClose:()=>void}){
   const closeButton=useRef<HTMLButtonElement>(null)
+  const clearFlags=useProjectStore(s=>s.clearLayerFlags)
   const lock=useProjectStore(s=>s.setLayerLocked),hide=useProjectStore(s=>s.setLayerHidden)
   const rows=pagePlacements(spread,aspect,scope,true).filter(p=>p.photoId&&(filter==='excluded'?(p.locked||p.hidden):filter==='locked'?p.locked:filter==='hidden'?p.hidden:false)).map(p=>{
     const photo=photos.find(photo=>photo.id===p.photoId)
@@ -15,6 +16,11 @@ export default function ExcludedTemplatePhotos({spread,photos,aspect,scope,filte
   if(bg?.mode==='cover'&&(filter==='excluded'||filter==='background'))rows.push({id:'background',kind:'background',name:bg.name||'Background photo',src:bg.src,locked:spread.backgroundLocked,hidden:spread.backgroundHidden})
   return <section className="matching-templates__excluded" aria-label="Excluded photo details">
     <header><strong>{filter==='excluded'?'All excluded photos':filter==='background'?'Background photos':filter==='locked'?'Locked photos':'Hidden photos'} ({rows.length})</strong><button type="button" className="btn btn--tiny" ref={closeButton} autoFocus onClick={onClose}>Close</button></header>
+    <div className="matching-templates__excluded-actions" aria-label="Bulk photo actions">
+      <button type="button" className="btn btn--tiny" disabled={!rows.some(row=>row.locked)} onClick={()=>{clearFlags(spread.id,rows.filter(row=>row.locked),'locked');closeButton.current?.focus()}}>Unlock All</button>
+      <button type="button" className="btn btn--tiny" disabled={!rows.some(row=>row.hidden)} onClick={()=>{clearFlags(spread.id,rows.filter(row=>row.hidden),'hidden');closeButton.current?.focus()}}>Show All</button>
+    </div>
+    <small>Applies to this list and grouped layers. Backgrounds stay excluded. Each action can be undone.</small>
     <div className="matching-templates__excluded-list">
       {!rows.length&&<p role="status">No photos in this category.</p>}
       {rows.map(row=><article key={row.kind+row.id} data-excluded-layer={row.kind+':'+row.id}>

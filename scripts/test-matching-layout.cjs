@@ -150,6 +150,37 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate(`!!document.querySelector('.matching-templates__excluded')`),false);
   assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true,'Escape closes details only');
   assert.equal(await evaluate(`document.activeElement.dataset.exclusion`),'background','Focus returns to count');
+  await evaluate(`store.setState(s=>({project:{...s.project,spreads:s.project.spreads.map(sp=>({...sp,placements:sp.placements.map(p=>({...p,locked:true,hidden:true})),backgroundLocked:true,backgroundHidden:true}))},history:[],future:[]}));window.beforeBulk=JSON.stringify(store.getState().project.spreads[0])`);await new Promise(r=>setTimeout(r,100));
+  await openDetails('excluded');
+  await fs.writeFile(path.join(output,'excluded-bulk-actions.png'),(await win.webContents.capturePage()).toPNG());
+  await detailAction('Unlock All');
+  assert.equal(await evaluate('store.getState().history.length'),1,'Unlock All is one history entry');
+  assert.deepEqual(await countLabels(),labels(0,4,0,3));
+  assert.equal(await evaluate(`Array.from(document.querySelectorAll('.matching-templates__excluded button')).find(b=>b.textContent==='Unlock All').disabled`),true);
+  const afterUnlock=await evaluate('JSON.stringify(store.getState().project.spreads[0])');
+  await detailAction('Show All');
+  assert.equal(await evaluate('store.getState().history.length'),2,'Show All is one history entry');
+  assert.deepEqual(await countLabels(),labels(3,1,0,0));
+  assert.equal(await evaluate(`document.querySelector('.matching-template').querySelectorAll('.gallery-cell').length`),3);
+  assert.ok(await evaluate(`Array.from(document.querySelectorAll('[aria-label="Bulk photo actions"] button')).every(b=>b.disabled)`));
+  const afterShow=await evaluate('JSON.stringify(store.getState().project.spreads[0])');
+  await evaluate(`store.getState().clearLayerFlags('s',store.getState().project.spreads[0].placements.map(p=>({kind:'image',id:p.placeholderId})),'hidden')`);
+  assert.equal(await evaluate('store.getState().history.length'),2,'No-op bulk actions add no history');
+  await evaluate(`store.getState().undo()`);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),afterUnlock);
+  await evaluate(`store.getState().redo()`);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),afterShow);
+  await evaluate(`store.getState().undo();store.getState().undo()`);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),await evaluate('window.beforeBulk'));
+  // Hidden category excludes locked-only foreground and background layers from its bulk action.
+  await evaluate(`store.setState(s=>({project:{...s.project,spreads:s.project.spreads.map(sp=>({...sp,placements:sp.placements.map((p,i)=>({...p,locked:i<2,hidden:i>0}))}))}}));store.getState().openMatchingTemplates('s')`);await new Promise(r=>setTimeout(r,100));
+  await openDetails('hidden');await detailAction('Unlock All');
+  assert.deepEqual(await countLabels(),labels(0,4,1,2));
+  assert.equal(await evaluate('store.getState().project.spreads[0].backgroundLocked'),true);
+  await detailAction('Show All');assert.deepEqual(await countLabels(),labels(2,2,1,0));
+  assert.equal(await evaluate('store.getState().project.spreads[0].backgroundHidden'),true);
+  await evaluate(`store.setState(s=>({project:{...s.project,spreads:s.project.spreads.map(sp=>({...sp,placements:sp.placements.map((p,i)=>({...p,locked:true,groupId:i<2?'bulk-group':undefined}))}))}}));window.beforeGroupBulk=JSON.stringify(store.getState().project.spreads[0]);window.groupBulkHistory=store.getState().history.length;store.getState().clearLayerFlags('s',[{kind:'image',id:store.getState().project.spreads[0].placements[0].placeholderId}],'locked')`);
+  assert.deepEqual(await evaluate('store.getState().project.spreads[0].placements.map(p=>p.locked)'),[false,false,true],'Grouped layers clear together; unrelated layers stay locked');
+  assert.equal(await evaluate('store.getState().history.length'),await evaluate('window.groupBulkHistory+1'));
+  await evaluate(`store.getState().undo()`);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),await evaluate('window.beforeGroupBulk'));
+  console.log('Bulk exclusions passed: one-step Undo/Redo, no-op suppression, disabled buttons, current-category scope, background exclusion and immediate suggestions');
   console.log('Excluded details passed: categories, unique rows, read-only inspection, Unlock/Show updates, background actions and keyboard isolation');
   console.log('Live photo counts passed: include/exclude, background, locked/hidden overlap, lock/unlock/hide/show without reopening');
   assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'results.json'),JSON.stringify(report,null,2));console.log('Inline matching-browser checks passed: eight viewport/scaling cases, two virtualized rows for multiple images and information-only rearrange row for one image, no dialog, workspace/dock bounds, favorites, scroll, keyboard preview/cancel/apply and one-step history. Evidence:',output);win.destroy();app.quit()

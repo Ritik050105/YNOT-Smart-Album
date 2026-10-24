@@ -300,6 +300,7 @@ interface ProjectState {
   transformSelection: (spreadId: string, keys: string[], rect: {x:number;y:number;width:number;height:number}) => void
   arrangeSelection: (spreadId: string, keys: string[], mode: LayerAlignment, target?: LayerAlignmentTarget, exactGap?: number, anchor?: GapAnchor) => void
   transformGroup: (spreadId: string, groupId: string, rect: {x:number;y:number;width:number;height:number}) => void
+  clearLayerFlags: (spreadId: string, layers: {kind:'image'|'text'|'background';id:string}[], flag:'locked'|'hidden') => void
   setLayerHidden: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, hidden: boolean) => void
   moveLayer: (spreadId: string, kind: 'image' | 'text', id: string, targetKind: 'image' | 'text', targetId: string) => void
   setLayerLocked: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, locked: boolean) => void
@@ -1040,6 +1041,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const updated=arrangeLayerSelection(spread,p.size,keys,mode,target,exactGap,anchor)
     return updated===spread?p:{...p,spreads:p.spreads.map(s=>s.id===spreadId?updated:s)}
   }),
+  clearLayerFlags: (spreadId, layers, flag) => withHistory(set,p=>{
+    const spread=p.spreads.find(s=>s.id===spreadId)
+    if(!spread||!layers.length)return p
+    const members=layers.flatMap(l=>layerMembers(spread,l.kind,l.id))
+    const background=layers.some(l=>l.kind==='background')
+    const backgroundFlag=flag==='locked'?'backgroundLocked':'backgroundHidden'
+    if(!members.some(l=>l.value[flag])&&!(background&&spread[backgroundFlag]))return p
+    const updated={...spread,
+      ...(background?{[backgroundFlag]:false}:{}),
+      placements:spread.placements.map(l=>l[flag]&&members.some(m=>m.kind==='image'&&m.id===l.placeholderId)?{...l,[flag]:false}:l),
+      textBoxes:spread.textBoxes.map(l=>l[flag]&&members.some(m=>m.kind==='text'&&m.id===l.id)?{...l,[flag]:false}:l),
+    }
+    return {...p,spreads:p.spreads.map(s=>s.id===spreadId?updated:s)}
+  },true,true),
   setLayerHidden: (spreadId, kind, id, hidden) => {
     withHistory(set, p => ({...p,spreads:p.spreads.map(s=>{
       if(s.id!==spreadId)return s
