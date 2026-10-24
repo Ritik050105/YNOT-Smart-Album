@@ -363,7 +363,7 @@ app.whenReady().then(async()=>{
   await evaluate(`{const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(text)}],'presets.json',{type:'application/json'}));const input=document.querySelector('[aria-label="Import percentage presets file"]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))}`);await wait();
   if(await evaluate(`!!document.querySelector('[aria-label="Preview preset import"]')`)){
    assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`),previous,'Preview must not save preferences');assert.deepEqual(await sharedRects(),reopenedPreview);assert.equal(await evaluate('store.getState().history.length'),reopenedHistory);
-   if(confirm){await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preview preset import"] button')).find(b=>b.textContent==='Import').click()`);await wait();assert.equal(await evaluate(`!!document.querySelector('[aria-label="Preview preset import"]')`),false);}
+   if(confirm){await evaluate(`document.querySelector('.preset-import-preview__filter input').click()`);await wait();await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preview preset import"] button')).find(b=>b.textContent==='Import').click()`);await wait();assert.equal(await evaluate(`!!document.querySelector('[aria-label="Preview preset import"]')`),false);}
   }
  };
 
@@ -381,6 +381,28 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate(`!!document.querySelector('[aria-label="Preview preset import"]')`),false);assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),true);assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`),beforeTransfer);assert.deepEqual(await sharedRects(),reopenedPreview);
   assert.deepEqual(await evaluate(`['Undo gap change','Redo gap change','Reset gap preview'].map(label=>document.querySelector('[aria-label="'+label+'"]').disabled)`),reopenedControls);
  }
+ // Filter mixed changes and identical imports without affecting either spacing history.
+ for(const identical of [false,true]){
+  const candidate=identical?portable:{...portable,presets:[-45,...portable.presets.slice(1)],past:portable.past.map((values,index)=>index===0?[-55,-15,15,55]:values)};
+  await importFile(JSON.stringify(candidate),false);
+  const unfiltered=await evaluate(`document.querySelector('.preset-import-preview__comparison').textContent`);
+  await evaluate(`document.querySelector('.preset-import-preview__filter input').click()`);await wait();
+  if(identical){assert.equal(await evaluate(`document.querySelector('.preset-import-preview__comparison').hidden`),true);assert.ok(await evaluate(`document.querySelector('.preset-import-preview [role="status"]').textContent.includes('No changes')`));}
+  else{
+   assert.equal(await evaluate(`document.querySelector('[aria-label="Preset Redo"]').hidden`),true);
+   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Percentage presets"] td span:not([hidden])').length`),2);
+   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Preset Undo"] td li:not([hidden])').length`),2);
+   assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preset Undo"] td li:not([hidden])')).map(n=>n.value)`),[portable.past.length,portable.past.length]);
+   await fs.writeFile(path.join(out,'preset-import-changes-only.png'),(await win.webContents.capturePage()).toPNG());
+  }
+  assert.deepEqual(await sharedRects(),reopenedPreview);assert.equal(await evaluate('store.getState().history.length'),reopenedHistory);
+  assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`),beforeTransfer);
+  await evaluate(`document.querySelector('.preset-import-preview__filter input').click()`);await wait();
+  assert.equal(await evaluate(`document.querySelector('.preset-import-preview__comparison').textContent`),unfiltered);
+  await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preview preset import"] button')).find(b=>b.textContent==='Cancel').click()`);await wait();
+  assert.deepEqual(await evaluate(`['Undo gap change','Redo gap change','Reset gap preview'].map(label=>document.querySelector('[aria-label="'+label+'"]').disabled)`),reopenedControls);
+ }
+ console.log('Changes-only filter passed: mixed/identical imports, unchanged sections and entries hidden, history positions preserved, toggle restoration and untouched spacing/history');
  console.log('Import preview passed: values and both history types visible, no mutation before confirmation, Cancel/Escape preserve open gap preview and Ctrl+Z cannot edit behind preview');
  for(const text of [JSON.stringify(transferred),legacyExport]){
   const beforeImport=await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`);
