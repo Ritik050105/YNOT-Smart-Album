@@ -30,7 +30,8 @@ app.whenReady().then(async()=>{
   for(const theme of ['light','dark']){
    await run(`document.documentElement.dataset.theme='${theme}'`);await wait();
    const metrics=await run(`(()=>{const s=getComputedStyle(document.documentElement),e=document.querySelector('.btn--primary:not(:disabled)'),b=e&&getComputedStyle(e);return {text:s.getPropertyValue('--text').trim(),accent:s.getPropertyValue('--accent').trim(),button:b&&[b.color,b.backgroundColor],overflow:document.documentElement.scrollWidth>innerWidth}})()`);
-   assert.equal(metrics.accent,theme==='light'?'#875f40':'#d6b18b',screen);
+   assert.equal(metrics.accent,theme==='light'?'#3157c8':'#a8bdff',screen);
+   if(screen==='home')assert.deepEqual(await run(`(()=>{const s=getComputedStyle(document.querySelector('.home-screen__mark'));return [s.backgroundImage,s.backgroundColor,s.boxShadow,!!document.querySelector('.brand-mark')]})()`),['none','rgba(0, 0, 0, 0)','none',true]);
    if(metrics.button){const [a,b]=metrics.button.map(lum);assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,`${screen}/${theme} primary contrast ${metrics.button}`)}
    assert.equal(await run(`!!document.querySelector('.app-shell, .home-screen, .modal-card, .context-menu, .menubar__dropdown')`),true,screen+' renders');
    assert.equal(metrics.overflow,false,`${screen}/${theme} overflow`);

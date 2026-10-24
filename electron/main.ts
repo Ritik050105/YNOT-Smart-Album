@@ -50,17 +50,17 @@ function createSplash(): BrowserWindow {
     resizable: false,
     show: true,
     center: true,
-    backgroundColor: '#f4f1ec',
+    backgroundColor: '#f2f5fa',
     webPreferences: { contextIsolation: true },
   })
   splash.setMenu(null)
   const logo = fs.readFileSync(path.join(app.getAppPath(), 'src', 'assets', 'ynot-mark-dark.png')).toString('base64')
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-    html,body{margin:0;height:100%;background:#f4f1ec;}
+    html,body{margin:0;height:100%;background:#f2f5fa;}
     body{display:grid;place-items:center;-webkit-user-select:none;}
     .mark{width:64px;height:64px;max-width:16vmin;max-height:16vmin;display:grid;place-items:center;}
-    img{width:100%;height:100%;object-fit:contain;}
-  </style></head><body><div class="mark" role="status" aria-label="Loading YNOT Album Studio"><img src="data:image/png;base64,${logo}" alt="YNOT Photography"></div></body></html>`
+    .mark{background:#3157c8;mask:url(data:image/png;base64,${logo}) center/contain no-repeat;}
+  </style></head><body><div class="mark" role="status" aria-label="Loading YNOT Album Studio"></div></body></html>`
   splash.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
   return splash
 }

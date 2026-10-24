@@ -8,7 +8,7 @@ import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import NewProjectWizard from './NewProjectWizard'
 import Modal from './Modal'
 import Icon from './Icon'
-import ynotMark from '@/assets/ynot-mark-white.png'
+import BrandMark from './BrandMark'
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
@@ -165,7 +165,7 @@ export default function HomeScreen() {
     <div className={`home-screen ${classic ? "home-screen--classic" : ""}`}>
       <header className="home-screen__header">
         <span className="home-screen__mark">
-          <img src={ynotMark} alt="YNOT Photography" />
+          <BrandMark />
         </span>
         <h1>YNOT Album Studio</h1>
       </header>

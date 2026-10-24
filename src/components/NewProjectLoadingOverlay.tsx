@@ -1,4 +1,4 @@
-import ynotMark from '@/assets/ynot-mark-dark.png'
+import BrandMark from './BrandMark'
 
 interface Props {
   creating?: boolean
@@ -20,7 +20,7 @@ export default function NewProjectLoadingOverlay({
         <div className="project-creating__title">Creating project…</div>
         <p>Preparing your album and template library…</p>
         <progress aria-label="Creating project" />
-      </div> : <div className="new-project-loading__mark"><img src={ynotMark} alt="YNOT Photography" /></div>}
+      </div> : <div className="new-project-loading__mark"><BrandMark /></div>}
     </div>
   )
 }

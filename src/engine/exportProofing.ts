@@ -2,7 +2,7 @@ import { Project } from '@/types'
 import { renderSpreadToCanvas } from './renderSpread'
 import { canvasToBytes } from './exportUtil'
 import { blobUrlToDataUrl } from './projectFile'
-import ynotMarkWhite from '@/assets/ynot-mark-white.png'
+import ynotMarkWhite from '@/assets/ynot-mark-dark.png'
 
 function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   let binary = ''
@@ -54,12 +54,12 @@ export async function buildProofingGalleryHtml(project: Project): Promise<string
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f4f5f7; color: #1c1d21; }
-  header { padding: 28px 24px; background: #0c0c0d; color: #fff; display: flex; align-items: center; gap: 16px; }
-  header .mark { width: 40px; height: 40px; flex-shrink: 0; }
+  header { padding: 28px 24px; background: #ffffff; color: #18243c; display: flex; align-items: center; gap: 16px; }
+  header .mark { width: 40px; height: 40px; flex-shrink: 0; background:#3157c8; mask-position:center; mask-size:contain; mask-repeat:no-repeat; }
   header .mark img { width: 100%; height: 100%; object-fit: contain; }
   header .titles { flex: 1; }
   header h1 { margin: 0 0 4px; font-size: 20px; letter-spacing: 0.02em; }
-  header p { margin: 0; color: #9a9ca3; font-size: 12.5px; }
+  header p { margin: 0; color: #53627a; font-size: 12.5px; }
   header .brand { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #6f7280; }
   main { padding: 24px; max-width: 1200px; margin: 0 auto; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
@@ -80,7 +80,7 @@ export async function buildProofingGalleryHtml(project: Project): Promise<string
 </head>
 <body>
 <header>
-  ${logoDataUrl ? `<span class="mark"><img src="${logoDataUrl}" alt="YNOT Photography" /></span>` : ''}
+  ${logoDataUrl ? `<span class="mark" role="img" aria-label="YNOT Photography" style="mask-image:url('${logoDataUrl}')"></span>` : ''}
   <div class="titles">
     <div class="brand">YNOT Photography</div>
     <h1>${clientLine}</h1>
