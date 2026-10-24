@@ -166,9 +166,22 @@ app.whenReady().then(async()=>{
   const afterShow=await evaluate('JSON.stringify(store.getState().project.spreads[0])');
   await evaluate(`store.getState().clearLayerFlags('s',store.getState().project.spreads[0].placements.map(p=>({kind:'image',id:p.placeholderId})),'hidden')`);
   assert.equal(await evaluate('store.getState().history.length'),2,'No-op bulk actions add no history');
-  await evaluate(`store.getState().undo()`);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),afterUnlock);
-  await evaluate(`store.getState().redo()`);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),afterShow);
-  await evaluate(`store.getState().undo();store.getState().undo()`);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),await evaluate('window.beforeBulk'));
+  const historyDisabled=()=>evaluate(`Array.from(document.querySelectorAll('[aria-label="Project history"] button')).map(b=>b.disabled)`);
+  assert.deepEqual(await historyDisabled(),[false,true]);
+  await detailAction('Undo');assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),afterUnlock);
+  assert.deepEqual(await countLabels(),labels(0,4,0,3));
+  assert.equal(await evaluate(`document.querySelectorAll('.matching-template').length`),0);
+  assert.deepEqual(await historyDisabled(),[false,false]);
+  await detailAction('Redo');assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),afterShow);
+  assert.deepEqual(await countLabels(),labels(3,1,0,0));
+  assert.equal(await evaluate(`document.querySelector('.matching-template').querySelectorAll('.gallery-cell').length`),3);
+  await detailAction('Undo');await detailAction('Undo');assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),await evaluate('window.beforeBulk'));
+  assert.deepEqual(await countLabels(),labels(0,4,3,3));
+  assert.deepEqual(await historyDisabled(),[true,false]);
+  await detailAction('Undo');assert.equal(await evaluate('store.getState().history.length'),0,'Disabled Undo is a no-op');
+  assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true);
+  assert.equal(await evaluate(`!!document.querySelector('.matching-templates__excluded')`),true,'History navigation keeps the list open');
+  await fs.writeFile(path.join(output,'excluded-history.png'),(await win.webContents.capturePage()).toPNG());
   // Hidden category excludes locked-only foreground and background layers from its bulk action.
   await evaluate(`store.setState(s=>({project:{...s.project,spreads:s.project.spreads.map(sp=>({...sp,placements:sp.placements.map((p,i)=>({...p,locked:i<2,hidden:i>0}))}))}}));store.getState().openMatchingTemplates('s')`);await new Promise(r=>setTimeout(r,100));
   await openDetails('hidden');await detailAction('Unlock All');

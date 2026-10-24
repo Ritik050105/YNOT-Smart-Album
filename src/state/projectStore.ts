@@ -327,8 +327,8 @@ interface ProjectState {
   deleteUserTemplate: (id: string) => void
   setAutoLayoutOptions: (opts: Partial<AutoLayoutOptions>) => void
   allTemplates: () => TemplateDefinition[]
-  undo: () => void
-  redo: () => void
+  undo: (keepTemplateBrowser?: boolean) => void
+  redo: (keepTemplateBrowser?: boolean) => void
   renameProject: (name: string) => void
   updateProjectMeta: (patch: Partial<Pick<Project, 'eventType' | 'community' | 'clientName'>>) => void
   updateProjectSettings: (patch: Partial<Pick<Project, 'colorProfile' | 'units' | 'size' | 'customFonts'>>) => void
@@ -1356,18 +1356,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   allTemplates: () => uniqueTemplates([...BUILT_IN_TEMPLATES, ...get().userTemplates]),
 
-  undo: () =>
+  undo: (keepTemplateBrowser = false) =>
     set((s) => {
       if (s.history.length === 0) return s
       const prev = s.history[s.history.length - 1]
-      return { project: prev, history: s.history.slice(0, -1), future: [s.project, ...s.future], isDirty: true, matchingTemplatesOpen: false, templatePreview: null }
+      return { project: prev, history: s.history.slice(0, -1), future: [s.project, ...s.future], isDirty: true, matchingTemplatesOpen: keepTemplateBrowser && s.matchingTemplatesOpen, templatePreview: null }
     }),
 
-  redo: () =>
+  redo: (keepTemplateBrowser = false) =>
     set((s) => {
       if (s.future.length === 0) return s
       const [next, ...rest] = s.future
-      return { project: next, history: [...s.history, s.project], future: rest, isDirty: true, matchingTemplatesOpen: false, templatePreview: null }
+      return { project: next, history: [...s.history, s.project], future: rest, isDirty: true, matchingTemplatesOpen: keepTemplateBrowser && s.matchingTemplatesOpen, templatePreview: null }
     }),
 
   renameProject: (name) => withHistory(set, (p) => ({ ...p, name })),

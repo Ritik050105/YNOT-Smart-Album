@@ -6,6 +6,8 @@ import { useProjectStore } from '@/state/projectStore'
 export type ExclusionFilter='excluded'|'locked'|'hidden'|'background'
 export default function ExcludedTemplatePhotos({spread,photos,aspect,scope,filter,onClose}:{spread:Spread;photos:PhotoAsset[];aspect:number;scope:TemplateScope;filter:ExclusionFilter;onClose:()=>void}){
   const closeButton=useRef<HTMLButtonElement>(null)
+  const undo=useProjectStore(s=>s.undo),redo=useProjectStore(s=>s.redo)
+  const canUndo=useProjectStore(s=>s.history.length>0),canRedo=useProjectStore(s=>s.future.length>0)
   const clearFlags=useProjectStore(s=>s.clearLayerFlags)
   const lock=useProjectStore(s=>s.setLayerLocked),hide=useProjectStore(s=>s.setLayerHidden)
   const rows=pagePlacements(spread,aspect,scope,true).filter(p=>p.photoId&&(filter==='excluded'?(p.locked||p.hidden):filter==='locked'?p.locked:filter==='hidden'?p.hidden:false)).map(p=>{
@@ -19,6 +21,10 @@ export default function ExcludedTemplatePhotos({spread,photos,aspect,scope,filte
     <div className="matching-templates__excluded-actions" aria-label="Bulk photo actions">
       <button type="button" className="btn btn--tiny" disabled={!rows.some(row=>row.locked)} onClick={()=>{clearFlags(spread.id,rows.filter(row=>row.locked),'locked');closeButton.current?.focus()}}>Unlock All</button>
       <button type="button" className="btn btn--tiny" disabled={!rows.some(row=>row.hidden)} onClick={()=>{clearFlags(spread.id,rows.filter(row=>row.hidden),'hidden');closeButton.current?.focus()}}>Show All</button>
+    </div>
+    <div className="matching-templates__excluded-actions" aria-label="Project history">
+      <button type="button" className="btn btn--tiny" disabled={!canUndo} title="Undo the last project change" onClick={()=>{undo(true);closeButton.current?.focus()}}>Undo</button>
+      <button type="button" className="btn btn--tiny" disabled={!canRedo} title="Redo the last project change" onClick={()=>{redo(true);closeButton.current?.focus()}}>Redo</button>
     </div>
     <small>Applies to this list and grouped layers. Backgrounds stay excluded. Each action can be undone.</small>
     <div className="matching-templates__excluded-list">

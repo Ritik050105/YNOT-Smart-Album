@@ -232,8 +232,8 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
         <button className="btn" onClick={handleNewProjectClick}>New Album</button>
         <button className="btn" disabled={projectBusy !== null} onClick={() => void handleOpenProject()}>Open Project</button>
         <button className="btn" disabled={projectBusy !== null} onClick={() => void handleSaveProject()}>Save Project</button>
-        <button className="btn" disabled={history.length === 0} onClick={undo}>Undo</button>
-        <button className="btn" disabled={future.length === 0} onClick={redo}>Redo</button>
+        <button className="btn" disabled={history.length === 0} onClick={() => undo()}>Undo</button>
+        <button className="btn" disabled={future.length === 0} onClick={() => redo()}>Redo</button>
         <button className="btn" onClick={toggleTheme}>{theme === 'light' ? 'Dark' : 'Light'} theme</button>
       </div></details>
       <button className={`btn btn--icon ${bottomPanelOpen ? 'is-active' : ''}`} title={bottomPanelOpen ? 'Hide image browser' : 'Show image browser'} aria-label={bottomPanelOpen ? 'Hide image browser' : 'Show image browser'} aria-expanded={bottomPanelOpen} onClick={toggleBottomPanel}><Icon name="panelBottom" /></button>
