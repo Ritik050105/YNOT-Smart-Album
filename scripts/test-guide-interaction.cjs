@@ -49,9 +49,15 @@ app.whenReady().then(async()=>{
  win.webContents.sendInputEvent({type:'mouseMove',x:spacingPoint.x,y:spacingPoint.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:spacingPoint.x,y:spacingPoint.y});await wait();
  for(let i=1;i<=4;i++){win.webContents.sendInputEvent({type:'mouseMove',x:Math.round(spacingPoint.x-8*spacingPoint.scale*i/4),y:spacingPoint.y});await wait()}
  assert.ok(await evaluate(`Konva.stages[0].find('.equal-spacing-guide').length>0`),'Real drag shows equal-gap marks');
+ assert.ok(await evaluate(`Konva.stages[0].find('.spacing-measurement').every(n=>n.text()==='1.33 in')`),'Measurements use physical inches');
  await fs.writeFile(path.join(out,'equal-spacing.png'),(await win.webContents.capturePage()).toPNG());
  win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:Math.round(spacingPoint.x-8*spacingPoint.scale),y:spacingPoint.y});await wait();
  assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===spacingIds[2]).x*900-320)<.01`),'Equal spacing persists after drag');assert.equal(await evaluate(`Konva.stages[0].find('.equal-spacing-guide').length`),0,'Spacing marks clear after drag');
+
+ for(const [unit,expected] of [['cm','3.39 cm'],['px','400 px']]){
+  await evaluate(`store.getState().updateProjectSettings({units:${JSON.stringify(unit)}})`);await wait();await evaluate(`const n=Konva.stages[0].find('Transformer')[0].nodes()[0];n.position({x:322,y:250});n.fire('dragmove',{target:n});undefined`);await wait();assert.ok(await evaluate(`Konva.stages[0].find('.spacing-measurement').length===2&&Konva.stages[0].find('.spacing-measurement').every(n=>n.text()===${JSON.stringify(expected)})`),'Measurement in '+unit);
+ }
+ await evaluate(`store.getState().updateProjectSettings({units:'in'})`);await wait();
  console.log('Equal spacing canvas test passed: real pointer snap, paired gap markers, persistence and cleanup');
  await fs.writeFile(path.join(out,'guides-fixed.png'),(await win.webContents.capturePage()).toPNG());
  console.log('Guide interactions passed: actual pointer drag on both axes at fit zoom, pan-origin clamp, persistence, Undo, visible-guide snapping and hidden-guide exclusion and pointer resize');win.destroy();app.quit();

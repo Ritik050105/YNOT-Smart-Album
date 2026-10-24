@@ -59,13 +59,14 @@ export function transformLayerSelection(spread:Spread,size:AlbumSize,keys:string
 }
 
 /** Existing groups act as one unit, preserving the spacing inside each group. */
-export function arrangeLayerSelection(spread:Spread,size:AlbumSize,keys:string[],mode:LayerAlignment,target:LayerAlignmentTarget='selection') {
+export function arrangeLayerSelection(spread:Spread,size:AlbumSize,keys:string[],mode:LayerAlignment,target:LayerAlignmentTarget='selection',exactGap?:number) {
+  if(exactGap!==undefined&&(!Number.isFinite(exactGap)||exactGap<0||(mode!=='horizontal'&&mode!=='vertical')))return spread
   const g=selectionGeometry(spread,keys,size)
   if(!g||g.members.some(l=>l.value.locked||l.value.hidden))return spread
   const ids=[...new Set(g.members.map(l=>l.value.groupId??l.kind+':'+l.id))]
   const units=ids.map(id=>{const members=g.members.filter(l=>(l.value.groupId??l.kind+':'+l.id)===id);return selectionGeometry(spread,members.map(l=>l.kind+':'+l.id),size)!})
   const distribute=mode==='horizontal'||mode==='vertical'
-  if(units.length<(distribute?(target==='selection'?3:2):target==='selection'?2:1))return spread
+  if(units.length<(distribute?(target==='selection'&&exactGap===undefined?3:2):target==='selection'?2:1))return spread
   const doublePage=!spread.isCover&&spread.pageSide==='spread'
   if(((target==='left-page'&&!doublePage&&(spread.isCover||spread.pageSide!=='left'))||(target==='right-page'&&!doublePage&&(spread.isCover||spread.pageSide!=='right'))))return spread
   const bounds = target === 'selection' ? g : { x: target === 'right-page' && doublePage ? 0.5 : 0, y: 0, width: doublePage && (target === 'left-page' || target === 'right-page') ? 0.5 : 1, height: 1 }
@@ -73,9 +74,11 @@ export function arrangeLayerSelection(spread:Spread,size:AlbumSize,keys:string[]
   units.sort((a,b)=>a[axis]-b[axis])
   const start=distribute&&target==='selection'?units[0][axis]:bounds[axis]
   const end=distribute&&target==='selection'?units.at(-1)![axis]+units.at(-1)![dimension]:bounds[axis]+bounds[dimension]
-  const gap=distribute?(end-start-units.reduce((n,u)=>n+u[dimension],0))/(units.length+(target==='selection'?-1:1)):0
+  const gap=exactGap??(distribute?(end-start-units.reduce((n,u)=>n+u[dimension],0))/(units.length+(target==='selection'?-1:1)):0)
   if(distribute&&target!=='selection'&&gap<0)return spread
-  let cursor=start+(distribute&&target!=='selection'?gap:0)
+  const packed=units.reduce((n,u)=>n+u[dimension],0)+gap*(units.length-1)
+  if(exactGap!==undefined&&packed>(target==='selection'?1-start:end-start)+1e-10)return spread
+  let cursor=exactGap!==undefined?(target==='selection'?start:start+(end-start-packed)/2):start+(distribute&&target!=='selection'?gap:0)
   const rects=new Map<string,LayerRect>()
   for(const unit of units){
     const position=distribute?cursor:['left','top'].includes(mode)?start:['right','bottom'].includes(mode)?end-unit[dimension]:(start+end-unit[dimension])/2

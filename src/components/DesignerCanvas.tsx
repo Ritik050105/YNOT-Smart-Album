@@ -1,6 +1,7 @@
 import { spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences } from '@/state/preferences'
 import { snapRect, GuideRect, SmartGuide } from '@/engine/smartGuides'
+import { inToDisplay } from '@/engine/units'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
@@ -1098,7 +1099,9 @@ export default function DesignerCanvas() {
         <Layer listening={false} name="smart-guides">
           {smartGuides.map((g,i)=>g.segments?<Group key={i} name="equal-spacing-guide">{g.segments.map((s,j)=>{
             const x=g.axis==='x',tick=4/stageScale
-            return <Group key={j}><Line points={x?[s.from,g.position,s.to,g.position]:[g.position,s.from,g.position,s.to]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>{[s.from,s.to].map(p=><Line key={p} points={x?[p,g.position-tick,p,g.position+tick]:[g.position-tick,p,g.position+tick,p]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>)}<KonvaText text="=" x={x?(s.from+s.to)/2-4/stageScale:g.position+6/stageScale} y={x?g.position-17/stageScale:(s.from+s.to)/2-6/stageScale} fontSize={13/stageScale} fill="#9b59ff"/></Group>
+            const label=`${inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi)} ${project.units}`
+            const labelWidth=(label.length*8+12)/stageScale
+            return <Group key={j}><Line points={x?[s.from,g.position,s.to,g.position]:[g.position,s.from,g.position,s.to]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>{[s.from,s.to].map(p=><Line key={p} points={x?[p,g.position-tick,p,g.position+tick]:[g.position-tick,p,g.position+tick,p]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>)}<KonvaText name="spacing-measurement" text={label} width={labelWidth} align="center" x={x?(s.from+s.to)/2-labelWidth/2:g.position+6/stageScale} y={x?g.position-17/stageScale:(s.from+s.to)/2-6/stageScale} fontSize={13/stageScale} fill="#9b59ff"/></Group>
           })}</Group>:<Line key={i} points={g.axis==='x'?[g.position,0,g.position,stageHeight]:[0,g.position,STAGE_WIDTH,g.position]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false} />)}
         </Layer>
       </Stage>

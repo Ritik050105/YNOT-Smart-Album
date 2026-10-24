@@ -436,3 +436,5 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 
 .layer-arrange__target { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; margin: 2px 0 10px; }
 .layer-arrange__target select { min-width: 0; flex: 1; max-width: 170px; }
+
+.layer-arrange__target input { width:100px; min-width:0; padding:7px 9px; }
