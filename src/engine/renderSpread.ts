@@ -1,3 +1,4 @@
+import { spreadLayers } from './spreadLayers'
 import { getPreferences } from '@/state/preferences'
 import { PhotoAsset, Spread, AlbumSize, PlacedPhoto, TextBox } from '@/types'
 import { computeCoverCrop } from './cropFit'
@@ -38,13 +39,15 @@ export async function renderSpreadToCanvas(
   const scale = widthPx / DESIGN_WIDTH
   const boxes = computePlaceholderBoxes(spread, widthPx, heightPx)
 
-  for (const ph of boxes) {
-    const placement = spread.placements.find((p) => p.placeholderId === ph.placeholderId)
-    const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
-    if (!photo) continue
-    await drawPlacement(ctx, ph, placement, photo, scale)
+  for (const layer of spreadLayers(spread)) {
+    if (layer.value.hidden) continue
+    if (layer.kind === 'text') await drawTextBox(ctx, layer.value, widthPx, heightPx)
+    else {
+      const ph = boxes.find(b => b.placeholderId === layer.id)
+      const photo = layer.value.photoId ? photosById.get(layer.value.photoId) : undefined
+      if (ph && photo) await drawPlacement(ctx, ph, layer.value, photo, scale)
+    }
   }
-  for (const box of spread.textBoxes) await drawTextBox(ctx, box, widthPx, heightPx)
 
   const amount=({none:0,low:.15,medium:.3,high:.5} as Record<string,number>)[getPreferences().sharpening]??0
   if(amount && pixelsPerInch>=size.dpi){
@@ -57,9 +60,9 @@ export async function renderSpreadToCanvas(
 
 export async function drawSpreadBackground(ctx: CanvasRenderingContext2D, spread: Spread, width: number, height: number) {
   ctx.imageSmoothingQuality = 'high'
-  ctx.fillStyle = spread.backgroundColor
+  ctx.fillStyle = spread.backgroundHidden ? '#ffffff' : spread.backgroundColor
   ctx.fillRect(0, 0, width, height)
-  if (!spread.backgroundPattern) return
+  if (spread.backgroundHidden || !spread.backgroundPattern) return
   if (spread.backgroundPattern.mode === 'cover') {
     await drawPlacement(ctx, { placeholderId: 'background', x: 0, y: 0, width, height }, spread.backgroundPattern.edits, { src: spread.backgroundPattern.src }, width / DESIGN_WIDTH)
     return

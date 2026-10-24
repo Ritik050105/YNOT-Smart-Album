@@ -1,3 +1,4 @@
+import { spreadLayers } from './spreadLayers'
 import { writePsdUint8Array, Layer, Psd } from 'ag-psd'
 import { PhotoAsset, Spread, AlbumSize } from '@/types'
 import { DESIGN_WIDTH, computePlaceholderBoxes } from './layoutMath'
@@ -37,6 +38,8 @@ export async function buildSpreadPsdBytes(
   }
 
   await addLayer('Background', 0, 0, width, height, (ctx) => drawSpreadBackground(ctx, spread, width, height))
+  const ordered = spreadLayers(spread)
+  const layerRanks = new Map<Layer, number>()
   for (const box of computePlaceholderBoxes(spread, width, height)) {
     const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
     const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
@@ -47,9 +50,10 @@ export async function buildSpreadPsdBytes(
     const rotatedH = Math.abs(Math.sin(angle)) * box.width + Math.abs(Math.cos(angle)) * box.height
     const cx = box.x + box.width / 2
     const cy = box.y + box.height / 2
-    await addLayer(photo.fileName, cx - rotatedW / 2 - padding, cy - rotatedH / 2 - padding,
+    const layer = await addLayer(photo.fileName, cx - rotatedW / 2 - padding, cy - rotatedH / 2 - padding,
       cx + rotatedW / 2 + padding, cy + rotatedH / 2 + padding,
       (ctx) => drawPlacement(ctx, box, placement, photo, scale))
+    if (layer) { layer.hidden = !!placement.hidden; layerRanks.set(layer, ordered.findIndex(l=>l.kind==='image'&&l.id===placement.placeholderId)) }
   }
   const measureCanvas = document.createElement('canvas')
   measureCanvas.width = measureCanvas.height = 1
@@ -61,6 +65,8 @@ export async function buildSpreadPsdBytes(
       (text.x + text.width) * width, Math.max((text.y + text.height) * height, text.y * height + textHeight),
       async (ctx) => { await drawTextBox(ctx, text, width, height) })
     if (!layer) continue
+    layer.hidden = !!text.hidden
+    layerRanks.set(layer, ordered.findIndex(l=>l.kind==='text'&&l.id===text.id))
     measureContext.fillStyle = text.color
     measureContext.fillRect(0, 0, 1, 1)
     const [r, g, b] = measureContext.getImageData(0, 0, 1, 1).data
@@ -78,6 +84,7 @@ export async function buildSpreadPsdBytes(
       paragraphStyle: { justification: text.align },
     }
   }
+  layers.sort((a,b)=>(layerRanks.get(a)??-1)-(layerRanks.get(b)??-1))
   const composite = await renderSpreadToCanvas(spread, photosById, size, pixelsPerInch)
   const psd: Psd = { width, height, canvas: composite, children: layers, imageResources: { resolutionInfo: { horizontalResolution: pixelsPerInch, horizontalResolutionUnit: 'PPI', widthUnit: 'Inches', verticalResolution: pixelsPerInch, verticalResolutionUnit: 'PPI', heightUnit: 'Inches' } } }
   return writePsdUint8Array(psd)

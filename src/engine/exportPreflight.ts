@@ -10,12 +10,13 @@ export function exportPreflight(project: Project, indices?: number[], includeCov
   const lowResolution = selected.filter((spread) => {
     const size = spread.size ?? project.size
     const background = spread.backgroundPattern
-    if (background?.mode === 'cover' && background.width && background.height) {
+    if (!spread.backgroundHidden && background?.mode === 'cover' && background.width && background.height) {
       const crop = computeCoverCrop(background.width, background.height, size.widthIn, size.heightIn, background.edits?.focalX, background.edits?.focalY, background.edits?.zoom)
       if (effectiveDpi(background.width, background.height, crop, size.widthIn, size.heightIn) < size.dpi / (getPreferences().scalingThreshold / 100)) return true
     }
     return computePlaceholderBoxes(spread, DESIGN_WIDTH, DESIGN_WIDTH * size.heightIn / size.widthIn).some((box) => {
       const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
+      if (placement?.hidden) return false
       const photo = placement?.photoId ? photos.get(placement.photoId) : undefined
       if (!photo || !placement) return false
       const crop = computeCoverCrop(photo.width, photo.height, box.width, box.height, placement.focalX, placement.focalY, placement.zoom)

@@ -1,3 +1,4 @@
+import { spreadLayers } from '@/engine/spreadLayers'
 import { changesLockedLayer } from '@/engine/layerLocks'
 import { getPreferences } from './preferences'
 import { applyPageTemplate, pagePlacements, TemplateScope } from '@/engine/pageTemplates'
@@ -194,7 +195,7 @@ interface ProjectState {
   showPhotoFileNames: boolean
   /** A spread's own Cut/Copy/Paste clipboard (the Spread context menu) — separate from
    *  `photoClipboard`, which copies one placed photo rather than a whole spread's layout. */
-  spreadClipboard: Pick<Spread, 'templateId' | 'placements' | 'textBoxes' | 'backgroundColor' | 'backgroundPattern' | 'gapPx' | 'marginPx' | 'pageSide' | 'customBoxes' | 'flipped' | 'guides'> | null
+  spreadClipboard: Pick<Spread, 'templateId' | 'placements' | 'textBoxes' | 'backgroundColor' | 'backgroundPattern' | 'backgroundHidden' | 'gapPx' | 'marginPx' | 'pageSide' | 'customBoxes' | 'flipped' | 'guides'> | null
   /** A read-only mirror of DesignerCanvas's own local zoom/pan state, written there on every
    *  change — lets Designer View's ruler and "1:1" zoom readout reflect the live canvas view
    *  without lifting that interaction-critical state (and its Figma-style wheel/keyboard
@@ -289,6 +290,8 @@ interface ProjectState {
   relinkPhoto: (photoId: string, replacement: PhotoAsset) => void
   addImageFrame: (spreadId: string, rect: { x: number; y: number; width: number; height: number }, photoId?: string) => void
   updateImageFrame: (spreadId: string, frameId: string, rect: { x: number; y: number; width: number; height: number }) => void
+  setLayerHidden: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, hidden: boolean) => void
+  moveLayer: (spreadId: string, kind: 'image' | 'text', id: string, targetKind: 'image' | 'text', targetId: string) => void
   setLayerLocked: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, locked: boolean) => void
   removeImageFrame: (spreadId: string, frameId: string) => void
   setPlacementPhoto: (spreadId: string, placeholderId: string, photoId: string | null) => void
@@ -648,8 +651,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   copySpread: (spreadId) => {
     const spread = get().project.spreads.find((s) => s.id === spreadId)
     if (!spread || spread.isCover) return
-    const { templateId, placements, textBoxes, backgroundColor, backgroundPattern, gapPx, marginPx, pageSide, customBoxes, flipped, guides } = spread
-    set({ spreadClipboard: { templateId, placements, textBoxes, backgroundColor, backgroundPattern, gapPx, marginPx, pageSide, customBoxes, flipped, guides } })
+    const { templateId, placements, textBoxes, backgroundColor, backgroundPattern, backgroundHidden, gapPx, marginPx, pageSide, customBoxes, flipped, guides } = spread
+    set({ spreadClipboard: { templateId, placements, textBoxes, backgroundColor, backgroundPattern, backgroundHidden, gapPx, marginPx, pageSide, customBoxes, flipped, guides } })
   },
 
   pasteSpreadAfter: (afterSpreadId) =>
@@ -668,6 +671,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         textBoxes: clip.textBoxes.map((t) => ({ ...t, id: uuid() })),
         backgroundColor: clip.backgroundColor,
         backgroundPattern: clip.backgroundPattern,
+        backgroundHidden: clip.backgroundHidden,
         gapPx: clip.gapPx,
         marginPx: clip.marginPx,
         customBoxes: clip.customBoxes?.map((box) => ({ ...box })),
@@ -975,6 +979,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }) }))
   },
 
+  setLayerHidden: (spreadId, kind, id, hidden) => {
+    withHistory(set, p => ({...p, spreads:p.spreads.map(s => s.id!==spreadId ? s : kind==='background' ? {...s,backgroundHidden:hidden} : kind==='image' ? {...s,placements:s.placements.map(pl=>pl.placeholderId===id?{...pl,hidden}:pl)} : {...s,textBoxes:s.textBoxes.map(t=>t.id===id?{...t,hidden}:t)})}), true)
+    if (hidden) set({selectedPlaceholderId:null, selectedTextBoxId:null, multiSelectedPlaceholderIds:[]})
+  },
+  moveLayer: (spreadId, kind, id, targetKind, targetId) => withHistory(set, p => {
+    const spread = p.spreads.find(s => s.id === spreadId)
+    if (!spread) return p
+    const layers = spreadLayers(spread)
+    const from = layers.findIndex(l => l.kind === kind && l.id === id)
+    const to = layers.findIndex(l => l.kind === targetKind && l.id === targetId)
+    if (from < 0 || to < 0 || from === to || layers[from].value.locked) return p
+    layers.splice(to, 0, layers.splice(from, 1)[0])
+    return {...p, spreads:p.spreads.map(s => s.id !== spreadId ? s : {...s,
+      placements:s.placements.map(pl=>({...pl,zIndex:layers.findIndex(l=>l.kind==='image'&&l.id===pl.placeholderId)})),
+      textBoxes:s.textBoxes.map(t=>({...t,zIndex:layers.findIndex(l=>l.kind==='text'&&l.id===t.id)})),
+    })}
+  }, true),
   setLayerLocked: (spreadId, kind, id, locked) => withHistory(set, p => ({...p, spreads:p.spreads.map(s => s.id!==spreadId ? s : kind==='background' ? {...s,backgroundLocked:locked} : kind==='image' ? {...s,placements:s.placements.map(pl=>pl.placeholderId===id?{...pl,locked}:pl)} : {...s,textBoxes:s.textBoxes.map(t=>t.id===id?{...t,locked}:t)})}), true),
   removeImageFrame: (spreadId, frameId) => {
     withHistory(set, (p) => ({ ...p, spreads: p.spreads.map((s) => {

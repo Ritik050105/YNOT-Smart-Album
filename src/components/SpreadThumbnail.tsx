@@ -39,7 +39,7 @@ export default function SpreadThumbnail({ spread, photosById, size, width = 420,
   }, [spread, photosById, size, renderWidth, highResolution])
 
   return (
-    <div className="spread-thumb" style={{ width: responsive ? '100%' : width, aspectRatio: size.widthIn / size.heightIn, background: spread.backgroundColor }}>
+    <div className="spread-thumb" style={{ width: responsive ? '100%' : width, aspectRatio: size.widthIn / size.heightIn, background: spread.backgroundHidden ? '#fff' : spread.backgroundColor }}>
       <canvas ref={canvasRef} role="img" aria-label="Spread preview" style={{ width: '100%', height: '100%', display: 'block' }} />
       {!spread.isCover && spread.pageSide === 'spread' && <span className="spread-thumb__fold" aria-hidden="true" />}
       {failed && <span role="status">Preview unavailable</span>}

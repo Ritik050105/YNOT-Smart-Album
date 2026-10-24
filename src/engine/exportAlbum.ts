@@ -304,7 +304,7 @@ function drawManualProofingOverlays(
   for (const box of boxes) {
     const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
     const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
-    if (!photo || !placement) continue
+    if (!photo || !placement || placement.hidden) continue
 
     if (options.includeImageNumbers) {
       const n = imageNumbers.get(`${spread.id}|${box.placeholderId}`)

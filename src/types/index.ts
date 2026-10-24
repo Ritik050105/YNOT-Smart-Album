@@ -54,6 +54,8 @@ export interface TemplateDefinition {
 export type FrameStyle = 'none' | 'rounded' | 'polaroid' | 'shadow'
 
 export interface PlacedPhoto {
+  hidden?: boolean
+  zIndex?: number
   locked?: boolean
   placeholderId: string
   photoId: string | null
@@ -104,6 +106,8 @@ export type ToneAdjustments = Pick<
 >
 
 export interface TextBox {
+  hidden?: boolean
+  zIndex?: number
   locked?: boolean
   id: string
   x: number
@@ -120,6 +124,7 @@ export interface TextBox {
 }
 
 export interface Spread {
+  backgroundHidden?: boolean
   backgroundLocked?: boolean
   backgroundPattern?: { name: string; src: string; tileSizePx: number; mode?: 'cover'; width?: number; height?: number; edits?: PlacedPhoto }
   /** Normalized frame positions after a layout is customized in Designer View. */

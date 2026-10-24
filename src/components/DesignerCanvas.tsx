@@ -1,3 +1,4 @@
+import { spreadLayers } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences } from '@/state/preferences'
 import { snapRect, GuideRect } from '@/engine/smartGuides'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
@@ -268,7 +269,7 @@ export default function DesignerCanvas() {
   const [smartGuides, setSmartGuides] = useState<{axis:'x'|'y';position:number}[]>([])
   const [liveFrame, setLiveFrame] = useState<(GuideRect & {id:string}) | null>(null)
   useEffect(()=>{setSmartGuides([]);setLiveFrame(null)},[selectedPlaceholderId,selectedTextBoxId,spread?.id,canvasTool])
-  const boxes = spread ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight) : []
+  const boxes = spread ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight).filter(b=>!spread.placements.find(p=>p.placeholderId===b.placeholderId)?.hidden) : []
   const addImageFrame = useProjectStore((s) => s.addImageFrame)
   const updateImageFrame = useProjectStore((s) => s.updateImageFrame)
   const drawStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -457,7 +458,7 @@ export default function DesignerCanvas() {
   }, [viewportSize.width, viewportSize.height, stageHeight])
 
   function alignRect(rect:GuideRect, id?:string, anchor?:string) {
-    const targets=[...boxes.filter(b=>b.placeholderId!==id),...(spread?.textBoxes??[]).filter(t=>t.id!==id).map(t=>({x:t.x*STAGE_WIDTH,y:t.y*stageHeight,width:t.width*STAGE_WIDTH,height:t.height*stageHeight}))]
+    const targets=[...boxes.filter(b=>b.placeholderId!==id),...(spread?.textBoxes??[]).filter(t=>t.id!==id&&!t.hidden).map(t=>({x:t.x*STAGE_WIDTH,y:t.y*stageHeight,width:t.width*STAGE_WIDTH,height:t.height*stageHeight}))]
     const result=snapRect(rect,targets,STAGE_WIDTH,stageHeight,6/stageScale,anchor,showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH) : [],showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight) : [])
     setSmartGuides(result.guides)
     return result.rect
@@ -757,12 +758,55 @@ export default function DesignerCanvas() {
         onMouseLeave={handleStageMouseUp}
       >
         <Layer>
-           <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fill={spread.backgroundColor} onClick={() => { if (canvasTool === 'select') { selectPlaceholder(null); selectTextBox(null) } }} />
-           {patternImage && spread.backgroundPattern && (spread.backgroundPattern.mode === 'cover'
+           <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fill={spread.backgroundHidden ? '#ffffff' : spread.backgroundColor} onClick={() => { if (canvasTool === 'select') { selectPlaceholder(null); selectTextBox(null) } }} />
+           {!spread.backgroundHidden && patternImage && spread.backgroundPattern && (spread.backgroundPattern.mode === 'cover'
              ? <FixedBackground spread={spread} height={stageHeight} onContextMenu={e => { e.evt.preventDefault(); e.evt.stopPropagation(); setPhotoContextMenu({ openedAt: Date.now(), x: e.evt.clientX, y: e.evt.clientY }) }} />
              : <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fillPatternImage={patternImage} fillPatternScaleX={spread.backgroundPattern.tileSizePx / patternImage.width} fillPatternScaleY={spread.backgroundPattern.tileSizePx / patternImage.width} listening={false} />)}
 
-          {boxes.map((box) => {
+          {spreadLayers(spread).filter(layer=>!layer.value.hidden).map(layer=>{
+            if(layer.kind==='text') {
+              const box=layer.value
+            const x = box.x * STAGE_WIDTH
+            const y = box.y * stageHeight
+            return (
+              <KonvaText
+                key={box.id}
+                name={`text-layer-${box.id}`}
+                ref={selectedTextBoxId===box.id?textNodeRef:undefined}
+                x={x}
+                y={y}
+                width={box.width * STAGE_WIDTH}
+                height={box.height * stageHeight}
+                text={box.text}
+                fontFamily={fontPreview?.textBoxId === box.id ? fontPreview.family : box.fontFamily}
+                fontSize={box.fontSize}
+                fontStyle={`${box.bold ? 'bold' : ''} ${box.italic ? 'italic' : ''}`.trim() || 'normal'}
+                fill={box.color}
+                align={box.align}
+                draggable={!box.locked && canvasTool === 'select' && !isSpaceDown}
+                onClick={() => selectTextBox(box.id)}
+                onTap={() => selectTextBox(box.id)}
+                onDblClick={() => { if(!box.locked) setEditingTextId(box.id) }}
+                onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:e.target.width(),height:e.target.height()},box.id);e.target.position(rect)}}
+                onTransform={e=>{const node=e.target;node.width(Math.max(4,node.width()*node.scaleX()));node.height(Math.max(4,node.height()*node.scaleY()));node.scale({x:1,y:1})}}
+                onTransformEnd={e=>{const node=e.target;updateTextBox(spread.id,box.id,{x:node.x()/STAGE_WIDTH,y:node.y()/stageHeight,width:node.width()/STAGE_WIDTH,height:node.height()/stageHeight});setSmartGuides([])}}
+                onDragEnd={(e) => {
+                  setSmartGuides([])
+                  updateTextBox(spread.id, box.id, {
+                    x: e.target.x() / STAGE_WIDTH,
+                    y: e.target.y() / stageHeight,
+                  })
+                }}
+                stroke={selectedTextBoxId === box.id ? '#9c6b49' : undefined}
+                strokeWidth={selectedTextBoxId === box.id ? 0.6 : 0}
+              />
+            )
+
+            }
+            const box=boxes.find(b=>b.placeholderId===layer.id)
+            if(!box)return null
+            return <Group key={layer.id} name={`image-layer-${layer.id}`}>
+          {[box].map((box) => {
             const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
             const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
             if (photo) return null
@@ -796,7 +840,7 @@ export default function DesignerCanvas() {
           {/* "Drop photo here" hint — matches the reference app's empty-frame dropzone affordance
               instead of a bare gray rectangle, so it's obvious every empty box accepts a drop or
               a click-to-place from the dock. Skipped on cells too small to hold the label. */}
-          {boxes.map((box) => {
+          {[box].map((box) => {
             const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
             const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
             if (photo || box.width < 70 || box.height < 50) return null
@@ -826,7 +870,7 @@ export default function DesignerCanvas() {
             )
           })}
 
-          {boxes.map((box) => {
+          {[box].map((box) => {
             const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
             const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
             if (!photo || !placement) return null
@@ -863,7 +907,9 @@ export default function DesignerCanvas() {
             )
           })}
 
-          {boxes.filter(b=>spread.placements.find(p=>p.placeholderId===b.placeholderId)?.locked).map(b=><KonvaText key={`lock-${b.placeholderId}`} x={b.x+5/stageScale} y={b.y+5/stageScale} text="Locked" fontSize={12/stageScale} fill="#805638" listening={false} />)}
+          {[box].filter(b=>spread.placements.find(p=>p.placeholderId===b.placeholderId)?.locked).map(b=><KonvaText key={`lock-${b.placeholderId}`} x={b.x+5/stageScale} y={b.y+5/stageScale} text="Locked" fontSize={12/stageScale} fill="#805638" listening={false} />)}
+            </Group>
+          })}
           {selectedBox && !spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)?.locked && canvasTool === 'select' && <>
             <Rect ref={frameNodeRef} x={selectedBox.x} y={selectedBox.y} width={selectedBox.width} height={selectedBox.height}
               fill="rgba(0,0,0,0)" draggable
@@ -981,43 +1027,7 @@ export default function DesignerCanvas() {
               />
             ))}
 
-          {spread.textBoxes.map((box) => {
-            const x = box.x * STAGE_WIDTH
-            const y = box.y * stageHeight
-            return (
-              <KonvaText
-                key={box.id}
-                ref={selectedTextBoxId===box.id?textNodeRef:undefined}
-                x={x}
-                y={y}
-                width={box.width * STAGE_WIDTH}
-                height={box.height * stageHeight}
-                text={box.text}
-                fontFamily={fontPreview?.textBoxId === box.id ? fontPreview.family : box.fontFamily}
-                fontSize={box.fontSize}
-                fontStyle={`${box.bold ? 'bold' : ''} ${box.italic ? 'italic' : ''}`.trim() || 'normal'}
-                fill={box.color}
-                align={box.align}
-                draggable={!box.locked && canvasTool === 'select' && !isSpaceDown}
-                onClick={() => selectTextBox(box.id)}
-                onTap={() => selectTextBox(box.id)}
-                onDblClick={() => { if(!box.locked) setEditingTextId(box.id) }}
-                onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:e.target.width(),height:e.target.height()},box.id);e.target.position(rect)}}
-                onTransform={e=>{const node=e.target;node.width(Math.max(4,node.width()*node.scaleX()));node.height(Math.max(4,node.height()*node.scaleY()));node.scale({x:1,y:1})}}
-                onTransformEnd={e=>{const node=e.target;updateTextBox(spread.id,box.id,{x:node.x()/STAGE_WIDTH,y:node.y()/stageHeight,width:node.width()/STAGE_WIDTH,height:node.height()/stageHeight});setSmartGuides([])}}
-                onDragEnd={(e) => {
-                  setSmartGuides([])
-                  updateTextBox(spread.id, box.id, {
-                    x: e.target.x() / STAGE_WIDTH,
-                    y: e.target.y() / stageHeight,
-                  })
-                }}
-                stroke={selectedTextBoxId === box.id ? '#9c6b49' : undefined}
-                strokeWidth={selectedTextBoxId === box.id ? 0.6 : 0}
-              />
-            )
-          })}
-          {selectedTextBoxId && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.locked && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#9c6b49" anchorStroke="#9c6b49" />}
+          {selectedTextBoxId && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.locked && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.hidden && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#9c6b49" anchorStroke="#9c6b49" />}
         </Layer>
         {(gridMode==='on' || (gridMode==='auto' && (showGrid || !!liveFrame || !!draftFrame))) && <Layer listening={false} name="rule-of-thirds-grid">
           {[1 / 3, 2 / 3].flatMap(f => [
@@ -1036,7 +1046,7 @@ export default function DesignerCanvas() {
       {editingTextId &&
         (() => {
           const box = spread.textBoxes.find((t) => t.id === editingTextId)
-          if (!box) return null
+          if (!box || box.hidden) return null
           return (
             <textarea
               className="text-edit-overlay"

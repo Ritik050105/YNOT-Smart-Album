@@ -408,3 +408,10 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .designer-layers__row { display:flex; align-items:center; gap:8px; padding:5px 0; }
 .designer-layers__select { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; padding:8px; border:0; border-radius:6px; background:transparent; color:var(--text); cursor:pointer; }
 .designer-layers__select:hover, .designer-layers__select[aria-pressed=true] { background:var(--accent-soft); color:var(--accent); }
+
+.designer-layers__help { font-size: 11px; color: var(--text-muted); margin: 0 0 8px; }
+.designer-layers__grip { border: 0; background: transparent; color: inherit; cursor: grab; padding: 5px 2px; }
+.designer-layers__grip:disabled { opacity: .3; cursor: default; }
+.designer-layers__row.is-hidden .designer-layers__select { opacity: .5; }
+.designer-layers__row.is-drop-target { box-shadow: inset 0 -2px var(--accent); background: var(--surface); }
+.designer-layers__row .btn { flex-shrink: 0; padding-inline: 6px; }
