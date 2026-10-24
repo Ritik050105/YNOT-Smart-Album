@@ -1,4 +1,4 @@
-import { spreadLayers, layerMembers, groupGeometry } from '@/engine/spreadLayers'
+import { spreadLayers, layerMembers, transformLayerSelection, arrangeLayerSelection, LayerAlignment } from '@/engine/spreadLayers'
 import { changesLockedLayer } from '@/engine/layerLocks'
 import { getPreferences } from './preferences'
 import { applyPageTemplate, pagePlacements, TemplateScope } from '@/engine/pageTemplates'
@@ -294,6 +294,8 @@ interface ProjectState {
   updateImageFrame: (spreadId: string, frameId: string, rect: { x: number; y: number; width: number; height: number }) => void
   groupLayers: (spreadId: string, keys: string[]) => void
   ungroupLayers: (spreadId: string, groupId: string) => void
+  transformSelection: (spreadId: string, keys: string[], rect: {x:number;y:number;width:number;height:number}) => void
+  arrangeSelection: (spreadId: string, keys: string[], mode: LayerAlignment) => void
   transformGroup: (spreadId: string, groupId: string, rect: {x:number;y:number;width:number;height:number}) => void
   setLayerHidden: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, hidden: boolean) => void
   moveLayer: (spreadId: string, kind: 'image' | 'text', id: string, targetKind: 'image' | 'text', targetId: string) => void
@@ -1011,16 +1013,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if(first)first.kind==='image'?get().selectPlaceholder(first.id):get().selectTextBox(first.id)
   },
   ungroupLayers: (spreadId, groupId) => withHistory(set,p=>({...p,spreads:p.spreads.map(s=>s.id!==spreadId?s:{...s,placements:s.placements.map(l=>l.groupId===groupId?{...l,groupId:undefined}:l),textBoxes:s.textBoxes.map(l=>l.groupId===groupId?{...l,groupId:undefined}:l)})})),
-  transformGroup: (spreadId, groupId, rect) => withHistory(set,p=>{
+  transformGroup: (spreadId, groupId, rect) => {
+    const spread=get().project.spreads.find(s=>s.id===spreadId)
+    if(spread)get().transformSelection(spreadId,spreadLayers(spread).filter(l=>l.value.groupId===groupId).map(l=>l.kind+':'+l.id),rect)
+  },
+  transformSelection: (spreadId, keys, rect) => withHistory(set,p=>{
     const spread=p.spreads.find(s=>s.id===spreadId)
     if(!spread||!Object.values(rect).every(Number.isFinite)||rect.width<=0||rect.height<=0)return p
-    const g=groupGeometry(spread,groupId,p.size)
-    if(!g||!g.width||!g.height||g.members.some(l=>l.value.locked||l.value.hidden))return p
-    const target=boundedFrameRect(rect),sx=target.width/g.width,sy=target.height/g.height
-    const transform=(r:{x:number;y:number;width:number;height:number})=>({x:target.x+(r.x-g.x)*sx,y:target.y+(r.y-g.y)*sy,width:r.width*sx,height:r.height*sy})
-    const size=spread.size??p.size,height=DESIGN_WIDTH*size.heightIn/size.widthIn
-    const customBoxes=computePlaceholderBoxes(spread,DESIGN_WIDTH,height).map(b=>{const member=g.members.find(l=>l.kind==='image'&&l.id===b.placeholderId);return {id:b.placeholderId,...(member?transform(member.rect):{x:b.x/DESIGN_WIDTH,y:b.y/height,width:b.width/DESIGN_WIDTH,height:b.height/height}),preferredOrientation:'any' as const}})
-    return {...p,spreads:p.spreads.map(s=>s.id!==spreadId?s:{...s,customBoxes,flipped:false,textBoxes:s.textBoxes.map(t=>t.groupId===groupId?{...t,...transform(t),fontSize:t.fontSize*Math.min(sx,sy)}:t)})}
+    const updated=transformLayerSelection(spread,p.size,keys,boundedFrameRect(rect))
+    return updated===spread?p:{...p,spreads:p.spreads.map(s=>s.id===spreadId?updated:s)}
+  }),
+  arrangeSelection: (spreadId, keys, mode) => withHistory(set,p=>{
+    const spread=p.spreads.find(s=>s.id===spreadId)
+    if(!spread)return p
+    const updated=arrangeLayerSelection(spread,p.size,keys,mode)
+    return updated===spread?p:{...p,spreads:p.spreads.map(s=>s.id===spreadId?updated:s)}
   }),
   setLayerHidden: (spreadId, kind, id, hidden) => {
     withHistory(set, p => ({...p,spreads:p.spreads.map(s=>{

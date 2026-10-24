@@ -429,3 +429,7 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .designer-layers__row input[type=checkbox] { width: 13px; height: 13px; margin: 0; flex-shrink: 0; accent-color: var(--accent); }
 
 .album-editor.designer-view .bottom-panel:has(.photo-dock):not([hidden]) { display: flex; flex-direction: column; flex: 0 0 clamp(180px, 32vh, 360px); min-height: 0; overflow: hidden; }
+
+.layer-arrange { padding: 10px 0; border-block: 1px solid var(--border-soft); margin: 10px 0; }
+.layer-arrange strong { display: block; font-size: 11px; color: var(--text-muted); margin: 6px 0; }
+.layer-arrange__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }

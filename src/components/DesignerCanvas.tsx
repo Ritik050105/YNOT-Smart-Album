@@ -1,4 +1,4 @@
-import { spreadLayers, groupGeometry, layerMembers } from '@/engine/spreadLayers'
+import { spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences } from '@/state/preferences'
 import { snapRect, GuideRect } from '@/engine/smartGuides'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
@@ -296,16 +296,20 @@ export default function DesignerCanvas() {
   }, [selectedPlaceholderId, selectedBox?.x, selectedBox?.y, selectedBox?.width, selectedBox?.height, canvasTool])
 
   const selectedGroupId=spread?.placements.find(p=>p.placeholderId===selectedPlaceholderId)?.groupId??spread?.textBoxes.find(t=>t.id===selectedTextBoxId)?.groupId
-  const group=spread&&selectedGroupId?groupGeometry(spread,selectedGroupId,project.size):null
+  const group=spread?(selectedGroupId?groupGeometry(spread,selectedGroupId,project.size):selectedLayerKeys.length>1?selectionGeometry(spread,selectedLayerKeys,project.size):null):null
+  const transformKeys=group?.members.map(l=>l.kind+':'+l.id)??[]
+  const selectionIdentity=transformKeys.join('|')
+  const [isShiftDown,setIsShiftDown]=useState(false)
   const groupEditable=group&&!group.members.some(l=>l.value.locked||l.value.hidden)
   const groupNodeRef=useRef<Konva.Rect>(null)
   const groupTransformerRef=useRef<Konva.Transformer>(null)
   const [groupLive,setGroupLive]=useState<{x:number;y:number;scaleX:number;scaleY:number}|null>(null)
-  useEffect(()=>{setGroupLive(null)},[selectedGroupId,spread])
-  useEffect(()=>{if(groupNodeRef.current&&groupTransformerRef.current){groupTransformerRef.current.nodes([groupNodeRef.current]);groupTransformerRef.current.getLayer()?.batchDraw()}},[selectedGroupId,spread,canvasTool])
+  useEffect(()=>{setGroupLive(null)},[selectionIdentity,spread])
+  useEffect(()=>{if(groupNodeRef.current&&groupTransformerRef.current){groupTransformerRef.current.nodes([groupNodeRef.current]);groupTransformerRef.current.getLayer()?.batchDraw()}},[selectionIdentity,spread,canvasTool])
   const updateGroupPreview=()=>{const n=groupNodeRef.current;if(n&&group)setGroupLive({x:n.x()-group.x*STAGE_WIDTH*n.scaleX(),y:n.y()-group.y*stageHeight*n.scaleY(),scaleX:n.scaleX(),scaleY:n.scaleY()})}
-  const commitGroup=()=>{const n=groupNodeRef.current;if(n&&spread&&selectedGroupId){useProjectStore.getState().transformGroup(spread.id,selectedGroupId,{x:n.x()/STAGE_WIDTH,y:n.y()/stageHeight,width:n.width()*n.scaleX()/STAGE_WIDTH,height:n.height()*n.scaleY()/stageHeight});n.scale({x:1,y:1});setGroupLive(null)}}
+  const commitGroup=()=>{const n=groupNodeRef.current;if(n&&spread&&transformKeys.length){useProjectStore.getState().transformSelection(spread.id,transformKeys,{x:n.x()/STAGE_WIDTH,y:n.y()/stageHeight,width:n.width()*n.scaleX()/STAGE_WIDTH,height:n.height()*n.scaleY()/stageHeight});n.scale({x:1,y:1});setGroupLive(null)}}
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
+  useEffect(()=>{if(selectedLayerKeys.length||(editingTextId&&selectedTextBoxId!==editingTextId))setEditingTextId(null)},[selectedLayerKeys,selectedTextBoxId,editingTextId])
   const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId?: string; openedAt: number } | null>(null)
   const stageRef = useRef<Konva.Stage>(null)
   // Double-clicking an empty frame opens a native file picker and drops the chosen photo straight
@@ -437,6 +441,7 @@ export default function DesignerCanvas() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (useProjectStore.getState().matchingTemplatesOpen) return
+      if(e.key==='Shift')setIsShiftDown(true)
       if (e.code === 'Space' && !isEditableTarget(e.target)) {
         e.preventDefault()
         setIsSpaceDown(true)
@@ -455,6 +460,7 @@ export default function DesignerCanvas() {
       }
     }
     function onKeyUp(e: KeyboardEvent) {
+      if(e.key==='Shift')setIsShiftDown(false)
       if (e.code === 'Space') setIsSpaceDown(false)
     }
     window.addEventListener('keydown', onKeyDown)
@@ -815,7 +821,7 @@ export default function DesignerCanvas() {
             const x = box.x * STAGE_WIDTH
             const y = box.y * stageHeight
             return (
-              <Group key={box.id} name={`text-layer-${box.id}`} {...(box.groupId===selectedGroupId?groupLive:null)}><KonvaText
+              <Group key={box.id} name={`text-layer-${box.id}`} {...(transformKeys.includes('text:'+box.id)?groupLive:null)}><KonvaText
                 key={box.id}
                 ref={selectedTextBoxId===box.id?textNodeRef:undefined}
                 x={x}
@@ -831,7 +837,7 @@ export default function DesignerCanvas() {
                 draggable={!box.groupId && !box.locked && canvasTool === 'select' && !isSpaceDown}
                 onClick={e=>{if(e.evt.shiftKey||e.evt.ctrlKey||e.evt.metaKey)toggleCanvasLayer('text',box.id);else selectTextBox(box.id)}}
                 onTap={() => selectTextBox(box.id)}
-                onDblClick={() => { if(!box.locked) setEditingTextId(box.id) }}
+                onDblClick={e => { if(!box.locked&&!e.evt.shiftKey) setEditingTextId(box.id) }}
                 onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:e.target.width(),height:e.target.height()},box.id);e.target.position(rect)}}
                 onTransform={e=>{const node=e.target;node.width(Math.max(4,node.width()*node.scaleX()));node.height(Math.max(4,node.height()*node.scaleY()));node.scale({x:1,y:1})}}
                 onTransformEnd={e=>{const node=e.target;updateTextBox(spread.id,box.id,{x:node.x()/STAGE_WIDTH,y:node.y()/stageHeight,width:node.width()/STAGE_WIDTH,height:node.height()/stageHeight});setSmartGuides([])}}
@@ -850,7 +856,7 @@ export default function DesignerCanvas() {
             }
             const box=boxes.find(b=>b.placeholderId===layer.id)
             if(!box)return null
-            return <Group key={layer.id} name={`image-layer-${layer.id}`} {...(layer.value.groupId===selectedGroupId?groupLive:null)}>
+            return <Group key={layer.id} name={`image-layer-${layer.id}`} {...(transformKeys.includes('image:'+layer.id)?groupLive:null)}>
           {[box].map((box) => {
             const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
             const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
@@ -975,7 +981,7 @@ export default function DesignerCanvas() {
             <Transformer ref={transformerRef} borderStroke="#9c6b49" anchorStroke="#9c6b49" rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} />
           </>}
           {group && group.members.some(l=>!l.value.hidden) && canvasTool==='select' && <>
-            <Rect name="group-transform-box" ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke="#9c6b49" strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!)}}/>
+            <Rect name="group-transform-box" listening={!isShiftDown} ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke="#9c6b49" strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey&&selectedGroupId)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!)}}/>
             {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-right','bottom-left','bottom-right']} borderStroke="#9c6b49" anchorStroke="#9c6b49" boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
           </>}
           {draftFrame && <Rect {...draftFrame} stroke="#9c6b49" strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />}
