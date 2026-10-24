@@ -50,13 +50,13 @@ function createSplash(): BrowserWindow {
     resizable: false,
     show: true,
     center: true,
-    backgroundColor: '#fafafa',
+    backgroundColor: '#f4f1ec',
     webPreferences: { contextIsolation: true },
   })
   splash.setMenu(null)
   const logo = fs.readFileSync(path.join(app.getAppPath(), 'src', 'assets', 'ynot-mark-dark.png')).toString('base64')
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-    html,body{margin:0;height:100%;background:#fafafa;}
+    html,body{margin:0;height:100%;background:#f4f1ec;}
     body{display:grid;place-items:center;-webkit-user-select:none;}
     .mark{width:64px;height:64px;max-width:16vmin;max-height:16vmin;display:grid;place-items:center;}
     img{width:100%;height:100%;object-fit:contain;}
@@ -69,7 +69,7 @@ let mainWindow: BrowserWindow | null = null
 function createWindow(splash?: BrowserWindow) {
   const win = new BrowserWindow({
     ...fitWindowSize(screen.getPrimaryDisplay().workAreaSize, { width: 1440, height: 900 }, { width: 720, height: 480 }),
-    backgroundColor: '#1e1f22',
+    backgroundColor: '#1e201f',
     title: 'YNOT Album Studio',
     show: false,
     webPreferences: {
@@ -136,7 +136,7 @@ function createNewProjectWindow() {
     ...fitWindowSize(workArea, { width: 1060, height: 840 }, { width: 560, height: 480 }),
     title: 'New Project',
     parent: mainWindow ?? undefined,
-    backgroundColor: '#292b2e',
+    backgroundColor: '#1e201f',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

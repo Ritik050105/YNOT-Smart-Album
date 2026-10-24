@@ -125,7 +125,7 @@ export default function DesignerViewScreen() {
         <button className="btn btn--danger" onClick={() => { useProjectStore.getState().deleteSpread(spread.id); exitDesignerView(true) }}>Delete Cover</button>
       </>}><p>A cover must contain at least one image or non-empty text box. Continue editing or delete the empty cover.</p></Modal>}
       <header className="designer-view__topbar">
-        <button className="designer-view__back" title="Back to the album overview" onClick={() => exitDesignerView()}>
+        <button className="btn btn--icon designer-view__back" title="Back to the album overview" onClick={() => exitDesignerView()}>
           <Icon name="chevronLeft" size={16} />
         </button>
         <button

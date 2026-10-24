@@ -258,7 +258,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
                   style={{ marginLeft: 8, width: 120 }}
                 />
               </label>
-              {rangeInvalid && <p className="muted" style={{ color: '#ff6b6b' }}>No valid spreads in that range.</p>}
+              {rangeInvalid && <p className="muted" style={{ color: 'var(--danger)' }}>No valid spreads in that range.</p>}
 
               <label className="checkbox-row">
                 <input type="checkbox" checked={includeCover} onChange={(e) => setIncludeCover(e.target.checked)} />
@@ -299,7 +299,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
               style={{ marginLeft: 8, width: 120 }}
             />
           </label>
-          {rangeInvalid && <p className="muted" style={{ color: '#ff6b6b' }}>No valid spreads in that range.</p>}
+          {rangeInvalid && <p className="muted" style={{ color: 'var(--danger)' }}>No valid spreads in that range.</p>}
 
           <h4>Output Specifications</h4>
           <label className="checkbox-row">
