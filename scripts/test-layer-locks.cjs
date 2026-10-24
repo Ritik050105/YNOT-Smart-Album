@@ -55,6 +55,34 @@ app.whenReady().then(async()=>{
  assert.deepEqual(await evaluate(`renderSpread().then(c=>Array.from(c.getContext('2d').getImageData(30,20,1,1).data))`),[255,255,255,255],'Hidden artwork leaves white page');
  await evaluate(`store.getState().setLayerHidden(sid,'text','text',false)`);assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes[0].locked`),true,'Show preserves lock');
  await wait();
+
+ await evaluate(`store.getState().setLayerLocked(sid,'text','text',false);store.getState().setLayerHidden(sid,'text','text',false);store.getState().setLayerHidden(sid,'image',fid,false);store.getState().setLayerHidden(sid,'image',baseId,false)`);await wait();
+ await evaluate(`document.querySelector('[data-layer-id="text"] input').click();document.querySelector('[data-layer-id="'+fid+'"] input').click()`);await wait();
+ await evaluate(`Array.from(document.querySelectorAll('.designer-layers__actions button')).find(b=>b.textContent==='Group selected').click()`);await wait();
+ const groupId=await evaluate(`store.getState().project.spreads[0].textBoxes[0].groupId`);assert.ok(groupId,'UI groups selected mixed layers');
+ assert.equal(await evaluate(`store.getState().project.spreads[0].placements.find(p=>p.placeholderId===fid).groupId`),groupId);
+ assert.equal(await evaluate(`document.querySelectorAll('.designer-layers__row').length`),3,'Group appears as a single layer row');
+ const beforeGroup=await evaluate(`({text:store.getState().project.spreads[0].textBoxes[0],frame:store.getState().project.spreads[0].customBoxes.find(b=>b.id===fid)})`);
+ const groupPoint=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.findOne('.group-transform-box'),r=stage.container().getBoundingClientRect(),p=n.getAbsolutePosition();return {x:Math.round(r.x+p.x+n.width()*stage.scaleX()*.65),y:Math.round(r.y+p.y+n.height()*stage.scaleY()*.7),scale:stage.scaleX()}})()`);
+ win.webContents.sendInputEvent({type:'mouseMove',x:groupPoint.x,y:groupPoint.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:groupPoint.x,y:groupPoint.y});await wait();
+ for(let i=1;i<=5;i++){win.webContents.sendInputEvent({type:'mouseMove',x:groupPoint.x+i*6,y:groupPoint.y+i*4});await wait()}
+ assert.equal(await evaluate(`Konva.stages[0].find('.rule-of-thirds-grid').length`),0,'Moving does not automatically display thirds grid');
+ win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:groupPoint.x+30,y:groupPoint.y+20});await wait();
+ const afterGroup=await evaluate(`({text:store.getState().project.spreads[0].textBoxes[0],frame:store.getState().project.spreads[0].customBoxes.find(b=>b.id===fid)})`);
+ assert.ok(afterGroup.text.x>beforeGroup.text.x,'Pointer drag moves group');assert.ok(Math.abs((afterGroup.text.x-beforeGroup.text.x)-(afterGroup.frame.x-beforeGroup.frame.x))<.00001,'Image and text translate together');
+ await evaluate(`const n=Konva.stages[0].findOne('.group-transform-box');n.scale({x:1.25,y:1.25});n.fire('transform',{target:n});n.fire('transformend',{target:n});undefined`);await wait();
+ assert.ok(Math.abs(await evaluate(`store.getState().project.spreads[0].textBoxes[0].fontSize`)-125)<.01,'Group resize scales text');assert.ok(Math.abs(await evaluate(`store.getState().project.spreads[0].customBoxes.find(b=>b.id===fid).width`)-afterGroup.frame.width*1.25)<.00001,'Group resize scales image frame');
+ assert.equal(await evaluate(`roundtrip().then(p=>p.spreads[0].textBoxes[0].groupId)`),groupId,'Group persists on save/reopen');
+ await evaluate(`store.getState().setLayerLocked(sid,'text','text',true);store.getState().setLayerHidden(sid,'text','text',true)`);await wait();
+ assert.equal(await evaluate(`store.getState().project.spreads[0].placements.find(p=>p.placeholderId===fid).locked`),true);assert.equal(await evaluate(`store.getState().project.spreads[0].placements.find(p=>p.placeholderId===fid).hidden`),true);assert.equal(await evaluate(`Konva.stages[0].find('.group-transform-box').length`),0);
+ await evaluate(`store.getState().setLayerHidden(sid,'image',fid,false);store.getState().setLayerLocked(sid,'image',fid,false);store.getState().selectTextBox('text');store.getState().ungroupLayers(sid,store.getState().project.spreads[0].textBoxes[0].groupId)`);await wait();
+ assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes[0].groupId`),undefined);await evaluate('store.getState().undo()');assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes[0].groupId`),groupId,'Ungroup is undoable');
+ // Fill the photo dock and verify wrapping, vertical overflow and row navigation.
+ await evaluate(`const p=store.getState().project;store.setState({bottomPanelOpen:true,project:{...p,photos:[...p.photos,...Array.from({length:36},(_,i)=>({...p.photos[0],id:'dock'+i,fileName:'Photo '+(i+1)}))]}})`);await wait();
+ for(const width of [1100,1600]){win.setSize(width,900);await wait();const grid=await evaluate(`(()=>{const el=document.querySelector('.photo-dock__strip');return {display:getComputedStyle(el).display,width:el.clientWidth,scrollWidth:el.scrollWidth,height:el.clientHeight,scrollHeight:el.scrollHeight,rows:new Set(Array.from(el.querySelectorAll('[data-dock-photo]')).map(n=>n.offsetTop)).size}})()`);console.log('Dock layout',width,grid);await fs.writeFile(path.join(out,'dock.png'),(await win.webContents.capturePage()).toPNG());assert.equal(grid.display,'grid');assert.ok(grid.scrollWidth<=grid.width+1,'No horizontal photo scrolling');assert.ok(grid.rows>1&&grid.scrollHeight>grid.height,'Photo dock wraps and scrolls vertically')}
+ await evaluate(`document.querySelector('[data-dock-photo]').focus();document.querySelector('[data-dock-photo]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))`);await wait();assert.ok(await evaluate(`document.activeElement.matches('[data-dock-photo]')`),'Keyboard moves between photo rows');
+ console.log('Groups passed: mixed selection, actual pointer move, resize, lock/hide, persistence, Undo, no automatic thirds grid; responsive vertical dock passed');
  await fs.writeFile(path.join(out,'layers.png'),(await win.webContents.capturePage()).toPNG());
+ await evaluate(`store.getState().exitDesignerView(true);store.setState({bottomPanelOpen:true})`);await wait();const overview=await evaluate(`(()=>{const e=document.querySelector('.photo-dock__strip');return {w:e.clientWidth,sw:e.scrollWidth,h:e.clientHeight,sh:e.scrollHeight}})()`);assert.ok(overview.sw<=overview.w+1&&overview.sh>overview.h,'Overview photo dock scrolls vertically too');
  console.log('Layer visibility, drag/keyboard order, raster/PSD parity and layer locks passed: controls, image/text/background protection, resize/drag prevention, independent editing, Undo, project roundtrip');win.destroy();app.quit();
 }).catch(e=>{console.error(e);app.exit(1)});

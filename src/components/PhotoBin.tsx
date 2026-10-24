@@ -323,10 +323,12 @@ export default function PhotoBin() {
           if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
             event.preventDefault()
             useProjectStore.getState().setSelectedPhotoIds(ids, ids[0] ?? null)
-          } else if (!event.ctrlKey && !event.metaKey && !event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+          } else if (!event.ctrlKey && !event.metaKey && !event.altKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) {
             const focused = (event.target as HTMLElement).closest<HTMLElement>('[data-dock-photo]')?.dataset.dockPhoto
             const current = ids.indexOf(focused ?? selectedPhotoIds.at(-1) ?? '')
-            const next = current < 0 ? 0 : Math.max(0, Math.min(ids.length - 1, current + (event.key === 'ArrowLeft' ? -1 : 1)))
+            const columns=getComputedStyle(event.currentTarget).gridTemplateColumns.split(' ').length
+            const step=event.key==='ArrowUp'?-columns:event.key==='ArrowDown'?columns:event.key==='ArrowLeft'?-1:1
+            const next = current < 0 ? 0 : Math.max(0, Math.min(ids.length - 1, current + step))
             const id = ids[next]
             if (!id) return
             event.preventDefault()
@@ -346,7 +348,6 @@ export default function PhotoBin() {
                 data-dock-photo={photo.id}
                 onContextMenu={e=>{e.preventDefault();setEditorMenu({x:e.clientX,y:e.clientY,src:photo.src,name:photo.fileName,photoId:photo.id})}}
               aria-label={`${photo.fileName}${used ? ' — used in album; drag to reuse' : ''}`}
-              style={{ width: `calc(var(--photo-size, 120px) * ${Math.min(1.7, Math.max(0.45, photo.width / photo.height || 1))})` }}
               tabIndex={-1}
               draggable
               onDragStart={(e) => {

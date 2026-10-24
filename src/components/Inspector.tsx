@@ -91,6 +91,8 @@ export default function Inspector() {
   const textBox = spread.textBoxes.find((t) => t.id === selectedTextBoxId)
   const photo = placement?.photoId ? project.photos.find((p) => p.id === placement.photoId) : undefined
   if (placement?.locked || textBox?.locked) return <div className="panel inspector"><strong>Layer locked</strong><p className="muted">Unlock this layer to edit, move or resize it.</p><button className="btn" onClick={()=>useProjectStore.getState().setLayerLocked(spread.id,placement?'image':'text',placement?.placeholderId??textBox!.id,false)}>Unlock layer</button></div>
+  const groupId=placement?.groupId??textBox?.groupId
+  if(groupId)return <div className="panel inspector"><strong>Group selected</strong><p className="muted">Drag the group on the canvas or resize it with the corner handles.</p><div className="designer-layers__actions"><button className="btn" onClick={()=>useProjectStore.getState().setLayerLocked(spread.id,placement?'image':'text',placement?.placeholderId??textBox!.id,true)}>Lock group</button><button className="btn" onClick={()=>useProjectStore.getState().setLayerHidden(spread.id,placement?'image':'text',placement?.placeholderId??textBox!.id,true)}>Hide group</button><button className="btn" onClick={()=>useProjectStore.getState().ungroupLayers(spread.id,groupId)}>Ungroup</button></div></div>
   const spreadAspect = size.widthIn / size.heightIn
   const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / spreadAspect).find(
     (b) => b.placeholderId === selectedPlaceholderId

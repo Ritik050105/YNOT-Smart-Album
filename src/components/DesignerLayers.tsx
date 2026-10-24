@@ -1,19 +1,29 @@
 import { useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { spreadLayers } from '@/engine/spreadLayers'
+import { spreadLayers, layerMembers } from '@/engine/spreadLayers'
 import { Spread } from '@/types'
 
 export default function DesignerLayers({spread}:{spread:Spread}) {
  const state=useProjectStore()
  const [dragOver,setDragOver]=useState<string|null>(null)
- const rows=[...spreadLayers(spread).reverse().map(layer=>({id:layer.id,kind:layer.kind,label:layer.kind==='text' ? layer.value.text.trim()||'Text' : state.project.photos.find(a=>a.id===layer.value.photoId)?.fileName||`Empty frame ${spread.placements.findIndex(p=>p.placeholderId===layer.id)+1}`,locked:!!layer.value.locked,hidden:!!layer.value.hidden})),{id:'background',kind:'background' as const,label:'Background',locked:!!spread.backgroundLocked,hidden:!!spread.backgroundHidden}]
- return <details className="designer-layers" open><summary>Layers <span>{rows.length}</span></summary><p className="designer-layers__help">Drag to reorder · Top layer appears in front</p><div className="designer-layers__list">{rows.map((row,index)=><div className={`designer-layers__row${row.hidden?' is-hidden':''}${dragOver===row.kind+row.id?' is-drop-target':''}`} key={row.kind+row.id} data-layer-id={row.id} data-layer-kind={row.kind}
+ const [picked,setPicked]=useState<string[]>([])
+ const all=spreadLayers(spread).reverse()
+ const rows=[...all.filter((l,i)=>!l.value.groupId||all.findIndex(a=>a.value.groupId===l.value.groupId)===i).map(layer=>{
+   const members=layerMembers(spread,layer.kind,layer.id)
+   return {id:layer.id,kind:layer.kind,groupId:layer.value.groupId,keys:members.map(m=>m.kind+':'+m.id),label:layer.value.groupId?`Group · ${members.length} layers`:layer.kind==='text' ? layer.value.text.trim()||'Text' : state.project.photos.find(a=>a.id===layer.value.photoId)?.fileName||`Empty frame ${spread.placements.findIndex(p=>p.placeholderId===layer.id)+1}`,locked:members.some(m=>m.value.locked),hidden:members.every(m=>m.value.hidden)}
+ }),{id:'background',kind:'background' as const,groupId:undefined,keys:[],label:'Background',locked:!!spread.backgroundLocked,hidden:!!spread.backgroundHidden}]
+ const selectedGroup=all.find(l=>l.kind==='image'?l.id===state.selectedPlaceholderId:l.id===state.selectedTextBoxId)?.value.groupId
+ const selectedKeys=[...new Set([...picked,...state.multiSelectedPlaceholderIds.map(id=>'image:'+id)])].filter(key=>all.some(l=>l.kind+':'+l.id===key))
+ const canGroup=selectedKeys.length>1&&!all.some(l=>selectedKeys.includes(l.kind+':'+l.id)&&(l.value.hidden||l.value.locked))
+
+ return <details className="designer-layers" open><summary>Layers <span>{rows.length}</span></summary><p className="designer-layers__help">Drag to reorder · Top layer appears in front</p><div className="designer-layers__actions"><button className="btn btn--tiny" disabled={!canGroup} onClick={()=>{state.groupLayers(spread.id,selectedKeys);setPicked([])}}>Group selected</button><button className="btn btn--tiny" disabled={!selectedGroup||all.some(l=>l.value.groupId===selectedGroup&&l.value.locked)} onClick={()=>{if(selectedGroup)state.ungroupLayers(spread.id,selectedGroup);setPicked([])}}>Ungroup</button></div><p className="designer-layers__help">Select checkboxes to group image and text layers.</p><div className="designer-layers__list">{rows.map((row,index)=><div className={`designer-layers__row${row.hidden?' is-hidden':''}${dragOver===row.kind+row.id?' is-drop-target':''}`} key={row.kind+row.id} data-layer-id={row.id} data-layer-kind={row.kind}
  onDragOver={e=>{if(row.kind!=='background' && e.dataTransfer.types.includes('application/ynot-layer')){e.preventDefault();e.dataTransfer.dropEffect='move';setDragOver(row.kind+row.id)}}}
  onDragLeave={()=>setDragOver(null)} onDrop={e=>{e.preventDefault();setDragOver(null);if(row.kind==='background')return;try{const data=JSON.parse(e.dataTransfer.getData('application/ynot-layer'));if(data.spreadId===spread.id&&(data.kind==='image'||data.kind==='text')&&typeof data.id==='string')state.moveLayer(spread.id,data.kind,data.id,row.kind,row.id)}catch{/* Ignore unrelated drags. */}}}>
+ {row.kind!=='background'&&<input type="checkbox" aria-label={`Select ${row.label} for grouping`} checked={row.keys.every(k=>selectedKeys.includes(k))} onChange={e=>setPicked(e.target.checked?[...selectedKeys,...row.keys]:selectedKeys.filter(k=>!row.keys.includes(k)))} />}
  <button className="designer-layers__grip" aria-label={`Reorder ${row.label}`} title={row.kind==='background'?'Background stays at the bottom':row.locked?'Unlock to reorder':'Drag to reorder, or use Up and Down arrow keys'} disabled={row.kind==='background'||row.locked} draggable={row.kind!=='background'&&!row.locked}
  onDragStart={e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('application/ynot-layer',JSON.stringify({spreadId:spread.id,kind:row.kind,id:row.id}))}} onDragEnd={()=>setDragOver(null)}
  onKeyDown={e=>{const target=rows[index+(e.key==='ArrowUp'?-1:e.key==='ArrowDown'?1:0)];if(target&&target!==row&&row.kind!=='background'&&target.kind!=='background'){e.preventDefault();state.moveLayer(spread.id,row.kind,row.id,target.kind,target.id)}}}>⠿</button>
- <button className="designer-layers__select" title={row.label} aria-pressed={row.kind==='image'?state.selectedPlaceholderId===row.id:row.kind==='text'?state.selectedTextBoxId===row.id:false} onClick={()=>{if(row.kind==='image')state.selectPlaceholder(row.id);else state.selectTextBox(row.kind==='text'?row.id:null)}}>{row.label}</button>
+ <button className="designer-layers__select" title={row.label} aria-pressed={row.groupId?row.groupId===selectedGroup:row.kind==='image'?state.selectedPlaceholderId===row.id:row.kind==='text'?state.selectedTextBoxId===row.id:false} onClick={()=>{if(row.kind==='image')state.selectPlaceholder(row.id);else state.selectTextBox(row.kind==='text'?row.id:null)}}>{row.label}</button>
  <button className="btn btn--tiny" aria-label={`${row.hidden?'Show':'Hide'} ${row.label}`} aria-pressed={row.hidden} onClick={()=>state.setLayerHidden(spread.id,row.kind,row.id,!row.hidden)}>{row.hidden?'Show':'Hide'}</button>
  <button className="btn btn--tiny" aria-label={`${row.locked?'Unlock':'Lock'} ${row.label}`} aria-pressed={row.locked} onClick={()=>state.setLayerLocked(spread.id,row.kind,row.id,!row.locked)}>{row.locked?'Unlock':'Lock'}</button>
  </div>)}</div></details>

@@ -54,6 +54,7 @@ export interface TemplateDefinition {
 export type FrameStyle = 'none' | 'rounded' | 'polaroid' | 'shadow'
 
 export interface PlacedPhoto {
+  groupId?: string
   hidden?: boolean
   zIndex?: number
   locked?: boolean
@@ -106,6 +107,7 @@ export type ToneAdjustments = Pick<
 >
 
 export interface TextBox {
+  groupId?: string
   hidden?: boolean
   zIndex?: number
   locked?: boolean

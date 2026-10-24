@@ -1,4 +1,4 @@
-import { spreadLayers } from '@/engine/spreadLayers'
+import { spreadLayers, groupGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences } from '@/state/preferences'
 import { snapRect, GuideRect } from '@/engine/smartGuides'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
@@ -296,6 +296,16 @@ export default function DesignerCanvas() {
     if (transformer && node) { transformer.nodes([node]); transformer.getLayer()?.batchDraw() }
   }, [selectedPlaceholderId, selectedBox?.x, selectedBox?.y, selectedBox?.width, selectedBox?.height, canvasTool])
 
+  const selectedGroupId=spread?.placements.find(p=>p.placeholderId===selectedPlaceholderId)?.groupId??spread?.textBoxes.find(t=>t.id===selectedTextBoxId)?.groupId
+  const group=spread&&selectedGroupId?groupGeometry(spread,selectedGroupId,project.size):null
+  const groupEditable=group&&!group.members.some(l=>l.value.locked||l.value.hidden)
+  const groupNodeRef=useRef<Konva.Rect>(null)
+  const groupTransformerRef=useRef<Konva.Transformer>(null)
+  const [groupLive,setGroupLive]=useState<{x:number;y:number;scaleX:number;scaleY:number}|null>(null)
+  useEffect(()=>{setGroupLive(null)},[selectedGroupId,spread])
+  useEffect(()=>{if(groupNodeRef.current&&groupTransformerRef.current){groupTransformerRef.current.nodes([groupNodeRef.current]);groupTransformerRef.current.getLayer()?.batchDraw()}},[selectedGroupId,spread,canvasTool])
+  const updateGroupPreview=()=>{const n=groupNodeRef.current;if(n&&group)setGroupLive({x:n.x()-group.x*STAGE_WIDTH*n.scaleX(),y:n.y()-group.y*stageHeight*n.scaleY(),scaleX:n.scaleX(),scaleY:n.scaleY()})}
+  const commitGroup=()=>{const n=groupNodeRef.current;if(n&&spread&&selectedGroupId){useProjectStore.getState().transformGroup(spread.id,selectedGroupId,{x:n.x()/STAGE_WIDTH,y:n.y()/stageHeight,width:n.width()*n.scaleX()/STAGE_WIDTH,height:n.height()*n.scaleY()/stageHeight});n.scale({x:1,y:1});setGroupLive(null)}}
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
   const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId?: string; openedAt: number } | null>(null)
   const stageRef = useRef<Konva.Stage>(null)
@@ -660,7 +670,7 @@ export default function DesignerCanvas() {
   return (
     <div className="designer-canvas-wrap">
       <div className="designer-toolbar">
-        {selectedBox && !spread.placements.find(p => p.placeholderId === selectedBox.placeholderId)?.locked && !spread.placements.find(p => p.placeholderId === selectedBox.placeholderId)?.photoId && canvasTool === 'select' && <div className="frame-tool-hint"><strong>Empty image frame</strong><span>Drag handles to resize</span><button className="btn" onClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}>Add image…</button><button className="btn" onClick={() => useProjectStore.getState().removeImageFrame(spread.id, selectedBox.placeholderId)}>Remove frame</button></div>}
+        {!selectedGroupId && selectedBox && !spread.placements.find(p => p.placeholderId === selectedBox.placeholderId)?.locked && !spread.placements.find(p => p.placeholderId === selectedBox.placeholderId)?.photoId && canvasTool === 'select' && <div className="frame-tool-hint"><strong>Empty image frame</strong><span>Drag handles to resize</span><button className="btn" onClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}>Add image…</button><button className="btn" onClick={() => useProjectStore.getState().removeImageFrame(spread.id, selectedBox.placeholderId)}>Remove frame</button></div>}
         {canvasTool === 'frame' && <div className="frame-tool-hint" role="status"><strong>Image frame</strong><span>Drag to draw · Click for a standard frame</span><button className="btn" onClick={() => setCanvasTool('select')}>Done</button></div>}
         <button
           className="btn"
@@ -769,9 +779,8 @@ export default function DesignerCanvas() {
             const x = box.x * STAGE_WIDTH
             const y = box.y * stageHeight
             return (
-              <KonvaText
+              <Group key={box.id} name={`text-layer-${box.id}`} {...(box.groupId===selectedGroupId?groupLive:null)}><KonvaText
                 key={box.id}
-                name={`text-layer-${box.id}`}
                 ref={selectedTextBoxId===box.id?textNodeRef:undefined}
                 x={x}
                 y={y}
@@ -783,7 +792,7 @@ export default function DesignerCanvas() {
                 fontStyle={`${box.bold ? 'bold' : ''} ${box.italic ? 'italic' : ''}`.trim() || 'normal'}
                 fill={box.color}
                 align={box.align}
-                draggable={!box.locked && canvasTool === 'select' && !isSpaceDown}
+                draggable={!box.groupId && !box.locked && canvasTool === 'select' && !isSpaceDown}
                 onClick={() => selectTextBox(box.id)}
                 onTap={() => selectTextBox(box.id)}
                 onDblClick={() => { if(!box.locked) setEditingTextId(box.id) }}
@@ -799,13 +808,13 @@ export default function DesignerCanvas() {
                 }}
                 stroke={selectedTextBoxId === box.id ? '#9c6b49' : undefined}
                 strokeWidth={selectedTextBoxId === box.id ? 0.6 : 0}
-              />
+              /></Group>
             )
 
             }
             const box=boxes.find(b=>b.placeholderId===layer.id)
             if(!box)return null
-            return <Group key={layer.id} name={`image-layer-${layer.id}`}>
+            return <Group key={layer.id} name={`image-layer-${layer.id}`} {...(layer.value.groupId===selectedGroupId?groupLive:null)}>
           {[box].map((box) => {
             const placement = spread.placements.find((p) => p.placeholderId === box.placeholderId)
             const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
@@ -899,7 +908,7 @@ export default function DesignerCanvas() {
                 warmth={placement.warmth}
                 selected={selectedPlaceholderId === box.placeholderId}
                 multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
-                canDrag={canvasTool === 'select' && !isSpaceDown && !placement.locked}
+                canDrag={canvasTool === 'select' && !isSpaceDown && !placement.locked && !placement.groupId}
                 onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
                 onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}
                 onContextMenu={(e) => handlePlaceholderContextMenu(box.placeholderId, e.evt)}
@@ -910,7 +919,7 @@ export default function DesignerCanvas() {
           {[box].filter(b=>spread.placements.find(p=>p.placeholderId===b.placeholderId)?.locked).map(b=><KonvaText key={`lock-${b.placeholderId}`} x={b.x+5/stageScale} y={b.y+5/stageScale} text="Locked" fontSize={12/stageScale} fill="#805638" listening={false} />)}
             </Group>
           })}
-          {selectedBox && !spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)?.locked && canvasTool === 'select' && <>
+          {!selectedGroupId && selectedBox && !spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)?.locked && canvasTool === 'select' && <>
             <Rect ref={frameNodeRef} x={selectedBox.x} y={selectedBox.y} width={selectedBox.width} height={selectedBox.height}
               fill="rgba(0,0,0,0)" draggable
               onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:selectedBox.width,height:selectedBox.height},selectedBox.placeholderId);e.target.position(rect);setLiveFrame({...rect,id:selectedBox.placeholderId})}}
@@ -927,6 +936,10 @@ export default function DesignerCanvas() {
               onDblClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}
               onContextMenu={(e) => handlePlaceholderContextMenu(selectedBox.placeholderId, e.evt)} />
             <Transformer ref={transformerRef} borderStroke="#9c6b49" anchorStroke="#9c6b49" rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} />
+          </>}
+          {group && group.members.some(l=>!l.value.hidden) && canvasTool==='select' && <>
+            <Rect name="group-transform-box" ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke="#9c6b49" strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup}/>
+            {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-right','bottom-left','bottom-right']} borderStroke="#9c6b49" anchorStroke="#9c6b49" boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
           </>}
           {draftFrame && <Rect {...draftFrame} stroke="#9c6b49" strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />}
 
@@ -1027,9 +1040,9 @@ export default function DesignerCanvas() {
               />
             ))}
 
-          {selectedTextBoxId && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.locked && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.hidden && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#9c6b49" anchorStroke="#9c6b49" />}
+          {!selectedGroupId && selectedTextBoxId && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.locked && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.hidden && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#9c6b49" anchorStroke="#9c6b49" />}
         </Layer>
-        {(gridMode==='on' || (gridMode==='auto' && (showGrid || !!liveFrame || !!draftFrame))) && <Layer listening={false} name="rule-of-thirds-grid">
+        {(gridMode==='on' || (gridMode==='auto' && showGrid)) && <Layer listening={false} name="rule-of-thirds-grid">
           {[1 / 3, 2 / 3].flatMap(f => [
             [STAGE_WIDTH * f, 0, STAGE_WIDTH * f, stageHeight],
             [0, stageHeight * f, STAGE_WIDTH, stageHeight * f],

@@ -1,4 +1,4 @@
-import { spreadLayers } from '@/engine/spreadLayers'
+import { spreadLayers, layerMembers, groupGeometry } from '@/engine/spreadLayers'
 import { changesLockedLayer } from '@/engine/layerLocks'
 import { getPreferences } from './preferences'
 import { applyPageTemplate, pagePlacements, TemplateScope } from '@/engine/pageTemplates'
@@ -290,6 +290,9 @@ interface ProjectState {
   relinkPhoto: (photoId: string, replacement: PhotoAsset) => void
   addImageFrame: (spreadId: string, rect: { x: number; y: number; width: number; height: number }, photoId?: string) => void
   updateImageFrame: (spreadId: string, frameId: string, rect: { x: number; y: number; width: number; height: number }) => void
+  groupLayers: (spreadId: string, keys: string[]) => void
+  ungroupLayers: (spreadId: string, groupId: string) => void
+  transformGroup: (spreadId: string, groupId: string, rect: {x:number;y:number;width:number;height:number}) => void
   setLayerHidden: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, hidden: boolean) => void
   moveLayer: (spreadId: string, kind: 'image' | 'text', id: string, targetKind: 'image' | 'text', targetId: string) => void
   setLayerLocked: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, locked: boolean) => void
@@ -979,8 +982,44 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }) }))
   },
 
+  groupLayers: (spreadId, keys) => {
+    const groupId=uuid()
+    withHistory(set,p=>{
+      const spread=p.spreads.find(s=>s.id===spreadId)
+      if(!spread)return p
+      const selected=spreadLayers(spread).filter(l=>keys.includes(l.kind+':'+l.id))
+      const groups=new Set(selected.map(l=>l.value.groupId).filter(Boolean))
+      const members=spreadLayers(spread).filter(l=>keys.includes(l.kind+':'+l.id)||(l.value.groupId&&groups.has(l.value.groupId)))
+      if(members.length<2||members.some(l=>l.value.locked||l.value.hidden))return p
+      const all=spreadLayers(spread), top=Math.max(...members.map(l=>all.findIndex(a=>a.kind===l.kind&&a.id===l.id)))
+      const memberKeys=new Set(members.map(l=>l.kind+':'+l.id))
+      const order=[...all.slice(0,top+1).filter(l=>!memberKeys.has(l.kind+':'+l.id)),...members,...all.slice(top+1)]
+      const patch=(kind:string,id:string)=>({zIndex:order.findIndex(l=>l.kind===kind&&l.id===id),...(memberKeys.has(kind+':'+id)?{groupId}:{})})
+      return {...p,spreads:p.spreads.map(s=>s.id!==spreadId?s:{...s,placements:s.placements.map(l=>({...l,...patch('image',l.placeholderId)})),textBoxes:s.textBoxes.map(l=>({...l,...patch('text',l.id)}))})}
+    },true)
+    const updated=get().project.spreads.find(s=>s.id===spreadId)
+    const first=updated&&spreadLayers(updated).find(l=>l.value.groupId===groupId)
+    if(first)first.kind==='image'?get().selectPlaceholder(first.id):get().selectTextBox(first.id)
+  },
+  ungroupLayers: (spreadId, groupId) => withHistory(set,p=>({...p,spreads:p.spreads.map(s=>s.id!==spreadId?s:{...s,placements:s.placements.map(l=>l.groupId===groupId?{...l,groupId:undefined}:l),textBoxes:s.textBoxes.map(l=>l.groupId===groupId?{...l,groupId:undefined}:l)})})),
+  transformGroup: (spreadId, groupId, rect) => withHistory(set,p=>{
+    const spread=p.spreads.find(s=>s.id===spreadId)
+    if(!spread||!Object.values(rect).every(Number.isFinite)||rect.width<=0||rect.height<=0)return p
+    const g=groupGeometry(spread,groupId,p.size)
+    if(!g||!g.width||!g.height||g.members.some(l=>l.value.locked||l.value.hidden))return p
+    const target=boundedFrameRect(rect),sx=target.width/g.width,sy=target.height/g.height
+    const transform=(r:{x:number;y:number;width:number;height:number})=>({x:target.x+(r.x-g.x)*sx,y:target.y+(r.y-g.y)*sy,width:r.width*sx,height:r.height*sy})
+    const size=spread.size??p.size,height=DESIGN_WIDTH*size.heightIn/size.widthIn
+    const customBoxes=computePlaceholderBoxes(spread,DESIGN_WIDTH,height).map(b=>{const member=g.members.find(l=>l.kind==='image'&&l.id===b.placeholderId);return {id:b.placeholderId,...(member?transform(member.rect):{x:b.x/DESIGN_WIDTH,y:b.y/height,width:b.width/DESIGN_WIDTH,height:b.height/height}),preferredOrientation:'any' as const}})
+    return {...p,spreads:p.spreads.map(s=>s.id!==spreadId?s:{...s,customBoxes,flipped:false,textBoxes:s.textBoxes.map(t=>t.groupId===groupId?{...t,...transform(t),fontSize:t.fontSize*Math.min(sx,sy)}:t)})}
+  }),
   setLayerHidden: (spreadId, kind, id, hidden) => {
-    withHistory(set, p => ({...p, spreads:p.spreads.map(s => s.id!==spreadId ? s : kind==='background' ? {...s,backgroundHidden:hidden} : kind==='image' ? {...s,placements:s.placements.map(pl=>pl.placeholderId===id?{...pl,hidden}:pl)} : {...s,textBoxes:s.textBoxes.map(t=>t.id===id?{...t,hidden}:t)})}), true)
+    withHistory(set, p => ({...p,spreads:p.spreads.map(s=>{
+      if(s.id!==spreadId)return s
+      if(kind==='background')return {...s,backgroundHidden:hidden}
+      const members=layerMembers(s,kind,id)
+      return {...s,placements:s.placements.map(l=>members.some(m=>m.kind==='image'&&m.id===l.placeholderId)?{...l,hidden}:l),textBoxes:s.textBoxes.map(l=>members.some(m=>m.kind==='text'&&m.id===l.id)?{...l,hidden}:l)}
+    })}),true)
     if (hidden) set({selectedPlaceholderId:null, selectedTextBoxId:null, multiSelectedPlaceholderIds:[]})
   },
   moveLayer: (spreadId, kind, id, targetKind, targetId) => withHistory(set, p => {
@@ -990,13 +1029,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const from = layers.findIndex(l => l.kind === kind && l.id === id)
     const to = layers.findIndex(l => l.kind === targetKind && l.id === targetId)
     if (from < 0 || to < 0 || from === to || layers[from].value.locked) return p
-    layers.splice(to, 0, layers.splice(from, 1)[0])
+    const moving=layerMembers(spread,kind,id),targets=layerMembers(spread,targetKind,targetId)
+    if(moving.some(l=>l.value.locked)||targets.some(t=>moving.some(m=>m.kind===t.kind&&m.id===t.id)))return p
+    const rest=layers.filter(l=>!moving.some(m=>m.kind===l.kind&&m.id===l.id))
+    const targetIndices=rest.map((l,i)=>targets.some(t=>t.kind===l.kind&&t.id===l.id)?i:-1).filter(i=>i>=0)
+    rest.splice(from<to?Math.max(...targetIndices)+1:Math.min(...targetIndices),0,...moving)
+    layers.splice(0,layers.length,...rest)
     return {...p, spreads:p.spreads.map(s => s.id !== spreadId ? s : {...s,
       placements:s.placements.map(pl=>({...pl,zIndex:layers.findIndex(l=>l.kind==='image'&&l.id===pl.placeholderId)})),
       textBoxes:s.textBoxes.map(t=>({...t,zIndex:layers.findIndex(l=>l.kind==='text'&&l.id===t.id)})),
     })}
   }, true),
-  setLayerLocked: (spreadId, kind, id, locked) => withHistory(set, p => ({...p, spreads:p.spreads.map(s => s.id!==spreadId ? s : kind==='background' ? {...s,backgroundLocked:locked} : kind==='image' ? {...s,placements:s.placements.map(pl=>pl.placeholderId===id?{...pl,locked}:pl)} : {...s,textBoxes:s.textBoxes.map(t=>t.id===id?{...t,locked}:t)})}), true),
+  setLayerLocked: (spreadId, kind, id, locked) => withHistory(set,p=>({...p,spreads:p.spreads.map(s=>{
+    if(s.id!==spreadId)return s
+    if(kind==='background')return {...s,backgroundLocked:locked}
+    const members=layerMembers(s,kind,id)
+    return {...s,placements:s.placements.map(l=>members.some(m=>m.kind==='image'&&m.id===l.placeholderId)?{...l,locked}:l),textBoxes:s.textBoxes.map(l=>members.some(m=>m.kind==='text'&&m.id===l.id)?{...l,locked}:l)}
+  })}),true),
   removeImageFrame: (spreadId, frameId) => {
     withHistory(set, (p) => ({ ...p, spreads: p.spreads.map((s) => {
       if (s.id !== spreadId) return s

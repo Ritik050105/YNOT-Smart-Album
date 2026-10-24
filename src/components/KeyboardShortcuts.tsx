@@ -1,3 +1,4 @@
+import { groupGeometry } from '@/engine/spreadLayers'
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { isEditableTarget, modKeyLabel } from '@/engine/keyboard'
@@ -179,6 +180,16 @@ export default function KeyboardShortcuts() {
         return
       }
       if (!editable && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        const spread=s.project.spreads.find(sp=>sp.id===s.selectedSpreadId)
+        const groupId=spread?.placements.find(p=>p.placeholderId===s.selectedPlaceholderId)?.groupId??spread?.textBoxes.find(t=>t.id===s.selectedTextBoxId)?.groupId
+        const group=spread&&groupId?groupGeometry(spread,groupId,s.project.size):null
+        if(s.designerViewSpreadId&&spread&&groupId&&group){
+          e.preventDefault()
+          const step=e.shiftKey?.02:.004
+          s.transformGroup(spread.id,groupId,{x:group.x+(e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0),y:group.y+(e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0),width:group.width,height:group.height})
+          return
+        }
+
         if (!mod && !e.altKey && !e.shiftKey && !s.designerViewSpreadId && !s.selectedPlaceholderId && !s.selectedTextBoxId && s.multiSelectedPlaceholderIds.length === 0 && s.selectedSpreadId && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
           e.preventDefault()
           s.cycleSpreadTemplate(s.selectedSpreadId, e.key === 'ArrowUp' ? -1 : 1)
