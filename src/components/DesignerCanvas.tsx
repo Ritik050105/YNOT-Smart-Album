@@ -263,8 +263,8 @@ export default function DesignerCanvas() {
   const pickingGapAnchor=useProjectStore(s=>s.pickingGapAnchor)
   const gapAnchor=useProjectStore(s=>s.gapAnchor)
   const [gapEditor,setGapEditor]=useState<{axis:'x'|'y';keys:string[];x:number;y:number;value:string;dirty?:boolean;previewBase?:Spread}|null>(null)
-  const [gapDrag,setGapDrag]=useState<{axis:'x'|'y';keys:string[];gap:number;guide:SmartGuide;match?:SmartGuide;anchor:GapAnchor}|null>(null)
-  const gapDragRef=useRef<{axis:'x'|'y';keys:string[];start:number;initial:number;gap:number;maximum:number;pixels:number;guide:SmartGuide;base:Spread;anchor:GapAnchor;moved:boolean;last:number;raw:number;fine:boolean;candidates:{gap:number;guide:SmartGuide}[]}|null>(null)
+  const [gapDrag,setGapDrag]=useState<{axis:'x'|'y';keys:string[];gap:number;guide:SmartGuide;match?:SmartGuide;anchor:GapAnchor;source:Spread}|null>(null)
+  const gapDragRef=useRef<{axis:'x'|'y';keys:string[];start:number;initial:number;gap:number;maximum:number;pixels:number;guide:SmartGuide;base:Spread;source:Spread;anchor:GapAnchor;moved:boolean;last:number;raw:number;fine:boolean;candidates:{gap:number;guide:SmartGuide}[]}|null>(null)
   const suppressGapClick=useRef(false)
   const gapMode=gapEditor?.axis==='x'?'horizontal':'vertical'
   const normalizedGap=gapEditor?displayToIn(Number(gapEditor.value),project.units,size.dpi)/(gapEditor.axis==='x'?size.widthIn:size.heightIn):NaN
@@ -272,7 +272,7 @@ export default function DesignerCanvas() {
   const gapPreview=useMemo(()=>gapEditor?.dirty&&gapEditor.value.trim()!==''&&gapBase?arrangeLayerSelection(gapBase,project.size,gapEditor.keys,gapMode,'selection',normalizedGap,gapAnchor):gapBase,[gapBase,project.size,gapEditor,gapMode,normalizedGap,gapAnchor])
   const gapCanApply=!!(gapEditor?.dirty&&gapPreview&&gapPreview!==gapBase)
   // Preview only the canvas; project data and Undo history change once, on Apply.
-  const spread=useMemo(()=>gapDrag&&baseSpread?arrangeLayerSelection(baseSpread,project.size,gapDrag.keys,gapDrag.axis==='x'?'horizontal':'vertical','selection',gapDrag.gap,gapDrag.anchor):gapPreview,[baseSpread,project.size,gapDrag,gapPreview])
+  const spread=useMemo(()=>gapDrag?arrangeLayerSelection(gapDrag.source,project.size,gapDrag.keys,gapDrag.axis==='x'?'horizontal':'vertical','selection',gapDrag.gap,gapDrag.anchor):gapPreview,[baseSpread,project.size,gapDrag,gapPreview])
   const [coverGuide] = useImage(spread?.coverDetails?.guideSrc ?? '')
   const [patternImage] = useImage(spread?.backgroundPattern?.src ?? '')
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
@@ -525,11 +525,11 @@ export default function DesignerCanvas() {
   const displayedGuides=gapDrag?[...(sharedGapGuides.length?sharedGapGuides:[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>{const delta=gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)-(s.to-s.from),factor=gapDrag.anchor.includes(':')&&pickedAnchor?(pickedAnchor.rect[gapDrag.axis]*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)>=s.to-.01?1:0):gapDrag.anchor==='first'?0:gapDrag.anchor==='last'?1:.5;return {...s,from:s.from-delta*factor,to:s.to+delta*(1-factor)}})}]),...(gapDrag.match?[gapDrag.match]:[])]:guideInteraction||smartGuides.length?smartGuides:sharedGapGuides.length?sharedGapGuides:restingGuides
   function beginGapDrag(e:Konva.KonvaEventObject<MouseEvent>,g:SmartGuide,segment:NonNullable<SmartGuide['segments']>[number]) {
     e.cancelBubble=true
-    if(e.evt.button!==0||!segment.keys||!baseSpread)return
+    if(e.evt.button!==0||!segment.keys||!baseSpread||!spread)return
     suppressGapClick.current=false
     const axis=g.axis,dimension=axis==='x'?STAGE_WIDTH:stageHeight,initial=(segment.to-segment.from)/dimension
-    const geometry=selectionGeometry(baseSpread,segment.keys,project.size)
-    if(!geometry||arrangeLayerSelection(baseSpread,project.size,segment.keys,axis==='x'?'horizontal':'vertical','selection',initial,gapAnchor)===baseSpread)return
+    const geometry=selectionGeometry(spread,segment.keys,project.size)
+    if(!geometry||arrangeLayerSelection(spread,project.size,segment.keys,axis==='x'?'horizontal':'vertical','selection',initial,gapAnchor)===spread)return
     const editedUnits=guideTargets([]).filter(t=>t.keys?.some(k=>segment.keys!.includes(k))).sort((a,b)=>a[axis]-b[axis])
     const pickedIndex=editedUnits.findIndex(u=>u.keys?.includes(gapAnchor))
     const moving=gapAnchor==='last'||pickedIndex===editedUnits.length-1?editedUnits[0]:editedUnits.at(-1),movingKeys=(pickedIndex>=0?editedUnits.filter((_,i)=>i!==pickedIndex):gapAnchor==='first'?editedUnits.slice(1):gapAnchor==='last'?editedUnits.slice(0,-1):editedUnits).flatMap(t=>t.keys??[])
@@ -537,7 +537,7 @@ export default function DesignerCanvas() {
     const intervals=Math.max(1,editedUnits.length-1)
     const room=pickedIndex>=0?Math.min(pickedIndex?remainingBefore/pickedIndex:Infinity,pickedIndex<intervals?remainingAfter/(intervals-pickedIndex):Infinity)*intervals:gapAnchor==='first'?remainingAfter:gapAnchor==='last'?remainingBefore:2*Math.min(remainingBefore,remainingAfter)
     const candidates=moving?nearbySpacingGaps(moving,guideTargets(movingKeys),axis).map(c=>({...c,gap:c.gap/dimension})):[]
-    gapDragRef.current={axis,keys:segment.keys,start:axis==='x'?e.evt.clientX:e.evt.clientY,initial,gap:initial,maximum:Math.max(0,initial+room/Math.max(1,editedUnits.length-1)),pixels:dimension*stageScale,guide:{...g,segments:[segment]},base:baseSpread,anchor:gapAnchor,moved:false,last:axis==='x'?e.evt.clientX:e.evt.clientY,raw:initial,fine:e.evt.shiftKey,candidates}
+    gapDragRef.current={axis,keys:segment.keys,start:axis==='x'?e.evt.clientX:e.evt.clientY,initial,gap:initial,maximum:Math.max(0,initial+room/Math.max(1,editedUnits.length-1)),pixels:dimension*stageScale,guide:{...g,segments:[segment]},base:baseSpread,source:spread,anchor:gapAnchor,moved:false,last:axis==='x'?e.evt.clientX:e.evt.clientY,raw:initial,fine:e.evt.shiftKey,candidates}
   }
   useEffect(()=>{
     const cancel=()=>{if(gapDragRef.current?.moved)suppressGapClick.current=true;gapDragRef.current=null;setGapDrag(null)}
@@ -549,13 +549,17 @@ export default function DesignerCanvas() {
       d.raw=Math.max(0,Math.min(d.maximum,d.raw+(point-d.last)/d.pixels*(e.shiftKey ? 0.1 : 1)));d.last=point
       const match=e.shiftKey?undefined:d.candidates.filter(c=>c.gap<=d.maximum&&Math.abs(c.gap-d.raw)<=6/d.pixels).sort((a,b)=>Math.abs(a.gap-d.raw)-Math.abs(b.gap-d.raw))[0]
       d.moved=true;suppressGapClick.current=true;d.gap=match?.gap??d.raw
-      setGapEditor(null);setGapDrag({axis:d.axis,keys:d.keys,gap:d.gap,guide:d.guide,match:match?.guide,anchor:d.anchor})
+      setGapEditor(null);setGapDrag({axis:d.axis,keys:d.keys,gap:d.gap,guide:d.guide,match:match?.guide,anchor:d.anchor,source:d.source})
     }
     const finish=()=>{const d=gapDragRef.current;if(!d)return
-      if(d.moved&&Math.abs(d.gap-d.initial)>1e-10&&useProjectStore.getState().project.spreads.find(s=>s.id===d.base.id)===d.base)useProjectStore.getState().arrangeSelection(d.base.id,d.keys,d.axis==='x'?'horizontal':'vertical','selection',d.gap,d.anchor)
+      const state=useProjectStore.getState()
+      if(d.moved&&(d.source!==d.base||Math.abs(d.gap-d.initial)>1e-10)&&state.project.spreads.find(s=>s.id===d.base.id)===d.base){
+        const updated=arrangeLayerSelection(d.source,state.project.size,d.keys,d.axis==='x'?'horizontal':'vertical','selection',d.gap,d.anchor)
+        if(updated!==d.source)state.updateSpread(d.base.id,{customBoxes:updated.customBoxes,textBoxes:updated.textBoxes,flipped:updated.flipped})
+      }
       cancel()
     }
-    const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&useProjectStore.getState().pickingGapAnchor){e.preventDefault();e.stopImmediatePropagation();useProjectStore.getState().setPickingGapAnchor(false);return}if(e.key==='Escape'&&gapDragRef.current){e.preventDefault();e.stopImmediatePropagation();cancel()}}
+    const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&useProjectStore.getState().pickingGapAnchor){e.preventDefault();e.stopImmediatePropagation();useProjectStore.getState().setPickingGapAnchor(false);return}if(e.key==='Escape'&&gapDragRef.current){e.preventDefault();e.stopImmediatePropagation();setGapEditor(null);cancel()}}
     window.addEventListener('mousemove',move);window.addEventListener('mouseup',finish);window.addEventListener('keydown',key,true);window.addEventListener('blur',cancel)
     return()=>{window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',finish);window.removeEventListener('keydown',key,true);window.removeEventListener('blur',cancel);gapDragRef.current=null}
   },[])

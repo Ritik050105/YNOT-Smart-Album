@@ -161,6 +161,24 @@ app.whenReady().then(async()=>{
   if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.deepEqual(await sharedRects(),originals)}
   else {await fs.writeFile(path.join(out,'anchor-switch-preview.png'),(await win.webContents.capturePage()).toPNG());const history=await evaluate('store.getState().history.length');await evaluate(`document.querySelector('.canvas-gap-editor').requestSubmit()`);await wait();assert.equal(await evaluate('store.getState().history.length'),history+1);const saved=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(saved[i].x-preview[i].x)<.01,'Apply commits the visible preview');await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait()}
  }
+ for(const cancel of [true,false])for(const fine of [false,true]){
+  await evaluate(`store.getState().setGapAnchor('first')`);await openShared();
+  await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2');input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait();
+  const anchorPoint=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.findOne('.gap-anchor-candidate-'+spacingIds[1]),p=n.getAbsoluteTransform().point({x:n.width()/2,y:3}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y)}})()`);
+  win.webContents.sendInputEvent({type:'mouseMove',...anchorPoint});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...anchorPoint});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...anchorPoint});await wait();
+  const previewBefore=await sharedRects();assert.ok(Math.abs(previewBefore[1].x-230)<.01);
+  const point=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.find('.spacing-measurement')[0],p=n.getAbsoluteTransform().point({x:n.width()/2,y:n.height()/2}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y),scale:stage.scaleX()}})()`),modifiers=fine?['shift']:[];
+  const history=await evaluate('store.getState().history.length');
+  win.webContents.sendInputEvent({type:'mouseMove',x:point.x,y:point.y,modifiers});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:point.x,y:point.y,modifiers});await wait();
+  for(let step=1;step<=5;step++){win.webContents.sendInputEvent({type:'mouseMove',x:point.x+step*9,y:point.y,modifiers});await wait();const current=await sharedRects();assert.ok(Math.abs(current[1].x-previewBefore[1].x)<.01,'Anchor stays at its preview position throughout dragging');for(let i=0;i<3;i++){assert.equal(current[i].width,originals[i].width);assert.equal(current[i].height,originals[i].height)}}
+  const preview=await sharedRects(),delta=45/point.scale*(fine?.1:1);assert.ok(Math.abs(preview[2].x-previewBefore[2].x-delta)<(fine?.01:6/point.scale+.01),'Drag continues from the live gap, including fine adjustment');assert.ok(Math.abs(preview[1].x-preview[0].x-preview[0].width-(preview[2].x-preview[1].x-preview[1].width))<.01,'All gaps remain equal');
+  assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);assert.equal(await evaluate('store.getState().history.length'),history);
+  if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait()}
+  win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:point.x+45,y:point.y});await wait();
+  if(cancel){assert.deepEqual(await sharedRects(),originals);assert.equal(await evaluate('store.getState().history.length'),history)}
+  else {const committed=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(committed[i].x-preview[i].x)<.01,'Release commits the full preview');assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait()}
+ }
+ console.log('Switched-anchor dragging passed: preview continuity, fixed anchor, equal gaps, sizes, normal/Shift, Escape, release and one Undo');
  console.log('Anchor switching passed: direct clicks during preview, stable positions/value/sizes, badge, canvas Escape, Apply and single Undo');
  console.log('Picked anchors passed: actual canvas clicks, first/interior/last, typed and dragged preview, preserved sizes, Escape and Undo');
  await evaluate(`store.getState().setGapAnchor('first')`);await wait();
