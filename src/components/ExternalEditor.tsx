@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { getPreferences } from '@/state/preferences'
 import { buildSpreadPsdBytes } from '@/engine/exportPsd'
-import { renderSpreadToCanvas } from '@/engine/renderSpread'
+import { loadImage, renderSpreadToCanvas } from '@/engine/renderSpread'
 import { canvasToBytes } from '@/engine/exportUtil'
 import Modal from './Modal'
 import { imageFileSource } from '@/engine/imageSource'
@@ -19,7 +19,7 @@ export default function ExternalEditor(){
  try{
  if(!window.albumStudio?.openExternalEditor)throw new Error('External editors are available in the desktop application.')
  const p=useProjectStore.getState().project;let data:Uint8Array,name:string
- if(request.src){const img=new Image();img.src=request.src;await img.decode();const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const ctx=c.getContext('2d');if(!ctx)throw new Error('Image preparation failed.');ctx.drawImage(img,0,0);data=await canvasToBytes(c,'image/png');name=(request.name??'Image').replace(/\.[^.]+$/,'')+'.png'}
+ if(request.src){const img=await loadImage(request.src);const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const ctx=c.getContext('2d');if(!ctx)throw new Error('Image preparation failed.');ctx.drawImage(img,0,0);data=await canvasToBytes(c,'image/png');name=(request.name??'Image').replace(/\.[^.]+$/,'')+'.png'}
  else {const spread=p.spreads.find(s=>s.id===request.spreadId);if(!spread)throw new Error('Select a spread first.');const size=spread.size??p.size;const photos=new Map(p.photos.map(ph=>[ph.id,ph]));name=`${p.name}-${spread.isCover?'cover':`spread-${spread.order+1}`}.${request.app==='photoshop'?'psd':'png'}`;data=request.app==='photoshop'?await buildSpreadPsdBytes(spread,photos,size,size.dpi):await canvasToBytes(await renderSpreadToCanvas(spread,photos,size,size.dpi),'image/png')}
  const photoId=request.photoId ?? (request.src ? p.photos.find(ph=>ph.src===request.src)?.id : undefined)
  const baseline=request.src ? p.photos.find(ph=>ph.id===photoId)?.src : JSON.stringify(p.spreads.find(s=>s.id===request.spreadId))
@@ -40,7 +40,7 @@ export default function ExternalEditor(){
          if(!result || !active)continue
          const source=await imageFileSource(new File([new Uint8Array(result.data)],file.split(/[\\/]/).pop()!))
          let dataUrl:string,width:number,height:number
-         try { const img=new Image();img.src=source;await img.decode();width=img.naturalWidth;height=img.naturalHeight
+         try { const img=await loadImage(source);width=img.naturalWidth;height=img.naturalHeight
            const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;canvas.getContext('2d')!.drawImage(img,0,0);dataUrl=canvas.toDataURL('image/png')
          } finally { if(source.startsWith('blob:'))URL.revokeObjectURL(source) }
          if(!active)continue

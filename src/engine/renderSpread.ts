@@ -5,7 +5,7 @@ import { DESIGN_WIDTH, PlaceholderBox, computePlaceholderBoxes } from './layoutM
 import { ensureFontLoaded } from './fonts'
 import { imageToneFilter, applyBlackWhiteMix } from './imageTone'
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
