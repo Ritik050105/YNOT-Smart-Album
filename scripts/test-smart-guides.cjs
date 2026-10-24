@@ -34,3 +34,11 @@ const {nearbySpacingGaps}=mod.exports;
 assert.deepEqual(nearbySpacingGaps({x:300,y:100,width:40,height:40},[{x:100,y:100,width:30,height:40},{x:200,y:100,width:40,height:40},{x:250,y:300,width:20,height:20}],'x').map(c=>c.gap),[70]);
 assert.deepEqual(nearbySpacingGaps({x:100,y:300,width:40,height:40},[{x:100,y:100,width:40,height:30},{x:100,y:190,width:40,height:40}],'y').map(c=>c.gap),[60]);
 console.log('Nearby gap references passed: both axes and unrelated-row exclusion');
+
+const {selectedSpacingGuides}=mod.exports;
+for(const axis of ['x','y']){
+ const units=[{x:100,y:100,width:40,height:40,keys:['a']},{x:200,y:100,width:60,height:40,keys:['b','b-child']},{x:320,y:100,width:40,height:40,keys:['c']}].map(r=>axis==='x'?r:{...r,x:r.y,y:r.x,width:r.height,height:r.width});
+ const guides=selectedSpacingGuides(units);assert.equal(guides.length,2);assert.ok(guides.every(g=>g.axis===axis&&g.segments[0].to-g.segments[0].from===60));assert.deepEqual(guides[0].segments[0].keys,['a','b','b-child','c']);
+ units[2][axis]+=10;assert.equal(selectedSpacingGuides(units).length,0,'Unequal selections are not linked');
+}
+console.log('Shared selected-gap guides passed: both axes, unequal sizes, group keys and unequal-gap exclusion');

@@ -1,6 +1,6 @@
 import { arrangeLayerSelection, spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences } from '@/state/preferences'
-import { snapRect, nearbySpacingGaps, GuideRect, SmartGuide } from '@/engine/smartGuides'
+import { snapRect, nearbySpacingGaps, selectedSpacingGuides, GuideRect, SmartGuide } from '@/engine/smartGuides'
 import { displayToIn, inToDisplay } from '@/engine/units'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -497,8 +497,10 @@ export default function DesignerCanvas() {
   const activeGuideKeys=transformKeys.length?transformKeys:selectedPlaceholderId?['image:'+selectedPlaceholderId]:selectedTextBoxId?['text:'+selectedTextBoxId]:selectedLayerKeys
   const activeGeometry=spread&&activeGuideKeys.length?selectionGeometry(spread,activeGuideKeys,project.size):null
   const restingGuides=activeGeometry&&canvasTool==='select'?snapRect({x:activeGeometry.x*STAGE_WIDTH,y:activeGeometry.y*stageHeight,width:activeGeometry.width*STAGE_WIDTH,height:activeGeometry.height*stageHeight,keys:activeGuideKeys},guideTargets(activeGuideKeys),STAGE_WIDTH,stageHeight,0).guides.filter(g=>g.segments):[]
+  const selectedGapUnits=guideTargets([]).filter(t=>t.keys?.length&&t.keys.every(k=>activeGuideKeys.includes(k)))
+  const sharedGapGuides=selectedSpacingGuides(selectedGapUnits)
   const guideInteraction=Konva.isDragging()||transformerRef.current?.isTransforming()||textTransformerRef.current?.isTransforming()||groupTransformerRef.current?.isTransforming()
-  const displayedGuides=gapDrag?[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>({...s,to:s.from+gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)}))},...(gapDrag.match?[gapDrag.match]:[])]:guideInteraction||smartGuides.length?smartGuides:restingGuides
+  const displayedGuides=gapDrag?[...(sharedGapGuides.length?sharedGapGuides:[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>({...s,to:s.from+gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)}))}]),...(gapDrag.match?[gapDrag.match]:[])]:guideInteraction||smartGuides.length?smartGuides:sharedGapGuides.length?sharedGapGuides:restingGuides
   function beginGapDrag(e:Konva.KonvaEventObject<MouseEvent>,g:SmartGuide,segment:NonNullable<SmartGuide['segments']>[number]) {
     e.cancelBubble=true
     if(e.evt.button!==0||!segment.keys||!baseSpread)return
@@ -506,9 +508,10 @@ export default function DesignerCanvas() {
     const axis=g.axis,dimension=axis==='x'?STAGE_WIDTH:stageHeight,initial=(segment.to-segment.from)/dimension
     const geometry=selectionGeometry(baseSpread,segment.keys,project.size)
     if(!geometry||arrangeLayerSelection(baseSpread,project.size,segment.keys,axis==='x'?'horizontal':'vertical','selection',initial)===baseSpread)return
-    const moving=guideTargets([]).filter(t=>t.keys?.some(k=>segment.keys!.includes(k))).sort((a,b)=>a[axis]-b[axis]).at(-1)
-    const candidates=moving?nearbySpacingGaps(moving,guideTargets(moving.keys??[]),axis).map(c=>({...c,gap:c.gap/dimension})):[]
-    gapDragRef.current={axis,keys:segment.keys,start:axis==='x'?e.evt.clientX:e.evt.clientY,initial,gap:initial,maximum:Math.max(0,initial+1-geometry[axis]-geometry[axis==='x'?'width':'height']),pixels:dimension*stageScale,guide:{...g,segments:[segment]},base:baseSpread,moved:false,last:axis==='x'?e.evt.clientX:e.evt.clientY,raw:initial,fine:e.evt.shiftKey,candidates}
+    const editedUnits=guideTargets([]).filter(t=>t.keys?.some(k=>segment.keys!.includes(k))).sort((a,b)=>a[axis]-b[axis])
+    const moving=editedUnits.at(-1),movingKeys=editedUnits.slice(1).flatMap(t=>t.keys??[])
+    const candidates=moving?nearbySpacingGaps(moving,guideTargets(movingKeys),axis).map(c=>({...c,gap:c.gap/dimension})):[]
+    gapDragRef.current={axis,keys:segment.keys,start:axis==='x'?e.evt.clientX:e.evt.clientY,initial,gap:initial,maximum:Math.max(0,initial+(1-geometry[axis]-geometry[axis==='x'?'width':'height'])/Math.max(1,editedUnits.length-1)),pixels:dimension*stageScale,guide:{...g,segments:[segment]},base:baseSpread,moved:false,last:axis==='x'?e.evt.clientX:e.evt.clientY,raw:initial,fine:e.evt.shiftKey,candidates}
   }
   useEffect(()=>{
     const cancel=()=>{if(gapDragRef.current?.moved)suppressGapClick.current=true;gapDragRef.current=null;setGapDrag(null)}
@@ -1167,8 +1170,8 @@ export default function DesignerCanvas() {
 
       {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{left:Math.max(8,Math.min(viewportSize.width-230,stagePos.x+gapEditor.x*stageScale)),top:Math.max(8,Math.min(viewportSize.height-155,stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().arrangeSelection(spread.id,gapEditor.keys,gapMode,'selection',normalizedGap);setGapEditor(null);setSmartGuides([])}}}>
         <label>Gap ({project.units})<input aria-label="Canvas spacing gap" type="number" step="any" min="0" autoFocus value={gapEditor.value} onFocus={e=>e.target.select()} onChange={e=>setGapEditor({...gapEditor,value:e.target.value,dirty:true})}/></label>
-        <p>Preview moves the following element or group. Apply saves; Cancel restores.</p>
-        {gapEditor.dirty&&!gapCanApply&&<p role="status">Enter a gap that fits; both elements must be unlocked.</p>}
+        <p>Preview adjusts these gaps together, keeping sizes unchanged and the first element fixed. Apply saves; Cancel restores.</p>
+        {gapEditor.dirty&&!gapCanApply&&<p role="status">Enter a gap that fits; the affected elements must be unlocked.</p>}
         <div><button className="btn btn--tiny" type="button" onClick={()=>setGapEditor(null)}>Cancel</button><button className="btn btn--tiny" type="submit" disabled={!gapCanApply}>Apply</button></div>
       </form>}
       {editingTextId &&

@@ -88,6 +88,35 @@ app.whenReady().then(async()=>{
  assert.ok(await evaluate(`Math.abs(store.getState().project.spreads[0].customBoxes.find(b=>b.id===spacingIds[1]).x*900-200)<.01`),'First frame stays anchored');assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),false);
  await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),beforeInline,'One Undo restores canvas gap edit');
 
+
+ await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
+ const sharedBefore=await evaluate('JSON.stringify(store.getState().project.spreads[0])');
+ const sharedPoint=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.find('.spacing-measurement')[0],p=n.getAbsoluteTransform().point({x:n.width()/2,y:n.height()/2}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y),scale:stage.scaleX()}})()`);
+ const sharedRects=()=>evaluate(`spacingIds.map(id=>{const r=Konva.stages[0].findOne('.image-layer-'+id).find('Rect')[0];return {x:r.x(),width:r.width(),height:r.height()}})`);
+ const originals=await sharedRects();
+ const openShared=async()=>{win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x,y:sharedPoint.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:sharedPoint.x,y:sharedPoint.y});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:sharedPoint.x,y:sharedPoint.y});await wait()};
+ for(const cancel of [true,false]){
+  await openShared();await evaluate(`const input=document.querySelector('[aria-label="Canvas spacing gap"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2');input.dispatchEvent(new Event('input',{bubbles:true}))`);await wait();const preview=await sharedRects();
+  for(let i=0;i<3;i++){assert.ok(Math.abs(preview[i].x-[100,230,380][i])<.01,'Numeric preview updates every gap');assert.equal(preview[i].width,originals[i].width);assert.equal(preview[i].height,originals[i].height)}
+  assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+  if(cancel)await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+  else {win.webContents.sendInputEvent({type:'keyDown',keyCode:'ENTER'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ENTER'})}
+  await wait();if(!cancel){await evaluate('store.getState().undo()');await wait();await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait()}
+  assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+ }
+ for(const cancel of [true,false]){
+  const history=await evaluate('store.getState().history.length');win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x,y:sharedPoint.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:sharedPoint.x,y:sharedPoint.y});await wait();
+  const end={x:sharedPoint.x+30,y:sharedPoint.y};for(let i=1;i<=5;i++){win.webContents.sendInputEvent({type:'mouseMove',x:sharedPoint.x+i*6,y:sharedPoint.y});await wait()}
+  const preview=await sharedRects();for(let i=0;i<3;i++){assert.ok(Math.abs(preview[i].x-(originals[i].x+i*30/sharedPoint.scale))<.01,'Dragging changes all selected gaps');assert.equal(preview[i].width,originals[i].width);assert.equal(preview[i].height,originals[i].height)}
+  assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
+  if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait()}
+  else await fs.writeFile(path.join(out,'shared-gap-preview.png'),(await win.webContents.capturePage()).toPNG());
+  win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...end});await wait();
+  if(!cancel){assert.equal(await evaluate('store.getState().history.length'),history+1);await evaluate('store.getState().undo()');await wait()}
+  assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();
+ }
+ await evaluate(`store.getState().selectPlaceholder(spacingIds[2])`);await wait();
+ console.log('Shared gap editing passed: real label clicks/drags, all gaps preview together, unchanged element sizes, Escape and one-step Undo');
  for(const axis of ['x','y']){
   if(axis==='y'){await evaluate(`for(const [y,h] of [[100,30],[180,40],[270,30]])store.getState().addImageFrame(spreadId,{x:600/900,y:y/450,width:40/900,height:h/450});window.dragGapId=store.getState().project.spreads[0].placements.at(-1).placeholderId;store.getState().selectPlaceholder(dragGapId)`);await wait()}
   else await evaluate(`window.dragGapId=spacingIds[2]`);

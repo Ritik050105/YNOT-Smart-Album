@@ -1,5 +1,17 @@
 export type GuideRect = {x:number;y:number;width:number;height:number;keys?:string[]}
 export type SmartGuide = {axis:'x'|'y';position:number;segments?:{from:number;to:number;keys?:string[]}[]}
+/** Each shared measurement addresses the selected units together, including whole groups. */
+export function selectedSpacingGuides(units:GuideRect[]):SmartGuide[] {
+  if(units.length<2)return []
+  const keys=[...new Set(units.flatMap(u=>u.keys??[]))]
+  return (['x','y'] as const).flatMap(axis=>{
+    const size=axis==='x'?'width':'height',cross=axis==='x'?'y':'x',crossSize=axis==='x'?'height':'width'
+    const sorted=[...units].sort((a,b)=>a[axis]-b[axis])
+    const gaps=sorted.slice(1).map((b,i)=>b[axis]-sorted[i][axis]-sorted[i][size])
+    if(gaps.some(g=>g<0||Math.abs(g-gaps[0])>.01))return []
+    return sorted.slice(1).map((b,i)=>{const a=sorted[i];return {axis,position:(a[cross]+a[crossSize]/2+b[cross]+b[crossSize]/2)/2,segments:[{from:a[axis]+a[size],to:b[axis],keys}]}})
+  })
+}
 /** Adjacent stationary gaps in the same row or column provide spacing references. */
 export function nearbySpacingGaps(rect:GuideRect,targets:GuideRect[],axis:'x'|'y') {
   const cross=axis==='x'?'y':'x',size=axis==='x'?'width':'height',crossSize=axis==='x'?'height':'width'
