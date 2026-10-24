@@ -20,6 +20,7 @@ import { readDraggedPattern } from '@/engine/patterns'
 import { imageToneFilter, applyBlackWhiteMix } from '@/engine/imageTone'
 import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
+import GapPresetImportPreview from './GapPresetImportPreview'
 import PhotoContextMenu from './PhotoContextMenu'
 import { drawSpreadBackground } from '@/engine/renderSpread'
 
@@ -235,6 +236,7 @@ export default function DesignerCanvas() {
   const [presetTransferStatus,setPresetTransferStatus]=useState('')
   const [presetTransferBusy,setPresetTransferBusy]=useState(false)
   const presetFileInput=useRef<HTMLInputElement>(null)
+  const [pendingPresetImport,setPendingPresetImport]=useState<{name:string;data:ReturnType<typeof importGapPresets>}|null>(null)
   const importPast=usePreferences(s=>s.values.gapImportPast)
   const importFuture=usePreferences(s=>s.values.gapImportFuture)
   function applyPresetImport(imported:ReturnType<typeof importGapPresets>,direction?:'undo'|'redo'){
@@ -259,10 +261,16 @@ export default function DesignerCanvas() {
   }
   async function importPresetsFile(file:File){
     setPresetTransferBusy(true);setPresetError('');setPresetTransferStatus('')
-    try{const imported=importGapPresets(await file.text());applyPresetImport(imported);setPresetTransferStatus('Presets and history imported. Spacing is unchanged.')}
+    try{const imported=importGapPresets(await file.text());setPendingPresetImport({name:file.name,data:imported})}
     catch(error){setPresetError(error instanceof Error?error.message:'Could not import presets. Nothing was changed.')}
     finally{setPresetTransferBusy(false)}
   }
+  function confirmPresetImport(){
+    if(!pendingPresetImport)return
+    try{applyPresetImport(pendingPresetImport.data);setPendingPresetImport(null);setPresetTransferStatus('Presets and history imported. Spacing is unchanged.')}
+    catch{setPresetError('Could not save the imported presets. Nothing was changed. Please try again.')}
+  }
+  function cancelPresetImport(){setPendingPresetImport(null);setPresetError('');setPresetTransferStatus('Import canceled.')}
   const presetPast=usePreferences(s=>s.values.gapPresetPast)
   const presetFuture=usePreferences(s=>s.values.gapPresetFuture)
   const validPresets=!!presetDraft&&presetDraft.every(v=>v.trim()!==''&&Number.isFinite(Number(v))&&Number(v)>=-100)&&new Set(presetDraft.map(Number)).size===4
@@ -371,6 +379,7 @@ export default function DesignerCanvas() {
   useEffect(()=>{
     if(!gapEditor)return
     const cancel=(e:KeyboardEvent)=>{
+      if(pendingPresetImport){if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();cancelPresetImport()}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.stopImmediatePropagation()}return}
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){
         e.preventDefault();e.stopImmediatePropagation()
         if(gapDragRef.current?.moved){gapDragRef.current=null;setGapDrag(null);suppressGapClick.current=true;return}
@@ -381,7 +390,7 @@ export default function DesignerCanvas() {
     }
     window.addEventListener('keydown',cancel,true)
     return()=>window.removeEventListener('keydown',cancel,true)
-  },[!!gapEditor])
+  },[!!gapEditor,!!pendingPresetImport])
   const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([])
   const [liveFrame, setLiveFrame] = useState<(GuideRect & {id:string}) | null>(null)
   useEffect(()=>{setSmartGuides([]);setLiveFrame(null)},[selectedPlaceholderId,selectedTextBoxId,spread?.id,canvasTool])
@@ -1385,6 +1394,7 @@ export default function DesignerCanvas() {
       </div>
       </div>
       {photoContextMenu && spread && <PhotoContextMenu key={JSON.stringify(photoContextMenu)} x={photoContextMenu.x} y={photoContextMenu.y} spreadId={spread.id} frameId={photoContextMenu.placeholderId} />}
+      {pendingPresetImport&&<GapPresetImportPreview name={pendingPresetImport.name} data={pendingPresetImport.data} error={presetError} onImport={confirmPresetImport} onCancel={cancelPresetImport}/>}
       <input ref={presetFileInput} aria-label="Import percentage presets file" type="file" accept=".json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void importPresetsFile(file)}} />
       <input ref={framePickerInputRef} type="file" accept={IMAGE_FILE_ACCEPT} hidden onChange={(e) => void handleFramePicked(e)} />
     </div>

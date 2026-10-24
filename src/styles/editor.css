@@ -479,3 +479,13 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .canvas-gap-editor__preset-inputs input { width:100%; box-sizing:border-box; }
 .canvas-gap-editor__customize > div:last-child { display:flex; gap:6px; justify-content:flex-end; }
 .canvas-gap-editor__percentages button { overflow:hidden; text-overflow:ellipsis; }
+
+.preset-import-preview .modal-card__body { max-height:60vh; overflow:auto; }
+.preset-import-preview__values, .preset-import-preview__histories { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:12px 0; }
+.preset-import-preview__values { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.preset-import-preview__values span, .preset-import-preview__histories > details { padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--panel-alt); }
+.preset-import-preview__values span { text-align:center; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.preset-import-preview summary { cursor:pointer; font-weight:600; }
+.preset-import-preview ol { padding-left:20px; font-size:12px; }
+.preset-import-preview li { margin:10px 0; overflow-wrap:anywhere; }
+.preset-import-preview p { font-size:12px; line-height:1.5; color:var(--muted); }

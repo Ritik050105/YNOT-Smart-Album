@@ -355,11 +355,30 @@ app.whenReady().then(async()=>{
  }
  await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preset history"] button')).find(b=>b.textContent==='Undo presets').click()`);await wait();
  const beforeTransfer=await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`);
- await evaluate(`window.originalBridge=window.albumStudio;window.albumStudio={...window.albumStudio,isElectron:true,saveFile:async args=>{window.presetExport={name:args.defaultName,text:new TextDecoder().decode(args.data)};return {canceled:false,filePath:'C:/Presets/test.json'}}};Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Export presets').click()`);await wait();
+ await evaluate(`window.originalBridge=window.albumStudio;window.albumStudio={...window.albumStudio,isElectron:true,onSaveBeforeClose:()=>()=>{},saveFile:async args=>{window.presetExport={name:args.defaultName,text:new TextDecoder().decode(args.data)};return {canceled:false,filePath:'C:/Presets/test.json'}}};Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Export presets').click()`);await wait();
  const exported=await evaluate('presetExport');assert.equal(exported.name,'YNOT-percentage-presets.json');const fullPortable=JSON.parse(exported.text);const {importPast:exportedImportPast,importFuture:exportedImportFuture,...corePortable}=fullPortable;const portable={...corePortable,version:1};const legacyExport=JSON.stringify(portable);
  assert.deepEqual(fullPortable,{format:'ynot-gap-presets',version:2,presets:beforeTransfer.gapPercentPresets,past:beforeTransfer.gapPresetPast,future:beforeTransfer.gapPresetFuture,importPast:beforeTransfer.gapImportPast,importFuture:beforeTransfer.gapImportFuture});
- const importFile=async text=>{await evaluate(`{const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(text)}],'presets.json',{type:'application/json'}));const input=document.querySelector('[aria-label="Import percentage presets file"]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))}`);await wait()};
+ const importFile=async(text,confirm=true)=>{
+  const previous=await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`);
+  await evaluate(`{const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(text)}],'presets.json',{type:'application/json'}));const input=document.querySelector('[aria-label="Import percentage presets file"]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))}`);await wait();
+  if(await evaluate(`!!document.querySelector('[aria-label="Preview preset import"]')`)){
+   assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`),previous,'Preview must not save preferences');assert.deepEqual(await sharedRects(),reopenedPreview);assert.equal(await evaluate('store.getState().history.length'),reopenedHistory);
+   if(confirm){await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preview preset import"] button')).find(b=>b.textContent==='Import').click()`);await wait();assert.equal(await evaluate(`!!document.querySelector('[aria-label="Preview preset import"]')`),false);}
+  }
+ };
+
  const transferred={format:'ynot-gap-presets',version:1,presets:[-45,-15,15,45],past:[[-40,-10,10,40]],future:[[-20,-5,5,20]]};
+ const previewFile={...transferred,version:2,importPast:[JSON.stringify(portable)],importFuture:[JSON.stringify(transferred)]};
+ for(const cancelWithEscape of [false,true]){
+  await importFile(JSON.stringify(previewFile),false);assert.ok(await evaluate(`document.querySelector('[aria-label="Preview preset import"]').textContent.includes('Import Undo (1)')&&document.querySelector('[aria-label="Preview preset import"]').textContent.includes('Import Redo (1)')`));
+  await evaluate(`document.querySelectorAll('[aria-label="Preview preset import"] details').forEach(d=>d.open=true)`);
+  if(!cancelWithEscape)await fs.writeFile(path.join(out,'preset-import-preview.png'),(await win.webContents.capturePage()).toPNG());
+  for(const modifiers of [['control'],['control','shift']]){win.webContents.sendInputEvent({type:'keyDown',keyCode:'Z',modifiers});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Z',modifiers});await wait();assert.deepEqual(await sharedRects(),reopenedPreview);}
+  if(cancelWithEscape){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});}else await evaluate(`Array.from(document.querySelectorAll('[aria-label="Preview preset import"] button')).find(b=>b.textContent==='Cancel').click()`);await wait();
+  assert.equal(await evaluate(`!!document.querySelector('[aria-label="Preview preset import"]')`),false);assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),true);assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`),beforeTransfer);assert.deepEqual(await sharedRects(),reopenedPreview);
+  assert.deepEqual(await evaluate(`['Undo gap change','Redo gap change','Reset gap preview'].map(label=>document.querySelector('[aria-label="'+label+'"]').disabled)`),reopenedControls);
+ }
+ console.log('Import preview passed: values and both history types visible, no mutation before confirmation, Cancel/Escape preserve open gap preview and Ctrl+Z cannot edit behind preview');
  for(const text of [JSON.stringify(transferred),legacyExport]){
   const beforeImport=await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`);
   const expected=JSON.parse(text);await importFile(text);const saved=await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences'))`);
