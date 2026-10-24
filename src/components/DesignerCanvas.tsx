@@ -228,6 +228,15 @@ function PlaceholderImage({
 
 export default function DesignerCanvas() {
   const gridMode=usePreferences(s=>s.values.gridMode)
+  const gapPresets=usePreferences(s=>s.values.gapPercentPresets)
+  const [presetDraft,setPresetDraft]=useState<string[]|null>(null)
+  const [presetError,setPresetError]=useState('')
+  const validPresets=!!presetDraft&&presetDraft.every(v=>v.trim()!==''&&Number.isFinite(Number(v))&&Number(v)>=-100)&&new Set(presetDraft.map(Number)).size===4
+  function saveGapPresets(){
+    if(!presetDraft||!validPresets)return
+    try{usePreferences.getState().save({...getPreferences(),gapPercentPresets:presetDraft.map(Number)});setPresetDraft(null);setPresetError('')}
+    catch{setPresetError('Could not save presets. Please try again.')}
+  }
   const project = useProjectStore((s) => s.project)
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
@@ -265,6 +274,7 @@ export default function DesignerCanvas() {
   type GapEditor = {axis:'x'|'y';keys:string[];x:number;y:number;value:string;dirty?:boolean;previewBase?:Spread;exactGap?:number;percentValue?:string}
   type GapSnapshot = {editor:GapEditor;anchor:GapAnchor}
   const [gapEditor,renderGapEditor]=useState<GapEditor|null>(null)
+  useEffect(()=>{if(!gapEditor){setPresetDraft(null);setPresetError('')}},[!!gapEditor])
   const gapHistory=useRef<{current:GapSnapshot|null;initial:GapSnapshot|null;past:GapSnapshot[];future:GapSnapshot[]}>({current:null,initial:null,past:[],future:[]})
   function setGapEditor(editor:GapEditor|null,anchor:GapAnchor=useProjectStore.getState().gapAnchor){
     const history=gapHistory.current
@@ -1262,7 +1272,7 @@ export default function DesignerCanvas() {
       {gapDrag&&<div className="canvas-anchor-hint" aria-label="Live gap change">{gapChangeText}</div>}
       {pickingGapAnchor&&<div className="canvas-anchor-hint" role="status">Click a selected element to keep it fixed · Escape cancels</div>}
 
-      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-480,anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+480<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-480):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
+      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-(presetDraft?660:520),anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+(presetDraft?660:520)<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-(presetDraft?660:520)):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
         <label>Keep fixed<select aria-label="Canvas gap anchor" value={gapAnchor} onChange={e=>switchGapAnchor(e.target.value as GapAnchor)}><option value="first">First element</option><option value="center">Center</option><option value="last">Last element</option>{gapAnchor.includes(':')&&<option value={gapAnchor}>Picked element</option>}</select></label>
         <button className="btn btn--tiny" type="button" aria-pressed={pickingGapAnchor} onClick={()=>useProjectStore.getState().setPickingGapAnchor(!pickingGapAnchor)}>{pickingGapAnchor?'Cancel picking':'Pick anchor on canvas'}</button>
         <div className="canvas-gap-editor__comparison">
@@ -1271,8 +1281,14 @@ export default function DesignerCanvas() {
         </div>
         <label>Change (%)<input aria-label="Gap percentage change" type="number" step="any" min="-100" disabled={Math.abs(originalGapIn)<1e-10} title={Math.abs(originalGapIn)<1e-10?'Percentage editing requires a nonzero original gap':'Percentage change from the original gap; use a negative value to decrease it'} value={gapEditor.percentValue??(Number.isFinite(gapPercent)?gapPercent!:'')} onFocus={e=>e.target.select()} onChange={e=>updateGapPercent(e.target.value)}/></label>
         <div className="canvas-gap-editor__percentages" role="group" aria-label="Quick percentage changes">
-          {[-25,-10,10,25].map(percent=><button key={percent} className="btn btn--tiny" type="button" aria-label={`Set gap change to ${percent}%`} aria-pressed={gapPercent===percent} title={`${percent>0?'+':''}${percent}% from the original gap`} disabled={Math.abs(originalGapIn)<1e-10} onClick={()=>updateGapPercent(String(percent))}>{percent<0?'−':'+'}{Math.abs(percent)}%</button>)}
+          {gapPresets.map(percent=><button key={percent} className="btn btn--tiny" type="button" aria-label={`Set gap change to ${percent}%`} aria-pressed={gapPercent===percent} title={`${percent>0?'+':''}${percent}% from the original gap`} disabled={Math.abs(originalGapIn)<1e-10} onClick={()=>updateGapPercent(String(percent))}>{percent<0?'−':'+'}{Math.abs(percent)}%</button>)}
         </div>
+        {presetDraft?<div className="canvas-gap-editor__customize">
+          <div className="canvas-gap-editor__preset-inputs">{presetDraft.map((value,index)=><label key={index}>Preset {index+1} (%)<input aria-label={`Gap preset ${index+1}`} type="number" min="-100" step="any" value={value} onChange={e=>{setPresetDraft(presetDraft.map((v,i)=>i===index?e.target.value:v));setPresetError('')}} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();saveGapPresets()}}}/></label>)}</div>
+          {!validPresets&&<p role="status">Enter four different percentages of −100% or greater.</p>}
+          {presetError&&<p role="alert">{presetError}</p>}
+          <div><button className="btn btn--tiny" type="button" onClick={()=>{setPresetDraft(null);setPresetError('')}}>Cancel presets</button><button className="btn btn--tiny" type="button" disabled={!validPresets} onClick={saveGapPresets}>Save presets</button></div>
+        </div>:<button className="btn btn--tiny" type="button" title="Customize four presets and save them for future sessions" onClick={()=>setPresetDraft(gapPresets.map(String))}>Customize presets</button>}
         <p className="canvas-gap-editor__change" aria-label="Gap change from original">{gapChangeText}</p>
         <div className="canvas-gap-editor__history">
           <button className="btn btn--tiny" type="button" aria-label="Undo gap change" aria-keyshortcuts="Control+Z" disabled={!gapHistory.current.past.length} onClick={()=>stepGapHistory(false)}>Undo<kbd>Ctrl+Z</kbd></button>

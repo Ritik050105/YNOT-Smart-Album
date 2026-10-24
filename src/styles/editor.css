@@ -470,3 +470,12 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .canvas-gap-editor .canvas-gap-editor__percentages { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; margin-top:8px; }
 .canvas-gap-editor__percentages button { justify-content:center; padding:6px 0; font-size:11px; }
 .canvas-gap-editor__percentages button[aria-pressed="true"] { background:#795034; color:#fffaf4; border-color:#795034; }
+
+.canvas-gap-editor { max-height:calc(100% - 42px); overflow-y:auto; }
+.canvas-gap-editor .canvas-gap-editor__customize { display:block; margin-top:8px; }
+.canvas-gap-editor__preset-inputs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+.canvas-gap-editor__preset-inputs label { flex-direction:column; align-items:stretch; font-size:11px; }
+.canvas-gap-editor__preset-inputs label + label { margin-top:0; }
+.canvas-gap-editor__preset-inputs input { width:100%; box-sizing:border-box; }
+.canvas-gap-editor__customize > div:last-child { display:flex; gap:6px; justify-content:flex-end; }
+.canvas-gap-editor__percentages button { overflow:hidden; text-overflow:ellipsis; }

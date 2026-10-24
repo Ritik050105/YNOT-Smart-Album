@@ -217,10 +217,22 @@ app.whenReady().then(async()=>{
    const point=await evaluate(`(()=>{const r=document.querySelector('[aria-label="Set gap change to ${percent}%"]').getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()`);
    win.webContents.sendInputEvent({type:'mouseMove',...point});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});await wait();
   };
-  for(const percent of [-25,-10,10,25]){
+  const configurePresets=async values=>{
+   await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Customize presets').click()`);await wait();
+   const fill=async values=>{for(let i=0;i<4;i++)await evaluate(`{const n=document.querySelector('[aria-label="Gap preset ${i+1}"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(n,${JSON.stringify(String(values[i]))});n.dispatchEvent(new Event('input',{bubbles:true}))}`);await wait()};
+   for(const invalid of [[1,1,2,3],[-101,2,3,4],['',2,3,4]]){await fill(invalid);assert.equal(await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Save presets').disabled`),true)}
+   await fill(values);await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Cancel presets').click()`);await wait();await assertRects(final);
+   await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Customize presets').click()`);await wait();await fill(values);
+   await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor button')).find(b=>b.textContent==='Save presets').click()`);await wait();
+   assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('albumstudio.preferences')).gapPercentPresets`),values);await assertRects(final);assert.equal(await evaluate('store.getState().history.length'),history);
+  };
+  for(const presets of [[-40,-5,12.5,30],[-25,-10,10,25]]){
+   await configurePresets(presets);
+  for(const percent of presets){
    await quickPercent(percent);const changed=await sharedRects();assert.ok(Math.abs(changed[1].x-final[1].x)<1e-8,'Quick percentage keeps anchor fixed');for(let i=0;i<3;i++){assert.equal(changed[i].width,originals[i].width);assert.equal(changed[i].height,originals[i].height)}
    assert.ok(Math.abs(changed[1].x-changed[0].x-changed[0].width-60*(1+percent/100))<1e-8);assert.equal(await evaluate(`document.querySelector('[aria-label="Gap percentage change"]').value`),String(percent));assert.equal(await evaluate(`document.querySelector('[aria-label="Set gap change to ${percent}%"]').getAttribute('aria-pressed')`),'true');
    assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await shortcut(false);await assertRects(final);await shortcut(true);await assertRects(changed);await shortcut(false);await assertRects(final);
+  }
   }
   for(const percent of [25,-25,-100,12.345]){
    await typePercent(String(percent));const changed=await sharedRects();assert.ok(Math.abs(changed[1].x-final[1].x)<1e-8,'Percentage keeps the chosen anchor fixed');for(let i=0;i<3;i++){assert.equal(changed[i].width,originals[i].width);assert.equal(changed[i].height,originals[i].height)}
@@ -246,6 +258,7 @@ app.whenReady().then(async()=>{
  await evaluate(`document.querySelector('[aria-label="Reset gap preview"]').click()`);await wait();assert.equal(await evaluate(`document.querySelector('[aria-label="Gap change from original"]').textContent`),'No change · 0 in · 0%');
  await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));store.getState().undo();store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
  assert.equal(await evaluate(`Array.from(document.querySelectorAll('.canvas-gap-editor__percentages button')).length`),0,'Closed editor removes quick buttons');
+ console.log('Custom presets passed: edit, validation, cancel, persistent save, decimal presets, real clicks and unchanged preview/history on save');
  console.log('Quick percentages passed: real clicks on all presets, live anchored geometry, unchanged sizes, history, Reset, Escape and one Apply/Undo');
  console.log('Percentage input passed: positive/negative/decimal/zero-target values, fixed anchor and sizes, history, Reset, invalid/bounds rejection, Escape and one Apply/Undo');
  console.log('Percentage change passed: signed percentages from unrounded gaps, live dragging, history, Reset and zero-baseline handling');
