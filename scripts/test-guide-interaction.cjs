@@ -191,11 +191,22 @@ app.whenReady().then(async()=>{
   await typeGap('2');await dragAgain();await typeGap('2.75');const beforeSwitch=await sharedRects();
   const point=await evaluate(`(()=>{const stage=Konva.stages[0],n=stage.findOne('.gap-anchor-candidate-'+spacingIds[1]),p=n.getAbsoluteTransform().point({x:n.width()/2,y:3}),r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+p.x),y:Math.round(r.y+p.y)}})()`);
   win.webContents.sendInputEvent({type:'mouseMove',...point});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});await wait();const afterSwitch=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(afterSwitch[i].x-beforeSwitch[i].x)<.01);
-  await typeGap('3');const final=await dragAgain();assert.ok(Math.abs(final[1].x-beforeSwitch[1].x)<.01,'Switched anchor remains fixed across typing and another drag');for(let i=0;i<3;i++){assert.equal(final[i].width,originals[i].width);assert.equal(final[i].height,originals[i].height)}
+  await typeGap('3');const beforeLastDrag=await sharedRects();let final=await dragAgain();
+  const shortcut=async redo=>{await evaluate(`document.querySelector('[aria-label="Canvas spacing gap"]').focus()`);const modifiers=redo?['control','shift']:['control'];win.webContents.sendInputEvent({type:'keyDown',keyCode:'Z',modifiers});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Z',modifiers});await wait();assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),true,'Local history keeps editor open');assert.equal(await evaluate('store.getState().history.length'),history,'Local history never changes project history')};
+  const assertRects=async expected=>{const actual=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(actual[i].x-expected[i].x)<1e-8,'Local history restores exact geometry')};
+  await shortcut(false);await assertRects(beforeLastDrag);
+  await shortcut(false);await assertRects(beforeSwitch);
+  await shortcut(false);assert.equal(await evaluate('store.getState().gapAnchor'),'first');await assertRects(beforeSwitch);
+  await shortcut(true);assert.equal(await evaluate('store.getState().gapAnchor'),await evaluate(`'image:'+spacingIds[1]`));
+  await shortcut(true);await assertRects(beforeLastDrag);
+  await shortcut(true);await assertRects(final);
+  await shortcut(false);await typeGap('3.1');final=await sharedRects();await shortcut(true);await assertRects(final);
+  assert.ok(Math.abs(final[1].x-beforeSwitch[1].x)<.01,'Switched anchor remains fixed across typing and another drag');for(let i=0;i<3;i++){assert.equal(final[i].width,originals[i].width);assert.equal(final[i].height,originals[i].height)}
   assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);
   if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.deepEqual(await sharedRects(),originals);assert.equal(await evaluate('store.getState().history.length'),history)}
   else{await applyReleasedGap();assert.equal(await evaluate('store.getState().history.length'),history+1);const saved=await sharedRects();for(let i=0;i<3;i++)assert.ok(Math.abs(saved[i].x-final[i].x)<1e-8);await evaluate('store.getState().undo()');await wait();assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),sharedBefore);await evaluate(`store.getState().setLayerSelection(spacingIds.map(id=>'image:'+id))`);await wait()}
  }
+ console.log('Local gap history passed: real Ctrl+Z/Ctrl+Shift+Z, typing/anchor/drag snapshots, exact preview, redo branching, Escape and one project Undo');
  console.log('Persistent gap editor passed: drag/type/switch/drag, full-precision release, fixed anchor, size preservation, whole-session Escape and single Apply/Undo');
  console.log('Switched-anchor dragging passed: preview continuity, fixed anchor, equal gaps, sizes, normal/Shift, Escape, release preview and one Apply/Undo');
  console.log('Anchor switching passed: direct clicks during preview, stable positions/value/sizes, badge, canvas Escape, Apply and single Undo');
@@ -216,7 +227,7 @@ app.whenReady().then(async()=>{
    for(let i=1;i<=5;i++){win.webContents.sendInputEvent({type:'mouseMove',x:Math.round(point.x+(end.x-point.x)*i/5),y:Math.round(point.y+(end.y-point.y)*i/5)});await wait()}
    assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].${axis}()-${initial+30/point.scale})<1`),'Label drag previews '+axis);
    assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Drag preview leaves project unchanged');assert.equal(await evaluate('store.getState().history.length'),history);
-   assert.equal(await evaluate(`!!document.querySelector('.canvas-gap-editor')`),false,'Dragging does not open numeric editor');
+   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.canvas-gap-editor')).visibility`),'hidden','Dragging hides the editor while preserving its session');
    if(cancel){win.webContents.sendInputEvent({type:'keyDown',keyCode:'ESCAPE'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'ESCAPE'});await wait();assert.ok(await evaluate(`Math.abs(Konva.stages[0].find('Transformer')[0].nodes()[0].${axis}()-${initial})<.01`),'Escape restores preview')}
    win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...end});await wait();
    if(cancel)assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),startProject,'Release after Escape does not commit');
