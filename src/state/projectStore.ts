@@ -36,6 +36,10 @@ function migrateAlbumSize(raw: AlbumSize & { bleedIn?: number; safeZoneIn?: numb
   return { ...raw, trim, safeZone }
 }
 
+export function skippedTextViewKey(projectId: string, spreadId: string): string {
+  return JSON.stringify([projectId, spreadId])
+}
+
 const SKIPPED_TEXT_SCROLL_KEY = 'albumstudio.skippedTextScroll'
 function loadSkippedTextScroll(): Record<string, number> {
   try {
@@ -162,7 +166,7 @@ interface ProjectState {
   selectedPlaceholderId: string | null
   skippedTextScroll: Record<string, number>
   lastLocatedTextIds: Record<string, string>
-  locatedTextBox: { spreadId: string; textId: string } | null
+  locatedTextBox: { projectId: string; spreadId: string; textId: string } | null
   selectedTextBoxId: string | null
   /** Canvas multi-select (shift/ctrl+click on placed photos within the current spread), for
    *  batch tone/border editing — see updateMultiplePlacements. */

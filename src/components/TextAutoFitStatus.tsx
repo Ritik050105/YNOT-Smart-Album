@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { Spread } from '@/types'
-import { useProjectStore } from '@/state/projectStore'
+import { skippedTextViewKey, useProjectStore } from '@/state/projectStore'
 
 export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread; textIds: string[] }) {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLElement>(null)
   const state = useProjectStore()
+  const viewKey = skippedTextViewKey(state.project.id, spread.id)
   function locateAndFocus(textId: string | null, scrollTop?: number) {
     // Wait for the canvas listener and list rows to reflect the new state.
     queueMicrotask(() => {
-      if (!list.current) return
+      if (!list.current || useProjectStore.getState().project.id !== state.project.id) return
       if (scrollTop !== undefined) list.current.scrollTop = scrollTop
-      window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: textId } }))
+      window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { projectId: state.project.id, spreadId: spread.id, textId: textId } }))
       const button = Array.from(list.current.querySelectorAll<HTMLButtonElement>('.text-auto-fit-status__locate')).find(button => button.dataset.textId === textId)
       ;(button ?? trigger.current)?.focus({ preventScroll: true })
       button?.closest('article')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
@@ -21,12 +22,12 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
   useEffect(() => {
     if (!open) return
     const boxes = spread.textBoxes.filter(t => textIds.includes(t.id))
-    const remembered = state.lastLocatedTextIds[spread.id]
+    const remembered = state.lastLocatedTextIds[viewKey]
     const index = boxes.findIndex(t => t.id === remembered)
     const target = boxes.find(t => t.id === remembered && t.locked) ?? boxes.slice(index + 1).find(t => t.locked) ?? boxes.slice(0, index).reverse().find(t => t.locked)
-    locateAndFocus(target?.id ?? null, state.skippedTextScroll[spread.id] ?? 0)
-    return () => { window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: null } })) }
-  }, [open, spread.id])
+    locateAndFocus(target?.id ?? null, state.skippedTextScroll[viewKey] ?? 0)
+    return () => { window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { projectId: state.project.id, spreadId: spread.id, textId: null } })) }
+  }, [open, viewKey])
   const previousState = useRef(state)
   useEffect(() => {
     const previous = previousState.current
@@ -42,8 +43,8 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     const index = boxes.indexOf(changed)
     const target = undo ? changed : boxes.slice(index + 1).find(t => t.locked) ?? boxes.slice(0, index).reverse().find(t => t.locked)
     locateAndFocus(target?.id ?? null)
-  }, [state.project, open, spread.id])
-  const locatedId = state.locatedTextBox?.spreadId === spread.id ? state.locatedTextBox.textId : null
+  }, [state.project, open, viewKey])
+  const locatedId = state.locatedTextBox?.projectId === state.project.id && state.locatedTextBox.spreadId === spread.id ? state.locatedTextBox.textId : null
   const selected = spread.textBoxes.filter(t => textIds.includes(t.id))
   const locked = selected.filter(t => t.locked)
   const eligible = selected.filter(t => !t.locked && !t.hidden).length
@@ -66,7 +67,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
         const index = locked.findIndex(t => t.id === locatedId)
         const next = locked[index + 1] ?? locked[index - 1]
         state.unlockTextBoxes(spread.id, [locatedId!], true)
-        window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: next?.id ?? null } }))
+        window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { projectId: state.project.id, spreadId: spread.id, textId: next?.id ?? null } }))
         trigger.current?.focus({ preventScroll: true })
       }
       return
@@ -87,7 +88,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     </p>
     {open && <section ref={list} onScroll={event => {
       const top = event.currentTarget.scrollTop
-      useProjectStore.setState(s => s.skippedTextScroll[spread.id] === top ? s : { skippedTextScroll: { ...s.skippedTextScroll, [spread.id]: top } })
+      useProjectStore.setState(s => s.skippedTextScroll[viewKey] === top ? s : { skippedTextScroll: { ...s.skippedTextScroll, [viewKey]: top } })
     }} className="text-auto-fit-status__list" aria-label="Locked text boxes" aria-keyshortcuts="ArrowUp ArrowDown Enter Escape">
       <div className="designer-layers__actions">
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id)); trigger.current?.focus() }}>Unlock All</button>
@@ -98,7 +99,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
       </div>
       {!locked.length && <p role="status">No locked text boxes in this selection.</p>}
       {locked.map(t => <article key={t.id} className={locatedId === t.id ? 'is-located' : undefined}>
-        <button className="text-auto-fit-status__locate" data-text-id={t.id} aria-pressed={locatedId === t.id} aria-keyshortcuts="Enter" title={t.hidden ? 'Locate hidden text box (outline only) · Enter to unlock and auto-fit' : 'Locate text box on canvas · Enter to unlock and auto-fit'} aria-label={`Locate ${t.text.trim() || 'empty text box'}`} onClick={() => window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: t.id } }))}>{t.text.trim() || 'Empty text box'}</button>
+        <button className="text-auto-fit-status__locate" data-text-id={t.id} aria-pressed={locatedId === t.id} aria-keyshortcuts="Enter" title={t.hidden ? 'Locate hidden text box (outline only) · Enter to unlock and auto-fit' : 'Locate text box on canvas · Enter to unlock and auto-fit'} aria-label={`Locate ${t.text.trim() || 'empty text box'}`} onClick={() => window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { projectId: state.project.id, spreadId: spread.id, textId: t.id } }))}>{t.text.trim() || 'Empty text box'}</button>
         <button className="btn btn--tiny" aria-label={`Unlock ${t.text.trim() || 'empty text box'}`} onClick={() => { state.unlockTextBoxes(spread.id, [t.id]); trigger.current?.focus() }}>Unlock</button>
         <button className="btn btn--tiny" aria-label={`Unlock and auto-fit ${t.text.trim() || 'empty text box'}`} onClick={() => { state.unlockTextBoxes(spread.id, [t.id], true); trigger.current?.focus() }}>Unlock and Auto-fit</button>
       </article>)}

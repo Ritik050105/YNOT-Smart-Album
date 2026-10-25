@@ -10,7 +10,7 @@ import { v4 as uuid } from 'uuid'
 import { Stage, Layer, Rect, Circle, Group, Image as KonvaImage, Text as KonvaText, Line, Transformer } from 'react-konva'
 import Konva from 'konva'
 import useImage from 'use-image'
-import { useProjectStore } from '@/state/projectStore'
+import { skippedTextViewKey, useProjectStore } from '@/state/projectStore'
 import { DESIGN_WIDTH, computePlaceholderBoxes, resolvePageInsetsPx, edgeInsetToPx } from '@/engine/layoutMath'
 import { computeCoverCrop } from '@/engine/cropFit'
 import { ensureFontLoaded } from '@/engine/fonts'
@@ -476,15 +476,15 @@ export default function DesignerCanvas() {
   const [viewportSize, setViewportSize] = useState({ width: STAGE_WIDTH, height: stageHeight })
 
   const locatedTextBox = useProjectStore(s => s.locatedTextBox)
-  const locatedText = spread?.id === locatedTextBox?.spreadId ? spread?.textBoxes.find(t => t.id === locatedTextBox?.textId) : undefined
-  useEffect(() => { useProjectStore.setState({ locatedTextBox: null }) }, [spread?.id, selectedLayerKeys, selectedTextBoxId, selectedPlaceholderId])
+  const locatedText = project.id === locatedTextBox?.projectId && spread?.id === locatedTextBox?.spreadId ? spread?.textBoxes.find(t => t.id === locatedTextBox?.textId) : undefined
+  useEffect(() => { useProjectStore.setState({ locatedTextBox: null }) }, [project.id, spread?.id, selectedLayerKeys, selectedTextBoxId, selectedPlaceholderId])
   useEffect(() => () => { useProjectStore.setState({ locatedTextBox: null }) }, [])
   useEffect(() => {
     const locate = (event: Event) => {
-      const { spreadId, textId } = (event as CustomEvent<{ spreadId: string; textId: string | null }>).detail
-      if (spreadId !== spread?.id) return
+      const { projectId, spreadId, textId } = (event as CustomEvent<{ projectId?: string; spreadId: string; textId: string | null }>).detail
+      if (spreadId !== spread?.id || (projectId && projectId !== useProjectStore.getState().project.id)) return
       const box = useProjectStore.getState().project.spreads.find(s => s.id === spreadId)?.textBoxes.find(t => t.id === textId)
-      useProjectStore.setState(s => ({ locatedTextBox: box ? { spreadId, textId: box.id } : null, ...(box ? { lastLocatedTextIds: { ...s.lastLocatedTextIds, [spreadId]: box.id } } : {}) }))
+      useProjectStore.setState(s => ({ locatedTextBox: box ? { projectId: s.project.id, spreadId, textId: box.id } : null, ...(box ? { lastLocatedTextIds: { ...s.lastLocatedTextIds, [skippedTextViewKey(s.project.id, spreadId)]: box.id } } : {}) }))
       if (!box) return
       const scale = Math.max(.05, Math.min(stageScale, (viewportSize.width - 80) / (box.width * STAGE_WIDTH), (viewportSize.height - 80) / (box.height * stageHeight)))
       setStageScale(scale)

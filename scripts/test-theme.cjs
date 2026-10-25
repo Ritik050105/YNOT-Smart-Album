@@ -127,7 +127,7 @@ app.whenReady().then(async()=>{
   await run(`{const button=document.querySelectorAll('${scope} .text-auto-fit-status__locate')[1];button.focus();button.click()}`);await wait();
   const beforeScroll=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})`);
   await run(`{const list=document.querySelector('${scope} .text-auto-fit-status__list'),row=list.querySelector('.is-located');list.scrollTop+=row.getBoundingClientRect().top-list.getBoundingClientRect().top-12;window.savedTextScroll=list.scrollTop}`);await wait();
-  assert.equal(await run(`window.savedTextScroll>0&&Math.abs(store.getState().skippedTextScroll.palette-window.savedTextScroll)<1`),true,'Manual list scroll is remembered');
+  assert.equal(await run(`window.savedTextScroll>0&&Math.abs(store.getState().skippedTextScroll[JSON.stringify([store.getState().project.id,"palette"])]-window.savedTextScroll)<1`),true,'Manual list scroll is remembered');
   await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait();
   await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();await checkHistoryLocation('batch-1');
   assert.equal(await run(`Math.abs(document.querySelector('${scope} .text-auto-fit-status__list').scrollTop-window.savedTextScroll)<1`),true,'Reopening restores saved scroll with active row visible');
@@ -138,6 +138,23 @@ app.whenReady().then(async()=>{
   assert.equal(await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})`),beforeReopen,'Reopening skips fixed remembered box without changing fixes or history');
   await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait();
   await run(`store.getState().undo();store.getState().undo()`);await wait();
+  await run(`store.getState().updateSpread('palette',{textBoxes:store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.map(t=>({...t,locked:true}))});window.scopeProjectA=store.getState().project;window.scopeProjectB={...window.scopeProjectA,id:window.scopeProjectA.id+'-other'};window.scopeHistory=JSON.stringify({past:store.getState().history,future:store.getState().future})`);await wait();
+  const views=[];
+  for(const [project,index] of [['A',1],['B',2]]) {
+   await run(`store.setState({project:window.scopeProject${project}})`);await wait();
+   await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();
+   await run(`{const b=document.querySelectorAll('${scope} .text-auto-fit-status__locate')[${index}];b.focus();b.click()}`);await wait();
+   views.push(await run(`document.querySelector('${scope} .text-auto-fit-status__list').scrollTop`));
+   await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait();
+  }
+  for(const [project,index,offset] of [['A',1,views[0]],['B',2,views[1]],['A',1,views[0]]]) {
+   await run(`store.setState({project:window.scopeProject${project}})`);await wait();
+   await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();await checkHistoryLocation('batch-'+index);
+   assert.equal(await run(`Math.abs(document.querySelector('${scope} .text-auto-fit-status__list').scrollTop-${offset})<1`),true,'Project-specific scroll is restored for identical spread IDs');
+   assert.equal(await run(`JSON.stringify({past:store.getState().history,future:store.getState().future})===window.scopeHistory&&store.getState().project===window.scopeProject${project}`),true,'View restoration leaves project and history unchanged');
+   await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait();
+  }
+  await run(`store.getState().undo()`);await wait();
  }
  const lum=rgb=>{const c=rgb.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return c[0]*.2126+c[1]*.7152+c[2]*.0722};
  for(const screen of ['text-inspector','home','wizard','preferences','preferences-Interaction','preferences-Inspector','preferences-Image Quality','preferences-Performance','preferences-Misc.','editor','designer','templates','export','auto-build','size','info','cover','cover-guide','cover-custom','profile','continue','import-preview','context','pickers','color','missing',...['File','Edit','Frame','Cover','Spread','Templates','Tools','View','Help'].map(name=>'menu-'+name)].filter(name=>!process.env.THEME_SCREENS||process.env.THEME_SCREENS.split(',').includes(name))){

@@ -18,14 +18,16 @@ if (!process.versions.electron) {
     const win=new BrowserWindow({show:false,webPreferences:{offscreen:true}});
     const load=()=>win.loadFile(path.join(out,'index.html')),run=code=>win.webContents.executeJavaScript(code);
     await load();
+    const locations={ [JSON.stringify(['projectA','spreadA'])]:'textA', [JSON.stringify(['projectB','spreadA'])]:'textB', [JSON.stringify(['projectA','spreadB'])]:'textC' };
+    const scroll={ [JSON.stringify(['projectA','spreadA'])]:129.5, [JSON.stringify(['projectB','spreadA'])]:42, [JSON.stringify(['projectA','spreadB'])]:0 };
     const before=await run('JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})');
     if(phase==='write') {
-      await run("store.setState({lastLocatedTextIds:{spreadA:'textA',spreadB:'textB'},skippedTextScroll:{spreadA:129.5,spreadB:0}})");
-      assert.deepEqual(await run("JSON.parse(localStorage.getItem('albumstudio.lastLocatedTextIds'))"),{spreadA:'textA',spreadB:'textB'});
+      await run(`store.setState({lastLocatedTextIds:${JSON.stringify(locations)},skippedTextScroll:${JSON.stringify(scroll)}})`);
+      assert.deepEqual(await run("JSON.parse(localStorage.getItem('albumstudio.lastLocatedTextIds'))"),locations);
       assert.equal(await run('JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})'),before);
     } else if(phase==='read') {
-      assert.deepEqual(await run('store.getState().lastLocatedTextIds'),{spreadA:'textA',spreadB:'textB'});
-      assert.deepEqual(await run('store.getState().skippedTextScroll'),{spreadA:129.5,spreadB:0});
+      assert.deepEqual(await run('store.getState().lastLocatedTextIds'),locations);
+      assert.deepEqual(await run('store.getState().skippedTextScroll'),scroll);
       assert.deepEqual(await run('({history:store.getState().history,future:store.getState().future,located:store.getState().locatedTextBox})'),{history:[],future:[],located:null});
     } else {
       await run(`localStorage.setItem('albumstudio.lastLocatedTextIds',${JSON.stringify(phase==='invalid'?'{"spreadA":"textA","bad":42,"empty":""}':'{broken')})`);
