@@ -436,7 +436,7 @@ export default function DesignerCanvas() {
   const commitGroup=()=>{const n=groupNodeRef.current;if(n&&spread&&transformKeys.length){useProjectStore.getState().transformSelection(spread.id,transformKeys,{x:n.x()/STAGE_WIDTH,y:n.y()/stageHeight,width:n.width()*n.scaleX()/STAGE_WIDTH,height:n.height()*n.scaleY()/stageHeight});n.scale({x:1,y:1});setGroupLive(null);setSmartGuides([])}}
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
   useEffect(()=>{if(selectedLayerKeys.length||(editingTextId&&selectedTextBoxId!==editingTextId))setEditingTextId(null)},[selectedLayerKeys,selectedTextBoxId,editingTextId])
-  const [textContextMenu, setTextContextMenu] = useState<{ x: number; y: number; textId: string; spreadId: string } | null>(null)
+  const [textContextMenu, setTextContextMenu] = useState<{ x: number; y: number; textIds: string[]; spreadId: string } | null>(null)
   const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId?: string; openedAt: number } | null>(null)
   const stageRef = useRef<Konva.Stage>(null)
   // Double-clicking an empty frame opens a native file picker and drops the chosen photo straight
@@ -841,6 +841,17 @@ export default function DesignerCanvas() {
     selectPlaceholder(placeholderId)
   }
 
+  function openTextContextMenu(e: Konva.KonvaEventObject<PointerEvent>, textId?: string) {
+    if (!spread) return
+    const keys = transformKeys.length ? transformKeys : selectedLayerKeys
+    const ids = textId && !keys.includes('text:' + textId) ? [textId] : keys.filter(key => key.startsWith('text:')).map(key => key.slice(5))
+    if (!ids.length) return
+    e.evt.preventDefault()
+    e.cancelBubble = true
+    setPhotoContextMenu(null)
+    setTextContextMenu({ x: e.evt.clientX, y: e.evt.clientY, textIds: ids, spreadId: spread.id })
+  }
+
   function handlePlaceholderContextMenu(placeholderId: string, evt: Event) {
     evt.preventDefault()
     evt.stopPropagation()
@@ -1043,7 +1054,7 @@ export default function DesignerCanvas() {
                 draggable={!box.groupId && !box.locked && canvasTool === 'select' && !isSpaceDown}
                 onClick={e=>{if(e.evt.shiftKey||e.evt.ctrlKey||e.evt.metaKey)toggleCanvasLayer('text',box.id);else selectTextBox(box.id)}}
                 onTap={() => selectTextBox(box.id)}
-                onContextMenu={e => { e.evt.preventDefault(); e.cancelBubble = true; setPhotoContextMenu(null); setTextContextMenu({ x: e.evt.clientX, y: e.evt.clientY, textId: box.id, spreadId: spread.id }) }}
+                onContextMenu={e => openTextContextMenu(e, box.id)}
                 onDblClick={e => { if(!box.locked&&!e.evt.shiftKey) setEditingTextId(box.id) }}
                 onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:e.target.width(),height:e.target.height()},box.id);e.target.position(rect)}}
                 onTransform={e=>{const node=e.target;node.width(Math.max(4,node.width()*node.scaleX()));node.height(Math.max(4,node.height()*node.scaleY()));node.scale({x:1,y:1})}}
@@ -1188,7 +1199,7 @@ export default function DesignerCanvas() {
             <Transformer ref={transformerRef} borderStroke="#3157c8" anchorStroke="#3157c8" rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} />
           </>}
           {group && group.members.some(l=>!l.value.hidden) && canvasTool==='select' && <>
-            <Rect name="group-transform-box" listening={!isShiftDown} ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke="#3157c8" strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey&&selectedGroupId)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!)}}/>
+            <Rect name="group-transform-box" onContextMenu={e => openTextContextMenu(e)} listening={!isShiftDown} ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke="#3157c8" strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey&&selectedGroupId)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!)}}/>
             {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-right','bottom-left','bottom-right']} borderStroke="#3157c8" anchorStroke="#3157c8" boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
           </>}
           {draftFrame && <Rect {...draftFrame} stroke="#3157c8" strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />}
@@ -1399,7 +1410,7 @@ export default function DesignerCanvas() {
         })()}
       </div>
       </div>
-      {textContextMenu && spread?.id === textContextMenu.spreadId && spread.textBoxes.some(t => t.id === textContextMenu.textId && !t.hidden) && <ContextMenu x={textContextMenu.x} y={textContextMenu.y} onClose={() => setTextContextMenu(null)} items={[{ label: 'Auto-fit width', disabled: spread.textBoxes.find(t => t.id === textContextMenu.textId)?.locked, onClick: () => updateTextBox(spread.id, textContextMenu.textId, { autoWidth: true }) }]} />}
+      {textContextMenu && spread?.id === textContextMenu.spreadId && spread.textBoxes.some(t => textContextMenu.textIds.includes(t.id) && !t.hidden) && <ContextMenu x={textContextMenu.x} y={textContextMenu.y} onClose={() => setTextContextMenu(null)} items={[{ label: 'Auto-fit width', disabled: !spread.textBoxes.some(t => textContextMenu.textIds.includes(t.id) && !t.locked && !t.hidden), onClick: () => useProjectStore.getState().updateSpread(spread.id, { textBoxes: spread.textBoxes.map(t => textContextMenu.textIds.includes(t.id) && !t.locked && !t.hidden ? fitTextBoxSize({ ...t, autoWidth: true }, spread.size ?? project.size) : t) }) }]} />}
       {photoContextMenu && spread && <PhotoContextMenu key={JSON.stringify(photoContextMenu)} x={photoContextMenu.x} y={photoContextMenu.y} spreadId={spread.id} frameId={photoContextMenu.placeholderId} />}
       {pendingPresetImport&&<GapPresetImportPreview name={pendingPresetImport.name} data={pendingPresetImport.data} error={presetError} onImport={confirmPresetImport} onCancel={cancelPresetImport}/>}
       <input ref={presetFileInput} aria-label="Import percentage presets file" type="file" accept=".json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void importPresetsFile(file)}} />
