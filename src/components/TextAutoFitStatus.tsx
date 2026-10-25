@@ -17,6 +17,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     {open && <section className="text-auto-fit-status__list" aria-label="Locked text boxes">
       <div className="designer-layers__actions">
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id)); trigger.current?.focus() }}>Unlock All</button>
+        <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id), true); trigger.current?.focus() }}>Unlock and Auto-fit All</button>
         <button className="btn btn--tiny" disabled={!state.history.length} title="Undo (Ctrl+Z)" onClick={() => state.undo()}>Undo</button>
         <button className="btn btn--tiny" disabled={!state.future.length} title="Redo (Ctrl+Shift+Z)" onClick={() => state.redo()}>Redo</button>
         <button className="btn btn--tiny" onClick={() => { setOpen(false); trigger.current?.focus() }}>Close</button>

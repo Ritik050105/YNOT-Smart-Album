@@ -34,6 +34,18 @@ app.whenReady().then(async()=>{
   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Redo').click()`);await wait();
   assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)');
   await run(`store.getState().undo();store.getState().undo()`);await wait();
+  await run(`store.getState().updateSpread('palette',{textBoxes:store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.map(t=>({...t,locked:true}))});window.beforeUnlockFit=JSON.stringify(store.getState().project.spreads);window.fitHistory=store.getState().history.length`);await wait();
+  await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Unlock and Auto-fit All').click()`);await wait();
+  assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)');
+  assert.equal(await run(`store.getState().history.length-window.fitHistory`),1,'Unlock and fit is one history step');
+  assert.equal(await run(`(()=>{const before=JSON.parse(window.beforeUnlockFit).find(s=>s.id==='palette'),after=store.getState().project.spreads.find(s=>s.id==='palette');const anchor=t=>t.x+t.width*(t.align==='center'?.5:t.align==='right'?1:0);window.afterUnlockFit=JSON.stringify(store.getState().project.spreads);return after.textBoxes.every((t,i)=>!t.locked&&t.autoWidth&&t.width<before.textBoxes[i].width&&Math.abs(anchor(t)-anchor(before.textBoxes[i]))<1e-8)&&JSON.stringify(before.placements)===JSON.stringify(after.placements)})()`),true,'Fits every listed box while preserving alignment and photos');
+  await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Undo').click()`);await wait();
+  assert.equal(await run(`JSON.stringify(store.getState().project.spreads)===window.beforeUnlockFit`),true,'One Undo restores geometry and locks');
+  assert.equal(await run(`document.querySelectorAll('${scope} .text-auto-fit-status__list article').length`),4);
+  await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Redo').click()`);await wait();
+  assert.equal(await run(`JSON.stringify(store.getState().project.spreads)===window.afterUnlockFit`),true,'One Redo restores geometry and unlocked state');
+  assert.equal(await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Unlock and Auto-fit All').disabled`),true);
+  await run(`store.getState().undo();store.getState().undo()`);await wait();
   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Close').click()`);await wait();
  }
  const lum=rgb=>{const c=rgb.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return c[0]*.2126+c[1]*.7152+c[2]*.0722};
