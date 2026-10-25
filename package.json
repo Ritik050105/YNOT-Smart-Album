@@ -1,7 +1,7 @@
 {
   "name": "ynot-album-studio",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Internal album design studio built for YNOT Photography",
   "main": "dist-electron/main.js",
   "author": "YNOT Photography",
@@ -45,7 +45,8 @@
       "createStartMenuShortcut": true,
       "artifactName": "${productName}-Setup-${version}.${ext}",
       "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico"
+      "uninstallerIcon": "build/icon.ico",
+      "include": "build/installer.nsh"
     },
     "portable": {
       "artifactName": "${productName}-Portable-${version}.${ext}"
@@ -57,7 +58,13 @@
     "linux": {
       "target": "AppImage",
       "icon": "build/icon.png"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "ynot-app.ico"
+      }
+    ]
   },
   "scripts": {
     "dev": "vite",
