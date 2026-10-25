@@ -102,12 +102,19 @@ app.whenReady().then(async () => {
 
   await run(`document.getElementById('preview-attention-only').click()`);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1);
+  await run(`document.getElementById('preview-search').value=' ASHA ';document.getElementById('preview-search').dispatchEvent(new Event('input'));document.getElementById('preview-attention-only').click()`);
   await run(`document.getElementById('preview-cancel').click()`); await wait();
   assert.equal(fs.readFileSync(historyFile,'utf8'),oldHistory,'Canceled restore does not change history');
+  await run(`document.getElementById('restore').click()`);await wait();
+  assert.equal(await run(`document.getElementById('preview-search').value`),' ASHA ','Canceled preview remembers exact search text');
+  assert.equal(await run(`document.getElementById('preview-attention-only').checked`),true);
+  assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),0,'Remembered filters are applied to reopened rows');
+  assert.equal(fs.readFileSync(historyFile,'utf8'),oldHistory,'Remembering filters does not change records');
+  await run(`document.getElementById('preview-reset-filters').click();document.getElementById('preview-cancel').click()`);await wait();
   fs.unlinkSync(historyFile); await run(`document.getElementById('restore').click()`); await wait();
   assert.equal(await run(`document.querySelector('.preview-row').dataset.status`),'new');
-  assert.equal(await run(`document.getElementById('preview-attention-only').checked`),false,'Each preview starts unfiltered');
-  assert.equal(await run(`document.getElementById('preview-search').value`),'','New preview clears search');
+  assert.equal(await run(`document.getElementById('preview-attention-only').checked`),false,'Reopening remembers reset checkbox');
+  assert.equal(await run(`document.getElementById('preview-search').value`),'','Reopening remembers reset search');
   await run(`document.getElementById('preview-search').value='AAAA';document.getElementById('preview-search').dispatchEvent(new Event('input'))`);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1,'Partial PC ID search');
   await run(`document.getElementById('preview-clear-search').click()`);
@@ -123,7 +130,7 @@ app.whenReady().then(async () => {
   fs.unlinkSync(restored.path);
   await run(`document.getElementById('restore').click()`); await wait();
   assert.equal(await run(`document.querySelector('.preview-row').dataset.status`),'repair');
-  await run(`document.getElementById('preview-attention-only').click()`);
+  assert.equal(await run(`document.getElementById('preview-attention-only').checked`),true,'Restore also remembers the filter');
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),0);
   await run(`document.getElementById('preview-apply').click()`);await wait();
   assert.equal(JSON.parse(fs.readFileSync(historyFile)).length,1);
@@ -131,7 +138,7 @@ app.whenReady().then(async () => {
   const conflictRows=JSON.parse(oldHistory);conflictRows[0].client='Previous Employee';fs.writeFileSync(historyFile,JSON.stringify(conflictRows));
   await run(`document.getElementById('restore').click()`);await wait();
   assert.equal(await run(`document.querySelector('.preview-row').dataset.status`),'conflict');
-  await run(`document.getElementById('preview-attention-only').click()`);
+  assert.equal(await run(`document.getElementById('preview-attention-only').checked`),true);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1);
   assert.equal(await run(`document.getElementById('preview-apply').disabled`),true);
   assert.match(await run(`document.getElementById('preview-list').textContent`),/Previous Employee/);

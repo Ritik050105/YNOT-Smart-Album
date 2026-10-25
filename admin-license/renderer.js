@@ -101,8 +101,6 @@ document.getElementById('preview-reset-filters').addEventListener('click', () =>
   previewSearch.focus();
 });
 function openRestorePreview(preview) {
-  previewFilter.checked = false;
-  previewSearch.value = '';
   document.getElementById('preview-summary').textContent = `${preview.added} new · ${preview.unchanged + preview.repaired} already present (${preview.repaired} missing files) · ${preview.conflicts} conflicting`;
   document.getElementById('preview-error').textContent = preview.conflicts ? 'Restore is blocked until conflicting records are resolved. Cancel to keep your current history unchanged.' : '';
   const list = document.getElementById('preview-list'); list.replaceChildren();

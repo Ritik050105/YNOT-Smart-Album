@@ -52,7 +52,7 @@ Selecting a backup opens a review dialog before any files or history change. Eve
 
 Choose **Restore** to apply a conflict-free preview or **Cancel** (Escape also works) to leave everything unchanged. Restore is disabled when conflicts exist; no partial restore or overwrite occurs. Invalid signatures or malformed backups are rejected before preview. The app holds the validated backup contents until confirmation and refuses to apply if local history changed in the meantime.
 
-The restore preview has **Show only new and conflicting records**. It hides already-present rows (including missing-file repairs) for review only. The summary and Restore eligibility still describe the complete backup. Restore applies the same full validated plan regardless of the filter; Cancel makes no changes. Each new preview starts with all rows visible.
+The restore preview has **Show only new and conflicting records**. It hides already-present rows (including missing-file repairs) for review only. The summary and Restore eligibility still describe the complete backup. Restore applies the same full validated plan regardless of the filter; Cancel makes no changes. Reopening the preview keeps the search and status checkbox from the last preview while the admin tool remains open.
 
 ## Studio-owner handoff and employee licensing
 
@@ -62,8 +62,10 @@ After setup, the owner can independently enter the employee's full name, paste t
 
 The admin interface now uses **Employee name** throughout. Existing licenses and history retain their previously recorded names; the app does not guess employees or rewrite signed files. The internal signed `client` field is retained for compatibility and stores the employee name for newly issued licenses.
 
-Restore preview search matches employee names (including the current name shown on conflicting records) or partial/full PC IDs, ignoring case and surrounding spaces. Search and **Show only new and conflicting records** combine. Both reset when opening a new preview. Summary counts and Restore eligibility still cover the full validated backup, and hiding a conflict never enables Restore. Cancel makes no changes.
+Restore preview search matches employee names (including the current name shown on conflicting records) or partial/full PC IDs, ignoring case and surrounding spaces. Search and **Show only new and conflicting records** combine. Both are retained when reopening the preview during the current admin session. Summary counts and Restore eligibility still cover the full validated backup, and hiding a conflict never enables Restore. Cancel makes no changes.
 
 **Clear search** beside the restore-preview search field clears only the query and returns focus to search. It preserves the status checkbox, summary, restore plan and conflict blocking. It is disabled when the search is empty.
 
 **Reset filters** clears the preview search and unchecks Show only new and conflicting records together, revealing all records and returning focus to search. It changes no data, conflict rules or restore plan. Restore and Cancel remain available. The button is disabled when both filters are already clear.
+
+Reopening after Restore, Cancel or Escape keeps the latest display filters during the current admin session. Clear search and Reset filters also become the remembered state. A fresh backup is still validated on every open; no pending restore operation is saved or automatically applied. Closing the admin tool starts a new filter session.
