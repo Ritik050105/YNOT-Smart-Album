@@ -1280,7 +1280,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       spreads: p.spreads.map((s) =>
         s.id !== spreadId
           ? s
-          : { ...s, textBoxes: s.textBoxes.map((t) => (t.id === textBoxId ? (['text', 'fontFamily', 'fontSize', 'bold', 'italic', 'width'].some(key => key in patch) ? fitTextBoxSize({ ...t, ...patch, autoWidth: 'width' in patch ? false : t.autoWidth }, s.size ?? p.size) : { ...t, ...patch }) : t)) }
+          : { ...s, textBoxes: s.textBoxes.map((t) => (t.id === textBoxId ? (['text', 'fontFamily', 'fontSize', 'bold', 'italic', 'width', 'autoWidth'].some(key => key in patch) ? fitTextBoxSize({ ...t, ...patch, autoWidth: 'width' in patch ? false : patch.autoWidth ?? t.autoWidth }, s.size ?? p.size) : { ...t, ...patch }) : t)) }
       ),
     })),
 

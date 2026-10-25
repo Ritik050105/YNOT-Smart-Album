@@ -418,6 +418,15 @@ export default function Inspector() {
             <Icon name="type" size={13} />
             Text
           </h4>
+          <button
+            className={`btn btn--toggle btn--block ${textBox.autoWidth ? 'is-active' : ''}`}
+            aria-pressed={!!textBox.autoWidth}
+            disabled={textBox.locked}
+            title="Fit the box to its text. Resize manually to set a wrapping width."
+            onClick={() => updateTextBox(spread.id, textBox.id, { autoWidth: !textBox.autoWidth })}
+          >
+            Auto-fit width
+          </button>
           <FontPicker value={textBox.fontFamily} onChange={family => updateTextBox(spread.id, textBox.id, { fontFamily: family })} />
           <SliderField buttons
             label="Size"
