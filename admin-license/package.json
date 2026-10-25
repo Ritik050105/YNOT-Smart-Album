@@ -16,7 +16,8 @@
       "renderer.js",
       "index.html",
       "public-key.json",
-      "history.cjs"
+      "history.cjs",
+      "backup.cjs"
     ],
     "win": {
       "target": [

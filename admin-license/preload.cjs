@@ -1,5 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('licenseAdmin', {
+  backup: () => ipcRenderer.invoke('admin:backup'),
+  restore: () => ipcRenderer.invoke('admin:restore'),
   history: () => ipcRenderer.invoke('admin:history'),
   addExisting: () => ipcRenderer.invoke('admin:add-existing'),
   historyFile: (deviceId, reveal) => ipcRenderer.invoke('admin:history-file', deviceId, reveal),

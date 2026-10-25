@@ -10,11 +10,16 @@ function readHistory(file) {
 function rememberLicense(file, record) {
   const rows = readHistory(file).filter(row => row.deviceId !== record.deviceId);
   rows.unshift(record);
+  writeHistory(file, rows);
+}
+function writeHistory(file, rows) {
+  const data = JSON.stringify(rows, null, 2);
+  if (Buffer.byteLength(data) > 5 * 1024 * 1024) throw new Error('History file is too large.');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const temporary = file + '.' + randomUUID() + '.tmp';
   try {
-    fs.writeFileSync(temporary, JSON.stringify(rows, null, 2), { flag: 'wx' });
+    fs.writeFileSync(temporary, data, { flag: 'wx' });
     fs.renameSync(temporary, file);
   } finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
 }
-module.exports = { readHistory, rememberLicense };
+module.exports = { readHistory, rememberLicense, writeHistory };

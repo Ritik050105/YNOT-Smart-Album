@@ -3,6 +3,7 @@ const path = require('path');
 const { readSigningKey, issueLicense, readIssuedLicense } = require('./issuer.cjs');
 const { readHistory, rememberLicense } = require('./history.cjs');
 const fs = require('fs');
+const { exportBackup, prepareRestore, restoreBackup } = require('./backup.cjs');
 const publicKey = require('./public-key.json');
 let win, lastSaved;
 let issuing = false;
@@ -13,16 +14,44 @@ function keyStatus() {
   catch { return { path: keyPath, ready: false }; }
 }
 function registerHandlers() {
+  ipcMain.handle('admin:backup', async () => {
+    if (issuing) return { error: 'Finish the current operation first.' };
+    issuing = true;
+    try {
+      const result = await dialog.showSaveDialog(win, { title: 'Back up history and licenses', defaultPath: path.join(app.getPath('documents'), 'YNOT-license-backup.json'), filters: [{ name: 'YNOT license backup', extensions: ['json'] }] });
+      if (result.canceled || !result.filePath) return { canceled: true };
+      const count = exportBackup(historyFile, result.filePath, publicKey);
+      return { message: `Backup saved with ${count} license(s): ${result.filePath}` };
+    } catch (error) { return { error: error.code === 'EEXIST' ? 'Backup already exists. Choose a new filename.' : error.message || 'Backup failed.' }; }
+    finally { issuing = false; }
+  });
+  ipcMain.handle('admin:restore', async () => {
+    if (issuing) return { error: 'Finish the current operation first.' };
+    issuing = true;
+    try {
+      const result = await dialog.showOpenDialog(win, { title: 'Restore history and licenses', properties: ['openFile'], filters: [{ name: 'YNOT license backup', extensions: ['json'] }] });
+      if (result.canceled || !result.filePaths[0]) return { canceled: true };
+      const plan = prepareRestore(historyFile, result.filePaths[0], publicKey);
+      const confirmation = await dialog.showMessageBox(win, { type: 'question', title: 'Restore license backup', message: 'Merge this backup into license history?', detail: `${plan.added} new PCs, ${plan.repaired} missing files restored, ${plan.unchanged} already recorded. Existing records are kept. License signatures have been checked. The private signing key is not included.`, buttons: ['Restore', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true });
+      if (confirmation.response !== 0) return { canceled: true };
+      restoreBackup(historyFile, plan);
+      return { message: `Restored ${plan.added} new PC(s) and ${plan.repaired} missing file(s); ${plan.unchanged} already recorded.` };
+    } catch (error) { return { error: error.message || 'Restore failed. Existing history was preserved.' }; }
+    finally { issuing = false; }
+  });
   ipcMain.handle('admin:history', () => {
     try { return { rows: readHistory(historyFile).map(row => ({ ...row, missing: !fs.existsSync(row.path) })) }; }
     catch { return { error: 'License history could not be read. Restore its backup before issuing more licenses.' }; }
   });
   ipcMain.handle('admin:add-existing', async () => {
     if (issuing) return { error: 'Finish saving the current license first.' };
+    issuing = true;
+    try {
     const result = await dialog.showOpenDialog(win, { title: 'Add an existing signed license to history', properties: ['openFile'], filters: [{ name: 'YNOT license', extensions: ['json'] }] });
     if (result.canceled || !result.filePaths[0]) return { canceled: true };
     try { rememberLicense(historyFile, readIssuedLicense(result.filePaths[0], publicKey)); return {}; }
     catch { return { error: 'Could not add this license. Check its signature and history folder permissions.' }; }
+    } finally { issuing = false; }
   });
   ipcMain.handle('admin:history-file', async (_event, deviceId, reveal) => {
     try {

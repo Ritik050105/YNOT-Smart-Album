@@ -1,6 +1,6 @@
 const form = document.getElementById('form'), client = document.getElementById('client'), device = document.getElementById('device'), generate = document.getElementById('generate'), choose = document.getElementById('choose'), status = document.getElementById('status'), reveal = document.getElementById('reveal');
 let ready = false, busy = false;
-function update() { generate.disabled = busy || !ready || !client.value.trim() || !/^[a-f0-9]{64}$/i.test(device.value.trim()); choose.disabled = busy; document.getElementById('add-existing').disabled = busy; }
+function update() { generate.disabled = busy || !ready || !client.value.trim() || !/^[a-f0-9]{64}$/i.test(device.value.trim()); choose.disabled = busy; document.getElementById('add-existing').disabled = busy; document.getElementById('backup').disabled = busy; document.getElementById('restore').disabled = busy; }
 function show(message, kind = '') { status.textContent = message; status.className = kind; }
 function applyKey(result) { ready = result.ready; document.getElementById('key-status').textContent = ready ? 'Signing key ready' : 'Signing key needed'; document.getElementById('key-path').textContent = result.path; if (result.error) show(result.error, 'error'); update(); }
 form.addEventListener('input', update);
@@ -55,3 +55,19 @@ document.getElementById('add-existing').addEventListener('click', async () => {
   finally { busy = false; update(); }
 });
 loadHistory();
+
+for (const operation of ['backup', 'restore']) {
+  document.getElementById(operation).addEventListener('click', async () => {
+    if (busy) return;
+    busy = true; update();
+    const transferStatus = document.getElementById('transfer-status');
+    transferStatus.textContent = '';
+    try {
+      const result = await window.licenseAdmin[operation]();
+      transferStatus.textContent = result.error || (result.canceled ? 'Canceled. No files or history changed.' : result.message);
+      transferStatus.className = result.error ? 'missing' : '';
+      await loadHistory();
+    } catch { transferStatus.textContent = 'The operation could not be completed. Please try again.'; }
+    finally { busy = false; update(); }
+  });
+}

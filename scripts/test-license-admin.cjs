@@ -11,12 +11,12 @@ fs.writeFileSync(keyFile, keys.privateKey.export({ type: 'pkcs8', format: 'pem' 
 const wrongKey = path.join(root, 'wrong.pem');
 fs.writeFileSync(wrongKey, generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' }));
 const output = path.join(root, 'client-license.json');
-let choice, save, revealed, opened;
+let choice, save, revealed, opened, confirm = 1;
 const original = Module._load;
 Module._load = function(id, parent, ...rest) {
   if (parent?.filename.endsWith(path.join('admin-license', 'main.cjs'))) {
     if (id === './public-key.json') return pub;
-    if (id === 'electron') return { ...original.call(this,id,parent,...rest), app: { getPath: name => name === 'home' || name === 'documents' ? root : app.getPath(name), requestSingleInstanceLock: () => true, whenReady: () => app.whenReady(), on: () => {}, quit: () => {} }, BrowserWindow: class extends BrowserWindow { constructor(options) { super({ ...options, show: false, webPreferences: { ...options.webPreferences, offscreen: true, backgroundThrottling: false } }); } }, dialog: { showOpenDialog: async () => ({ canceled: !choice, filePaths: choice ? [choice] : [] }), showSaveDialog: async () => ({ canceled: !save, filePath: save }) }, shell: { showItemInFolder: p => revealed = p, openPath: async p => { opened = p; return ''; } } };
+    if (id === 'electron') return { ...original.call(this,id,parent,...rest), app: { getPath: name => name === 'home' || name === 'documents' ? root : app.getPath(name), requestSingleInstanceLock: () => true, whenReady: () => app.whenReady(), on: () => {}, quit: () => {} }, BrowserWindow: class extends BrowserWindow { constructor(options) { super({ ...options, show: false, webPreferences: { ...options.webPreferences, offscreen: true, backgroundThrottling: false } }); } }, dialog: { showMessageBox: async () => ({response:confirm}), showOpenDialog: async () => ({ canceled: !choice, filePaths: choice ? [choice] : [] }), showSaveDialog: async () => ({ canceled: !save, filePath: save }) }, shell: { showItemInFolder: p => revealed = p, openPath: async p => { opened = p; return ''; } } };
   }
   return original.call(this,id,parent,...rest);
 };
@@ -58,13 +58,25 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.querySelectorAll('.history-row').length`), 0);
   await run(`document.getElementById('history-search').value='Client Studio';document.getElementById('history-search').dispatchEvent(new Event('input'))`);
   assert.equal(await run(`document.querySelectorAll('.history-row').length`), 1);
-  await run(`document.querySelector('.history-actions button').click()`); await wait(); assert.equal(opened, output);
-  await run(`document.querySelectorAll('.history-actions button')[1].click()`); await wait(); assert.equal(revealed, output);
+  await run(`document.querySelector('.history-row .history-actions button').click()`); await wait(); assert.equal(opened, output);
+  await run(`document.querySelectorAll('.history-row .history-actions button')[1].click()`); await wait(); assert.equal(revealed, output);
   await win.webContents.reload(); await new Promise(resolve => win.webContents.once('did-finish-load', resolve)); await wait();
   assert.equal(await run(`document.querySelectorAll('.history-row').length`), 1, 'History survives renderer restart');
   const historyFile = path.join(root, 'profile', 'license-history.json');
   const fromFreshProcess = require('child_process').execFileSync(process.execPath, ['-e', `console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).length)`, historyFile], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true, encoding: 'utf8' });
   assert.equal(fromFreshProcess.trim(), '1', 'History persisted on disk across processes');
+  const backupFile = path.join(root, 'backup.json');
+  save = backupFile; await run(`document.getElementById('backup').click()`); await wait();
+  assert.equal(JSON.parse(fs.readFileSync(backupFile,'utf8')).licenses.length, 1);
+  const oldHistory = fs.readFileSync(historyFile,'utf8');
+  choice = backupFile; confirm = 1; await run(`document.getElementById('restore').click()`); await wait();
+  assert.equal(fs.readFileSync(historyFile,'utf8'),oldHistory,'Canceled restore does not change history');
+  fs.unlinkSync(historyFile); confirm = 0; await run(`document.getElementById('restore').click()`); await wait();
+  assert.equal(await run(`document.querySelectorAll('.history-row').length`), 1);
+  const restored = JSON.parse(fs.readFileSync(historyFile,'utf8'))[0];validateLicense(fs.readFileSync(restored.path,'utf8'),restored.deviceId,pub);
+  assert((await run(`window.licenseAdmin.issue({deviceId:'${'a'.repeat(64)}',client:'Client Studio'})`)).error.includes('already issued'));
+  await run(`document.getElementById('restore').click()`); await wait();assert.equal(JSON.parse(fs.readFileSync(historyFile)).length,1);
+  fs.writeFileSync(historyFile,oldHistory);
   const moved = output + '.moved.json'; fs.renameSync(output, moved);
   assert((await run(`window.licenseAdmin.historyFile('${'a'.repeat(64)}',false)`)).error);
   choice = moved; await run(`document.getElementById('add-existing').click()`); await wait();
