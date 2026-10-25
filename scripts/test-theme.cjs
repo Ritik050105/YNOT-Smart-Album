@@ -22,6 +22,18 @@ app.whenReady().then(async()=>{
    assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),expected,scope+' '+action);
   }
   assert.equal(await run(`document.querySelectorAll('${scope} .text-auto-fit-status__list article').length`),1,'Undo restores locked row');
+  await run(`store.getState().updateSpread('palette',{textBoxes:store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.map(t=>t.id==='batch-0'?{...t,locked:true}:t)});window.beforeUnlockAll=JSON.stringify(store.getState().project.spreads);window.unlockHistory=store.getState().history.length`);await wait();
+  assert.equal(await run(`document.querySelectorAll('${scope} .text-auto-fit-status__list article').length`),2);
+  await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Unlock All').click()`);await wait();
+  assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)');
+  assert.equal(await run(`store.getState().history.length-window.unlockHistory`),1,'Unlock All is one history step');
+  assert.equal(await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Unlock All').disabled`),true);
+  await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Undo').click()`);await wait();
+  assert.equal(await run(`JSON.stringify(store.getState().project.spreads)===window.beforeUnlockAll`),true,'Undo restores all listed locks together');
+  assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'2 to auto-fit · 2 locked (skipped)');
+  await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Redo').click()`);await wait();
+  assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)');
+  await run(`store.getState().undo();store.getState().undo()`);await wait();
   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Close').click()`);await wait();
  }
  const lum=rgb=>{const c=rgb.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return c[0]*.2126+c[1]*.7152+c[2]*.0722};

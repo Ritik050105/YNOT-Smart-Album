@@ -320,7 +320,7 @@ interface ProjectState {
    *  brightness/contrast/saturation pass (see engine/autoAdjust.ts). */
   autoAdjustPlacement: (spreadId: string, placeholderId: string) => Promise<void>
   autoEnhanceImages: (targets: { spreadId: string; frameId?: string }[]) => Promise<void>
-  unlockTextBox: (spreadId: string, textId: string) => void
+  unlockTextBoxes: (spreadId: string, textIds: string[]) => void
   autoFitTextBoxes: (spreadId: string, textIds: string[]) => void
   addTextBox: (spreadId: string, box: TextBox) => void
   updateTextBox: (spreadId: string, textBoxId: string, patch: Partial<TextBox>) => void
@@ -1270,10 +1270,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })}))
   },
 
-  unlockTextBox: (spreadId, textId) => withHistory(set, p => {
+  unlockTextBoxes: (spreadId, textIds) => withHistory(set, p => {
     const spread = p.spreads.find(s => s.id === spreadId)
-    if (!spread?.textBoxes.some(t => t.id === textId && t.locked)) return p
-    return { ...p, spreads: p.spreads.map(s => s.id !== spreadId ? s : { ...s, textBoxes: s.textBoxes.map(t => t.id === textId ? { ...t, locked: false } : t) }) }
+    if (!spread?.textBoxes.some(t => textIds.includes(t.id) && t.locked)) return p
+    return { ...p, spreads: p.spreads.map(s => s.id !== spreadId ? s : { ...s, textBoxes: s.textBoxes.map(t => textIds.includes(t.id) ? { ...t, locked: false } : t) }) }
   }, true),
 
   autoFitTextBoxes: (spreadId, textIds) =>
