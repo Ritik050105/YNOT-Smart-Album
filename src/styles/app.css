@@ -57,24 +57,24 @@
 :root[data-theme='dark'] {
 
   color-scheme: dark;
-  --field: #121821;
-  --on-accent: #111d38;
-  --accent-hover: #c5d3ff;
-  --bg: #141922;
-  --bg-canvas: #2c333f;
-  --panel: #1c222c;
-  --panel-alt: #272f3c;
-  --panel-raised: #354052;
-  --border: #59677d;
-  --border-soft: #3b4658;
-  --text: #f2f3f5;
-  --text-muted: #bfcbdd;
-  --text-faint: #b2bece;
+  --field: #131113;
+  --on-accent: #21090e;
+  --accent-hover: #ff939d;
+  --bg: #151214;
+  --bg-canvas: #302a2d;
+  --panel: #211c1f;
+  --panel-alt: #2b2428;
+  --panel-raised: #3b3237;
+  --border: #78656d;
+  --border-soft: #4c3e45;
+  --text: #f7f2f4;
+  --text-muted: #d2c2c9;
+  --text-faint: #c4b2bb;
 
-  --accent: #a8bdff;
-  --accent-2: #a8bdff;
-  --accent-soft: #243454;
-  --accent-ring: #a8bdff38;
+  --accent: #f07883;
+  --accent-2: #f07883;
+  --accent-soft: #47232c;
+  --accent-ring: #f0788338;
 
   --success: #8bc7a3;
   --warn: #e5bd7d;
@@ -84,7 +84,7 @@
   --warn-soft: #403524;
 
   --canvas-dot: rgba(255, 255, 255, 0.045);
-  --slider-thumb-ring: #1c222c;
+  --slider-thumb-ring: #211c1f;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.35);
@@ -3624,3 +3624,11 @@ input[type=range]:disabled::-moz-range-thumb { background: var(--text-faint); tr
 .text-auto-fit-status__locate { flex:1 0 100%; font:inherit; text-align:left; color:var(--accent); background:transparent; border:0; padding:3px 0; cursor:pointer; text-decoration:underline; text-underline-offset:3px; min-width:0; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 .text-auto-fit-status__list article.is-located { background:var(--accent-soft); box-shadow:inset 3px 0 var(--accent); border-radius:6px; padding-left:8px; }
+
+/* Deep red actions retain white text; lighter red marks selection on charcoal. */
+:root[data-theme='dark'] .btn.btn--primary:not(:disabled) {
+  background: #a71930; border-color: #c5374d; color: #ffffff;
+}
+:root[data-theme='dark'] .btn.btn--primary:hover:not(:disabled) {
+  background: #be243e; border-color: #e35368; color: #ffffff;
+}

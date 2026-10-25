@@ -189,7 +189,7 @@ app.whenReady().then(async()=>{
   for(const theme of ['light','dark']){
    await run(`document.documentElement.dataset.theme='${theme}'`);await wait();
    const metrics=await run(`(()=>{const s=getComputedStyle(document.documentElement),e=document.querySelector('.btn--primary:not(:disabled)'),b=e&&getComputedStyle(e);return {text:s.getPropertyValue('--text').trim(),accent:s.getPropertyValue('--accent').trim(),button:b&&[b.color,b.backgroundColor],overflow:document.documentElement.scrollWidth>innerWidth}})()`);
-   assert.equal(metrics.accent,theme==='light'?'#3157c8':'#a8bdff',screen);
+   assert.equal(metrics.accent,theme==='light'?'#3157c8':'#f07883',screen);
    if(screen==='home')assert.deepEqual(await run(`(()=>{const s=getComputedStyle(document.querySelector('.home-screen__mark'));return [s.backgroundImage,s.backgroundColor,s.boxShadow,!!document.querySelector('.brand-mark')]})()`),['none','rgba(0, 0, 0, 0)','none',true]);
    if(screen==='editor'){assert.equal(await run(`!!document.querySelector('.spread-thumb__selection') && !!document.querySelector('[data-timeline-frame].is-selected') && getComputedStyle(document.querySelector('.spreads-panel__card.is-selected')).boxShadow.includes('3px')`),true,'Spread and photo selections are visible');}
    if(screen==='editor')assert.equal(await run(`Array.from(document.querySelectorAll('.photo-dock__item.is-used, .photo-dock__item.is-used img')).every(e=>getComputedStyle(e).opacity==='1')`),true,'Used photos stay clear');
