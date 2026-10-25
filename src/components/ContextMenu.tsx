@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 export interface ContextMenuItem {
@@ -20,9 +20,11 @@ export default function ContextMenu({
   y,
   items,
   onClose,
+  children,
 }: {
   x: number
   y: number
+  children?: ReactNode
   items: ContextMenuItem[]
   onClose: () => void
 }) {
@@ -46,11 +48,16 @@ export default function ContextMenu({
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const rect = el.getBoundingClientRect()
-    const overflowX = rect.right - window.innerWidth
-    const overflowY = rect.bottom - window.innerHeight
-    if (overflowX > 0) el.style.left = `${Math.max(4, x - overflowX)}px`
-    if (overflowY > 0) el.style.top = `${Math.max(4, y - overflowY)}px`
+    const position = () => {
+      const rect = el.getBoundingClientRect()
+      el.style.left = `${Math.max(4, Math.min(x, window.innerWidth - rect.width - 4))}px`
+      el.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 4))}px`
+    }
+    position()
+    const observer = new ResizeObserver(position)
+    observer.observe(el)
+    window.addEventListener('resize', position)
+    return () => { observer.disconnect(); window.removeEventListener('resize', position) }
   }, [x, y])
 
   return createPortal(
@@ -71,6 +78,7 @@ export default function ContextMenu({
           {item.shortcut && <span>{item.shortcut}</span>}
         </button>
       ))}
+      {children}
     </div>, document.body
   )
 }

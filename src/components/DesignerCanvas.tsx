@@ -1,4 +1,4 @@
-import { fitTextBoxSize, textAutoFitSummary } from '@/engine/textBoxSize'
+import { fitTextBoxSize } from '@/engine/textBoxSize'
 import { GapAnchor, arrangeLayerSelection, spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences, preferenceDefaults, exportGapPresets, importGapPresets, previewGapPresetImport } from '@/state/preferences'
 import { snapRect, nearbySpacingGaps, selectedSpacingGuides, GuideRect, SmartGuide } from '@/engine/smartGuides'
@@ -24,6 +24,7 @@ import Icon from './Icon'
 import GapPresetImportPreview from './GapPresetImportPreview'
 import PhotoContextMenu from './PhotoContextMenu'
 import ContextMenu from './ContextMenu'
+import TextAutoFitStatus from './TextAutoFitStatus'
 import { drawSpreadBackground } from '@/engine/renderSpread'
 
 export const STAGE_WIDTH = DESIGN_WIDTH
@@ -1410,7 +1411,7 @@ export default function DesignerCanvas() {
         })()}
       </div>
       </div>
-      {textContextMenu && spread?.id === textContextMenu.spreadId && spread.textBoxes.some(t => textContextMenu.textIds.includes(t.id) && !t.hidden) && <ContextMenu x={textContextMenu.x} y={textContextMenu.y} onClose={() => setTextContextMenu(null)} items={[{ label: 'Auto-fit width', description: textAutoFitSummary(spread.textBoxes, textContextMenu.textIds), disabled: !spread.textBoxes.some(t => textContextMenu.textIds.includes(t.id) && !t.locked && !t.hidden), onClick: () => useProjectStore.getState().autoFitTextBoxes(spread.id, textContextMenu.textIds) }]} />}
+      {textContextMenu && spread?.id === textContextMenu.spreadId && spread.textBoxes.some(t => textContextMenu.textIds.includes(t.id) && !t.hidden) && <ContextMenu x={textContextMenu.x} y={textContextMenu.y} onClose={() => setTextContextMenu(null)} items={[{ label: 'Auto-fit width', disabled: !spread.textBoxes.some(t => textContextMenu.textIds.includes(t.id) && !t.locked && !t.hidden), onClick: () => useProjectStore.getState().autoFitTextBoxes(spread.id, textContextMenu.textIds) }]}><TextAutoFitStatus spread={spread} textIds={textContextMenu.textIds} /></ContextMenu>}
       {photoContextMenu && spread && <PhotoContextMenu key={JSON.stringify(photoContextMenu)} x={photoContextMenu.x} y={photoContextMenu.y} spreadId={spread.id} frameId={photoContextMenu.placeholderId} />}
       {pendingPresetImport&&<GapPresetImportPreview name={pendingPresetImport.name} data={pendingPresetImport.data} error={presetError} onImport={confirmPresetImport} onCancel={cancelPresetImport}/>}
       <input ref={presetFileInput} aria-label="Import percentage presets file" type="file" accept=".json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void importPresetsFile(file)}} />

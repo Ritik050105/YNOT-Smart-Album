@@ -3614,3 +3614,11 @@ input[type=range]:disabled::-moz-range-thumb { background: var(--text-faint); tr
 .topbar__brand-mark { border:0; box-shadow:none; border-radius:0; }
 
 .context-menu__description { display:block; margin-top:4px; font-size:11px; color:var(--text-muted); font-weight:400; }
+
+.text-auto-fit-status { padding: 4px 0; }
+.context-menu > .text-auto-fit-status { padding: 4px 12px 8px; }
+.text-auto-fit-status__count { font:inherit; color:var(--accent); background:none; border:0; padding:0; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.text-auto-fit-status__count:disabled { color:var(--text-muted); text-decoration:none; cursor:default; }
+.text-auto-fit-status__list { max-height:220px; overflow:auto; margin-top:8px; border-top:1px solid var(--border-soft); font-size:12px; }
+.text-auto-fit-status__list article { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--border-soft); }
+.text-auto-fit-status__list article span { flex:1; min-width:0; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
