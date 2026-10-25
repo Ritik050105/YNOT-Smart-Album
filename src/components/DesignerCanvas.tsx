@@ -23,6 +23,7 @@ import { Spread, FrameStyle } from '@/types'
 import Icon from './Icon'
 import GapPresetImportPreview from './GapPresetImportPreview'
 import PhotoContextMenu from './PhotoContextMenu'
+import ContextMenu from './ContextMenu'
 import { drawSpreadBackground } from '@/engine/renderSpread'
 
 export const STAGE_WIDTH = DESIGN_WIDTH
@@ -435,6 +436,7 @@ export default function DesignerCanvas() {
   const commitGroup=()=>{const n=groupNodeRef.current;if(n&&spread&&transformKeys.length){useProjectStore.getState().transformSelection(spread.id,transformKeys,{x:n.x()/STAGE_WIDTH,y:n.y()/stageHeight,width:n.width()*n.scaleX()/STAGE_WIDTH,height:n.height()*n.scaleY()/stageHeight});n.scale({x:1,y:1});setGroupLive(null);setSmartGuides([])}}
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
   useEffect(()=>{if(selectedLayerKeys.length||(editingTextId&&selectedTextBoxId!==editingTextId))setEditingTextId(null)},[selectedLayerKeys,selectedTextBoxId,editingTextId])
+  const [textContextMenu, setTextContextMenu] = useState<{ x: number; y: number; textId: string; spreadId: string } | null>(null)
   const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId?: string; openedAt: number } | null>(null)
   const stageRef = useRef<Konva.Stage>(null)
   // Double-clicking an empty frame opens a native file picker and drops the chosen photo straight
@@ -1041,6 +1043,7 @@ export default function DesignerCanvas() {
                 draggable={!box.groupId && !box.locked && canvasTool === 'select' && !isSpaceDown}
                 onClick={e=>{if(e.evt.shiftKey||e.evt.ctrlKey||e.evt.metaKey)toggleCanvasLayer('text',box.id);else selectTextBox(box.id)}}
                 onTap={() => selectTextBox(box.id)}
+                onContextMenu={e => { e.evt.preventDefault(); e.cancelBubble = true; setPhotoContextMenu(null); setTextContextMenu({ x: e.evt.clientX, y: e.evt.clientY, textId: box.id, spreadId: spread.id }) }}
                 onDblClick={e => { if(!box.locked&&!e.evt.shiftKey) setEditingTextId(box.id) }}
                 onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:e.target.width(),height:e.target.height()},box.id);e.target.position(rect)}}
                 onTransform={e=>{const node=e.target;node.width(Math.max(4,node.width()*node.scaleX()));node.height(Math.max(4,node.height()*node.scaleY()));node.scale({x:1,y:1})}}
@@ -1396,6 +1399,7 @@ export default function DesignerCanvas() {
         })()}
       </div>
       </div>
+      {textContextMenu && spread?.id === textContextMenu.spreadId && spread.textBoxes.some(t => t.id === textContextMenu.textId && !t.hidden) && <ContextMenu x={textContextMenu.x} y={textContextMenu.y} onClose={() => setTextContextMenu(null)} items={[{ label: 'Auto-fit width', disabled: spread.textBoxes.find(t => t.id === textContextMenu.textId)?.locked, onClick: () => updateTextBox(spread.id, textContextMenu.textId, { autoWidth: true }) }]} />}
       {photoContextMenu && spread && <PhotoContextMenu key={JSON.stringify(photoContextMenu)} x={photoContextMenu.x} y={photoContextMenu.y} spreadId={spread.id} frameId={photoContextMenu.placeholderId} />}
       {pendingPresetImport&&<GapPresetImportPreview name={pendingPresetImport.name} data={pendingPresetImport.data} error={presetError} onImport={confirmPresetImport} onCancel={cancelPresetImport}/>}
       <input ref={presetFileInput} aria-label="Import percentage presets file" type="file" accept=".json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void importPresetsFile(file)}} />
