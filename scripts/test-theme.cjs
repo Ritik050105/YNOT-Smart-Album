@@ -36,7 +36,7 @@ app.whenReady().then(async()=>{
   await run(`store.getState().undo();store.getState().undo()`);await wait();
   await run(`store.getState().updateSpread('palette',{textBoxes:store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.map(t=>({...t,locked:true}))});window.beforeUnlockFit=JSON.stringify(store.getState().project.spreads);window.fitHistory=store.getState().history.length`);await wait();
   const beforeArrowNavigation=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`);
-  await run(`document.querySelector('${scope} .text-auto-fit-status__count').focus()`);
+  await run(`window.dispatchEvent(new CustomEvent('album-studio:locate-text-box',{detail:{spreadId:'palette',textId:null}}));document.querySelector('${scope} .text-auto-fit-status__count').focus()`);await wait();
   for(const [key,index] of [['ArrowDown',0],['ArrowDown',1],['ArrowUp',0],['ArrowUp',0],['ArrowDown',1],['ArrowDown',2],['ArrowDown',3],['ArrowDown',3],['ArrowUp',2]]) {
    await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'${key}',bubbles:true,cancelable:true}))`);await wait();
    assert.equal(await run(`(()=>{const buttons=Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__locate'));const active=buttons[${index}],row=active.closest('article'),list=row.closest('section'),r=row.getBoundingClientRect(),v=list.getBoundingClientRect();const box=store.getState().project.spreads.find(s=>s.id==='palette').textBoxes[${index}],stage=Konva.stages[0],outline=stage.findOne('.located-text-outline');return document.activeElement===active&&active.getAttribute('aria-pressed')==='true'&&buttons.filter(b=>b.getAttribute('aria-pressed')==='true').length===1&&r.top>=v.top-1&&r.bottom<=v.bottom+1&&!!outline&&Math.abs(outline.x()-box.x*stage.findOne('.page-background').width())<1})()`),true,'Arrow navigation synchronizes focus, row, scrolling and canvas');
@@ -59,16 +59,19 @@ app.whenReady().then(async()=>{
    assert.equal(await run(`(()=>{const before=JSON.parse(window.beforeUnlockFit).find(s=>s.id==='palette'),after=store.getState().project.spreads.find(s=>s.id==='palette');const anchor=t=>t.x+t.width*(t.align==='center'?.5:t.align==='right'?1:0);window.afterIndividualFit=JSON.stringify(store.getState().project.spreads);return after.textBoxes.every((t,i)=>i===${index}?(!t.locked&&t.autoWidth&&t.width<before.textBoxes[i].width&&Math.abs(anchor(t)-anchor(before.textBoxes[i]))<1e-8):JSON.stringify(t)===JSON.stringify(before.textBoxes[i]))&&JSON.stringify(before.placements)===JSON.stringify(after.placements)})()`),true,'Individual fit preserves alignment and other elements');
    await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Undo').click()`);await wait();
    assert.equal(await run(`JSON.stringify(store.getState().project.spreads)===window.beforeUnlockFit`),true,'Individual Undo restores size and lock');
+   assert.equal(await run(`store.getState().locatedTextBox?.textId`),'batch-'+index,'Undo locates restored text');
    assert.equal(await run(`document.querySelectorAll('${scope} .text-auto-fit-status__list article').length`),4);
    await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Redo').click()`);await wait();
    assert.equal(await run(`JSON.stringify(store.getState().project.spreads)===window.afterIndividualFit`),true,'Individual Redo restores fitted size and unlocked state');
+   assert.equal(await run(`store.getState().locatedTextBox?.textId`),index===2?'batch-locked':'batch-'+(index+1),'Redo locates next skipped text');
    assert.equal(await run(`document.querySelectorAll('${scope} .text-auto-fit-status__list article').length`),3);
    await run(`store.getState().undo()`);await wait();
   }
   await run(`{const rows=document.querySelectorAll('${scope} .text-auto-fit-status__locate');rows[3].focus();rows[3].click()}`);await wait();
   await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))`);await wait();
   assert.equal(await run(`store.getState().locatedTextBox.textId`),'batch-2','Fixing last row locates previous remaining row');
-  await run(`{store.getState().undo();const first=document.querySelector('${scope} .text-auto-fit-status__locate');first.focus();first.click()}`);await wait();
+  await run(`store.getState().undo()`);await wait();
+  await run(`{const first=document.querySelector('${scope} .text-auto-fit-status__locate');first.focus();first.click()}`);await wait();
   const enterSnapshots=[await run(`JSON.stringify(store.getState().project.spreads)`)];
   for(let i=0;i<4;i++){
    await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))`);await wait();
@@ -80,8 +83,12 @@ app.whenReady().then(async()=>{
   }
   await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))`);await wait();
   assert.equal(await run(`!!document.querySelector('${scope} .text-auto-fit-status__list')&&store.getState().history.length===window.fitHistory+4&&!Konva.stages[0].findOne('.located-text-outline')`),true,'Empty list remains open and Enter is a no-op');
-  for(let i=3;i>=0;i--){await run(`store.getState().undo()`);await wait();assert.equal(await run(`JSON.stringify(store.getState().project.spreads)`),enterSnapshots[i]);}
-  for(let i=1;i<=4;i++){await run(`store.getState().redo()`);await wait();assert.equal(await run(`JSON.stringify(store.getState().project.spreads)`),enterSnapshots[i]);}
+  async function checkHistoryLocation(id) {
+   assert.equal(await run(`store.getState().locatedTextBox?.textId??null`),id,'History locates expected skipped box');
+   assert.equal(await run(`(()=>{const active=document.querySelector('${scope} article.is-located'),outline=Konva.stages[0].findOne('.located-text-outline');if(${JSON.stringify(id)}===null)return !active&&!outline;const box=store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.find(t=>t.id===${JSON.stringify(id)});return !!active&&!!outline&&Math.abs(outline.width()-box.width*Konva.stages[0].findOne('.page-background').width())<1&&active.querySelector('button').getAttribute('aria-pressed')==='true'})()`),true,'History keeps list and canvas synchronized');
+  }
+  for(let i=3;i>=0;i--){await run(`document.querySelector('${scope} .text-auto-fit-status__count').focus();document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true}))`);await wait();assert.equal(await run(`JSON.stringify(store.getState().project.spreads)`),enterSnapshots[i]);await checkHistoryLocation(i===3?'batch-locked':'batch-'+i);}
+  for(let i=1;i<=4;i++){await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'z',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true}))`);await wait();assert.equal(await run(`JSON.stringify(store.getState().project.spreads)`),enterSnapshots[i]);await checkHistoryLocation(i===4?null:i===3?'batch-locked':'batch-'+i);}
   await run(`for(let i=0;i<4;i++)store.getState().undo()`);await wait();
   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Unlock and Auto-fit All').click()`);await wait();
   assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)');

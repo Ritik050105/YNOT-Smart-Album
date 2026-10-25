@@ -10,6 +10,23 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
   useEffect(() => {
     if (open) return () => { window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: null } })) }
   }, [open, spread.id])
+  const previousState = useRef(state)
+  useEffect(() => {
+    const previous = previousState.current
+    previousState.current = state
+    if (!open || previous.project === state.project) return
+    const undo = previous.history.includes(state.project)
+    const redo = previous.future.includes(state.project)
+    if (!undo && !redo) return
+    const before = previous.project.spreads.find(s => s.id === spread.id)?.textBoxes ?? []
+    const boxes = spread.textBoxes.filter(t => textIds.includes(t.id))
+    const changed = boxes.find(t => before.some(old => old.id === t.id && (undo ? !old.locked && t.locked : old.locked && !t.locked)))
+    if (!changed) return
+    const index = boxes.indexOf(changed)
+    const target = undo ? changed : boxes.slice(index + 1).find(t => t.locked) ?? boxes.slice(0, index).reverse().find(t => t.locked)
+    // Let the canvas finish refreshing its listener after the history update.
+    queueMicrotask(() => window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: target?.id ?? null } })))
+  }, [state.project, open, spread.id])
   const locatedId = state.locatedTextBox?.spreadId === spread.id ? state.locatedTextBox.textId : null
   const selected = spread.textBoxes.filter(t => textIds.includes(t.id))
   const locked = selected.filter(t => t.locked)

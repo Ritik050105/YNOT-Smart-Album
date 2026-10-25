@@ -482,7 +482,7 @@ export default function DesignerCanvas() {
     const locate = (event: Event) => {
       const { spreadId, textId } = (event as CustomEvent<{ spreadId: string; textId: string | null }>).detail
       if (spreadId !== spread?.id) return
-      const box = spread.textBoxes.find(t => t.id === textId)
+      const box = useProjectStore.getState().project.spreads.find(s => s.id === spreadId)?.textBoxes.find(t => t.id === textId)
       useProjectStore.setState({ locatedTextBox: box ? { spreadId, textId: box.id } : null })
       if (!box) return
       const scale = Math.max(.05, Math.min(stageScale, (viewportSize.width - 80) / (box.width * STAGE_WIDTH), (viewportSize.height - 80) / (box.height * stageHeight)))
