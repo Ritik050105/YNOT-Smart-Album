@@ -63,3 +63,5 @@ After setup, the owner can independently enter the employee's full name, paste t
 The admin interface now uses **Employee name** throughout. Existing licenses and history retain their previously recorded names; the app does not guess employees or rewrite signed files. The internal signed `client` field is retained for compatibility and stores the employee name for newly issued licenses.
 
 Restore preview search matches employee names (including the current name shown on conflicting records) or partial/full PC IDs, ignoring case and surrounding spaces. Search and **Show only new and conflicting records** combine. Both reset when opening a new preview. Summary counts and Restore eligibility still cover the full validated backup, and hiding a conflict never enables Restore. Cancel makes no changes.
+
+**Clear search** beside the restore-preview search field clears only the query and returns focus to search. It preserves the status checkbox, summary, restore plan and conflict blocking. It is disabled when the search is empty.

@@ -77,6 +77,7 @@ const previewDialog = document.getElementById('restore-preview'), previewApply =
 const previewFilter = document.getElementById('preview-attention-only'), previewSearch = document.getElementById('preview-search');
 function filterRestorePreview() {
   const rows = document.querySelectorAll('#preview-list .preview-row');
+  document.getElementById('preview-clear-search').disabled = previewSearch.value.length === 0;
   const query = previewSearch.value.trim().toLowerCase();
   let visible = 0;
   for (const row of rows) {
@@ -87,6 +88,11 @@ function filterRestorePreview() {
 }
 previewFilter.addEventListener('change', filterRestorePreview);
 previewSearch.addEventListener('input', filterRestorePreview);
+document.getElementById('preview-clear-search').addEventListener('click', () => {
+  previewSearch.value = '';
+  filterRestorePreview();
+  previewSearch.focus();
+});
 function openRestorePreview(preview) {
   previewFilter.checked = false;
   previewSearch.value = '';

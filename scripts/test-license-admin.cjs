@@ -83,6 +83,13 @@ app.whenReady().then(async () => {
   assert.match(await run(`document.getElementById('preview-visible-count').textContent`),/No records match/);
   assert.equal(await run(`document.getElementById('preview-apply').disabled`),false,'Filter does not change eligibility');
   assert.equal(fs.readFileSync(historyFile,'utf8'),oldHistory,'Filter does not mutate history');
+  await run(`document.getElementById('preview-clear-search').click()`);
+  assert.equal(await run(`document.getElementById('preview-search').value`),'');
+  assert.equal(await run(`document.getElementById('preview-attention-only').checked`),true);
+  assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),0,'Clear keeps the status filter applied');
+  assert.equal(await run(`document.getElementById('preview-clear-search').disabled`),true);
+  assert.equal(await run(`document.activeElement.id`),'preview-search');
+  assert.equal(fs.readFileSync(historyFile,'utf8'),oldHistory,'Clear search leaves history unchanged');
   await run(`document.getElementById('preview-attention-only').click()`);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1);
   await run(`document.getElementById('preview-cancel').click()`); await wait();
@@ -93,6 +100,9 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.getElementById('preview-search').value`),'','New preview clears search');
   await run(`document.getElementById('preview-search').value='AAAA';document.getElementById('preview-search').dispatchEvent(new Event('input'))`);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1,'Partial PC ID search');
+  await run(`document.getElementById('preview-clear-search').click()`);
+  assert.equal(await run(`document.getElementById('preview-attention-only').checked`),false,'Clear also preserves an unchecked filter');
+  assert.equal(await run(`document.getElementById('preview-apply').disabled`),false);
   await run(`document.getElementById('preview-attention-only').click()`);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1);
   assert(!fs.existsSync(historyFile));
@@ -118,6 +128,9 @@ app.whenReady().then(async () => {
   await run(`document.getElementById('preview-search').value='no match';document.getElementById('preview-search').dispatchEvent(new Event('input'))`);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),0);
   assert.equal(await run(`document.getElementById('preview-apply').disabled`),true,'Hidden conflicts still block Restore');
+  await run(`document.getElementById('preview-clear-search').click()`);
+  assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1);
+  assert.equal(await run(`document.getElementById('preview-apply').disabled`),true,'Clear does not bypass conflict blocking');
   await run(`document.getElementById('preview-search').value='previous employee';document.getElementById('preview-search').dispatchEvent(new Event('input'))`);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1,'Existing employee name is also searchable');
   fs.writeFileSync(path.join(os.tmpdir(),'ynot-restore-preview-qa.png'),(await win.webContents.capturePage()).toPNG());
