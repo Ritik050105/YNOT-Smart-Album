@@ -320,6 +320,7 @@ interface ProjectState {
    *  brightness/contrast/saturation pass (see engine/autoAdjust.ts). */
   autoAdjustPlacement: (spreadId: string, placeholderId: string) => Promise<void>
   autoEnhanceImages: (targets: { spreadId: string; frameId?: string }[]) => Promise<void>
+  autoFitTextBoxes: (spreadId: string, textIds: string[]) => void
   addTextBox: (spreadId: string, box: TextBox) => void
   updateTextBox: (spreadId: string, textBoxId: string, patch: Partial<TextBox>) => void
   removeTextBox: (spreadId: string, textBoxId: string) => void
@@ -1267,6 +1268,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }), backgroundPattern:bg && s.backgroundPattern ? {...s.backgroundPattern,edits:{...defaultPlacement('background',null),...s.backgroundPattern.edits,...bg.adjustment}} : s.backgroundPattern}
     })}))
   },
+
+  autoFitTextBoxes: (spreadId, textIds) =>
+    withHistory(set, p => ({ ...p, spreads: p.spreads.map(s => s.id !== spreadId ? s : {
+      ...s, textBoxes: s.textBoxes.map(t => textIds.includes(t.id) && !t.locked && !t.hidden
+        ? fitTextBoxSize({ ...t, autoWidth: true }, s.size ?? p.size) : t),
+    }) })),
 
   addTextBox: (spreadId, box) =>
     withHistory(set, (p) => ({
