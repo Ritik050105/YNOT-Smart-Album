@@ -25,7 +25,13 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     const index = boxes.indexOf(changed)
     const target = undo ? changed : boxes.slice(index + 1).find(t => t.locked) ?? boxes.slice(0, index).reverse().find(t => t.locked)
     // Let the canvas finish refreshing its listener after the history update.
-    queueMicrotask(() => window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: target?.id ?? null } })))
+    queueMicrotask(() => {
+      if (!list.current) return
+      window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: target?.id ?? null } }))
+      const button = Array.from(list.current.querySelectorAll<HTMLButtonElement>('.text-auto-fit-status__locate')).find(button => button.dataset.textId === target?.id)
+      ;(button ?? trigger.current)?.focus({ preventScroll: true })
+      button?.closest('article')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    })
   }, [state.project, open, spread.id])
   const locatedId = state.locatedTextBox?.spreadId === spread.id ? state.locatedTextBox.textId : null
   const selected = spread.textBoxes.filter(t => textIds.includes(t.id))
@@ -72,7 +78,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
       </div>
       {!locked.length && <p role="status">No locked text boxes in this selection.</p>}
       {locked.map(t => <article key={t.id} className={locatedId === t.id ? 'is-located' : undefined}>
-        <button className="text-auto-fit-status__locate" aria-pressed={locatedId === t.id} aria-keyshortcuts="Enter" title={t.hidden ? 'Locate hidden text box (outline only) · Enter to unlock and auto-fit' : 'Locate text box on canvas · Enter to unlock and auto-fit'} aria-label={`Locate ${t.text.trim() || 'empty text box'}`} onClick={() => window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: t.id } }))}>{t.text.trim() || 'Empty text box'}</button>
+        <button className="text-auto-fit-status__locate" data-text-id={t.id} aria-pressed={locatedId === t.id} aria-keyshortcuts="Enter" title={t.hidden ? 'Locate hidden text box (outline only) · Enter to unlock and auto-fit' : 'Locate text box on canvas · Enter to unlock and auto-fit'} aria-label={`Locate ${t.text.trim() || 'empty text box'}`} onClick={() => window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: t.id } }))}>{t.text.trim() || 'Empty text box'}</button>
         <button className="btn btn--tiny" aria-label={`Unlock ${t.text.trim() || 'empty text box'}`} onClick={() => { state.unlockTextBoxes(spread.id, [t.id]); trigger.current?.focus() }}>Unlock</button>
         <button className="btn btn--tiny" aria-label={`Unlock and auto-fit ${t.text.trim() || 'empty text box'}`} onClick={() => { state.unlockTextBoxes(spread.id, [t.id], true); trigger.current?.focus() }}>Unlock and Auto-fit</button>
       </article>)}
