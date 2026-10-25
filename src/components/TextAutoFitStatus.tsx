@@ -19,6 +19,15 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     if (open) list.current?.querySelector('.is-located')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [open, locatedId])
   return <div className="text-auto-fit-status" onKeyDown={event => {
+    if (open && event.key === 'Enter' && (event.target === trigger.current || (event.target as HTMLElement).classList.contains('text-auto-fit-status__locate'))) {
+      event.preventDefault()
+      event.stopPropagation()
+      if (!event.repeat && locked.some(t => t.id === locatedId)) {
+        state.unlockTextBoxes(spread.id, [locatedId!], true)
+        trigger.current?.focus()
+      }
+      return
+    }
     if (!open || !['ArrowUp', 'ArrowDown'].includes(event.key)) return
     event.preventDefault()
     event.stopPropagation()
@@ -33,7 +42,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     <p className="context-menu__description" data-auto-fit-summary aria-live="polite">
       {eligible} to auto-fit · <button ref={trigger} className="text-auto-fit-status__count" type="button" aria-expanded={open} disabled={!locked.length && !open} onClick={() => setOpen(!open)}>{locked.length} locked (skipped)</button>{hidden ? ` · ${hidden} hidden (skipped)` : ''}
     </p>
-    {open && <section ref={list} className="text-auto-fit-status__list" aria-label="Locked text boxes" aria-keyshortcuts="ArrowUp ArrowDown">
+    {open && <section ref={list} className="text-auto-fit-status__list" aria-label="Locked text boxes" aria-keyshortcuts="ArrowUp ArrowDown Enter">
       <div className="designer-layers__actions">
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id)); trigger.current?.focus() }}>Unlock All</button>
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id), true); trigger.current?.focus() }}>Unlock and Auto-fit All</button>
@@ -43,7 +52,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
       </div>
       {!locked.length && <p role="status">No locked text boxes in this selection.</p>}
       {locked.map(t => <article key={t.id} className={locatedId === t.id ? 'is-located' : undefined}>
-        <button className="text-auto-fit-status__locate" aria-pressed={locatedId === t.id} title={t.hidden ? 'Locate hidden text box (outline only)' : 'Locate text box on canvas'} aria-label={`Locate ${t.text.trim() || 'empty text box'}`} onClick={() => window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: t.id } }))}>{t.text.trim() || 'Empty text box'}</button>
+        <button className="text-auto-fit-status__locate" aria-pressed={locatedId === t.id} aria-keyshortcuts="Enter" title={t.hidden ? 'Locate hidden text box (outline only) · Enter to unlock and auto-fit' : 'Locate text box on canvas · Enter to unlock and auto-fit'} aria-label={`Locate ${t.text.trim() || 'empty text box'}`} onClick={() => window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: t.id } }))}>{t.text.trim() || 'Empty text box'}</button>
         <button className="btn btn--tiny" aria-label={`Unlock ${t.text.trim() || 'empty text box'}`} onClick={() => { state.unlockTextBoxes(spread.id, [t.id]); trigger.current?.focus() }}>Unlock</button>
         <button className="btn btn--tiny" aria-label={`Unlock and auto-fit ${t.text.trim() || 'empty text box'}`} onClick={() => { state.unlockTextBoxes(spread.id, [t.id], true); trigger.current?.focus() }}>Unlock and Auto-fit</button>
       </article>)}
