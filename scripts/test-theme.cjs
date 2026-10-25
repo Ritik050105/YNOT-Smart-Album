@@ -36,8 +36,10 @@ app.whenReady().then(async()=>{
   await run(`store.getState().undo();store.getState().undo()`);await wait();
   await run(`store.getState().updateSpread('palette',{textBoxes:store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.map(t=>({...t,locked:true}))});window.beforeUnlockFit=JSON.stringify(store.getState().project.spreads);window.fitHistory=store.getState().history.length`);await wait();
   for(const index of [0,1,2]) {
+   await run(`document.querySelectorAll('${scope} .text-auto-fit-status__locate')[${(index+1)%3}].click()`);await wait();
    const beforeLocate=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`);
    await run(`document.querySelectorAll('${scope} .text-auto-fit-status__locate')[${index}].click()`);await wait();
+   assert.equal(await run(`(()=>{const buttons=Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__locate'));return buttons.filter(b=>b.getAttribute('aria-pressed')==='true').length===1&&buttons[${index}].getAttribute('aria-pressed')==='true'&&document.querySelectorAll('${scope} article.is-located').length===1&&store.getState().locatedTextBox.textId==='batch-${index}'})()`),true,'List highlight switches to the located canvas box');
    assert.equal(await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`),beforeLocate,'Locate preserves locks, selection, project and history');
    assert.equal(await run(`(()=>{const stage=Konva.stages[0],outline=stage.findOne('.located-text-outline'),box=store.getState().project.spreads.find(s=>s.id==='palette').textBoxes[${index}];if(!outline||Math.abs(outline.x()-box.x*Konva.stages[0].findOne('.page-background').width())>1)return false;const r=outline.getClientRect();return r.x>=-4&&r.y>=-4&&r.x+r.width<=stage.width()+4&&r.y+r.height<=stage.height()+4})()`),true,'Located outline is visible in viewport');
    await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list article'))[${index}].querySelector('button:last-child').click()`);await wait();
@@ -69,6 +71,7 @@ app.whenReady().then(async()=>{
   await run(`store.setState({project:window.beforeHiddenLocate})`);await wait();
   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Close').click()`);await wait();
   assert.equal(await run(`!!Konva.stages[0].findOne('.located-text-outline')`),false,'Closing list clears locate highlight');
+  assert.equal(await run(`store.getState().locatedTextBox`),null,'Closing list clears shared located state');
  }
  const lum=rgb=>{const c=rgb.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return c[0]*.2126+c[1]*.7152+c[2]*.0722};
  for(const screen of ['text-inspector','home','wizard','preferences','preferences-Interaction','preferences-Inspector','preferences-Image Quality','preferences-Performance','preferences-Misc.','editor','designer','templates','export','auto-build','size','info','cover','cover-guide','cover-custom','profile','continue','import-preview','context','pickers','color','missing',...['File','Edit','Frame','Cover','Spread','Templates','Tools','View','Help'].map(name=>'menu-'+name)].filter(name=>!process.env.THEME_SCREENS||process.env.THEME_SCREENS.split(',').includes(name))){

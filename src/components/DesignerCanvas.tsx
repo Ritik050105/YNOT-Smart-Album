@@ -474,15 +474,16 @@ export default function DesignerCanvas() {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [viewportSize, setViewportSize] = useState({ width: STAGE_WIDTH, height: stageHeight })
 
-  const [locatedTextId, setLocatedTextId] = useState<string | null>(null)
-  const locatedText = spread?.textBoxes.find(t => t.id === locatedTextId)
-  useEffect(() => setLocatedTextId(null), [spread?.id, selectedLayerKeys, selectedTextBoxId, selectedPlaceholderId])
+  const locatedTextBox = useProjectStore(s => s.locatedTextBox)
+  const locatedText = spread?.id === locatedTextBox?.spreadId ? spread?.textBoxes.find(t => t.id === locatedTextBox?.textId) : undefined
+  useEffect(() => { useProjectStore.setState({ locatedTextBox: null }) }, [spread?.id, selectedLayerKeys, selectedTextBoxId, selectedPlaceholderId])
+  useEffect(() => () => { useProjectStore.setState({ locatedTextBox: null }) }, [])
   useEffect(() => {
     const locate = (event: Event) => {
       const { spreadId, textId } = (event as CustomEvent<{ spreadId: string; textId: string | null }>).detail
       if (spreadId !== spread?.id) return
       const box = spread.textBoxes.find(t => t.id === textId)
-      setLocatedTextId(box?.id ?? null)
+      useProjectStore.setState({ locatedTextBox: box ? { spreadId, textId: box.id } : null })
       if (!box) return
       const scale = Math.max(.05, Math.min(stageScale, (viewportSize.width - 80) / (box.width * STAGE_WIDTH), (viewportSize.height - 80) / (box.height * stageHeight)))
       setStageScale(scale)

@@ -142,6 +142,7 @@ interface ProjectState {
   userTemplates: TemplateDefinition[]
   selectedSpreadId: string | null
   selectedPlaceholderId: string | null
+  locatedTextBox: { spreadId: string; textId: string } | null
   selectedTextBoxId: string | null
   /** Canvas multi-select (shift/ctrl+click on placed photos within the current spread), for
    *  batch tone/border editing — see updateMultiplePlacements. */
@@ -383,6 +384,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   userTemplates: loadUserTemplates(),
   selectedSpreadId: null,
   selectedPlaceholderId: null,
+  locatedTextBox: null,
   selectedTextBoxId: null,
   pickingGapAnchor: false,
   setPickingGapAnchor: (pickingGapAnchor) => set({pickingGapAnchor}),
