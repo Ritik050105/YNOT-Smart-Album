@@ -26,6 +26,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
       {locked.map(t => <article key={t.id}>
         <span title={t.text}>{t.text.trim() || 'Empty text box'}</span>
         <button className="btn btn--tiny" aria-label={`Unlock ${t.text.trim() || 'empty text box'}`} onClick={() => { state.unlockTextBoxes(spread.id, [t.id]); trigger.current?.focus() }}>Unlock</button>
+        <button className="btn btn--tiny" aria-label={`Unlock and auto-fit ${t.text.trim() || 'empty text box'}`} onClick={() => { state.unlockTextBoxes(spread.id, [t.id], true); trigger.current?.focus() }}>Unlock and Auto-fit</button>
       </article>)}
     </section>}
   </div>

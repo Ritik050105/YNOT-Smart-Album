@@ -35,6 +35,19 @@ app.whenReady().then(async()=>{
   assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)');
   await run(`store.getState().undo();store.getState().undo()`);await wait();
   await run(`store.getState().updateSpread('palette',{textBoxes:store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.map(t=>({...t,locked:true}))});window.beforeUnlockFit=JSON.stringify(store.getState().project.spreads);window.fitHistory=store.getState().history.length`);await wait();
+  for(const index of [0,1,2]) {
+   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list article'))[${index}].querySelectorAll('button')[1].click()`);await wait();
+   assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'1 to auto-fit · 3 locked (skipped)');
+   assert.equal(await run(`store.getState().history.length-window.fitHistory`),1,'Individual unlock and fit is one step');
+   assert.equal(await run(`(()=>{const before=JSON.parse(window.beforeUnlockFit).find(s=>s.id==='palette'),after=store.getState().project.spreads.find(s=>s.id==='palette');const anchor=t=>t.x+t.width*(t.align==='center'?.5:t.align==='right'?1:0);window.afterIndividualFit=JSON.stringify(store.getState().project.spreads);return after.textBoxes.every((t,i)=>i===${index}?(!t.locked&&t.autoWidth&&t.width<before.textBoxes[i].width&&Math.abs(anchor(t)-anchor(before.textBoxes[i]))<1e-8):JSON.stringify(t)===JSON.stringify(before.textBoxes[i]))&&JSON.stringify(before.placements)===JSON.stringify(after.placements)})()`),true,'Individual fit preserves alignment and other elements');
+   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Undo').click()`);await wait();
+   assert.equal(await run(`JSON.stringify(store.getState().project.spreads)===window.beforeUnlockFit`),true,'Individual Undo restores size and lock');
+   assert.equal(await run(`document.querySelectorAll('${scope} .text-auto-fit-status__list article').length`),4);
+   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Redo').click()`);await wait();
+   assert.equal(await run(`JSON.stringify(store.getState().project.spreads)===window.afterIndividualFit`),true,'Individual Redo restores fitted size and unlocked state');
+   assert.equal(await run(`document.querySelectorAll('${scope} .text-auto-fit-status__list article').length`),3);
+   await run(`store.getState().undo()`);await wait();
+  }
   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Unlock and Auto-fit All').click()`);await wait();
   assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)');
   assert.equal(await run(`store.getState().history.length-window.fitHistory`),1,'Unlock and fit is one history step');
