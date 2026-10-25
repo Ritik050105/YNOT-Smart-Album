@@ -35,6 +35,13 @@ app.whenReady().then(async()=>{
   assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)');
   await run(`store.getState().undo();store.getState().undo()`);await wait();
   await run(`store.getState().updateSpread('palette',{textBoxes:store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.map(t=>({...t,locked:true}))});window.beforeUnlockFit=JSON.stringify(store.getState().project.spreads);window.fitHistory=store.getState().history.length`);await wait();
+  const beforeArrowNavigation=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`);
+  await run(`document.querySelector('${scope} .text-auto-fit-status__count').focus()`);
+  for(const [key,index] of [['ArrowDown',0],['ArrowDown',1],['ArrowUp',0],['ArrowUp',0],['ArrowDown',1],['ArrowDown',2],['ArrowDown',3],['ArrowDown',3],['ArrowUp',2]]) {
+   await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'${key}',bubbles:true,cancelable:true}))`);await wait();
+   assert.equal(await run(`(()=>{const buttons=Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__locate'));const active=buttons[${index}],row=active.closest('article'),list=row.closest('section'),r=row.getBoundingClientRect(),v=list.getBoundingClientRect();const box=store.getState().project.spreads.find(s=>s.id==='palette').textBoxes[${index}],stage=Konva.stages[0],outline=stage.findOne('.located-text-outline');return document.activeElement===active&&active.getAttribute('aria-pressed')==='true'&&buttons.filter(b=>b.getAttribute('aria-pressed')==='true').length===1&&r.top>=v.top-1&&r.bottom<=v.bottom+1&&!!outline&&Math.abs(outline.x()-box.x*stage.findOne('.page-background').width())<1})()`),true,'Arrow navigation synchronizes focus, row, scrolling and canvas');
+  }
+  assert.equal(await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`),beforeArrowNavigation,'Arrows do not nudge, unlock or change history');
   for(const index of [0,1,2]) {
    await run(`document.querySelectorAll('${scope} .text-auto-fit-status__locate')[${(index+1)%3}].click()`);await wait();
    const beforeLocate=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`);

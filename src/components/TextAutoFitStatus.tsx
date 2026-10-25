@@ -5,6 +5,7 @@ import { useProjectStore } from '@/state/projectStore'
 export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread; textIds: string[] }) {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
+  const list = useRef<HTMLElement>(null)
   const state = useProjectStore()
   useEffect(() => {
     if (open) return () => { window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: null } })) }
@@ -14,11 +15,25 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
   const locked = selected.filter(t => t.locked)
   const eligible = selected.filter(t => !t.locked && !t.hidden).length
   const hidden = selected.filter(t => t.hidden && !t.locked).length
-  return <div className="text-auto-fit-status">
+  useEffect(() => {
+    if (open) list.current?.querySelector('.is-located')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [open, locatedId])
+  return <div className="text-auto-fit-status" onKeyDown={event => {
+    if (!open || !['ArrowUp', 'ArrowDown'].includes(event.key)) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (!locked.length) return
+    const current = locked.findIndex(t => t.id === locatedId)
+    const next = current < 0 ? (event.key === 'ArrowDown' ? 0 : locked.length - 1) : Math.max(0, Math.min(locked.length - 1, current + (event.key === 'ArrowDown' ? 1 : -1)))
+    const button = list.current?.querySelectorAll<HTMLButtonElement>('.text-auto-fit-status__locate')[next]
+    button?.focus({ preventScroll: true })
+    button?.click()
+    button?.closest('article')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }}>
     <p className="context-menu__description" data-auto-fit-summary aria-live="polite">
       {eligible} to auto-fit · <button ref={trigger} className="text-auto-fit-status__count" type="button" aria-expanded={open} disabled={!locked.length && !open} onClick={() => setOpen(!open)}>{locked.length} locked (skipped)</button>{hidden ? ` · ${hidden} hidden (skipped)` : ''}
     </p>
-    {open && <section className="text-auto-fit-status__list" aria-label="Locked text boxes">
+    {open && <section ref={list} className="text-auto-fit-status__list" aria-label="Locked text boxes" aria-keyshortcuts="ArrowUp ArrowDown">
       <div className="designer-layers__actions">
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id)); trigger.current?.focus() }}>Unlock All</button>
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id), true); trigger.current?.focus() }}>Unlock and Auto-fit All</button>
