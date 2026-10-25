@@ -43,6 +43,7 @@ function FixedBackground({ spread, height, onContextMenu }: { spread: Spread; he
 }
 
 function PlaceholderImage({
+  accent,
   src,
   box,
   allBoxes,
@@ -70,6 +71,7 @@ function PlaceholderImage({
   onSwapTo,
   onContextMenu,
 }: {
+  accent: string
   src: string
   box: { placeholderId: string; x: number; y: number; width: number; height: number }
   allBoxes: { placeholderId: string; x: number; y: number; width: number; height: number }[]
@@ -221,7 +223,7 @@ function PlaceholderImage({
           y={localBoxY}
           width={box.width}
           height={box.height}
-          stroke="#3157c8"
+          stroke={accent}
           strokeWidth={2}
           dash={[6, 4]}
           listening={false}
@@ -232,6 +234,12 @@ function PlaceholderImage({
 }
 
 export default function DesignerCanvas() {
+  const [accent, setAccent] = useState(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())
+  useEffect(() => {
+    const observer = new MutationObserver(() => setAccent(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
   const gridMode=usePreferences(s=>s.values.gridMode)
   const gapPresets=usePreferences(s=>s.values.gapPercentPresets)
   const [presetDraft,setPresetDraft]=useState<string[]|null>(null)
@@ -1087,7 +1095,7 @@ export default function DesignerCanvas() {
                     y: e.target.y() / stageHeight,
                   })
                 }}
-                stroke={selectedTextBoxId === box.id || selectedLayerKeys.includes('text:'+box.id) ? '#3157c8' : undefined}
+                stroke={selectedTextBoxId === box.id || selectedLayerKeys.includes('text:'+box.id) ? accent : undefined}
                 strokeWidth={selectedTextBoxId === box.id || selectedLayerKeys.includes('text:'+box.id) ? 0.6 : 0}
               /></Group>
             )
@@ -1112,7 +1120,7 @@ export default function DesignerCanvas() {
                   multiSelectedPlaceholderIds.includes(box.placeholderId)
                     ? '#ff9f43'
                     : selectedPlaceholderId === box.placeholderId
-                      ? '#3157c8'
+                      ? accent
                       : photo
                         ? '#ddd0bf'
                         : '#c7b8a2'
@@ -1165,7 +1173,7 @@ export default function DesignerCanvas() {
             const photo = placement?.photoId ? photosById.get(placement.photoId) : undefined
             if (!photo || !placement) return null
             return (
-              <PlaceholderImage
+              <PlaceholderImage accent={accent}
                 key={box.placeholderId}
                 src={photo.src}
                 box={liveFrame?.id === box.placeholderId ? {...box,...liveFrame} : box}
@@ -1197,7 +1205,7 @@ export default function DesignerCanvas() {
             )
           })}
 
-          {[box].filter(b=>spread.placements.find(p=>p.placeholderId===b.placeholderId)?.locked).map(b=><KonvaText key={`lock-${b.placeholderId}`} x={b.x+5/stageScale} y={b.y+5/stageScale} text="Locked" fontSize={12/stageScale} fill="#3157c8" listening={false} />)}
+          {[box].filter(b=>spread.placements.find(p=>p.placeholderId===b.placeholderId)?.locked).map(b=><KonvaText key={`lock-${b.placeholderId}`} x={b.x+5/stageScale} y={b.y+5/stageScale} text="Locked" fontSize={12/stageScale} fill={accent} listening={false} />)}
             </Group>
           })}
           {!selectedGroupId && selectedBox && !spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)?.locked && canvasTool === 'select' && <>
@@ -1217,13 +1225,13 @@ export default function DesignerCanvas() {
               onClick={e=>{if(e.evt.shiftKey)toggleCanvasLayer('image',selectedBox.placeholderId)}}
               onDblClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}
               onContextMenu={(e) => handlePlaceholderContextMenu(selectedBox.placeholderId, e.evt)} />
-            <Transformer ref={transformerRef} borderStroke="#3157c8" anchorStroke="#3157c8" rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} />
+            <Transformer ref={transformerRef} borderStroke={accent} anchorStroke={accent} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} />
           </>}
           {group && group.members.some(l=>!l.value.hidden) && canvasTool==='select' && <>
-            <Rect name="group-transform-box" onContextMenu={e => openTextContextMenu(e)} listening={!isShiftDown} ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke="#3157c8" strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey&&selectedGroupId)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!)}}/>
-            {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-right','bottom-left','bottom-right']} borderStroke="#3157c8" anchorStroke="#3157c8" boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
+            <Rect name="group-transform-box" onContextMenu={e => openTextContextMenu(e)} listening={!isShiftDown} ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke={accent} strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey&&selectedGroupId)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!)}}/>
+            {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-right','bottom-left','bottom-right']} borderStroke={accent} anchorStroke={accent} boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
           </>}
-          {draftFrame && <Rect {...draftFrame} stroke="#3157c8" strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />}
+          {draftFrame && <Rect {...draftFrame} stroke={accent} strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />}
 
             {spread.isCover && showPrintGuides && <>
               {coverGuide && <KonvaImage image={coverGuide} x={0} y={0} width={STAGE_WIDTH} height={stageHeight} opacity={0.45} listening={false} />}
@@ -1322,7 +1330,7 @@ export default function DesignerCanvas() {
               />
             ))}
 
-          {!selectedGroupId && selectedTextBoxId && editingTextId !== selectedTextBoxId && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.locked && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.hidden && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#3157c8" anchorStroke="#3157c8" />}
+          {!selectedGroupId && selectedTextBoxId && editingTextId !== selectedTextBoxId && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.locked && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.hidden && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke={accent} anchorStroke={accent} />}
         </Layer>
         {(gridMode==='on' || (gridMode==='auto' && showGrid)) && <Layer listening={false} name="rule-of-thirds-grid">
           {[1 / 3, 2 / 3].flatMap(f => [
@@ -1333,8 +1341,8 @@ export default function DesignerCanvas() {
             <Line points={points} stroke="#ffffff" strokeWidth={1} strokeScaleEnabled={false} />
           </Group>)}
         </Layer>}
-        <Layer listening={false} name="located-text-highlight">{locatedText && <Rect name="located-text-outline" x={locatedText.x * STAGE_WIDTH} y={locatedText.y * stageHeight} width={locatedText.width * STAGE_WIDTH} height={locatedText.height * stageHeight} stroke="#3157c8" strokeWidth={3 / stageScale} dash={[6 / stageScale, 4 / stageScale]} fill="rgba(49,87,200,.12)" />}</Layer>
-        <Layer listening={false} name="selection-marquee">{marquee&&<Rect {...marquee} fill="rgba(49,87,200,.12)" stroke="#3157c8" strokeWidth={1/stageScale}/>}</Layer>
+        <Layer listening={false} name="located-text-highlight">{locatedText && <Rect name="located-text-outline" x={locatedText.x * STAGE_WIDTH} y={locatedText.y * stageHeight} width={locatedText.width * STAGE_WIDTH} height={locatedText.height * stageHeight} stroke={accent} strokeWidth={3 / stageScale} dash={[6 / stageScale, 4 / stageScale]} fill={accent+'1f'} />}</Layer>
+        <Layer listening={false} name="selection-marquee">{marquee&&<Rect {...marquee} fill={accent+'1f'} stroke={accent} strokeWidth={1/stageScale}/>}</Layer>
         <Layer name="smart-guides">
           {displayedGuides.map((g,i)=>g.segments?<Group key={i} name="equal-spacing-guide">{g.segments.map((s,j)=>{
             const x=g.axis==='x',tick=4/stageScale
@@ -1344,8 +1352,8 @@ export default function DesignerCanvas() {
           })}</Group>:<Line listening={false} key={i} points={g.axis==='x'?[g.position,0,g.position,stageHeight]:[0,g.position,STAGE_WIDTH,g.position]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false} />)}
         </Layer>
         <Layer name="gap-anchor-picker">
-          {pickedAnchor&&<Rect name="picked-gap-anchor" x={pickedAnchor.rect.x*STAGE_WIDTH} y={pickedAnchor.rect.y*stageHeight} width={pickedAnchor.rect.width*STAGE_WIDTH} height={pickedAnchor.rect.height*stageHeight} stroke="#3157c8" strokeWidth={2/stageScale} dash={[5/stageScale,3/stageScale]} listening={false}/>}
-          {!gapDrag&&(pickingGapAnchor||gapEditor)&&anchorMembers.map(l=><Rect key={l.kind+':'+l.id} name={`gap-anchor-candidate-${l.id}`} x={l.rect.x*STAGE_WIDTH} y={l.rect.y*stageHeight} width={l.rect.width*STAGE_WIDTH} height={l.rect.height*stageHeight} fill={pickingGapAnchor?"rgba(49,87,200,.12)":"rgba(49,87,200,.001)"} stroke={pickingGapAnchor?"#3157c8":undefined} strokeWidth={1/stageScale} onMouseDown={e=>{e.cancelBubble=true}} onClick={e=>{e.cancelBubble=true;switchGapAnchor((l.kind+':'+l.id) as GapAnchor)}}/>)}
+          {pickedAnchor&&<Rect name="picked-gap-anchor" x={pickedAnchor.rect.x*STAGE_WIDTH} y={pickedAnchor.rect.y*stageHeight} width={pickedAnchor.rect.width*STAGE_WIDTH} height={pickedAnchor.rect.height*stageHeight} stroke={accent} strokeWidth={2/stageScale} dash={[5/stageScale,3/stageScale]} listening={false}/>}
+          {!gapDrag&&(pickingGapAnchor||gapEditor)&&anchorMembers.map(l=><Rect key={l.kind+':'+l.id} name={`gap-anchor-candidate-${l.id}`} x={l.rect.x*STAGE_WIDTH} y={l.rect.y*stageHeight} width={l.rect.width*STAGE_WIDTH} height={l.rect.height*stageHeight} fill={pickingGapAnchor?accent+'1f':accent+'01'} stroke={pickingGapAnchor?accent:undefined} strokeWidth={1/stageScale} onMouseDown={e=>{e.cancelBubble=true}} onClick={e=>{e.cancelBubble=true;switchGapAnchor((l.kind+':'+l.id) as GapAnchor)}}/>)}
           {markedAnchor&&<Group name="fixed-anchor-badge" x={markedAnchor.rect.x*STAGE_WIDTH+4/stageScale} y={markedAnchor.rect.y*stageHeight+4/stageScale} scaleX={1/stageScale} scaleY={1/stageScale} listening={false}>
             <Rect width={72} height={28} cornerRadius={7} fill="#2445a5" stroke="#fffaf4" strokeWidth={1}/>
             <Circle x={14} y={7} radius={3} stroke="#fffaf4" strokeWidth={1.7}/>

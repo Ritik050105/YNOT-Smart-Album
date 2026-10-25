@@ -74,7 +74,7 @@
 .album-editor .photo-dock__item img { object-fit: contain; }
 .album-editor .photo-dock__item:hover img { transform: none; }
 .album-editor .photo-dock__item.is-used, .album-editor .photo-dock__item.is-used:hover { opacity: 1; border-color: var(--border); background: var(--panel); }
-.album-editor .photo-dock__item.is-used img { opacity: 1; }
+.album-editor .photo-dock__item.is-used img { opacity: .42; filter: grayscale(1); }
 .album-editor .photo-dock__item.is-selected { border-color: var(--border); box-shadow: 0 0 0 2px var(--border); }
 .album-editor .photo-dock__badge { background: var(--accent); color: var(--on-accent); }
 .album-editor .photo-dock__fav-btn.is-favorite { color: var(--accent); }

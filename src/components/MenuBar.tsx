@@ -185,7 +185,7 @@ export default function MenuBar() {
         {
           label: 'Export…',
           separator: true,
-          shortcut: 'Ctrl+Shift+E',
+          shortcut: 'Ctrl+E',
           disabled: project.spreads.length === 0,
           onClick: () => window.dispatchEvent(new CustomEvent('album-studio:open-export')),
         },

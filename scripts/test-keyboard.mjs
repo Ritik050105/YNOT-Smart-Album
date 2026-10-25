@@ -38,7 +38,7 @@ assert.deepEqual(useProjectStore.getState().selectedPhotoIds,[])
 assert.deepEqual(useProjectStore.getState().multiSelectedPlaceholderIds,[])
 const arrows=(key,extra={})=>listeners.get('keydown')({key,ctrlKey:false,metaKey:false,shiftKey:false,target:null,preventDefault(){},...extra})
 const base=useProjectStore.getState().project
-useProjectStore.setState({project:{...base,spreads:[{id:'two',order:2},{id:'cover',order:9,isCover:true},{id:'one',order:1}]},selectedSpreadId:'one',selectedPlaceholderId:null,selectedTextBoxId:null,multiSelectedPlaceholderIds:[],designerViewSpreadId:null,isDirty:false})
+useProjectStore.setState({project:{...base,spreads:[{id:'two',order:2,placements:[],textBoxes:[]},{id:'cover',order:9,isCover:true,placements:[],textBoxes:[]},{id:'one',order:1,placements:[],textBoxes:[]}]},selectedSpreadId:'one',selectedPlaceholderId:null,selectedTextBoxId:null,multiSelectedPlaceholderIds:[],designerViewSpreadId:null,isDirty:false})
 arrows('ArrowRight')
 assert.equal(useProjectStore.getState().selectedSpreadId,'two')
 arrows('ArrowRight')

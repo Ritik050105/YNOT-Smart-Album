@@ -251,7 +251,7 @@ function ShortcutsHelpModal({ onClose }: { onClose: () => void }) {
     <Modal
       title="Keyboard & Mouse Shortcuts"
       onClose={onClose}
-      width={560}
+      width={760}
       footer={
         <button className="btn btn--primary" onClick={onClose}>
           Done
@@ -261,38 +261,58 @@ function ShortcutsHelpModal({ onClose }: { onClose: () => void }) {
       <div className="shortcuts-grid">
         <section>
           <h4>General</h4>
+          <Row keys={`${modKeyLabel}+N / ${modKeyLabel}+O`} label="New / open project" />
+          <Row keys={`${modKeyLabel}+Shift+S`} label="Save project as" />
+          <Row keys={`${modKeyLabel}+Shift+P`} label="Open Preferences" />
+          <Row keys={`${modKeyLabel}+Q`} label="Quit the desktop app" />
           <Row keys={`${modKeyLabel}+Z`} label="Undo" />
-          <Row keys={`${modKeyLabel}+Shift+Z`} label="Redo" />
+          <Row keys={`${modKeyLabel}+Shift+Z / ${modKeyLabel}+Y`} label="Redo" />
           <Row keys={`${modKeyLabel}+S`} label="Save project" />
           <Row keys={`${modKeyLabel}+I`} label="Import images" />
           <Row keys={`${modKeyLabel}+E`} label="Export album" />
-          <Row keys="?" label="Toggle this help" />
+          <Row keys="?" label="Open shortcut help (Escape closes it)" />
         </section>
         <section>
           <h4>Selection &amp; editing</h4>
           <Row keys="Delete / Backspace" label="Clear the selected photo(s), or delete the selected text box" />
           <Row keys={`${modKeyLabel}+G / ${modKeyLabel}+Shift+G`} label="Group / ungroup selected layers" />
           <Row keys="Shift+click / drag on empty canvas" label="Select multiple layers" />
-          <Row keys="Escape" label="Deselect everything" />
-          <Row keys={`${modKeyLabel}+A`} label="Select all photos in the current spread" />
+          <Row keys="Escape" label="Deselect; press again to leave Designer view. Closes template browser." />
+          <Row keys={`${modKeyLabel}+A`} label="Select all layers in Designer view; all placed photos in overview" />
           <Row keys="Shift / Ctrl+click" label="Multi-select photos on the canvas" />
           <Row keys={`${modKeyLabel}+X / C / V`} label="Cut / copy / paste the selected image" />
           <Row keys={`${modKeyLabel}+Shift+C / V`} label="Copy / paste tone adjustments" />
           <Row keys={`${modKeyLabel}+D`} label="Deselect all" />
-          <Row keys="Arrow keys" label="Nudge the selected text box (Shift = bigger step)" />
+          <Row keys="Arrow keys" label="Move selected text or a multiple-layer selection (Shift = bigger step)" />
           <Row keys="Left / Right" label="Select the previous / next spread in the overview" />
           <Row keys="Up / Down" label="Try the previous / next matching layout in the overview" />
         </section>
         <section>
           <h4>Canvas</h4>
           <Row keys={`${modKeyLabel}+Scroll`} label="Zoom in / out, centered on the cursor" />
+          <Row keys={`${modKeyLabel}++ / ${modKeyLabel}+-`} label="Zoom in / out in Designer view" />
           <Row keys="Scroll" label="Pan the canvas" />
           <Row keys="Space+Drag / Middle-click Drag" label="Pan the canvas" />
-          <Row keys="V / H / Z" label="Switch to the Select / Pan / Zoom tool" />
-          <Row keys={`${modKeyLabel}+0`} label="Reset zoom" />
+          <Row keys="V / F / T / H / Z" label="Select / Frame / Text / Pan / Zoom tools" />
+          <Row keys={`${modKeyLabel}+0`} label="Fit spread to the viewport" />
           <Row keys="Drag a photo onto another" label="Swap their positions" />
           <Row keys="Double-click text" label="Edit text" />
           <Row keys="Double-click a dock photo" label="Quick-place into the selected frame" />
+        </section>
+        <section>
+          <h4>Spacing editor · Designer view</h4>
+          <Row keys="Click / drag a gap measurement" label="Enter an exact gap / adjust with live preview" />
+          <Row keys="Shift while dragging a gap" label="Make finer spacing adjustments" />
+          <Row keys={`${modKeyLabel}+Z / ${modKeyLabel}+Shift+Z`} label="Undo / redo inside the open gap editor" />
+          <Row keys="Enter in a gap field" label="Apply a valid preview as one project Undo step" />
+          <Row keys="Escape" label="Cancel the whole spacing preview" />
+        </section>
+        <section>
+          <h4>Skipped text boxes list</h4>
+          <Row keys="Up / Down" label="Locate the previous / next locked text box" />
+          <Row keys="Enter on a highlighted row" label="Unlock and auto-fit it, then locate the next box" />
+          <Row keys={`${modKeyLabel}+Z / ${modKeyLabel}+Shift+Z`} label="Undo / redo a fix and keep the list open" />
+          <Row keys="Escape" label="Close the list, clear its locate outline, and focus the canvas" />
         </section>
       </div>
     </Modal>

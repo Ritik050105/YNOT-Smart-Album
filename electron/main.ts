@@ -29,6 +29,8 @@ ipcMain.handle('export:revealLocation', async (_event, location: string) => {
 })
 
 const isDev = !app.isPackaged
+app.setAppUserModelId('com.ynotphotography.albumstudio')
+const windowIcon = path.join(app.getAppPath(), 'build', 'icon.ico')
 ipcMain.handle('images:missingPaths', async (_event, paths: string[]) => {
   if (!Array.isArray(paths) || paths.length > 100000 || paths.some(p => typeof p !== 'string' || !path.isAbsolute(p))) throw new Error('Invalid image paths')
   const missing: string[] = []
@@ -46,6 +48,7 @@ Menu.setApplicationMenu(null)
 /** Match the reference's light, logo-only launch screen without delaying startup. */
 function createSplash(): BrowserWindow {
   const splash = new BrowserWindow({
+    icon: windowIcon,
     ...fitWindowSize(screen.getPrimaryDisplay().workAreaSize, { width: 1440, height: 900 }, { width: 720, height: 480 }),
     title: 'YNOT Album Studio',
     resizable: false,
@@ -69,6 +72,7 @@ let mainWindow: BrowserWindow | null = null
 
 function createWindow(splash?: BrowserWindow) {
   const win = new BrowserWindow({
+    icon: windowIcon,
     ...fitWindowSize(screen.getPrimaryDisplay().workAreaSize, { width: 1440, height: 900 }, { width: 720, height: 480 }),
     backgroundColor: '#1e201f',
     title: 'YNOT Album Studio',
@@ -134,6 +138,7 @@ function createNewProjectWindow() {
 
   const workArea = screen.getDisplayMatching(mainWindow?.getBounds() ?? screen.getPrimaryDisplay().bounds).workAreaSize
   const win = new BrowserWindow({
+    icon: windowIcon,
     ...fitWindowSize(workArea, { width: 1060, height: 840 }, { width: 560, height: 480 }),
     title: 'New Project',
     parent: mainWindow ?? undefined,
