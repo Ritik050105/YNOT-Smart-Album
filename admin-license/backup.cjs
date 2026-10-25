@@ -42,7 +42,7 @@ function prepareRestore(historyFile, source, publicKey) {
   for (const { raw, record } of parsed) {
     const old = existing.get(record.deviceId);
     let reason = counts.get(record.deviceId) > 1 ? 'This PC appears more than once in the backup.' : '';
-    if (!reason && old && !sameRecord(old, record)) reason = 'Client name or issue date differs from the current record.';
+    if (!reason && old && !sameRecord(old, record)) reason = 'Employee name or issue date differs from the current record.';
     if (!reason && old && fs.existsSync(old.path)) {
       try {
         const original = JSON.parse(licenseAt(old, publicKey)), incoming = JSON.parse(raw);

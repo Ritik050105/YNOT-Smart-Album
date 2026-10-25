@@ -1,6 +1,6 @@
-const form = document.getElementById('form'), client = document.getElementById('client'), device = document.getElementById('device'), generate = document.getElementById('generate'), choose = document.getElementById('choose'), status = document.getElementById('status'), reveal = document.getElementById('reveal');
+const form = document.getElementById('form'), employee = document.getElementById('employee'), device = document.getElementById('device'), generate = document.getElementById('generate'), choose = document.getElementById('choose'), status = document.getElementById('status'), reveal = document.getElementById('reveal');
 let ready = false, busy = false;
-function update() { generate.disabled = busy || !ready || !client.value.trim() || !/^[a-f0-9]{64}$/i.test(device.value.trim()); choose.disabled = busy; document.getElementById('add-existing').disabled = busy; document.getElementById('backup').disabled = busy; document.getElementById('restore').disabled = busy; }
+function update() { generate.disabled = busy || !ready || !employee.value.trim() || !/^[a-f0-9]{64}$/i.test(device.value.trim()); choose.disabled = busy; document.getElementById('add-existing').disabled = busy; document.getElementById('backup').disabled = busy; document.getElementById('restore').disabled = busy; }
 function show(message, kind = '') { status.textContent = message; status.className = kind; }
 function applyKey(result) { ready = result.ready; document.getElementById('key-status').textContent = ready ? 'Signing key ready' : 'Signing key needed'; document.getElementById('key-path').textContent = result.path; if (result.error) show(result.error, 'error'); update(); }
 form.addEventListener('input', update);
@@ -8,7 +8,7 @@ choose.addEventListener('click', async () => { busy = true; update(); try { show
 form.addEventListener('submit', async event => {
   event.preventDefault(); if (generate.disabled) return;
   busy = true; update(); reveal.hidden = true; show('');
-  try { const result = await window.licenseAdmin.issue({ client: client.value, deviceId: device.value }); if (result.error) show(result.error, 'error'); else if (result.canceled) show('Save canceled. No license was created.'); else { show(result.warning || 'License saved: ' + result.path, result.warning ? 'error' : 'success'); reveal.hidden = false; } }
+  try { const result = await window.licenseAdmin.issue({ client: employee.value, deviceId: device.value }); if (result.error) show(result.error, 'error'); else if (result.canceled) show('Save canceled. No license was created.'); else { show(result.warning || 'License saved: ' + result.path, result.warning ? 'error' : 'success'); reveal.hidden = false; } }
   catch { show('Unable to generate the license. Please try again.', 'error'); }
   finally { busy = false; update(); await loadHistory(); }
 });
@@ -74,24 +74,27 @@ for (const operation of ['backup', 'restore']) {
 }
 
 const previewDialog = document.getElementById('restore-preview'), previewApply = document.getElementById('preview-apply'), previewCancel = document.getElementById('preview-cancel');
-const previewFilter = document.getElementById('preview-attention-only');
+const previewFilter = document.getElementById('preview-attention-only'), previewSearch = document.getElementById('preview-search');
 function filterRestorePreview() {
   const rows = document.querySelectorAll('#preview-list .preview-row');
+  const query = previewSearch.value.trim().toLowerCase();
   let visible = 0;
   for (const row of rows) {
-    row.hidden = previewFilter.checked && !['new', 'conflict'].includes(row.dataset.status);
+    row.hidden = (previewFilter.checked && !['new', 'conflict'].includes(row.dataset.status)) || !row.dataset.search.includes(query);
     if (!row.hidden) visible++;
   }
-  document.getElementById('preview-visible-count').textContent = visible ? `Showing ${visible} of ${rows.length} records` : previewFilter.checked ? 'No new or conflicting records. Uncheck the filter to see all records.' : 'No records in this backup.';
+  document.getElementById('preview-visible-count').textContent = visible ? `Showing ${visible} of ${rows.length} records` : query ? 'No records match this search and filter. Clear the search or uncheck the filter.' : previewFilter.checked ? 'No new or conflicting records. Uncheck the filter to see all records.' : 'No records in this backup.';
 }
 previewFilter.addEventListener('change', filterRestorePreview);
+previewSearch.addEventListener('input', filterRestorePreview);
 function openRestorePreview(preview) {
   previewFilter.checked = false;
+  previewSearch.value = '';
   document.getElementById('preview-summary').textContent = `${preview.added} new · ${preview.unchanged + preview.repaired} already present (${preview.repaired} missing files) · ${preview.conflicts} conflicting`;
   document.getElementById('preview-error').textContent = preview.conflicts ? 'Restore is blocked until conflicting records are resolved. Cancel to keep your current history unchanged.' : '';
   const list = document.getElementById('preview-list'); list.replaceChildren();
   for (const row of preview.rows) {
-    const article = document.createElement('article'); article.className = 'preview-row'; article.dataset.status = row.status;
+    const article = document.createElement('article'); article.className = 'preview-row'; article.dataset.status = row.status; article.dataset.search = (row.client + ' ' + row.deviceId + ' ' + (row.current?.client || '')).toLowerCase();
     const label = document.createElement('span'); label.className = 'preview-label'; label.textContent = {new:'New',present:'Already present',repair:'Already present · restore missing file',conflict:'Conflicting'}[row.status];
     const name = document.createElement('strong'); name.textContent = row.client;
     const pc = document.createElement('code'); pc.textContent = row.deviceId;

@@ -5,7 +5,7 @@ Packaged Windows builds require a valid signed license before the editor opens. 
 ## Activate a client PC (no commands required)
 
 1. Install and launch the client app. Click **Copy PC ID** on its activation screen.
-2. On the administrator PC, open **YNOT License Admin.exe** from `E:\Smart album application\YNOT License Admin - Private`. Enter the client name and paste the PC ID.
+2. On the administrator PC, open **YNOT License Admin.exe** from `E:\Smart album application\YNOT License Admin - Private`. Enter the employee name and paste the PC ID.
 3. The tool automatically detects the existing signing key on this administrator PC. If moved to another authorized administrator PC, click **Choose signing key** and select your securely transferred original PEM key. Do not create a new key for existing builds.
 4. Click **Generate and save license**, choose a new filename, then use **Show license in folder**. Existing license files are never overwritten.
 5. Send only the generated JSON to the client. In the client app choose **Import license**. Subsequent launches validate it automatically.
@@ -30,7 +30,7 @@ This is an offline deterrent to ordinary copying, not an unbreakable DRM system.
 
 ## License history
 
-The separate admin tool records the client name, complete PC ID, original issue date and saved JSON path in `license-history.json` in its own Windows user-data folder. History survives closing the tool and restarting Windows. Use the search field to filter by client name or PC ID, then **Open license** or **Show in folder**.
+The separate admin tool records the employee name, complete PC ID, original issue date and saved JSON path in `license-history.json` in its own Windows user-data folder. History survives closing the tool and restarting Windows. Use the search field to filter by employee name or PC ID, then **Open license** or **Show in folder**.
 
 Use **Add existing license** to register licenses made before history was added, or to locate a license moved to another folder. Only licenses signed by the app's matching key are accepted. Moving a license updates its path without adding another PC record. Missing files are marked; changed or invalid files cannot be opened through history. Keep backups of the history and saved license files. An unreadable history file is preserved, and new issuance is blocked until it is restored.
 
@@ -48,8 +48,18 @@ Backup/restore tests: `node scripts/test-license-backup.cjs` covers transfer, va
 
 ## Restore preview
 
-Selecting a backup opens a review dialog before any files or history change. Every validated license shows its client name, full PC ID and original issue date. Labels distinguish **New**, **Already present**, **Already present - restore missing file**, and **Conflicting** records. Conflicts show the reason and current client/date for comparison. Duplicate PC entries in a backup are also marked conflicting.
+Selecting a backup opens a review dialog before any files or history change. Every validated license shows its employee name, full PC ID and original issue date. Labels distinguish **New**, **Already present**, **Already present - restore missing file**, and **Conflicting** records. Conflicts show the reason and current employee/date for comparison. Duplicate PC entries in a backup are also marked conflicting.
 
 Choose **Restore** to apply a conflict-free preview or **Cancel** (Escape also works) to leave everything unchanged. Restore is disabled when conflicts exist; no partial restore or overwrite occurs. Invalid signatures or malformed backups are rejected before preview. The app holds the validated backup contents until confirmation and refuses to apply if local history changed in the meantime.
 
 The restore preview has **Show only new and conflicting records**. It hides already-present rows (including missing-file repairs) for review only. The summary and Restore eligibility still describe the complete backup. Restore applies the same full validated plan regardless of the filter; Cancel makes no changes. Each new preview starts with all rows visible.
+
+## Studio-owner handoff and employee licensing
+
+During the first setup, place the separate admin tool on the studio owner's administrator PC and securely provision the original signing key there. The tool detects it at that Windows user's `.ynot-licensing/signing-private.pem`, or the owner can use **Choose signing key**. Keep a separate secure backup of that key and keep it away from employee PCs.
+
+After setup, the owner can independently enter the employee's full name, paste the PC ID copied from the employee's Album Studio activation screen, and save the license. Give that employee only the generated JSON to import on that PC. The owner does not need commands, internet access or the developer to issue these licenses.
+
+The admin interface now uses **Employee name** throughout. Existing licenses and history retain their previously recorded names; the app does not guess employees or rewrite signed files. The internal signed `client` field is retained for compatibility and stores the employee name for newly issued licenses.
+
+Restore preview search matches employee names (including the current name shown on conflicting records) or partial/full PC IDs, ignoring case and surrounding spaces. Search and **Show only new and conflicting records** combine. Both reset when opening a new preview. Summary counts and Restore eligibility still cover the full validated backup, and hiding a conflict never enables Restore. Cancel makes no changes.

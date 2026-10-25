@@ -83,7 +83,7 @@ function registerHandlers() {
     return keyStatus();
   });
   ipcMain.handle('admin:issue', async (_event, input) => {
-    if (!input || typeof input.deviceId !== 'string' || !/^[a-f0-9]{64}$/i.test(input.deviceId.trim()) || typeof input.client !== 'string' || !input.client.trim() || input.client.trim().length > 200) return { error: 'Enter a valid PC ID and client name.' };
+    if (!input || typeof input.deviceId !== 'string' || !/^[a-f0-9]{64}$/i.test(input.deviceId.trim()) || typeof input.client !== 'string' || !input.client.trim() || input.client.trim().length > 200) return { error: 'Enter a valid PC ID and employee name.' };
     if (issuing) return { error: 'A license is already being saved.' };
     try {
       if (readHistory(historyFile).some(row => row.deviceId === input.deviceId.trim().toLowerCase())) return { error: 'A license was already issued for this PC. Open its existing file in License history.' };
@@ -91,7 +91,7 @@ function registerHandlers() {
     if (!keyStatus().ready) return { error: 'Choose the matching private signing key first.' };
     issuing = true;
     try {
-    const result = await dialog.showSaveDialog(win, { title: 'Save client PC license', defaultPath: path.join(app.getPath('documents'), 'YNOT-client-license.json'), filters: [{ name: 'YNOT license', extensions: ['json'] }] });
+    const result = await dialog.showSaveDialog(win, { title: 'Save employee PC license', defaultPath: path.join(app.getPath('documents'), 'YNOT-employee-license.json'), filters: [{ name: 'YNOT license', extensions: ['json'] }] });
     if (result.canceled || !result.filePath) return { canceled: true };
     try {
       issueLicense(input.deviceId, input.client, result.filePath, keyPath, publicKey);
