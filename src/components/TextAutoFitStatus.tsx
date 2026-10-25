@@ -23,8 +23,11 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
       event.preventDefault()
       event.stopPropagation()
       if (!event.repeat && locked.some(t => t.id === locatedId)) {
+        const index = locked.findIndex(t => t.id === locatedId)
+        const next = locked[index + 1] ?? locked[index - 1]
         state.unlockTextBoxes(spread.id, [locatedId!], true)
-        trigger.current?.focus()
+        window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: next?.id ?? null } }))
+        trigger.current?.focus({ preventScroll: true })
       }
       return
     }

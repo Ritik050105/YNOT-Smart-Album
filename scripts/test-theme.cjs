@@ -54,6 +54,7 @@ app.whenReady().then(async()=>{
    await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',repeat:true,bubbles:true,cancelable:true}))`);await wait();
 
    assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'1 to auto-fit · 3 locked (skipped)');
+   assert.equal(await run(`store.getState().locatedTextBox.textId`),index===2?'batch-locked':'batch-'+(index+1),'Enter locates the next skipped box');
    assert.equal(await run(`store.getState().history.length-window.fitHistory`),1,'Individual unlock and fit is one step');
    assert.equal(await run(`(()=>{const before=JSON.parse(window.beforeUnlockFit).find(s=>s.id==='palette'),after=store.getState().project.spreads.find(s=>s.id==='palette');const anchor=t=>t.x+t.width*(t.align==='center'?.5:t.align==='right'?1:0);window.afterIndividualFit=JSON.stringify(store.getState().project.spreads);return after.textBoxes.every((t,i)=>i===${index}?(!t.locked&&t.autoWidth&&t.width<before.textBoxes[i].width&&Math.abs(anchor(t)-anchor(before.textBoxes[i]))<1e-8):JSON.stringify(t)===JSON.stringify(before.textBoxes[i]))&&JSON.stringify(before.placements)===JSON.stringify(after.placements)})()`),true,'Individual fit preserves alignment and other elements');
    await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Undo').click()`);await wait();
@@ -64,6 +65,24 @@ app.whenReady().then(async()=>{
    assert.equal(await run(`document.querySelectorAll('${scope} .text-auto-fit-status__list article').length`),3);
    await run(`store.getState().undo()`);await wait();
   }
+  await run(`{const rows=document.querySelectorAll('${scope} .text-auto-fit-status__locate');rows[3].focus();rows[3].click()}`);await wait();
+  await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))`);await wait();
+  assert.equal(await run(`store.getState().locatedTextBox.textId`),'batch-2','Fixing last row locates previous remaining row');
+  await run(`{store.getState().undo();const first=document.querySelector('${scope} .text-auto-fit-status__locate');first.focus();first.click()}`);await wait();
+  const enterSnapshots=[await run(`JSON.stringify(store.getState().project.spreads)`)];
+  for(let i=0;i<4;i++){
+   await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))`);await wait();
+   assert.equal(await run(`store.getState().history.length-window.fitHistory`),i+1,'Each Enter is a separate history step');
+   assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),`${i+1} to auto-fit · ${3-i} locked (skipped)`);
+   assert.equal(await run(`document.querySelectorAll('${scope} article.is-located').length`),i===3?0:1);
+   assert.equal(await run(`store.getState().locatedTextBox?.textId??null`),i===3?null:i===2?'batch-locked':'batch-'+(i+1));
+   enterSnapshots.push(await run(`JSON.stringify(store.getState().project.spreads)`));
+  }
+  await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))`);await wait();
+  assert.equal(await run(`!!document.querySelector('${scope} .text-auto-fit-status__list')&&store.getState().history.length===window.fitHistory+4&&!Konva.stages[0].findOne('.located-text-outline')`),true,'Empty list remains open and Enter is a no-op');
+  for(let i=3;i>=0;i--){await run(`store.getState().undo()`);await wait();assert.equal(await run(`JSON.stringify(store.getState().project.spreads)`),enterSnapshots[i]);}
+  for(let i=1;i<=4;i++){await run(`store.getState().redo()`);await wait();assert.equal(await run(`JSON.stringify(store.getState().project.spreads)`),enterSnapshots[i]);}
+  await run(`for(let i=0;i<4;i++)store.getState().undo()`);await wait();
   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Unlock and Auto-fit All').click()`);await wait();
   assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)');
   assert.equal(await run(`store.getState().history.length-window.fitHistory`),1,'Unlock and fit is one history step');
