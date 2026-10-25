@@ -66,7 +66,8 @@
     "dist": "npm run build && electron-builder --win",
     "dist:all": "npm run build && electron-builder -mwl",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "dist:admin": "npm run build:main && node scripts/build-license-admin.cjs"
   },
   "dependencies": {
     "ag-psd": "^31.0.0",
