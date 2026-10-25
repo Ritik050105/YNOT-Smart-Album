@@ -13,3 +13,11 @@ export function fitTextBoxSize(box: TextBox, size: AlbumSize): TextBox {
   node.destroy()
   return { ...box, x, width, height }
 }
+
+export function textAutoFitSummary(boxes: TextBox[], ids: string[]): string {
+  const selected = boxes.filter(box => ids.includes(box.id))
+  const eligible = selected.filter(box => !box.locked && !box.hidden).length
+  const locked = selected.filter(box => box.locked).length
+  const hidden = selected.filter(box => box.hidden && !box.locked).length
+  return `${eligible} to auto-fit · ${locked} locked (skipped)${hidden ? ` · ${hidden} hidden (skipped)` : ''}`
+}

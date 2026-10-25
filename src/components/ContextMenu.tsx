@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 
 export interface ContextMenuItem {
   label: string
+  description?: string
   onClick: () => void
   disabled?: boolean
   danger?: boolean
@@ -66,7 +67,7 @@ export default function ContextMenu({
             onClose()
           }}
         >
-          {item.label}
+          <span>{item.label}{item.description && <small className="context-menu__description" aria-live="polite">{item.description}</small>}</span>
           {item.shortcut && <span>{item.shortcut}</span>}
         </button>
       ))}
