@@ -120,6 +120,17 @@ app.whenReady().then(async()=>{
 
   assert.equal(await run(`!!Konva.stages[0].findOne('.located-text-outline')`),false,'Closing list clears locate highlight');
   assert.equal(await run(`store.getState().locatedTextBox`),null,'Closing list clears shared located state');
+  await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();await checkHistoryLocation('batch-locked');
+  assert.equal(await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`),beforeEscape,'Reopening preserves project and history');
+  await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));store.getState().updateSpread('palette',{textBoxes:store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.map(t=>({...t,locked:true}))})`);await wait();
+  await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();
+  await run(`{const button=document.querySelectorAll('${scope} .text-auto-fit-status__locate')[1];button.focus();button.click()}`);await wait();
+  await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));store.getState().unlockTextBoxes('palette',['batch-1'],true)`);await wait();
+  const beforeReopen=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})`);
+  await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();await checkHistoryLocation('batch-2');
+  assert.equal(await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})`),beforeReopen,'Reopening skips fixed remembered box without changing fixes or history');
+  await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait();
+  await run(`store.getState().undo();store.getState().undo()`);await wait();
  }
  const lum=rgb=>{const c=rgb.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return c[0]*.2126+c[1]*.7152+c[2]*.0722};
  for(const screen of ['text-inspector','home','wizard','preferences','preferences-Interaction','preferences-Inspector','preferences-Image Quality','preferences-Performance','preferences-Misc.','editor','designer','templates','export','auto-build','size','info','cover','cover-guide','cover-custom','profile','continue','import-preview','context','pickers','color','missing',...['File','Edit','Frame','Cover','Spread','Templates','Tools','View','Help'].map(name=>'menu-'+name)].filter(name=>!process.env.THEME_SCREENS||process.env.THEME_SCREENS.split(',').includes(name))){

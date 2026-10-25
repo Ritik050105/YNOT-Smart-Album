@@ -7,8 +7,24 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
   const trigger = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLElement>(null)
   const state = useProjectStore()
+  function locateAndFocus(textId: string | null) {
+    // Wait for the canvas listener and list rows to reflect the new state.
+    queueMicrotask(() => {
+      if (!list.current) return
+      window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: textId } }))
+      const button = Array.from(list.current.querySelectorAll<HTMLButtonElement>('.text-auto-fit-status__locate')).find(button => button.dataset.textId === textId)
+      ;(button ?? trigger.current)?.focus({ preventScroll: true })
+      button?.closest('article')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    })
+  }
   useEffect(() => {
-    if (open) return () => { window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: null } })) }
+    if (!open) return
+    const boxes = spread.textBoxes.filter(t => textIds.includes(t.id))
+    const remembered = state.lastLocatedTextIds[spread.id]
+    const index = boxes.findIndex(t => t.id === remembered)
+    const target = boxes.find(t => t.id === remembered && t.locked) ?? boxes.slice(index + 1).find(t => t.locked) ?? boxes.slice(0, index).reverse().find(t => t.locked)
+    locateAndFocus(target?.id ?? null)
+    return () => { window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: null } })) }
   }, [open, spread.id])
   const previousState = useRef(state)
   useEffect(() => {
@@ -24,14 +40,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     if (!changed) return
     const index = boxes.indexOf(changed)
     const target = undo ? changed : boxes.slice(index + 1).find(t => t.locked) ?? boxes.slice(0, index).reverse().find(t => t.locked)
-    // Let the canvas finish refreshing its listener after the history update.
-    queueMicrotask(() => {
-      if (!list.current) return
-      window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: target?.id ?? null } }))
-      const button = Array.from(list.current.querySelectorAll<HTMLButtonElement>('.text-auto-fit-status__locate')).find(button => button.dataset.textId === target?.id)
-      ;(button ?? trigger.current)?.focus({ preventScroll: true })
-      button?.closest('article')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-    })
+    locateAndFocus(target?.id ?? null)
   }, [state.project, open, spread.id])
   const locatedId = state.locatedTextBox?.spreadId === spread.id ? state.locatedTextBox.textId : null
   const selected = spread.textBoxes.filter(t => textIds.includes(t.id))
