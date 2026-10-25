@@ -112,7 +112,12 @@ app.whenReady().then(async()=>{
   await run(`document.querySelector('${scope} .text-auto-fit-status__locate').click()`);await wait();
   assert.equal(await run(`!!Konva.stages[0].findOne('.located-text-outline')&&!Konva.stages[0].findOne('.text-layer-batch-locked')&&store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.find(t=>t.id==='batch-locked').hidden`),true,'Locate hidden text shows only its outline');
   await run(`store.setState({project:window.beforeHiddenLocate})`);await wait();
-  await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Close').click()`);await wait();
+  const beforeEscape=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`);
+  await run(`document.querySelector('${scope} .text-auto-fit-status__locate').focus()`);
+  assert.equal(await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`),false,'Escape is handled by skipped list');await wait();
+  assert.equal(await run(`document.querySelector('${scope} .text-auto-fit-status__list')===null&&document.activeElement===document.querySelector('.designer-canvas-viewport')`),true,'Escape closes only the list and focuses canvas');
+  assert.equal(await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`),beforeEscape,'Escape preserves fixes, selection and both histories');
+
   assert.equal(await run(`!!Konva.stages[0].findOne('.located-text-outline')`),false,'Closing list clears locate highlight');
   assert.equal(await run(`store.getState().locatedTextBox`),null,'Closing list clears shared located state');
  }

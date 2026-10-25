@@ -41,7 +41,14 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
   useEffect(() => {
     if (open) list.current?.querySelector('.is-located')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [open, locatedId])
-  return <div className="text-auto-fit-status" onKeyDown={event => {
+  return <div className="text-auto-fit-status" data-skipped-text-open={open || undefined} onKeyDown={event => {
+    if (open && event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      setOpen(false)
+      document.querySelector<HTMLElement>('.designer-canvas-viewport')?.focus({ preventScroll: true })
+      return
+    }
     if (open && event.key === 'Enter' && (event.target === trigger.current || (event.target as HTMLElement).classList.contains('text-auto-fit-status__locate'))) {
       event.preventDefault()
       event.stopPropagation()
@@ -68,7 +75,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     <p className="context-menu__description" data-auto-fit-summary aria-live="polite">
       {eligible} to auto-fit · <button ref={trigger} className="text-auto-fit-status__count" type="button" aria-expanded={open} disabled={!locked.length && !open} onClick={() => setOpen(!open)}>{locked.length} locked (skipped)</button>{hidden ? ` · ${hidden} hidden (skipped)` : ''}
     </p>
-    {open && <section ref={list} className="text-auto-fit-status__list" aria-label="Locked text boxes" aria-keyshortcuts="ArrowUp ArrowDown Enter">
+    {open && <section ref={list} className="text-auto-fit-status__list" aria-label="Locked text boxes" aria-keyshortcuts="ArrowUp ArrowDown Enter Escape">
       <div className="designer-layers__actions">
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id)); trigger.current?.focus() }}>Unlock All</button>
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id), true); trigger.current?.focus() }}>Unlock and Auto-fit All</button>

@@ -380,6 +380,7 @@ export default function DesignerCanvas() {
   useEffect(()=>{
     if(!gapEditor)return
     const cancel=(e:KeyboardEvent)=>{
+      if(e.key==='Escape'&&(e.target as Element | null)?.closest?.('[data-skipped-text-open="true"]'))return
       if(pendingPresetImport){if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();cancelPresetImport()}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.stopImmediatePropagation()}return}
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){
         e.preventDefault();e.stopImmediatePropagation()
@@ -1017,7 +1018,7 @@ export default function DesignerCanvas() {
           {Math.round(stageScale * 100)}%
         </button>
       </div>
-      <div className="designer-canvas-viewport" ref={viewportRef}>
+      <div className="designer-canvas-viewport" ref={viewportRef} tabIndex={-1} aria-label="Designer canvas">
       <div
         className={`designer-canvas ${isSpaceDown || canvasTool === 'pan' ? 'designer-canvas--pan' : ''} ${canvasTool === 'zoom' ? 'designer-canvas--zoom' : ''} ${canvasTool === 'frame' ? 'designer-canvas--frame' : ''}`}
         ref={containerRef}

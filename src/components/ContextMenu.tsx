@@ -35,6 +35,7 @@ export default function ContextMenu({
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
     }
     function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && (e.target as Element | null)?.closest?.('[data-skipped-text-open="true"]')) return
       if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); onClose() }
     }
     window.addEventListener('mousedown', onMouseDown)
