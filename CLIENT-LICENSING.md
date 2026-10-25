@@ -27,3 +27,11 @@ This is an offline deterrent to ordinary copying, not an unbreakable DRM system.
 `node scripts/test-client-license.cjs` checks signatures, device binding, invalid inputs and stable hardware identity. `node scripts/test-activation.cjs` checks the activation dialog flow with mocked dialogs and a temporary profile. These are not tests on a second physical client PC.
 
 `npx electron scripts/test-license-admin.cjs` exercises the administrator form, signing, cancellation, key validation and overwrite protection with temporary test keys.
+
+## License history
+
+The separate admin tool records the client name, complete PC ID, original issue date and saved JSON path in `license-history.json` in its own Windows user-data folder. History survives closing the tool and restarting Windows. Use the search field to filter by client name or PC ID, then **Open license** or **Show in folder**.
+
+Use **Add existing license** to register licenses made before history was added, or to locate a license moved to another folder. Only licenses signed by the app's matching key are accepted. Moving a license updates its path without adding another PC record. Missing files are marked; changed or invalid files cannot be opened through history. Keep backups of the history and saved license files. An unreadable history file is preserved, and new issuance is blocked until it is restored.
+
+The admin tool blocks a second issuance for a PC already present in its local history. This is an administrative safeguard, not an online activation counter. The signed PC identity is what rejects copied licenses on other PCs. Importing the same valid license again on its original PC remains allowed and does not create another entitlement. A strict globally tracked one-time redemption requires an activation server; offline license files cannot enforce it reliably. Full machine-identity cloning or deliberate app modification remains outside this offline protection.

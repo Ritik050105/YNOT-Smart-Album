@@ -11,12 +11,12 @@ fs.writeFileSync(keyFile, keys.privateKey.export({ type: 'pkcs8', format: 'pem' 
 const wrongKey = path.join(root, 'wrong.pem');
 fs.writeFileSync(wrongKey, generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' }));
 const output = path.join(root, 'client-license.json');
-let choice, save, revealed;
+let choice, save, revealed, opened;
 const original = Module._load;
 Module._load = function(id, parent, ...rest) {
   if (parent?.filename.endsWith(path.join('admin-license', 'main.cjs'))) {
     if (id === './public-key.json') return pub;
-    if (id === 'electron') return { ...original.call(this,id,parent,...rest), app: { getPath: name => name === 'home' || name === 'documents' ? root : app.getPath(name), whenReady: () => app.whenReady(), on: () => {}, quit: () => {} }, BrowserWindow: class extends BrowserWindow { constructor(options) { super({ ...options, show: false, webPreferences: { ...options.webPreferences, offscreen: true, backgroundThrottling: false } }); } }, dialog: { showOpenDialog: async () => ({ canceled: !choice, filePaths: choice ? [choice] : [] }), showSaveDialog: async () => ({ canceled: !save, filePath: save }) }, shell: { showItemInFolder: p => revealed = p } };
+    if (id === 'electron') return { ...original.call(this,id,parent,...rest), app: { getPath: name => name === 'home' || name === 'documents' ? root : app.getPath(name), requestSingleInstanceLock: () => true, whenReady: () => app.whenReady(), on: () => {}, quit: () => {} }, BrowserWindow: class extends BrowserWindow { constructor(options) { super({ ...options, show: false, webPreferences: { ...options.webPreferences, offscreen: true, backgroundThrottling: false } }); } }, dialog: { showOpenDialog: async () => ({ canceled: !choice, filePaths: choice ? [choice] : [] }), showSaveDialog: async () => ({ canceled: !save, filePath: save }) }, shell: { showItemInFolder: p => revealed = p, openPath: async p => { opened = p; return ''; } } };
   }
   return original.call(this,id,parent,...rest);
 };
@@ -45,16 +45,41 @@ app.whenReady().then(async () => {
   assert.throws(() => validateLicense(bytes, 'b'.repeat(64), pub));
   assert.equal(await run(`document.getElementById('reveal').hidden`), false);
   await run(`document.getElementById('reveal').click()`); await wait(); assert.equal(revealed, output);
+  await run(`document.getElementById('history-title').scrollIntoView()`); await wait();
   const shot = path.join(os.tmpdir(), 'ynot-license-admin-qa.png'); fs.writeFileSync(shot, (await win.webContents.capturePage()).toPNG());
   await run(`document.getElementById('generate').click()`); await wait();
-  assert.match(await run(`document.getElementById('status').textContent`), /already exists/);
+  assert.match(await run(`document.getElementById('status').textContent`), /already issued/);
   assert.equal(fs.readFileSync(output,'utf8'), bytes);
+  assert.equal(await run(`document.querySelectorAll('.history-row').length`), 1);
+  assert.equal(await run(`document.querySelector('.history-row h3').textContent`), 'Client Studio');
+  assert.equal(await run(`document.querySelector('.history-row code').textContent`), 'a'.repeat(64));
+  assert.match(await run(`document.querySelector('.history-row p').textContent`), /Issued:/);
+  await run(`document.getElementById('history-search').value='not a match';document.getElementById('history-search').dispatchEvent(new Event('input'))`);
+  assert.equal(await run(`document.querySelectorAll('.history-row').length`), 0);
+  await run(`document.getElementById('history-search').value='Client Studio';document.getElementById('history-search').dispatchEvent(new Event('input'))`);
+  assert.equal(await run(`document.querySelectorAll('.history-row').length`), 1);
+  await run(`document.querySelector('.history-actions button').click()`); await wait(); assert.equal(opened, output);
+  await run(`document.querySelectorAll('.history-actions button')[1].click()`); await wait(); assert.equal(revealed, output);
+  await win.webContents.reload(); await new Promise(resolve => win.webContents.once('did-finish-load', resolve)); await wait();
+  assert.equal(await run(`document.querySelectorAll('.history-row').length`), 1, 'History survives renderer restart');
+  const historyFile = path.join(root, 'profile', 'license-history.json');
+  const fromFreshProcess = require('child_process').execFileSync(process.execPath, ['-e', `console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).length)`, historyFile], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true, encoding: 'utf8' });
+  assert.equal(fromFreshProcess.trim(), '1', 'History persisted on disk across processes');
+  const moved = output + '.moved.json'; fs.renameSync(output, moved);
+  assert((await run(`window.licenseAdmin.historyFile('${'a'.repeat(64)}',false)`)).error);
+  choice = moved; await run(`document.getElementById('add-existing').click()`); await wait();
+  assert.equal(await run(`document.querySelectorAll('.history-row').length`), 1, 'Relocated license updates existing PC entry');
+  assert.equal(JSON.parse(fs.readFileSync(historyFile))[0].path, moved);
+  fs.renameSync(moved, output);
+  fs.writeFileSync(historyFile, 'broken-history');
+  choice = output; await run(`document.getElementById('add-existing').click()`); await wait();
+  assert.equal(fs.readFileSync(historyFile,'utf8'), 'broken-history', 'Corrupt history is never overwritten');
   const { issueLicense } = require('../admin-license/issuer.cjs');
   for (const id of ['', 'g'.repeat(64), null]) assert.throws(() => issueLicense(id, 'Client', output+'.bad', keyFile, pub));
   assert.throws(() => issueLicense('a'.repeat(64), '', output+'.bad', keyFile, pub));
   assert.throws(() => issueLicense('a'.repeat(64), 'Client', output+'.bad', wrongKey, pub));
   assert(!fs.existsSync(output+'.bad'));
-  console.log('Admin GUI passed: missing/wrong key, invalid ID, canceled save, signed license accepted by client, wrong-PC rejection, reveal and overwrite protection. Screenshot: '+shot);
+  console.log('Admin GUI passed: generation, device binding, history persistence and search, open/reveal, duplicate-PC prevention, relocated files, corrupt-history protection and input validation. Screenshot: '+shot);
 }).catch(error => { console.error(error); process.exitCode = 1; }).finally(() => {
   Module._load = original;
   for (const win of BrowserWindow.getAllWindows()) win.destroy();

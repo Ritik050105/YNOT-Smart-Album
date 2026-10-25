@@ -1,1 +1,36 @@
-{"name":"ynot-license-admin","version":"1.0.0","private":true,"description":"Separate offline license issuer for YNOT administrators","author":"YNOT Photography","main":"main.cjs","build":{"appId":"com.ynotphotography.licenseadmin","productName":"YNOT License Admin","electronVersion":"31.7.7","files":["main.cjs","preload.cjs","issuer.cjs","renderer.js","index.html","public-key.json"],"win":{"target":[{"target":"portable","arch":["x64"]}],"icon":"../build/icon.ico"},"portable":{"artifactName":"YNOT License Admin.exe"}}}
+{
+  "name": "ynot-license-admin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Separate offline license issuer for YNOT administrators",
+  "author": "YNOT Photography",
+  "main": "main.cjs",
+  "build": {
+    "appId": "com.ynotphotography.licenseadmin",
+    "productName": "YNOT License Admin",
+    "electronVersion": "31.7.7",
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "issuer.cjs",
+      "renderer.js",
+      "index.html",
+      "public-key.json",
+      "history.cjs"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "../build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "YNOT License Admin.exe"
+    }
+  }
+}
