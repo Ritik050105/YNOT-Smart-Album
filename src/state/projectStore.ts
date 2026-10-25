@@ -36,6 +36,15 @@ function migrateAlbumSize(raw: AlbumSize & { bleedIn?: number; safeZoneIn?: numb
   return { ...raw, trim, safeZone }
 }
 
+const SKIPPED_TEXT_SCROLL_KEY = 'albumstudio.skippedTextScroll'
+function loadSkippedTextScroll(): Record<string, number> {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(SKIPPED_TEXT_SCROLL_KEY) ?? '{}')
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+    return Object.fromEntries(Object.entries(value).filter(([key, top]) => key.length > 0 && typeof top === 'number' && Number.isFinite(top) && top >= 0))
+  } catch { return {} }
+}
+
 const LAST_LOCATED_TEXT_KEY = 'albumstudio.lastLocatedTextIds'
 function loadLastLocatedTextIds(): Record<string, string> {
   try {
@@ -151,6 +160,7 @@ interface ProjectState {
   userTemplates: TemplateDefinition[]
   selectedSpreadId: string | null
   selectedPlaceholderId: string | null
+  skippedTextScroll: Record<string, number>
   lastLocatedTextIds: Record<string, string>
   locatedTextBox: { spreadId: string; textId: string } | null
   selectedTextBoxId: string | null
@@ -394,6 +404,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   userTemplates: loadUserTemplates(),
   selectedSpreadId: null,
   selectedPlaceholderId: null,
+  skippedTextScroll: loadSkippedTextScroll(),
   lastLocatedTextIds: loadLastLocatedTextIds(),
   locatedTextBox: null,
   selectedTextBoxId: null,
@@ -1539,7 +1550,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 }))
 
 useProjectStore.subscribe((state, previous) => {
-  if (state.lastLocatedTextIds === previous.lastLocatedTextIds) return
-  try { localStorage.setItem(LAST_LOCATED_TEXT_KEY, JSON.stringify(state.lastLocatedTextIds)) }
+  try {
+    if (state.lastLocatedTextIds !== previous.lastLocatedTextIds) localStorage.setItem(LAST_LOCATED_TEXT_KEY, JSON.stringify(state.lastLocatedTextIds))
+    if (state.skippedTextScroll !== previous.skippedTextScroll) localStorage.setItem(SKIPPED_TEXT_SCROLL_KEY, JSON.stringify(state.skippedTextScroll))
+  }
   catch { /* Keep locating usable for this session if storage is unavailable. */ }
 })

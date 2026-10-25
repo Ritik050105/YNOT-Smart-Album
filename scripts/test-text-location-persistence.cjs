@@ -9,7 +9,7 @@ if (!process.versions.electron) {
       const result = require('node:child_process').spawnSync(require('electron'),[__filename,out,phase],{encoding:'utf8',timeout:60000,windowsHide:true});
       assert.equal(result.status,0,result.stderr || result.stdout || String(result.error));
     }
-    console.log('Remembered text survived a full Electron restart; invalid storage and project/history isolation checks passed.');
+    console.log('Remembered text and scroll position survived a full Electron restart; invalid storage and project/history isolation checks passed.');
   })().catch(error => { console.error(error); process.exitCode=1 });
 } else {
   const {app,BrowserWindow}=require('electron'),out=process.argv[2],phase=process.argv[3];
@@ -20,15 +20,18 @@ if (!process.versions.electron) {
     await load();
     const before=await run('JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})');
     if(phase==='write') {
-      await run("store.setState({lastLocatedTextIds:{spreadA:'textA',spreadB:'textB'}})");
+      await run("store.setState({lastLocatedTextIds:{spreadA:'textA',spreadB:'textB'},skippedTextScroll:{spreadA:129.5,spreadB:0}})");
       assert.deepEqual(await run("JSON.parse(localStorage.getItem('albumstudio.lastLocatedTextIds'))"),{spreadA:'textA',spreadB:'textB'});
       assert.equal(await run('JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})'),before);
     } else if(phase==='read') {
       assert.deepEqual(await run('store.getState().lastLocatedTextIds'),{spreadA:'textA',spreadB:'textB'});
+      assert.deepEqual(await run('store.getState().skippedTextScroll'),{spreadA:129.5,spreadB:0});
       assert.deepEqual(await run('({history:store.getState().history,future:store.getState().future,located:store.getState().locatedTextBox})'),{history:[],future:[],located:null});
     } else {
       await run(`localStorage.setItem('albumstudio.lastLocatedTextIds',${JSON.stringify(phase==='invalid'?'{"spreadA":"textA","bad":42,"empty":""}':'{broken')})`);
+      await run(`localStorage.setItem('albumstudio.skippedTextScroll',${JSON.stringify(phase==='invalid'?'{"spreadA":129.5,"negative":-1,"bad":"20"}':'{broken')})`);
       await load();
+      assert.deepEqual(await run('store.getState().skippedTextScroll'),phase==='invalid'?{spreadA:129.5}:{});
       assert.deepEqual(await run('store.getState().lastLocatedTextIds'),phase==='invalid'?{spreadA:'textA'}:{});
     }
     win.webContents.session.flushStorageData();win.destroy();app.quit();

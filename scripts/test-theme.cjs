@@ -125,6 +125,13 @@ app.whenReady().then(async()=>{
   await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));store.getState().updateSpread('palette',{textBoxes:store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.map(t=>({...t,locked:true}))})`);await wait();
   await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();
   await run(`{const button=document.querySelectorAll('${scope} .text-auto-fit-status__locate')[1];button.focus();button.click()}`);await wait();
+  const beforeScroll=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})`);
+  await run(`{const list=document.querySelector('${scope} .text-auto-fit-status__list'),row=list.querySelector('.is-located');list.scrollTop+=row.getBoundingClientRect().top-list.getBoundingClientRect().top-12;window.savedTextScroll=list.scrollTop}`);await wait();
+  assert.equal(await run(`window.savedTextScroll>0&&Math.abs(store.getState().skippedTextScroll.palette-window.savedTextScroll)<1`),true,'Manual list scroll is remembered');
+  await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait();
+  await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();await checkHistoryLocation('batch-1');
+  assert.equal(await run(`Math.abs(document.querySelector('${scope} .text-auto-fit-status__list').scrollTop-window.savedTextScroll)<1`),true,'Reopening restores saved scroll with active row visible');
+  assert.equal(await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})`),beforeScroll,'Scroll persistence leaves fixes and history untouched');
   await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));store.getState().unlockTextBoxes('palette',['batch-1'],true)`);await wait();
   const beforeReopen=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})`);
   await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();await checkHistoryLocation('batch-2');

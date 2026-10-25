@@ -7,10 +7,11 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
   const trigger = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLElement>(null)
   const state = useProjectStore()
-  function locateAndFocus(textId: string | null) {
+  function locateAndFocus(textId: string | null, scrollTop?: number) {
     // Wait for the canvas listener and list rows to reflect the new state.
     queueMicrotask(() => {
       if (!list.current) return
+      if (scrollTop !== undefined) list.current.scrollTop = scrollTop
       window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: textId } }))
       const button = Array.from(list.current.querySelectorAll<HTMLButtonElement>('.text-auto-fit-status__locate')).find(button => button.dataset.textId === textId)
       ;(button ?? trigger.current)?.focus({ preventScroll: true })
@@ -23,7 +24,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     const remembered = state.lastLocatedTextIds[spread.id]
     const index = boxes.findIndex(t => t.id === remembered)
     const target = boxes.find(t => t.id === remembered && t.locked) ?? boxes.slice(index + 1).find(t => t.locked) ?? boxes.slice(0, index).reverse().find(t => t.locked)
-    locateAndFocus(target?.id ?? null)
+    locateAndFocus(target?.id ?? null, state.skippedTextScroll[spread.id] ?? 0)
     return () => { window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: null } })) }
   }, [open, spread.id])
   const previousState = useRef(state)
@@ -84,7 +85,10 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     <p className="context-menu__description" data-auto-fit-summary aria-live="polite">
       {eligible} to auto-fit · <button ref={trigger} className="text-auto-fit-status__count" type="button" aria-expanded={open} disabled={!locked.length && !open} onClick={() => setOpen(!open)}>{locked.length} locked (skipped)</button>{hidden ? ` · ${hidden} hidden (skipped)` : ''}
     </p>
-    {open && <section ref={list} className="text-auto-fit-status__list" aria-label="Locked text boxes" aria-keyshortcuts="ArrowUp ArrowDown Enter Escape">
+    {open && <section ref={list} onScroll={event => {
+      const top = event.currentTarget.scrollTop
+      useProjectStore.setState(s => s.skippedTextScroll[spread.id] === top ? s : { skippedTextScroll: { ...s.skippedTextScroll, [spread.id]: top } })
+    }} className="text-auto-fit-status__list" aria-label="Locked text boxes" aria-keyshortcuts="ArrowUp ArrowDown Enter Escape">
       <div className="designer-layers__actions">
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id)); trigger.current?.focus() }}>Unlock All</button>
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id), true); trigger.current?.focus() }}>Unlock and Auto-fit All</button>
