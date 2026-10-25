@@ -15,7 +15,7 @@ app.whenReady().then(async()=>{
  const run=s=>win.webContents.executeJavaScript(s),wait=()=>new Promise(r=>setTimeout(r,250));await wait();
  async function checkLockedTextList(scope) {
   await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();
-  await run(`document.querySelector('${scope} .text-auto-fit-status__list article button').click()`);await wait();
+  await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list article button')).find(b=>b.textContent==='Unlock').click()`);await wait();
   assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)','Unlock refreshes counts');
   for(const [action,expected] of [['Undo','3 to auto-fit · 1 locked (skipped)'],['Redo','4 to auto-fit · 0 locked (skipped)'],['Undo','3 to auto-fit · 1 locked (skipped)']]){
    await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='${action}').click()`);await wait();
@@ -36,7 +36,11 @@ app.whenReady().then(async()=>{
   await run(`store.getState().undo();store.getState().undo()`);await wait();
   await run(`store.getState().updateSpread('palette',{textBoxes:store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.map(t=>({...t,locked:true}))});window.beforeUnlockFit=JSON.stringify(store.getState().project.spreads);window.fitHistory=store.getState().history.length`);await wait();
   for(const index of [0,1,2]) {
-   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list article'))[${index}].querySelectorAll('button')[1].click()`);await wait();
+   const beforeLocate=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`);
+   await run(`document.querySelectorAll('${scope} .text-auto-fit-status__locate')[${index}].click()`);await wait();
+   assert.equal(await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future,selection:store.getState().selectedLayerKeys})`),beforeLocate,'Locate preserves locks, selection, project and history');
+   assert.equal(await run(`(()=>{const stage=Konva.stages[0],outline=stage.findOne('.located-text-outline'),box=store.getState().project.spreads.find(s=>s.id==='palette').textBoxes[${index}];if(!outline||Math.abs(outline.x()-box.x*Konva.stages[0].findOne('.page-background').width())>1)return false;const r=outline.getClientRect();return r.x>=-4&&r.y>=-4&&r.x+r.width<=stage.width()+4&&r.y+r.height<=stage.height()+4})()`),true,'Located outline is visible in viewport');
+   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list article'))[${index}].querySelector('button:last-child').click()`);await wait();
    assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'1 to auto-fit · 3 locked (skipped)');
    assert.equal(await run(`store.getState().history.length-window.fitHistory`),1,'Individual unlock and fit is one step');
    assert.equal(await run(`(()=>{const before=JSON.parse(window.beforeUnlockFit).find(s=>s.id==='palette'),after=store.getState().project.spreads.find(s=>s.id==='palette');const anchor=t=>t.x+t.width*(t.align==='center'?.5:t.align==='right'?1:0);window.afterIndividualFit=JSON.stringify(store.getState().project.spreads);return after.textBoxes.every((t,i)=>i===${index}?(!t.locked&&t.autoWidth&&t.width<before.textBoxes[i].width&&Math.abs(anchor(t)-anchor(before.textBoxes[i]))<1e-8):JSON.stringify(t)===JSON.stringify(before.textBoxes[i]))&&JSON.stringify(before.placements)===JSON.stringify(after.placements)})()`),true,'Individual fit preserves alignment and other elements');
@@ -59,7 +63,12 @@ app.whenReady().then(async()=>{
   assert.equal(await run(`JSON.stringify(store.getState().project.spreads)===window.afterUnlockFit`),true,'One Redo restores geometry and unlocked state');
   assert.equal(await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Unlock and Auto-fit All').disabled`),true);
   await run(`store.getState().undo();store.getState().undo()`);await wait();
+  await run(`window.beforeHiddenLocate=store.getState().project;store.setState(s=>({project:{...s.project,spreads:s.project.spreads.map(p=>p.id==='palette'?{...p,textBoxes:p.textBoxes.map(t=>t.id==='batch-locked'?{...t,hidden:true}:t)}:p)}}))`);await wait();
+  await run(`document.querySelector('${scope} .text-auto-fit-status__locate').click()`);await wait();
+  assert.equal(await run(`!!Konva.stages[0].findOne('.located-text-outline')&&!Konva.stages[0].findOne('.text-layer-batch-locked')&&store.getState().project.spreads.find(s=>s.id==='palette').textBoxes.find(t=>t.id==='batch-locked').hidden`),true,'Locate hidden text shows only its outline');
+  await run(`store.setState({project:window.beforeHiddenLocate})`);await wait();
   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list button')).find(b=>b.textContent==='Close').click()`);await wait();
+  assert.equal(await run(`!!Konva.stages[0].findOne('.located-text-outline')`),false,'Closing list clears locate highlight');
  }
  const lum=rgb=>{const c=rgb.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return c[0]*.2126+c[1]*.7152+c[2]*.0722};
  for(const screen of ['text-inspector','home','wizard','preferences','preferences-Interaction','preferences-Inspector','preferences-Image Quality','preferences-Performance','preferences-Misc.','editor','designer','templates','export','auto-build','size','info','cover','cover-guide','cover-custom','profile','continue','import-preview','context','pickers','color','missing',...['File','Edit','Frame','Cover','Spread','Templates','Tools','View','Help'].map(name=>'menu-'+name)].filter(name=>!process.env.THEME_SCREENS||process.env.THEME_SCREENS.split(',').includes(name))){

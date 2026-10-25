@@ -474,6 +474,24 @@ export default function DesignerCanvas() {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [viewportSize, setViewportSize] = useState({ width: STAGE_WIDTH, height: stageHeight })
 
+  const [locatedTextId, setLocatedTextId] = useState<string | null>(null)
+  const locatedText = spread?.textBoxes.find(t => t.id === locatedTextId)
+  useEffect(() => setLocatedTextId(null), [spread?.id, selectedLayerKeys, selectedTextBoxId, selectedPlaceholderId])
+  useEffect(() => {
+    const locate = (event: Event) => {
+      const { spreadId, textId } = (event as CustomEvent<{ spreadId: string; textId: string | null }>).detail
+      if (spreadId !== spread?.id) return
+      const box = spread.textBoxes.find(t => t.id === textId)
+      setLocatedTextId(box?.id ?? null)
+      if (!box) return
+      const scale = Math.max(.05, Math.min(stageScale, (viewportSize.width - 80) / (box.width * STAGE_WIDTH), (viewportSize.height - 80) / (box.height * stageHeight)))
+      setStageScale(scale)
+      setStagePos({ x: viewportSize.width / 2 - (box.x + box.width / 2) * STAGE_WIDTH * scale, y: viewportSize.height / 2 - (box.y + box.height / 2) * stageHeight * scale })
+    }
+    window.addEventListener('album-studio:locate-text-box', locate)
+    return () => window.removeEventListener('album-studio:locate-text-box', locate)
+  }, [spread, stageScale, stageHeight, viewportSize])
+
   // Keeps panning from drifting off into empty space forever — the spread can be dragged until
   // only a small sliver of it remains on screen (not snapped rigidly to "fully visible", which
   // feels stuck), but no further. When the spread is smaller than the viewport at the current
@@ -1313,6 +1331,7 @@ export default function DesignerCanvas() {
             <Line points={points} stroke="#ffffff" strokeWidth={1} strokeScaleEnabled={false} />
           </Group>)}
         </Layer>}
+        <Layer listening={false} name="located-text-highlight">{locatedText && <Rect name="located-text-outline" x={locatedText.x * STAGE_WIDTH} y={locatedText.y * stageHeight} width={locatedText.width * STAGE_WIDTH} height={locatedText.height * stageHeight} stroke="#3157c8" strokeWidth={3 / stageScale} dash={[6 / stageScale, 4 / stageScale]} fill="rgba(49,87,200,.12)" />}</Layer>
         <Layer listening={false} name="selection-marquee">{marquee&&<Rect {...marquee} fill="rgba(49,87,200,.12)" stroke="#3157c8" strokeWidth={1/stageScale}/>}</Layer>
         <Layer name="smart-guides">
           {displayedGuides.map((g,i)=>g.segments?<Group key={i} name="equal-spacing-guide">{g.segments.map((s,j)=>{

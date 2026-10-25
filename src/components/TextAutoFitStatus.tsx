@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Spread } from '@/types'
 import { useProjectStore } from '@/state/projectStore'
 
@@ -6,6 +6,9 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const state = useProjectStore()
+  useEffect(() => {
+    if (open) return () => { window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: null } })) }
+  }, [open, spread.id])
   const selected = spread.textBoxes.filter(t => textIds.includes(t.id))
   const locked = selected.filter(t => t.locked)
   const eligible = selected.filter(t => !t.locked && !t.hidden).length
@@ -24,7 +27,7 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
       </div>
       {!locked.length && <p role="status">No locked text boxes in this selection.</p>}
       {locked.map(t => <article key={t.id}>
-        <span title={t.text}>{t.text.trim() || 'Empty text box'}</span>
+        <button className="text-auto-fit-status__locate" title={t.hidden ? 'Locate hidden text box (outline only)' : 'Locate text box on canvas'} aria-label={`Locate ${t.text.trim() || 'empty text box'}`} onClick={() => window.dispatchEvent(new CustomEvent('album-studio:locate-text-box', { detail: { spreadId: spread.id, textId: t.id } }))}>{t.text.trim() || 'Empty text box'}</button>
         <button className="btn btn--tiny" aria-label={`Unlock ${t.text.trim() || 'empty text box'}`} onClick={() => { state.unlockTextBoxes(spread.id, [t.id]); trigger.current?.focus() }}>Unlock</button>
         <button className="btn btn--tiny" aria-label={`Unlock and auto-fit ${t.text.trim() || 'empty text box'}`} onClick={() => { state.unlockTextBoxes(spread.id, [t.id], true); trigger.current?.focus() }}>Unlock and Auto-fit</button>
       </article>)}
