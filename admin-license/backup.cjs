@@ -34,26 +34,34 @@ function prepareRestore(historyFile, source, publicKey) {
   const current = readHistory(historyFile);
   const existing = new Map(current.map(row => [row.deviceId, row]));
   if (existing.size !== current.length) throw new Error('Current history contains duplicate PC records.');
-  const seen = new Set(), entries = [];
-  let added = 0, repaired = 0, unchanged = 0;
-  for (const raw of archive.licenses) {
-    const record = parseIssuedLicense(raw, publicKey);
-    if (seen.has(record.deviceId)) throw new Error('Backup contains duplicate PC records.');
-    seen.add(record.deviceId);
+  const parsed = archive.licenses.map(raw => ({ raw, record: parseIssuedLicense(raw, publicKey) }));
+  const counts = new Map();
+  for (const { record } of parsed) counts.set(record.deviceId, (counts.get(record.deviceId) || 0) + 1);
+  const entries = [], rows = [];
+  let added = 0, repaired = 0, unchanged = 0, conflicts = 0;
+  for (const { raw, record } of parsed) {
     const old = existing.get(record.deviceId);
-    if (old && !sameRecord(old, record)) throw new Error('Conflicting license for PC ' + record.deviceId + '. Nothing was restored.');
-    if (old && fs.existsSync(old.path)) {
-      const original = JSON.parse(licenseAt(old, publicKey)), incoming = JSON.parse(raw);
-      if (original.payload !== incoming.payload || original.signature !== incoming.signature) throw new Error('Conflicting signed license for an existing PC.');
-      unchanged++;
-    } else {
-      entries.push({ record, raw });
-      if (old) repaired++; else added++;
+    let reason = counts.get(record.deviceId) > 1 ? 'This PC appears more than once in the backup.' : '';
+    if (!reason && old && !sameRecord(old, record)) reason = 'Client name or issue date differs from the current record.';
+    if (!reason && old && fs.existsSync(old.path)) {
+      try {
+        const original = JSON.parse(licenseAt(old, publicKey)), incoming = JSON.parse(raw);
+        if (original.payload !== incoming.payload || original.signature !== incoming.signature) reason = 'The signed license differs from the saved file.';
+      } catch { reason = 'The current license file is changed or cannot be verified.'; }
     }
+    let status;
+    if (reason) { conflicts++; status = 'conflict'; }
+    else if (old && fs.existsSync(old.path)) { unchanged++; status = 'present'; }
+    else {
+      entries.push({ record, raw });
+      if (old) { repaired++; status = 'repair'; } else { added++; status = 'new'; }
+    }
+    rows.push({ ...record, status, reason, current: old ? { client: old.client, issuedAt: old.issuedAt } : null });
   }
-  return { current, entries, added, repaired, unchanged };
+  return { current, entries, rows, added, repaired, unchanged, conflicts };
 }
 function restoreBackup(historyFile, plan) {
+  if (plan.conflicts) throw new Error('Conflicting records must be resolved before restoring.');
   if (JSON.stringify(readHistory(historyFile)) !== JSON.stringify(plan.current)) throw new Error('History changed during restore. Please try again.');
   // Files use local generated names; no paths supplied by the backup are trusted.
   if (!plan.entries.length) return;

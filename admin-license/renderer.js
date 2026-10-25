@@ -64,10 +64,43 @@ for (const operation of ['backup', 'restore']) {
     transferStatus.textContent = '';
     try {
       const result = await window.licenseAdmin[operation]();
-      transferStatus.textContent = result.error || (result.canceled ? 'Canceled. No files or history changed.' : result.message);
+      if (result.preview) openRestorePreview(result.preview);
+      else transferStatus.textContent = result.error || (result.canceled ? 'Canceled. No files or history changed.' : result.message);
       transferStatus.className = result.error ? 'missing' : '';
       await loadHistory();
     } catch { transferStatus.textContent = 'The operation could not be completed. Please try again.'; }
-    finally { busy = false; update(); }
+    finally { busy = document.getElementById('restore-preview').open; update(); }
   });
 }
+
+const previewDialog = document.getElementById('restore-preview'), previewApply = document.getElementById('preview-apply'), previewCancel = document.getElementById('preview-cancel');
+function openRestorePreview(preview) {
+  document.getElementById('preview-summary').textContent = `${preview.added} new · ${preview.unchanged + preview.repaired} already present (${preview.repaired} missing files) · ${preview.conflicts} conflicting`;
+  document.getElementById('preview-error').textContent = preview.conflicts ? 'Restore is blocked until conflicting records are resolved. Cancel to keep your current history unchanged.' : '';
+  const list = document.getElementById('preview-list'); list.replaceChildren();
+  for (const row of preview.rows) {
+    const article = document.createElement('article'); article.className = 'preview-row'; article.dataset.status = row.status;
+    const label = document.createElement('span'); label.className = 'preview-label'; label.textContent = {new:'New',present:'Already present',repair:'Already present · restore missing file',conflict:'Conflicting'}[row.status];
+    const name = document.createElement('strong'); name.textContent = row.client;
+    const pc = document.createElement('code'); pc.textContent = row.deviceId;
+    const date = document.createElement('p'); date.textContent = 'Issued: ' + new Date(row.issuedAt).toLocaleString();
+    article.append(label, name, pc, date);
+    if (row.reason) { const reason = document.createElement('p'); reason.textContent = row.reason; article.append(reason); }
+    if (row.status === 'conflict' && row.current) { const current = document.createElement('p'); current.textContent = `Current: ${row.current.client} · Issued: ${new Date(row.current.issuedAt).toLocaleString()}`; article.append(current); }
+    list.append(article);
+  }
+  previewApply.disabled = preview.conflicts > 0;
+  previewDialog.showModal(); previewCancel.focus();
+}
+async function finishRestore(apply) {
+  previewApply.disabled = true; previewCancel.disabled = true;
+  try {
+    const result = await window.licenseAdmin.finishRestore(apply);
+    const status = document.getElementById('transfer-status'); status.textContent = result.error || (result.canceled ? 'Canceled. No files or history changed.' : result.message); status.className = result.error ? 'missing' : '';
+    previewDialog.close(); await loadHistory();
+  } catch { document.getElementById('preview-error').textContent = 'Could not finish restoring. Cancel and reopen the preview to try again.'; }
+  finally { previewCancel.disabled = false; busy = previewDialog.open; update(); if (!busy) document.getElementById('restore').focus(); }
+}
+previewApply.addEventListener('click', () => finishRestore(true));
+previewCancel.addEventListener('click', () => finishRestore(false));
+previewDialog.addEventListener('cancel', event => { event.preventDefault(); if (!previewCancel.disabled) finishRestore(false); });

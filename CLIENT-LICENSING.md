@@ -45,3 +45,9 @@ On the destination PC, open the separate admin tool, choose **Restore backup**, 
 Transfer the original private signing key separately using your secure backup process if the new PC needs to issue new licenses. Restoring and opening existing licenses does not require the private key. Use the restored destination as your issuing PC and stop issuing on the old PC; disconnected offline admin PCs cannot synchronize future issuance. Restoring an old backup cannot recover records created after it. An unreadable current history is preserved and blocks merging: retain that file for recovery rather than deleting unknown records.
 
 Backup/restore tests: `node scripts/test-license-backup.cjs` covers transfer, validation, merge, missing-file repair, repeated restore, rejected tampering/conflicts and rollback on write failure. The admin GUI tests cover buttons, confirmation, cancellation and duplicate blocking after restore.
+
+## Restore preview
+
+Selecting a backup opens a review dialog before any files or history change. Every validated license shows its client name, full PC ID and original issue date. Labels distinguish **New**, **Already present**, **Already present - restore missing file**, and **Conflicting** records. Conflicts show the reason and current client/date for comparison. Duplicate PC entries in a backup are also marked conflicting.
+
+Choose **Restore** to apply a conflict-free preview or **Cancel** (Escape also works) to leave everything unchanged. Restore is disabled when conflicts exist; no partial restore or overwrite occurs. Invalid signatures or malformed backups are rejected before preview. The app holds the validated backup contents until confirmation and refuses to apply if local history changed in the meantime.

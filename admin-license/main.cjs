@@ -7,6 +7,7 @@ const { exportBackup, prepareRestore, restoreBackup } = require('./backup.cjs');
 const publicKey = require('./public-key.json');
 let win, lastSaved;
 let issuing = false;
+let pendingRestore = null;
 const historyFile = path.join(app.getPath('userData'), 'license-history.json');
 let keyPath = path.join(app.getPath('home'), '.ynot-licensing', 'signing-private.pem');
 function keyStatus() {
@@ -32,12 +33,20 @@ function registerHandlers() {
       const result = await dialog.showOpenDialog(win, { title: 'Restore history and licenses', properties: ['openFile'], filters: [{ name: 'YNOT license backup', extensions: ['json'] }] });
       if (result.canceled || !result.filePaths[0]) return { canceled: true };
       const plan = prepareRestore(historyFile, result.filePaths[0], publicKey);
-      const confirmation = await dialog.showMessageBox(win, { type: 'question', title: 'Restore license backup', message: 'Merge this backup into license history?', detail: `${plan.added} new PCs, ${plan.repaired} missing files restored, ${plan.unchanged} already recorded. Existing records are kept. License signatures have been checked. The private signing key is not included.`, buttons: ['Restore', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true });
-      if (confirmation.response !== 0) return { canceled: true };
+      pendingRestore = plan;
+      return { preview: { rows: plan.rows, added: plan.added, repaired: plan.repaired, unchanged: plan.unchanged, conflicts: plan.conflicts } };
+    } catch (error) { return { error: error.message || 'Could not preview this backup.' }; }
+    finally { if (!pendingRestore) issuing = false; }
+  });
+  ipcMain.handle('admin:finish-restore', (_event, apply) => {
+    if (!pendingRestore || typeof apply !== 'boolean') return { error: 'Open a backup preview first.' };
+    const plan = pendingRestore;
+    try {
+      if (!apply) return { canceled: true };
       restoreBackup(historyFile, plan);
       return { message: `Restored ${plan.added} new PC(s) and ${plan.repaired} missing file(s); ${plan.unchanged} already recorded.` };
     } catch (error) { return { error: error.message || 'Restore failed. Existing history was preserved.' }; }
-    finally { issuing = false; }
+    finally { pendingRestore = null; issuing = false; }
   });
   ipcMain.handle('admin:history', () => {
     try { return { rows: readHistory(historyFile).map(row => ({ ...row, missing: !fs.existsSync(row.path) })) }; }
@@ -101,6 +110,7 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else app.whenReady().then(() => {
   registerHandlers();
   win = new BrowserWindow({ width: 680, height: 760, minWidth: 540, minHeight: 600, title: 'YNOT License Admin', autoHideMenuBar: true, backgroundColor: '#f3f6fc', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false } });
+  win.webContents.on('did-start-navigation', () => { if (pendingRestore) { pendingRestore = null; issuing = false; } });
   win.setMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
