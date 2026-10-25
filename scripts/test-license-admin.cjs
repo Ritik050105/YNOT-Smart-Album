@@ -90,6 +90,16 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.getElementById('preview-clear-search').disabled`),true);
   assert.equal(await run(`document.activeElement.id`),'preview-search');
   assert.equal(fs.readFileSync(historyFile,'utf8'),oldHistory,'Clear search leaves history unchanged');
+  await run(`document.getElementById('preview-search').value='not found';document.getElementById('preview-search').dispatchEvent(new Event('input'));document.getElementById('preview-reset-filters').click()`);
+  assert.equal(await run(`document.getElementById('preview-search').value`),'');
+  assert.equal(await run(`document.getElementById('preview-attention-only').checked`),false);
+  assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1);
+  assert.equal(await run(`document.getElementById('preview-reset-filters').disabled`),true);
+  assert.equal(await run(`document.getElementById('preview-apply').disabled`),false);
+  assert.equal(await run(`document.activeElement.id`),'preview-search');
+  assert.equal(fs.readFileSync(historyFile,'utf8'),oldHistory,'Reset filters does not change history');
+  await run(`document.getElementById('preview-attention-only').click()`);
+
   await run(`document.getElementById('preview-attention-only').click()`);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1);
   await run(`document.getElementById('preview-cancel').click()`); await wait();
@@ -131,6 +141,10 @@ app.whenReady().then(async () => {
   await run(`document.getElementById('preview-clear-search').click()`);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1);
   assert.equal(await run(`document.getElementById('preview-apply').disabled`),true,'Clear does not bypass conflict blocking');
+  await run(`document.getElementById('preview-search').value='not found';document.getElementById('preview-search').dispatchEvent(new Event('input'));document.getElementById('preview-reset-filters').click()`);
+  assert.equal(await run(`document.getElementById('preview-apply').disabled`),true,'Reset does not bypass conflict blocking');
+  assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1);
+
   await run(`document.getElementById('preview-search').value='previous employee';document.getElementById('preview-search').dispatchEvent(new Event('input'))`);
   assert.equal(await run(`document.querySelectorAll('.preview-row:not([hidden])').length`),1,'Existing employee name is also searchable');
   fs.writeFileSync(path.join(os.tmpdir(),'ynot-restore-preview-qa.png'),(await win.webContents.capturePage()).toPNG());

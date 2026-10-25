@@ -78,6 +78,7 @@ const previewFilter = document.getElementById('preview-attention-only'), preview
 function filterRestorePreview() {
   const rows = document.querySelectorAll('#preview-list .preview-row');
   document.getElementById('preview-clear-search').disabled = previewSearch.value.length === 0;
+  document.getElementById('preview-reset-filters').disabled = !previewSearch.value.length && !previewFilter.checked;
   const query = previewSearch.value.trim().toLowerCase();
   let visible = 0;
   for (const row of rows) {
@@ -90,6 +91,12 @@ previewFilter.addEventListener('change', filterRestorePreview);
 previewSearch.addEventListener('input', filterRestorePreview);
 document.getElementById('preview-clear-search').addEventListener('click', () => {
   previewSearch.value = '';
+  filterRestorePreview();
+  previewSearch.focus();
+});
+document.getElementById('preview-reset-filters').addEventListener('click', () => {
+  previewSearch.value = '';
+  previewFilter.checked = false;
   filterRestorePreview();
   previewSearch.focus();
 });
