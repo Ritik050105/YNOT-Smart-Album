@@ -48,7 +48,7 @@ function applyLayerRects(spread:Spread,size:AlbumSize,rects:Map<string,LayerRect
   const customBoxes=computePlaceholderBoxes(spread,DESIGN_WIDTH,height).map(b=>({id:b.placeholderId,...(rects.get('image:'+b.placeholderId)??{x:b.x/DESIGN_WIDTH,y:b.y/height,width:b.width/DESIGN_WIDTH,height:b.height/height}),preferredOrientation:'any' as const}))
   return {...spread,customBoxes,flipped:false,textBoxes:spread.textBoxes.map(t=>{
     const r=rects.get('text:'+t.id)
-    return r?{...t,...r,fontSize:t.fontSize*Math.min(r.width/t.width,r.height/t.height)}:t
+    return r?{...t,...r,autoWidth:Math.abs(r.width-t.width)>1e-10?false:t.autoWidth,fontSize:t.fontSize*Math.min(r.width/t.width,r.height/t.height)}:t
   })}
 }
 

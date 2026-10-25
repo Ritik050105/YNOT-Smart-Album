@@ -1,3 +1,4 @@
+import { fitTextBoxSize } from '@/engine/textBoxSize'
 import { GapAnchor, arrangeLayerSelection, spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences, preferenceDefaults, exportGapPresets, importGapPresets, previewGapPresetImport } from '@/state/preferences'
 import { snapRect, nearbySpacingGaps, selectedSpacingGuides, GuideRect, SmartGuide } from '@/engine/smartGuides'
@@ -803,7 +804,7 @@ export default function DesignerCanvas() {
       }
       else if (canvasTool === 'text') {
         const id = uuid()
-        addTextBox(spread.id, { id, ...rect, text: '', fontFamily: 'Arial', fontSize: 24, color: '#222222', align: 'left', bold: false, italic: false })
+        addTextBox(spread.id, { id, ...rect, autoWidth: draftFrame.width < 4, text: '', fontFamily: 'Arial', fontSize: 24, color: '#222222', align: 'left', bold: false, italic: false })
         selectTextBox(id)
         setEditingTextId(id)
       }
@@ -1026,6 +1027,7 @@ export default function DesignerCanvas() {
               <Group key={box.id} name={`text-layer-${box.id}`} {...(transformKeys.includes('text:'+box.id)?groupLive:null)}><KonvaText
                 key={box.id}
                 ref={selectedTextBoxId===box.id?textNodeRef:undefined}
+                visible={editingTextId !== box.id}
                 x={x}
                 y={y}
                 width={box.width * STAGE_WIDTH}
@@ -1285,7 +1287,7 @@ export default function DesignerCanvas() {
               />
             ))}
 
-          {!selectedGroupId && selectedTextBoxId && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.locked && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.hidden && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#3157c8" anchorStroke="#3157c8" />}
+          {!selectedGroupId && selectedTextBoxId && editingTextId !== selectedTextBoxId && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.locked && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.hidden && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke="#3157c8" anchorStroke="#3157c8" />}
         </Layer>
         {(gridMode==='on' || (gridMode==='auto' && showGrid)) && <Layer listening={false} name="rule-of-thirds-grid">
           {[1 / 3, 2 / 3].flatMap(f => [
@@ -1372,7 +1374,8 @@ export default function DesignerCanvas() {
                 left: stagePos.x + box.x * STAGE_WIDTH * stageScale,
                 top: stagePos.y + box.y * stageHeight * stageScale,
                 width: box.width * STAGE_WIDTH * stageScale,
-                minHeight: box.fontSize * stageScale + 8,
+                minHeight: box.fontSize * stageScale,
+                boxSizing: 'content-box',
                 fontSize: box.fontSize * stageScale,
                 fontFamily: fontPreview?.textBoxId === box.id ? fontPreview.family : box.fontFamily,
                 color: box.color,
@@ -1380,8 +1383,8 @@ export default function DesignerCanvas() {
                 fontStyle: box.italic ? 'italic' : 'normal',
                 textAlign: box.align,
               }}
-              ref={element => { if (element) { element.style.height = '0px'; element.style.height = `${element.scrollHeight + 3}px` } }}
-              onInput={e => { e.currentTarget.style.height = '0px'; e.currentTarget.style.height = `${e.currentTarget.scrollHeight + 3}px` }}
+              ref={element => { if (element) { element.style.height = '0px'; element.style.height = `${element.scrollHeight - 6}px` } }}
+              onInput={e => { const fitted = fitTextBoxSize({ ...box, text: e.currentTarget.value }, size); e.currentTarget.style.width = `${fitted.width * STAGE_WIDTH * stageScale}px`; e.currentTarget.style.left = `${stagePos.x + fitted.x * STAGE_WIDTH * stageScale}px`; e.currentTarget.style.height = '0px'; e.currentTarget.style.height = `${e.currentTarget.scrollHeight - 6}px` }}
               autoFocus
               defaultValue={box.text}
               onBlur={(e) => {

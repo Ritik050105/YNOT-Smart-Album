@@ -107,6 +107,8 @@ export type ToneAdjustments = Pick<
 >
 
 export interface TextBox {
+  /** New text fits its content until a manual width is chosen. */
+  autoWidth?: boolean
   groupId?: string
   hidden?: boolean
   zIndex?: number
