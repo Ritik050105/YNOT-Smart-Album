@@ -74,7 +74,19 @@ for (const operation of ['backup', 'restore']) {
 }
 
 const previewDialog = document.getElementById('restore-preview'), previewApply = document.getElementById('preview-apply'), previewCancel = document.getElementById('preview-cancel');
+const previewFilter = document.getElementById('preview-attention-only');
+function filterRestorePreview() {
+  const rows = document.querySelectorAll('#preview-list .preview-row');
+  let visible = 0;
+  for (const row of rows) {
+    row.hidden = previewFilter.checked && !['new', 'conflict'].includes(row.dataset.status);
+    if (!row.hidden) visible++;
+  }
+  document.getElementById('preview-visible-count').textContent = visible ? `Showing ${visible} of ${rows.length} records` : previewFilter.checked ? 'No new or conflicting records. Uncheck the filter to see all records.' : 'No records in this backup.';
+}
+previewFilter.addEventListener('change', filterRestorePreview);
 function openRestorePreview(preview) {
+  previewFilter.checked = false;
   document.getElementById('preview-summary').textContent = `${preview.added} new · ${preview.unchanged + preview.repaired} already present (${preview.repaired} missing files) · ${preview.conflicts} conflicting`;
   document.getElementById('preview-error').textContent = preview.conflicts ? 'Restore is blocked until conflicting records are resolved. Cancel to keep your current history unchanged.' : '';
   const list = document.getElementById('preview-list'); list.replaceChildren();
@@ -89,6 +101,7 @@ function openRestorePreview(preview) {
     if (row.status === 'conflict' && row.current) { const current = document.createElement('p'); current.textContent = `Current: ${row.current.client} · Issued: ${new Date(row.current.issuedAt).toLocaleString()}`; article.append(current); }
     list.append(article);
   }
+  filterRestorePreview();
   previewApply.disabled = preview.conflicts > 0;
   previewDialog.showModal(); previewCancel.focus();
 }
