@@ -36,6 +36,15 @@ function migrateAlbumSize(raw: AlbumSize & { bleedIn?: number; safeZoneIn?: numb
   return { ...raw, trim, safeZone }
 }
 
+const LAST_LOCATED_TEXT_KEY = 'albumstudio.lastLocatedTextIds'
+function loadLastLocatedTextIds(): Record<string, string> {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(LAST_LOCATED_TEXT_KEY) ?? '{}')
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+    return Object.fromEntries(Object.entries(value).filter(([key, id]) => key.length > 0 && typeof id === 'string' && id.length > 0))
+  } catch { return {} }
+}
+
 const TEMPLATE_LIBRARY_KEY = 'albumstudio.templateLibrary'
 const TEMPLATE_FAVORITES_KEY = 'albumstudio.templateFavorites'
 function loadTemplateFavorites(): string[] {
@@ -385,7 +394,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   userTemplates: loadUserTemplates(),
   selectedSpreadId: null,
   selectedPlaceholderId: null,
-  lastLocatedTextIds: {},
+  lastLocatedTextIds: loadLastLocatedTextIds(),
   locatedTextBox: null,
   selectedTextBoxId: null,
   pickingGapAnchor: false,
@@ -1528,3 +1537,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       photos: p.photos.map((photo) => (photo.id === photoId ? { ...photo, favorite } : photo)),
     })),
 }))
+
+useProjectStore.subscribe((state, previous) => {
+  if (state.lastLocatedTextIds === previous.lastLocatedTextIds) return
+  try { localStorage.setItem(LAST_LOCATED_TEXT_KEY, JSON.stringify(state.lastLocatedTextIds)) }
+  catch { /* Keep locating usable for this session if storage is unavailable. */ }
+})
