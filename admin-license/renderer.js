@@ -1,6 +1,6 @@
 const form = document.getElementById('form'), employee = document.getElementById('employee'), device = document.getElementById('device'), generate = document.getElementById('generate'), choose = document.getElementById('choose'), status = document.getElementById('status'), reveal = document.getElementById('reveal');
 let ready = false, busy = false;
-function update() { generate.disabled = busy || !ready || !employee.value.trim() || !/^[a-f0-9]{64}$/i.test(device.value.trim()); choose.disabled = busy; document.getElementById('add-existing').disabled = busy; document.getElementById('backup').disabled = busy; document.getElementById('restore').disabled = busy; }
+function update() { generate.disabled = busy || !ready || !employee.value.trim() || !/^[a-f0-9]{64}$/i.test(device.value.trim()); choose.disabled = busy; document.getElementById('detect-pc').disabled = busy; document.getElementById('add-existing').disabled = busy; document.getElementById('backup').disabled = busy; document.getElementById('restore').disabled = busy; }
 function show(message, kind = '') { status.textContent = message; status.className = kind; }
 function applyKey(result) { ready = result.ready; document.getElementById('key-status').textContent = ready ? 'Signing key ready' : 'Signing key needed'; document.getElementById('key-path').textContent = result.path; if (result.error) show(result.error, 'error'); update(); }
 form.addEventListener('input', update);
@@ -131,3 +131,14 @@ async function finishRestore(apply) {
 previewApply.addEventListener('click', () => finishRestore(true));
 previewCancel.addEventListener('click', () => finishRestore(false));
 previewDialog.addEventListener('cancel', event => { event.preventDefault(); if (!previewCancel.disabled) finishRestore(false); });
+
+document.getElementById('detect-pc').addEventListener('click', async () => {
+  if (busy) return;
+  busy = true; update(); show('Detecting this PC…');
+  try {
+    const result = await window.licenseAdmin.detectPC();
+    if (result.error) show(result.error, 'error');
+    else { device.value = result.deviceId; show('This computer’s PC ID detected. Generate only if this is the employee PC you want to license.', 'success'); }
+  } catch { show('Could not detect this PC. Your entered ID was kept.', 'error'); }
+  finally { busy = false; update(); }
+});

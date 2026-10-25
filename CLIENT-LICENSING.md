@@ -69,3 +69,19 @@ Restore preview search matches employee names (including the current name shown 
 **Reset filters** clears the preview search and unchecks Show only new and conflicting records together, revealing all records and returning focus to search. It changes no data, conflict rules or restore plan. Restore and Cancel remain available. The button is disabled when both filters are already clear.
 
 Reopening after Restore, Cancel or Escape keeps the latest display filters during the current admin session. Clear search and Reset filters also become the remembered state. A fresh backup is still validated on every open; no pending restore operation is saved or automatically applied. Closing the admin tool starts a new filter session.
+
+
+## Setup at the studio (26 October 2026)
+
+1. Keep the License Admin tool on the studio owner's administrator account only. Keep its signing key out of employee accounts, shared NAS folders and the client installer folder.
+2. On the owner's PC, open License Admin and choose the original matching private signing key with Choose signing key. The default key location is the owner's home folder under `.ynot-licensing/signing-private.pem`; if you choose another location, choose it again after restarting the tool. Transfer the existing key securely from the setup PC; do not generate a replacement key for these installers.
+3. If moving existing records to the owner's PC, first use Back up history & files on the old admin PC. On the owner's PC choose Restore backup, review records and confirm Restore. This backup does not include the private key. Use one issuing admin PC thereafter.
+4. Install the licensed YNOT Album Studio installer on each employee PC. Launch it from the Windows account that employee will use. Its activation screen automatically detects and displays the PC ID; choose Copy PC ID. No commands or MAC-address lookup are needed.
+5. Transfer that PC ID to the owner (for example, a text file on a USB drive). In License Admin enter Employee name and paste the employee PC ID. Detect this PC fills the ID of the computer running License Admin ONLY; do not use it on the owner's PC to license a different employee PC.
+6. Choose Generate and save license. Use an identifiable filename for each employee/PC. Transfer only this signed license JSON back to the employee PC, and choose Import license in Album Studio. The app then opens.
+7. Close and reopen Album Studio under that employee's account to verify activation persists. Open a sample project and verify normal editing/export. Reuse the saved license for that same PC if needed; another PC must have its own license.
+8. Back up history & files after issuing licenses. Keep an additional protected backup of the private signing key separately. Employees must never receive the admin tool or private key.
+
+Detection in License Admin uses the exact PC-identification implementation packaged with the client. If detection fails, it preserves the entered ID. Detection alone never issues a license or changes history. It cannot remotely discover another offline computer.
+
+Activation is enforced when the installed app starts, not by blocking installer execution. Binding is to the PC, not to an employee identity. A Windows reinstall or hardware change may require administrator assistance. Offline activation is not unbreakable copy protection; keep employee accounts restricted and remove old unrestricted app builds from distribution.

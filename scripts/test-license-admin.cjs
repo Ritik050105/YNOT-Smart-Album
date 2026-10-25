@@ -11,10 +11,12 @@ fs.writeFileSync(keyFile, keys.privateKey.export({ type: 'pkcs8', format: 'pem' 
 const wrongKey = path.join(root, 'wrong.pem');
 fs.writeFileSync(wrongKey, generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' }));
 const output = path.join(root, 'client-license.json');
+let detectFails = false;
 let choice, save, revealed, opened, confirm = 1;
 const original = Module._load;
 Module._load = function(id, parent, ...rest) {
   if (parent?.filename.endsWith(path.join('admin-license', 'main.cjs'))) {
+    if (id === './device-license.cjs') return { deviceId: () => { if (detectFails) throw new Error('Unavailable'); return 'c'.repeat(64); } };
     if (id === './public-key.json') return pub;
     if (id === 'electron') return { ...original.call(this,id,parent,...rest), app: { getPath: name => name === 'home' || name === 'documents' ? root : app.getPath(name), requestSingleInstanceLock: () => true, whenReady: () => app.whenReady(), on: () => {}, quit: () => {} }, BrowserWindow: class extends BrowserWindow { constructor(options) { super({ ...options, show: false, webPreferences: { ...options.webPreferences, offscreen: true, backgroundThrottling: false } }); } }, dialog: { showMessageBox: async () => ({response:confirm}), showOpenDialog: async () => ({ canceled: !choice, filePaths: choice ? [choice] : [] }), showSaveDialog: async () => ({ canceled: !save, filePath: save }) }, shell: { showItemInFolder: p => revealed = p, openPath: async p => { opened = p; return ''; } } };
   }
@@ -30,6 +32,12 @@ app.whenReady().then(async () => {
   await wait();
   assert.equal(await run(`document.getElementById('generate').disabled`), true);
   assert.equal(await run(`document.querySelector('label[for=employee]').textContent`),'Employee name');
+  await run(`document.getElementById('detect-pc').click()`); await wait();
+  assert.equal(await run(`document.getElementById('device').value`), 'c'.repeat(64));
+  detectFails = true;
+  await run(`document.getElementById('detect-pc').click()`); await wait();
+  assert.equal(await run(`document.getElementById('device').value`), 'c'.repeat(64));
+  assert.match(await run(`document.getElementById('status').textContent`), /Could not identify/);
   choice = wrongKey; await run(`document.getElementById('choose').click()`); await wait();
   assert.match(await run(`document.getElementById('status').textContent`), /not the matching/);
   choice = keyFile; await run(`document.getElementById('choose').click()`); await wait();

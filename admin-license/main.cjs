@@ -15,6 +15,10 @@ function keyStatus() {
   catch { return { path: keyPath, ready: false }; }
 }
 function registerHandlers() {
+  ipcMain.handle('admin:detect-pc', () => {
+    try { return { deviceId: require('./device-license.cjs').deviceId() }; }
+    catch { return { error: 'Could not identify this Windows PC. Your entered PC ID was kept. Try again or copy the ID from Album Studio.' }; }
+  });
   ipcMain.handle('admin:backup', async () => {
     if (issuing) return { error: 'Finish the current operation first.' };
     issuing = true;

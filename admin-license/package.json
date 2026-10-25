@@ -11,6 +11,7 @@
     "electronVersion": "31.7.7",
     "files": [
       "main.cjs",
+      "device-license.cjs",
       "preload.cjs",
       "issuer.cjs",
       "renderer.js",
