@@ -14,6 +14,8 @@ app.whenReady().then(async()=>{
  win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('DOM.enable');await win.webContents.debugger.sendCommand('CSS.enable');
  const run=s=>win.webContents.executeJavaScript(s),wait=()=>new Promise(r=>setTimeout(r,250));await wait();
  async function checkLockedTextList(scope) {
+  // Force overflow for the short fixture regardless of action-button wrapping.
+  await run(`if(!document.getElementById('skipped-list-test-height')){const style=document.createElement('style');style.id='skipped-list-test-height';style.textContent='.text-auto-fit-status__list{max-height:120px}';document.head.append(style)}`);
   await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();
   await run(`Array.from(document.querySelectorAll('${scope} .text-auto-fit-status__list article button')).find(b=>b.textContent==='Unlock').click()`);await wait();
   assert.equal(await run(`document.querySelector('${scope} [data-auto-fit-summary]').textContent`),'4 to auto-fit · 0 locked (skipped)','Unlock refreshes counts');
@@ -154,6 +156,12 @@ app.whenReady().then(async()=>{
    assert.equal(await run(`JSON.stringify({past:store.getState().history,future:store.getState().future})===window.scopeHistory&&store.getState().project===window.scopeProject${project}`),true,'View restoration leaves project and history unchanged');
    await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait();
   }
+  await run(`document.querySelector('${scope} .text-auto-fit-status__count').click()`);await wait();
+  const resetBefore=await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})`);
+  await run(`window.otherViewKey=JSON.stringify([store.getState().project.id,'other-spread']);store.setState(s=>({lastLocatedTextIds:{...s.lastLocatedTextIds,[window.otherViewKey]:'keep'},skippedTextScroll:{...s.skippedTextScroll,[window.otherViewKey]:123}}));window.otherViews=JSON.stringify({ids:Object.entries(store.getState().lastLocatedTextIds).filter(([k])=>k!==JSON.stringify([store.getState().project.id,'palette'])),scroll:Object.entries(store.getState().skippedTextScroll).filter(([k])=>k!==JSON.stringify([store.getState().project.id,'palette']))});Array.from(document.querySelectorAll('${scope} button')).find(b=>b.textContent==='Reset saved view').click()`);await wait();
+  assert.equal(await run(`(()=>{const s=store.getState(),key=JSON.stringify([s.project.id,'palette']);return !(key in s.lastLocatedTextIds)&&!(key in s.skippedTextScroll)&&!s.locatedTextBox&&document.querySelector('${scope} .text-auto-fit-status__list').scrollTop===0&&!document.querySelector('${scope} .is-located')&&document.activeElement===document.querySelector('${scope} .text-auto-fit-status__count')&&window.otherViews===JSON.stringify({ids:Object.entries(s.lastLocatedTextIds).filter(([k])=>k!==key),scroll:Object.entries(s.skippedTextScroll).filter(([k])=>k!==key)})})()`),true,'Reset clears only the current view and returns focus without closing the list');
+  assert.equal(await run(`JSON.stringify({project:store.getState().project,history:store.getState().history,future:store.getState().future})`),resetBefore,'Reset leaves fixes and Undo/Redo unchanged');
+  await run(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait();
   await run(`store.getState().undo()`);await wait();
  }
  const lum=rgb=>{const c=rgb.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return c[0]*.2126+c[1]*.7152+c[2]*.0722};

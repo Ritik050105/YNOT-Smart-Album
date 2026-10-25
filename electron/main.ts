@@ -1,3 +1,4 @@
+import { requireActivation } from './activation'
 import { app, BrowserWindow, ipcMain, dialog, Menu, screen, shell } from 'electron'
 import path from 'path'
 import { randomUUID } from 'crypto'
@@ -158,7 +159,8 @@ function createNewProjectWindow() {
   return win
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  if (app.isPackaged && !(await requireActivation())) { app.quit(); return }
   const splash = createSplash()
   createWindow(splash)
 

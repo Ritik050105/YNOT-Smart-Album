@@ -88,13 +88,23 @@ export default function TextAutoFitStatus({ spread, textIds }: { spread: Spread;
     </p>
     {open && <section ref={list} onScroll={event => {
       const top = event.currentTarget.scrollTop
-      useProjectStore.setState(s => s.skippedTextScroll[viewKey] === top ? s : { skippedTextScroll: { ...s.skippedTextScroll, [viewKey]: top } })
+      useProjectStore.setState(s => (s.skippedTextScroll[viewKey] ?? 0) === top ? s : { skippedTextScroll: { ...s.skippedTextScroll, [viewKey]: top } })
     }} className="text-auto-fit-status__list" aria-label="Locked text boxes" aria-keyshortcuts="ArrowUp ArrowDown Enter Escape">
       <div className="designer-layers__actions">
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id)); trigger.current?.focus() }}>Unlock All</button>
         <button className="btn btn--tiny" disabled={!locked.length} onClick={() => { state.unlockTextBoxes(spread.id, locked.map(t => t.id), true); trigger.current?.focus() }}>Unlock and Auto-fit All</button>
         <button className="btn btn--tiny" disabled={!state.history.length} title="Undo (Ctrl+Z)" onClick={() => state.undo()}>Undo</button>
         <button className="btn btn--tiny" disabled={!state.future.length} title="Redo (Ctrl+Shift+Z)" onClick={() => state.redo()}>Redo</button>
+        <button className="btn btn--tiny" onClick={() => {
+          useProjectStore.setState(s => {
+            const lastLocatedTextIds = { ...s.lastLocatedTextIds }
+            const skippedTextScroll = { ...s.skippedTextScroll }
+            delete lastLocatedTextIds[viewKey]
+            delete skippedTextScroll[viewKey]
+            return { lastLocatedTextIds, skippedTextScroll }
+          })
+          locateAndFocus(null, 0)
+        }}>Reset saved view</button>
         <button className="btn btn--tiny" onClick={() => { setOpen(false); trigger.current?.focus() }}>Close</button>
       </div>
       {!locked.length && <p role="status">No locked text boxes in this selection.</p>}
