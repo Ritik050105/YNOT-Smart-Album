@@ -1624,9 +1624,9 @@ input[type='checkbox'] {
 .timeline-cut { align-self: stretch; flex: 0 0 10px; padding: 0; border: 0; background: transparent; color: var(--text-faint); cursor: pointer; opacity: 0; }
 .timeline-cut:hover, .timeline-cut:focus-visible { opacity: 1; }
 .timeline-cut:hover { color: var(--accent); background: var(--accent-soft); }
-.pattern-strip { display: flex; gap: 16px; padding: 20px; overflow-x: auto; }
-.pattern-tile { flex: 0 0 140px; height: 100px; position: relative; border: 1px solid var(--border); border-radius: var(--radius-sm); background-color: var(--panel); cursor: grab; }
-.pattern-tile span { position: absolute; bottom: 0; inset-inline: 0; padding: 4px; color: var(--text); background: var(--panel); }
+.pattern-strip { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr)); grid-auto-rows: 120px; align-content: start; gap: 16px; padding: 20px; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
+.pattern-tile { min-width: 0; height: 120px; position: relative; border: 1px solid var(--border); border-radius: var(--radius-sm); background-color: var(--panel); cursor: grab; }
+.pattern-tile span { overflow-wrap: anywhere; position: absolute; bottom: 0; inset-inline: 0; padding: 4px; color: var(--text); background: var(--panel); }
 .auto-build-range {
   display: flex;
   gap: 16px;

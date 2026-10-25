@@ -57,7 +57,7 @@ export default function PatternsPanel({ onShowPhotos }: { onShowPhotos: () => vo
       {target?.backgroundPattern && <label>Scale<input type="range" min={8} max={512} value={target.backgroundPattern.tileSizePx} onChange={(e) => apply({ ...target.backgroundPattern!, tileSizePx: Number(e.target.value) })} /></label>}
       {error && <span role="alert">{error}</span>}
     </div>
-    <div className="pattern-strip">{patterns.map((pattern) => <button key={pattern.name} className="pattern-tile" draggable title={`${pattern.name} — drag onto a spread or double-click to apply`}
+    <div className="pattern-strip" role="region" aria-label="Pattern browser" tabIndex={0}>{patterns.map((pattern) => <button key={pattern.name} className="pattern-tile" draggable title={`${pattern.name} — drag onto a spread or double-click to apply`}
       style={{ backgroundImage: `url("${pattern.src}")`, backgroundSize: `${pattern.tileSizePx}px` }}
       onDragStart={(e) => e.dataTransfer.setData('application/x-album-pattern', JSON.stringify(pattern))}
       onDoubleClick={() => apply(pattern)} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, pattern }) }}><span>{pattern.name}</span></button>)}</div>
