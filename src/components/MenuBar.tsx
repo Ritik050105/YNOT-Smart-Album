@@ -1,3 +1,4 @@
+import { modKeyLabel } from '@/engine/keyboard'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
@@ -392,7 +393,7 @@ export default function MenuBar() {
                   onClick={() => run(item.onClick)}
                 >
                   <span>{item.label}</span>
-                  {item.shortcut && <kbd>{item.shortcut}</kbd>}
+                  {item.shortcut && <kbd>{item.shortcut.replace(/Ctrl/g,modKeyLabel)}</kbd>}
                 </button>
               ))}
             </div>

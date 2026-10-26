@@ -18,3 +18,10 @@ assert.throws(()=>validateLicense(JSON.stringify(tampered),device,pub));
 for(const raw of ['{','null','{}','x'.repeat(16385)])assert.throws(()=>validateLicense(raw,device,pub));
 if(process.platform==='win32'){const id=deviceId();assert.match(id,/^[a-f0-9]{64}$/);assert.equal(deviceId(),id)}
 console.log('Offline license: valid signature accepted; wrong PC, wrong issuer, tampering, invalid input rejected; device identity stable.');
+
+const {macDeviceId}=require('../dist-electron/license');
+const macUUID='12345678-1234-1234-1234-123456789abc';
+assert.equal(macDeviceId('"IOPlatformUUID" = "'+macUUID+'"'),macDeviceId('"IOPlatformUUID" = "'+macUUID.toUpperCase()+'"'));
+assert.notEqual(macDeviceId('"IOPlatformUUID" = "'+macUUID+'"'),macDeviceId('"IOPlatformUUID" = "22345678-1234-1234-1234-123456789abc"'));
+for(const value of ['', '"IOPlatformUUID" = "00000000-0000-0000-0000-000000000000"','"IOPlatformUUID" = "invalid"'])assert.throws(()=>macDeviceId(value));
+console.log('Mac identity parser: stable case-independent ID, different Macs isolated, invalid identities rejected');

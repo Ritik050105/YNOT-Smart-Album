@@ -1,5 +1,5 @@
 export type GuideRect = {x:number;y:number;width:number;height:number;keys?:string[]}
-export type SmartGuide = {axis:'x'|'y';position:number;segments?:{from:number;to:number;keys?:string[]}[]}
+export type SmartGuide = {axis:'x'|'y';position:number;matches?:GuideRect[];segments?:{from:number;to:number;keys?:string[]}[]}
 /** Each shared measurement addresses the selected units together, including whole groups. */
 export function selectedSpacingGuides(units:GuideRect[]):SmartGuide[] {
   if(units.length<2)return []
@@ -48,6 +48,10 @@ export function snapRect(rect:GuideRect, targets:GuideRect[], width:number, heig
       const delta=-error/slope
       if(Math.abs(delta)<=threshold&&(!best||Math.abs(delta)<Math.abs(best.delta)))best={delta}
     }
+    if(anchor && offsets.length)for(const target of targets){
+      const delta=(anchor.includes(start)?-1:1)*(target[size]-rect[size])
+      if(target[size]>=4&&Math.abs(delta)<=threshold&&(!best||Math.abs(delta)<Math.abs(best.delta)))best={delta}
+    }
     if(!best)continue
     if(!anchor)result[axis]+=best.delta
     else if(anchor.includes(start)){result[axis]+=best.delta;result[size]-=best.delta}
@@ -63,6 +67,12 @@ export function snapRect(rect:GuideRect, targets:GuideRect[], width:number, heig
       const position=(Math.max(a[cross],b[cross],c[cross])+Math.min(a[cross]+a[crossSize],b[cross]+b[crossSize],c[cross]+c[crossSize]))/2
       guides.push({axis,position,segments:[{from:a[axis]+a[size],to:b[axis],...(a.keys&&b.keys?{keys:[...a.keys,...b.keys]}:{})},{from:b[axis]+b[size],to:c[axis],...(b.keys&&c.keys?{keys:[...b.keys,...c.keys]}:{})}]})
     }
+  }
+  if(anchor)for(const axis of ['x','y'] as const){
+    const size=axis==='x'?'width':'height'
+    if(!anchor.includes(axis==='x'?'left':'top')&&!anchor.includes(axis==='x'?'right':'bottom'))continue
+    const matches=targets.filter(t=>Math.abs(t[size]-result[size])<.01)
+    if(matches.length)guides.push({axis,position:0,matches:[result,...matches]})
   }
   return {rect:result,guides}
 }

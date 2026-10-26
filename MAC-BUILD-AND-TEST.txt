@@ -1,0 +1,33 @@
+YNOT Album Studio - macOS build and acceptance checks
+
+Status: Windows build tested. macOS platform code added, but a Mac build and
+real Mac acceptance testing are still required before delivering to clients.
+The Windows EXE cannot be installed on macOS.
+
+Build on a Mac with Node.js installed, from this repository:
+  npm ci
+  npm run build
+  npx electron-builder --mac --arm64   (Apple Silicon Mac)
+  npx electron-builder --mac --x64     (Intel Mac)
+Use a matching-architecture build machine for native dependencies.
+The existing macOS configuration supports separate Intel and Apple Silicon DMGs.
+For client distribution, configure an Apple Developer ID signing identity and
+notarization in the macOS build environment. Do not put credentials in this repo.
+See https://www.electron.build/code-signing-mac.html for the signing workflow.
+
+Acceptance checks on each supported Mac architecture:
+- Launch the packaged app and copy its device ID. Generate its signed license
+  using the existing owner-only Windows admin tool; import it and relaunch.
+- Reject a license issued for another machine. Never ship the private signing key.
+- Import photos, select and drag a photo into an empty spread; Undo and Redo.
+- Resize a photo near a reference width/height: blue outlines and yellow size
+  markers appear, the size snaps, and dragging farther releases the snap.
+- Empty spreads have no automatic print or empty-frame outlines.
+- Check equal-spacing guides, trackpad navigation, Command shortcuts, text input,
+  local fonts, save/reopen, PDF/image export, Retina scaling and window resizing.
+- If installed, test Photoshop/Canva app discovery and file handoff. This change
+  does not add automatic Canva import or cloud save-back.
+- Verify Dock/Finder icons, quit/reopen behavior, and signed/notarized installation.
+
+Windows PC IDs are unchanged, so existing valid Windows licenses remain valid.
+The license admin utility remains Windows-only; it can issue a Mac device license.

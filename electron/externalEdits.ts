@@ -1,10 +1,12 @@
 import fs from 'fs'
 import path from 'path'
+import os from 'os'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 const exec = promisify(execFile)
 const isPhotoshop = async (file: string) => path.isAbsolute(file) && path.basename(file).toLowerCase() === 'photoshop.exe' && !!(await fs.promises.stat(file).catch(() => null))?.isFile()
 export async function findPhotoshop(configured: string, roots = [process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter((s): s is string => !!s)) {
+  if(process.platform==='darwin')return findMacEditor('Photoshop',configured)
   if (configured && await isPhotoshop(configured)) return configured
   for (const hive of ['HKCU', 'HKLM']) {
     try {
@@ -25,6 +27,7 @@ export async function findPhotoshop(configured: string, roots = [process.env.Pro
 }
 
 export async function findCanva(configured = '', roots = [process.env.LOCALAPPDATA, process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter((s): s is string => !!s)) {
+  if(process.platform==='darwin')return findMacEditor('Canva',configured)
   const valid = async (file:string) => path.isAbsolute(file) && path.basename(file).toLowerCase()==='canva.exe' && !!(await fs.promises.stat(file).catch(()=>null))?.isFile()
   if(configured && await valid(configured))return configured
   for(const hive of ['HKCU','HKLM'])try {
@@ -56,4 +59,17 @@ export class ExternalEditFiles {
     if (after.mtimeMs !== before.mtimeMs || after.size !== before.size) return null
     return {data:new Uint8Array(data),revision:next}
   }
+}
+
+export async function findMacEditor(editor:'Photoshop'|'Canva',configured='',roots=['/Applications',path.join(os.homedir(),'Applications')]) {
+  const valid=async(file:string)=>path.isAbsolute(file)&&(editor==='Canva'?/^Canva\.app$/i:/^Adobe Photoshop.*\.app$/i).test(path.basename(file))&&!!(await fs.promises.stat(path.join(file,'Contents','Info.plist')).catch(()=>null))?.isFile()
+  if(configured&&await valid(configured))return configured
+  for(const root of roots){
+    for(const name of (await fs.promises.readdir(root).catch(()=>[])).sort().reverse()){
+      const file=path.join(root,name)
+      if(await valid(file))return file
+      if(editor==='Photoshop'&&/^Adobe Photoshop/i.test(name)&&!name.endsWith('.app'))for(const child of await fs.promises.readdir(file).catch(()=>[])){const candidate=path.join(file,child);if(await valid(candidate))return candidate}
+    }
+  }
+  throw new Error(`Install ${editor} for macOS or choose its .app in Tools → Preferences → Misc.`)
 }

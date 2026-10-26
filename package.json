@@ -1,7 +1,7 @@
 {
   "name": "ynot-album-studio",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Internal album design studio built for YNOT Photography",
   "main": "dist-electron/main.js",
   "author": "YNOT Photography",
@@ -13,7 +13,8 @@
       "dist/**",
       "dist-electron/**",
       "src/assets/ynot-mark-dark.png",
-      "build/icon.ico"
+      "build/icon.ico",
+      "build/icon.png"
     ],
     "directories": {
       "output": "release",
@@ -52,8 +53,18 @@
       "artifactName": "${productName}-Portable-${version}.${ext}"
     },
     "mac": {
-      "target": "dmg",
-      "icon": "build/icon.png"
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.photography",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": "AppImage",
@@ -77,7 +88,8 @@
     "dist:all": "npm run build && electron-builder -mwl",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "dist:admin": "npm run build:main && node scripts/build-license-admin.cjs"
+    "dist:admin": "npm run build:main && node scripts/build-license-admin.cjs",
+    "dist:mac": "npm run build && electron-builder --mac"
   },
   "dependencies": {
     "ag-psd": "^31.0.0",

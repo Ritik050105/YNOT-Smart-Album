@@ -782,11 +782,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
     }),
 
-  moveTimelinePhoto: (sourceSpreadId, frameId, targetSpreadId, beforeFrameId) => withHistory(set, (p) => {
+  moveTimelinePhoto: (sourceSpreadId, frameId, targetSpreadId, beforeFrameId) => {
+    let movedSelection:{spreadId:string;frameId:string}|undefined
+    withHistory(set, (p) => {
     const source = p.spreads.find((s) => s.id === sourceSpreadId && !s.isCover)
     const target = targetSpreadId === null && source ? buildSpreadFromPlacements([], 'spread', source) : p.spreads.find((s) => s.id === targetSpreadId && !s.isCover)
     const placement = source?.placements.find((pl) => pl.placeholderId === frameId)
-    if (!source || !target || !placement?.photoId || (source === target && beforeFrameId === frameId)) return p
+    if (!source || !target || !placement?.photoId || placement.locked || placement.hidden || (source === target && beforeFrameId === frameId)) return p
     if (beforeFrameId && !target.placements.some((pl) => pl.placeholderId === beforeFrameId)) return p
     const allSpreads = targetSpreadId === null ? [...p.spreads, { ...target, order: p.spreads.filter((s) => !s.isCover).length }] : p.spreads
     let changed = targetSpreadId === null
@@ -799,10 +801,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }
       if (next.length === s.placements.length && next.every((pl, i) => pl === s.placements[i])) return s
       changed = true
-      return { ...buildSpreadFromPlacements(next, s.pageSide, s), id: s.id, textBoxes: s.textBoxes, order: s.order }
+      const updated={ ...buildSpreadFromPlacements(next, s.pageSide, s), id: s.id, textBoxes: s.textBoxes, order: s.order }
+      if(s.id===target.id)movedSelection={spreadId:s.id,frameId:updated.placements[next.indexOf(placement)].placeholderId}
+      return updated
     })
     return changed ? { ...p, spreads } : p
-  }),
+    })
+    if(movedSelection)set({selectedSpreadId:movedSelection.spreadId,selectedPlaceholderId:movedSelection.frameId,selectedTextBoxId:null,selectedLayerKeys:[],multiSelectedPlaceholderIds:[]})
+  },
 
   insertTimelinePhotos: (photoIds, targetSpreadId, beforeFrameId) => withHistory(set, (p) => {
     const validIds = [...new Set(photoIds)].filter((id) => p.photos.some((photo) => photo.id === id))

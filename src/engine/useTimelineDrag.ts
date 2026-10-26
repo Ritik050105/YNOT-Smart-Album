@@ -1,7 +1,7 @@
 import { getPreferences } from '@/state/preferences'
 import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { draggedPhotoIds } from './photoDrag'
+import { draggedPhotoIds, overviewPhotoAt } from './photoDrag'
 
 export interface TimelineSource { spreadId?: string; frameId?: string; photoIds: string[] }
 export interface TimelineTarget { spreadId: string | null; beforeFrameId?: string; cover?: boolean; replace?: boolean }
@@ -67,8 +67,14 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
       if (!item) return
       const state = useProjectStore.getState()
       const spreadId = item.closest<HTMLElement>('[data-timeline-spread]')?.dataset.timelineSpread
-      const frameId = item.dataset.timelineFrame
-      if (item.hasAttribute('data-spread-drag') && spreadId) {
+      let frameId = item.dataset.timelineFrame
+      const spread = state.project.spreads.find(s=>s.id===spreadId)
+      if(item.hasAttribute('data-spread-drag')&&spread){
+        const r=item.getBoundingClientRect()
+        frameId=overviewPhotoAt(spread,event.clientX-r.left,event.clientY-r.top,r.width,r.height)?.placeholderId
+      }
+      if(frameId&&spread?.placements.find(p=>p.placeholderId===frameId)?.locked)return
+      if (item.hasAttribute('data-spread-drag') && spreadId && !frameId) {
         const src = item.querySelector('canvas')?.toDataURL()
         if (!src) return
         event.preventDefault()

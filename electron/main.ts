@@ -2,7 +2,7 @@ import { requireActivation } from './activation'
 import { app, BrowserWindow, ipcMain, dialog, Menu, screen, shell } from 'electron'
 import path from 'path'
 import { randomUUID } from 'crypto'
-import { findPhotoshop, findCanva, ExternalEditFiles } from './externalEdits'
+import { findPhotoshop, findCanva, findMacEditor, ExternalEditFiles } from './externalEdits'
 import fs from 'fs'
 import { execFile, spawn } from 'child_process'
 import { writeFileAtomic } from './files'
@@ -30,7 +30,7 @@ ipcMain.handle('export:revealLocation', async (_event, location: string) => {
 
 const isDev = !app.isPackaged
 app.setAppUserModelId('com.ynotphotography.albumstudio')
-const windowIcon = path.join(app.getAppPath(), 'build', 'icon.ico')
+const windowIcon = path.join(app.getAppPath(), 'build', process.platform==='darwin'?'icon.png':'icon.ico')
 ipcMain.handle('images:missingPaths', async (_event, paths: string[]) => {
   if (!Array.isArray(paths) || paths.length > 100000 || paths.some(p => typeof p !== 'string' || !path.isAbsolute(p))) throw new Error('Invalid image paths')
   const missing: string[] = []
@@ -43,7 +43,7 @@ ipcMain.handle('images:decodeTiff', (_event, data: Uint8Array) => decodeTiff(dat
 // Electron shows its own default File/Edit/View/Window/Help menu unless the app sets one
 // explicitly — that was rendering as a second, redundant menu bar above the app's own in-page
 // File/Edit/Spread/Templates/View/Help bar. The app owns all of that, so the native one is unset.
-Menu.setApplicationMenu(null)
+Menu.setApplicationMenu(process.platform==='darwin'?Menu.buildFromTemplate([{role:'appMenu'},{role:'editMenu'},{role:'windowMenu'}]):null)
 
 /** Match the reference's light, logo-only launch screen without delaying startup. */
 function createSplash(): BrowserWindow {
@@ -251,9 +251,14 @@ ipcMain.handle('window:closeSelf', (evt) => {
 })
 
 // Lists fonts actually installed on this machine, so the font picker reflects what's really
-// available rather than a hardcoded guess. Windows only for now (reads the registry via
-// PowerShell, read-only, no shell interpolation of user input).
+// available rather than a hardcoded guess, using read-only platform font inventories.
 ipcMain.handle('fonts:listLocal', async (): Promise<{ fonts: string[] }> => {
+  if(process.platform==='darwin')return new Promise(resolve=>{
+    execFile('/usr/sbin/system_profiler',['SPFontsDataType','-json'],{maxBuffer:16*1024*1024,timeout:30000},(error,stdout)=>{
+      if(error)return resolve({fonts:[]})
+      try {const entries=JSON.parse(stdout).SPFontsDataType??[];const fonts:string[]=entries.flatMap((entry:{typefaces?:{family?:string;_name?:string}[]})=>(entry.typefaces??[]).map(t=>t.family??t._name).filter((v):v is string=>typeof v==='string'&&!!v.trim()));resolve({fonts:[...new Set(fonts)].sort()})}catch{resolve({fonts:[]})}
+    })
+  })
   if (process.platform !== 'win32') return { fonts: [] }
 
   const script = `
@@ -315,9 +320,9 @@ ipcMain.handle('preferences:system', async (event, action: string, value?:string
   if(action==='clearCache'){await event.sender.session.clearCache();return event.sender.session.getCacheSize()}
   if(action==='choosePhotoshop'||action==='chooseCanva'){
     const editor=action==='chooseCanva'?'Canva':'Photoshop'
-    const result=await dialog.showOpenDialog({title:`Choose ${editor}`,properties:['openFile'],filters:[{name:editor,extensions:['exe']}]})
+    const result=await dialog.showOpenDialog({title:`Choose ${editor}`,properties:['openFile'],filters:[{name:editor,extensions:[process.platform==='darwin'?'app':'exe']}]})
     if(result.canceled)return null
-    const file=result.filePaths[0];if(path.basename(file).toLowerCase()!==editor.toLowerCase()+'.exe')throw new Error(`Choose ${editor}.exe from its installation folder.`)
+    const file=result.filePaths[0];if(process.platform==='darwin')return findMacEditor(editor,file,[]);if(path.basename(file).toLowerCase()!==editor.toLowerCase()+'.exe')throw new Error(`Choose ${editor}.exe from its installation folder.`)
     return file
   }
   if(action==='projectDirectory'){
@@ -338,7 +343,7 @@ ipcMain.handle('editor:open', async (_event,args:{app:string;photoshopPath:strin
   const file=path.join(folder,`${Date.now()}-${randomUUID().slice(0,8)}-${path.basename(name).replace(/[^a-z0-9_.-]/gi,'_')}`)
   writeFileAtomic(file,bytes)
   await externalEditFiles.register(file,_event.sender.id)
-  await new Promise<void>((resolve,reject)=>{const child=spawn(executable,[file],{detached:true,stdio:'ignore',windowsHide:true});child.once('error',reject);child.once('spawn',()=>{child.unref();resolve()})})
+  await new Promise<void>((resolve,reject)=>{const child=spawn(process.platform==='darwin'?'/usr/bin/open':executable,process.platform==='darwin'?['-a',executable,file]:[file],{detached:true,stdio:'ignore',windowsHide:true});child.once('error',reject);child.once('spawn',()=>{child.unref();resolve()})})
   return file
 })
 

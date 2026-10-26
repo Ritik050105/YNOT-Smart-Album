@@ -5,7 +5,7 @@ import { CSSProperties, Fragment, useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { useImportPhotos } from '@/engine/useImportPhotos'
 import { exportSingleSpreadToPdf } from '@/engine/exportAlbum'
-import { readDraggedPhotoIds, readTimelineFrame } from '@/engine/photoDrag'
+import { readDraggedPhotoIds, readTimelineFrame, overviewPhotoAt } from '@/engine/photoDrag'
 import { readDraggedPattern } from '@/engine/patterns'
 import { useTimelineDrag } from '@/engine/useTimelineDrag'
 import SpreadThumbnail from './SpreadThumbnail'
@@ -259,12 +259,12 @@ export default function SpreadsPanel() {
             <div data-spread-drag className={`spreads-panel__card ${selectedSpreadId === spread.id ? 'is-selected' : ''}`} style={{ aspectRatio: (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn }} onClick={e => {
               e.stopPropagation()
               const r = e.currentTarget.getBoundingClientRect()
-              const box = computePlaceholderBoxes(spread, r.width, r.height).reverse().find(b => e.clientX-r.left >= b.x && e.clientX-r.left <= b.x+b.width && e.clientY-r.top >= b.y && e.clientY-r.top <= b.y+b.height)
+              const box = overviewPhotoAt(spread,e.clientX-r.left,e.clientY-r.top,r.width,r.height)
               selectSpread(spread.id)
               if (box) useProjectStore.getState().selectPlaceholder(box.placeholderId)
             }} onContextMenu={e => {
               const r = e.currentTarget.getBoundingClientRect()
-              const box = computePlaceholderBoxes(spread, r.width, r.height).reverse().find(b => e.clientX-r.left >= b.x && e.clientX-r.left <= b.x+b.width && e.clientY-r.top >= b.y && e.clientY-r.top <= b.y+b.height)
+              const box = overviewPhotoAt(spread,e.clientX-r.left,e.clientY-r.top,r.width,r.height)
               if (!box && !spread.backgroundPattern) return
               e.preventDefault(); e.stopPropagation(); selectSpread(spread.id)
               setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: box?.placeholderId })
@@ -371,7 +371,7 @@ export default function SpreadsPanel() {
           </div>
           {index < spreads.length - 1 && <button className="timeline-boundary" aria-label={`Merge spread ${index + 1} with next spread`} title={`Remove cut after spread ${index + 1} (merge with next)`} onClick={() => mergeWithNext(spread.id)} />}
         </Fragment>)}
-        <div className="timeline-new-spread" data-new-spread onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const ids = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id)); if (ids.length) insertTimelinePhotos(ids, null); else void handleNewSpreadDrop(e.dataTransfer.files) }}>Drop images to add a spread</div>
+        <div className="timeline-new-spread" data-new-spread onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const ids = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id)); const frame=readTimelineFrame(e.dataTransfer); if(frame)moveTimelinePhoto(frame.spreadId,frame.frameId,null); else if (ids.length) insertTimelinePhotos(ids, null); else void handleNewSpreadDrop(e.dataTransfer.files) }}>Drop images to add a spread</div>
       </div>}
 
       {drag && <img className="timeline-drag-preview" src={drag.src} alt="" style={{ left: drag.x + 12, top: drag.y + 12 }} />}

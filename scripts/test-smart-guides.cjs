@@ -42,3 +42,16 @@ for(const axis of ['x','y']){
  units[2][axis]+=10;assert.equal(selectedSpacingGuides(units).length,0,'Unequal selections are not linked');
 }
 console.log('Shared selected-gap guides passed: both axes, unequal sizes, group keys and unequal-gap exclusion');
+
+for(const anchor of ['middle-right','middle-left','bottom-center','top-center','bottom-right','top-left']){
+ const horizontal=anchor.includes('left')||anchor.includes('right'),vertical=anchor.includes('top')||anchor.includes('bottom');
+ const original={x:470,y:330,width:118,height:78};const refs=[{x:100,y:100,width:120,height:80}];
+ const matched=snapRect(original,refs,1000,800,6,anchor);
+ if(horizontal)assert.equal(matched.rect.width,120);if(vertical)assert.equal(matched.rect.height,80);
+ if(anchor.includes('left'))assert.equal(matched.rect.x+matched.rect.width,original.x+original.width);
+ if(anchor.includes('top'))assert.equal(matched.rect.y+matched.rect.height,original.y+original.height);
+ assert.ok(matched.guides.some(g=>g.matches));
+}
+const free=snapRect({x:470,y:330,width:132,height:93},[{x:100,y:100,width:120,height:80}],1000,800,6,'bottom-right');
+assert.equal(free.rect.width,132);assert.equal(free.rect.height,93);assert.ok(!free.guides.some(g=>g.matches));
+console.log('Matching sizes passed: horizontal, vertical, corner anchors, fixed opposite edge and dragging past snap');

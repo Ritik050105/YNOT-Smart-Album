@@ -705,6 +705,7 @@ export default function DesignerCanvas() {
     return()=>{window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',finish);window.removeEventListener('keydown',key,true);window.removeEventListener('blur',cancel);gapDragRef.current=null}
   },[])
   useEffect(()=>{gapDragRef.current=null;setGapDrag(null)},[selectedSpreadId,selectedPlaceholderId,selectedTextBoxId,selectedLayerKeys,canvasTool,project.units])
+  const hasVisibleContent = !!spread && (spread.placements.some(p=>p.photoId&&!p.hidden) || spread.textBoxes.some(t=>!t.hidden&&t.text.trim()) || !!spread.backgroundPattern)
   function alignRect(rect:GuideRect, id?:string, anchor?:string, threshold=6/stageScale) {
     const keys=transformKeys.length?transformKeys:id?spreadLayers(spread!).filter(l=>l.id===id).map(l=>l.kind+':'+l.id):[]
     const result=snapRect({...rect,keys},guideTargets(keys),STAGE_WIDTH,stageHeight,threshold,anchor,showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH) : [],showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight) : [])
@@ -1123,7 +1124,7 @@ export default function DesignerCanvas() {
                       ? accent
                       : photo
                         ? '#ddd0bf'
-                        : '#c7b8a2'
+                        : hasVisibleContent ? '#c7b8a2' : undefined
                 }
                 strokeWidth={multiSelectedPlaceholderIds.includes(box.placeholderId) ? 2.5 : 1}
                 dash={[6, 5]}
@@ -1233,7 +1234,7 @@ export default function DesignerCanvas() {
           </>}
           {draftFrame && <Rect {...draftFrame} stroke={accent} strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />}
 
-            {spread.isCover && showPrintGuides && <>
+            {spread.isCover && showPrintGuides && hasVisibleContent && <>
               {coverGuide && <KonvaImage image={coverGuide} x={0} y={0} width={STAGE_WIDTH} height={stageHeight} opacity={0.45} listening={false} />}
               {spread.coverDetails && (() => {
                 const wrap = spread.coverDetails.wrapIn * STAGE_WIDTH / size.widthIn
@@ -1244,7 +1245,7 @@ export default function DesignerCanvas() {
                 </>
               })()}
             </>}
-          {showPrintGuides &&
+          {showPrintGuides && hasVisibleContent &&
             (() => {
               const pxPerIn = STAGE_WIDTH / size.widthIn
               const trimPx = edgeInsetToPx(size.trim, pxPerIn)
@@ -1283,7 +1284,7 @@ export default function DesignerCanvas() {
               )
             })()}
 
-          {!spread.isCover && spread.pageSide === 'spread' && <Line name="center-fold" points={[STAGE_WIDTH / 2, 0, STAGE_WIDTH / 2, stageHeight]} stroke="#dedede" strokeWidth={1} strokeScaleEnabled={false} listening={false} />}
+          {hasVisibleContent && !spread.isCover && spread.pageSide === 'spread' && <Line name="center-fold" points={[STAGE_WIDTH / 2, 0, STAGE_WIDTH / 2, stageHeight]} stroke="#dedede" strokeWidth={1} strokeScaleEnabled={false} listening={false} />}
 
           {showGuides &&
             spread.guides.vertical.map((pos, i) => (
@@ -1344,12 +1345,16 @@ export default function DesignerCanvas() {
         <Layer listening={false} name="located-text-highlight">{locatedText && <Rect name="located-text-outline" x={locatedText.x * STAGE_WIDTH} y={locatedText.y * stageHeight} width={locatedText.width * STAGE_WIDTH} height={locatedText.height * stageHeight} stroke={accent} strokeWidth={3 / stageScale} dash={[6 / stageScale, 4 / stageScale]} fill={accent+'1f'} />}</Layer>
         <Layer listening={false} name="selection-marquee">{marquee&&<Rect {...marquee} fill={accent+'1f'} stroke={accent} strokeWidth={1/stageScale}/>}</Layer>
         <Layer name="smart-guides">
-          {displayedGuides.map((g,i)=>g.segments?<Group key={i} name="equal-spacing-guide">{g.segments.map((s,j)=>{
+          {displayedGuides.map((g,i)=>g.matches?<Group key={i} name="matching-size-guide" listening={false}>{g.matches.map((r,j)=>{
+            const horizontal=g.axis==='x', x=horizontal?r.x:r.x+r.width+8/stageScale, y=horizontal?r.y-8/stageScale:r.y
+            const points=horizontal?[x,y,x+r.width,y]:[x,y,x,y+r.height]
+            return <Group key={j}><Rect {...r} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false}/><Line points={points} stroke="#423700" strokeWidth={4} strokeScaleEnabled={false}/><Line points={points} stroke="#ffcf33" strokeWidth={2} strokeScaleEnabled={false}/></Group>
+          })}</Group>:g.segments?<Group key={i} name="equal-spacing-guide">{g.segments.map((s,j)=>{
             const x=g.axis==='x',tick=4/stageScale
             const label=`${inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi)} ${project.units}`
             const labelWidth=(label.length*8+12)/stageScale
-            return <Group key={j}><Line listening={false} points={x?[s.from,g.position,s.to,g.position]:[g.position,s.from,g.position,s.to]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>{[s.from,s.to].map((p,tickIndex)=><Line listening={false} key={tickIndex} points={x?[p,g.position-tick,p,g.position+tick]:[g.position-tick,p,g.position+tick,p]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false}/>)}<KonvaText name="spacing-measurement" listening={canvasTool==='select'&&!!s.keys?.length} onMouseDown={e=>beginGapDrag(e,g,s)} onMouseEnter={e=>{e.target.getStage()!.container().style.cursor=g.axis==='x'?'ew-resize':'ns-resize'}} onMouseLeave={e=>{e.target.getStage()!.container().style.cursor=''}} onTouchStart={e=>{e.cancelBubble=true}} onClick={e=>{e.cancelBubble=true;if(suppressGapClick.current){suppressGapClick.current=false;return}if(s.keys){const pos=e.target.position();setGapEditor({axis:g.axis,keys:s.keys,x:pos.x,y:pos.y,previewBase:gapEditor?spread:undefined,dirty:gapEditor?.dirty,exactGap:(s.to-s.from)/(g.axis==='x'?STAGE_WIDTH:stageHeight),value:String(inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi))})}}} onTap={e=>{e.cancelBubble=true;if(s.keys){const pos=e.target.position();setGapEditor({axis:g.axis,keys:s.keys,x:pos.x,y:pos.y,previewBase:gapEditor?spread:undefined,dirty:gapEditor?.dirty,exactGap:(s.to-s.from)/(g.axis==='x'?STAGE_WIDTH:stageHeight),value:String(inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi))})}}} text={label} width={labelWidth} align="center" x={x?(s.from+s.to)/2-labelWidth/2:g.position+6/stageScale} y={x?g.position-17/stageScale:(s.from+s.to)/2-6/stageScale} fontSize={13/stageScale} fill="#9b59ff"/></Group>
-          })}</Group>:<Line listening={false} key={i} points={g.axis==='x'?[g.position,0,g.position,stageHeight]:[0,g.position,STAGE_WIDTH,g.position]} stroke="#9b59ff" strokeWidth={1} strokeScaleEnabled={false} />)}
+            return <Group key={j}><Line listening={false} points={x?[s.from,g.position,s.to,g.position]:[g.position,s.from,g.position,s.to]} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false}/>{[s.from,s.to].map((p,tickIndex)=><Line listening={false} key={tickIndex} points={x?[p,g.position-tick,p,g.position+tick]:[g.position-tick,p,g.position+tick,p]} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false}/>)}<KonvaText name="spacing-measurement" listening={canvasTool==='select'&&!!s.keys?.length} onMouseDown={e=>beginGapDrag(e,g,s)} onMouseEnter={e=>{e.target.getStage()!.container().style.cursor=g.axis==='x'?'ew-resize':'ns-resize'}} onMouseLeave={e=>{e.target.getStage()!.container().style.cursor=''}} onTouchStart={e=>{e.cancelBubble=true}} onClick={e=>{e.cancelBubble=true;if(suppressGapClick.current){suppressGapClick.current=false;return}if(s.keys){const pos=e.target.position();setGapEditor({axis:g.axis,keys:s.keys,x:pos.x,y:pos.y,previewBase:gapEditor?spread:undefined,dirty:gapEditor?.dirty,exactGap:(s.to-s.from)/(g.axis==='x'?STAGE_WIDTH:stageHeight),value:String(inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi))})}}} onTap={e=>{e.cancelBubble=true;if(s.keys){const pos=e.target.position();setGapEditor({axis:g.axis,keys:s.keys,x:pos.x,y:pos.y,previewBase:gapEditor?spread:undefined,dirty:gapEditor?.dirty,exactGap:(s.to-s.from)/(g.axis==='x'?STAGE_WIDTH:stageHeight),value:String(inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi))})}}} text={label} width={labelWidth} align="center" x={x?(s.from+s.to)/2-labelWidth/2:g.position+6/stageScale} y={x?g.position-17/stageScale:(s.from+s.to)/2-6/stageScale} fontSize={13/stageScale} fill="#2583ff"/></Group>
+          })}</Group>:<Line listening={false} key={i} points={g.axis==='x'?[g.position,0,g.position,stageHeight]:[0,g.position,STAGE_WIDTH,g.position]} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false} />)}
         </Layer>
         <Layer name="gap-anchor-picker">
           {pickedAnchor&&<Rect name="picked-gap-anchor" x={pickedAnchor.rect.x*STAGE_WIDTH} y={pickedAnchor.rect.y*stageHeight} width={pickedAnchor.rect.width*STAGE_WIDTH} height={pickedAnchor.rect.height*stageHeight} stroke={accent} strokeWidth={2/stageScale} dash={[5/stageScale,3/stageScale]} listening={false}/>}

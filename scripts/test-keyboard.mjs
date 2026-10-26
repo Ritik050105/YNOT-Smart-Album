@@ -23,6 +23,9 @@ const key=(key,shiftKey=false,target=null)=>listeners.get('keydown')({key,shiftK
 key('c');key('v');key('x');key('C',true);key('V',true)
 assert.deepEqual(calls,[['copy','spread','frame'],['paste','spread',['frame']],['cut','spread','frame'],['copy-tone','spread','frame'],['paste-tone','spread',['frame']]])
 calls.length=0
+listeners.get('keydown')({key:'c',shiftKey:false,ctrlKey:false,metaKey:true,target:null,preventDefault(){}})
+assert.deepEqual(calls,[['copy','spread','frame']],'Mac Command+C uses the same action')
+calls.length=0
 globalThis.HTMLElement=class {tagName='INPUT';isContentEditable=false}
 key('c',false,new HTMLElement())
 assert.deepEqual(calls,[],'Text fields retain their native clipboard')
