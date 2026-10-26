@@ -1,12 +1,34 @@
 import { createHash, verify } from 'crypto'
 import { execFileSync } from 'child_process'
 import path from 'path'
+import fs from 'fs'
+import os from 'os'
 
 export function deviceId(): string {
   if (process.platform === 'darwin') return macDeviceId(execFileSync('/usr/sbin/ioreg', ['-rd1', '-c', 'IOPlatformExpertDevice'], {encoding:'utf8',timeout:15000}))
   if (process.platform !== 'win32') throw new Error('Client activation supports Windows and macOS.')
   const script = String.raw`$ErrorActionPreference='Stop'; $u=(Get-CimInstance Win32_ComputerSystemProduct).UUID; $g=(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Cryptography').MachineGuid; Write-Output ($u+'|'+$g)`
-  const raw = execFileSync(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, timeout: 15000 }).trim().toLowerCase()
+  const system32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32')
+  try {
+    return windowsDeviceId(execFileSync(path.join(system32, 'WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, timeout: 15000 }))
+  } catch { /* Preserve the same identity when PowerShell is unavailable or crashes. */ }
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ynot-device-'))
+  try {
+    const file = path.join(directory, 'identity.js')
+    fs.writeFileSync(file, String.raw`var rows = new Enumerator(GetObject("winmgmts:\\\\.\\root\\cimv2").ExecQuery("SELECT UUID FROM Win32_ComputerSystemProduct"));
+if (rows.atEnd()) throw new Error("No computer UUID");
+var guid = new ActiveXObject("WScript.Shell").RegRead("HKLM\\SOFTWARE\\Microsoft\\Cryptography\\MachineGuid");
+WScript.Echo(rows.item().UUID + "|" + guid);`)
+    return windowsDeviceId(execFileSync(path.join(system32, 'cscript.exe'), ['//Nologo', '//E:JScript', file], { encoding: 'utf8', windowsHide: true, timeout: 15000 }))
+  } catch {
+    throw new Error('Windows could not read this PC identity through PowerShell or Windows Script Host. Ask your IT administrator to check Windows Management Instrumentation and script-host access. No license or project was changed.')
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}
+
+function windowsDeviceId(output: string): string {
+  const raw = output.trim().toLowerCase()
   const ids = raw.split('|')
   if (ids.length !== 2 || ids.some(id => !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id) || /^[0f-]+$/.test(id))) throw new Error('Windows could not identify this PC. Contact your administrator.')
   return createHash('sha256').update('ynot-album-studio:device:v1:' + raw).digest('hex')

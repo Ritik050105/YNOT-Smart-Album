@@ -5,8 +5,8 @@ cd "$(dirname "$0")"
 builds="${1:?Usage: bash PREPARE-OFFLINE-PACKAGES.command /path/to/YNOT-Mac-build-output}"
 count=0
 for arch in arm64 x64; do
-  client="$builds/01 - Employee Installation/YNOT Album Studio-0.1.5-$arch.dmg"
-  admin="$builds/02 - Owner Only - Private/YNOT-License-Admin-1.0.1-$arch.dmg"
+  client="$builds/01 - Employee Installation/YNOT Album Studio-0.1.6-$arch.dmg"
+  admin="$builds/02 - Owner Only - Private/YNOT-License-Admin-1.0.2-$arch.dmg"
   if [ ! -f "$client" ] && [ ! -f "$admin" ]; then continue; fi
   [ -f "$client" ] && [ -f "$admin" ] || { echo "Both DMGs are required for $arch." >&2; exit 1; }
   for role in 'Employee Mac' 'Owner Mac'; do

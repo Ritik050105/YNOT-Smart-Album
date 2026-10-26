@@ -1,7 +1,7 @@
 {
   "name": "ynot-album-studio",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Internal album design studio built for YNOT Photography",
   "main": "dist-electron/main.js",
   "author": "YNOT Photography",

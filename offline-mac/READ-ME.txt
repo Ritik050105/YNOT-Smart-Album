@@ -22,8 +22,8 @@ Do not use the earlier online build launcher if downloads are forbidden.
 From a completed local build output folder, run on that Mac:
   bash PREPARE-OFFLINE-PACKAGES.command "/path/to/YNOT-Mac-build-output"
 This copies only local files. It expects:
-  01 - Employee Installation/YNOT Album Studio-0.1.5-arm64.dmg
-  02 - Owner Only - Private/YNOT-License-Admin-1.0.1-arm64.dmg
+  01 - Employee Installation/YNOT Album Studio-0.1.6-arm64.dmg
+  02 - Owner Only - Private/YNOT-License-Admin-1.0.2-arm64.dmg
 Use x64 filenames for Intel. Run again with the other architecture's output
 if needed. It creates payload folders and SHA256 files for both installers.
 It does not build apps, sign apps, access the internet or handle private keys.
