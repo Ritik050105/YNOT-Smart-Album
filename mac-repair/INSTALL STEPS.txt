@@ -1,0 +1,51 @@
+YNOT EMPLOYEE MAC - SHARP PACKAGING REPAIR
+
+The supplied build contains two faults:
+1. ARM64 Sharp .node is inside ASAR, but its dylib is outside. Library loading fails.
+2. The Intel app contains ARM64-only Sharp dependencies. It cannot run correctly.
+Do not distribute the old DMGs in YNOT-Mac-arm64-test-x103sU.
+
+REPAIR ON THE SAME MAC WHERE THE SOURCE WAS ALREADY BUILT
+1. Copy this entire YNOT Mac Employee Repair folder from USB to the Mac Desktop.
+2. Keep the ORIGINAL Desktop/YNOT-Mac-Source with its node_modules and dist folders.
+   Do not replace it with a newly extracted source ZIP: that would lose the local
+   dependencies needed by this offline repair.
+3. Open Terminal. Run these exact commands (type hyphens normally):
+   node -v
+   node -p process.arch
+   cd "$HOME/Desktop/YNOT Mac Employee Repair"
+   bash REBUILD-EMPLOYEE.command
+4. Wait for "Repair and packaged image test passed". The repair reuses local
+   dependencies, makes a backup of package.json, and creates a new Desktop folder
+   named YNOT-Mac-arm64-fixed-... (or x64 on an Intel build Mac).
+   It does not install packages, use your private signing key, replace an installed
+   app, or modify projects/licenses. It verifies the package signature and runs
+   the packaged image library to encode/decode a small PNG before reporting success.
+5. If your source folder is elsewhere, use:
+   bash REBUILD-EMPLOYEE.command "/full/path/to/YNOT-Mac-Source"
+If any step fails, stop and send the COMPLETE error. Do not distribute partial output.
+
+INSTALL
+1. Quit Album Studio. Eject any old YNOT installer disks in Finder.
+2. Open the DMG from the NEW fixed output folder.
+3. Drag YNOT Album Studio.app into Applications. Confirm replacing the old app.
+   Do not delete its Application Support folder or your album projects.
+4. Eject the DMG. Launch Applications > YNOT Album Studio (not an old Dock shortcut
+   or the app from the old build folder). Replace an old Dock shortcut if necessary.
+5. Import this Mac's existing license, or copy the activation PC ID to the owner's
+   License Admin and generate/import that Mac's license JSON. Existing device IDs
+   and license verification have not changed.
+6. Test import photos, save/reopen an album and export a PNG/PDF before rollout.
+
+ARCHITECTURE
+Apple menu > About This Mac: Apple M-series = arm64; Intel processor = x64.
+This repair builds only for the native architecture of the build Mac.
+Do not use Rosetta to build the other architecture. The old x64 DMG is not fixed
+by an ARM64 rebuild. Intel deployment requires a native Intel Mac build with its
+own Intel dependencies. Fresh dependency setup is NOT provided by this offline repair.
+
+SIGNING AND TEST LIMITS
+This remains an ad-hoc signed local test build, not an Apple-notarized release.
+Managed Macs may need IT approval. Do not disable Gatekeeper or other protections.
+Windows inspection confirmed the packaging defect; actual Mac execution must pass
+on your Mac. No pre-fixed DMG is supplied here because rebuilding/signing requires macOS.

@@ -54,13 +54,7 @@
     },
     "mac": {
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
+        "dmg"
       ],
       "icon": "build/icon.png",
       "category": "public.app-category.photography",
@@ -75,6 +69,10 @@
         "from": "build/icon.ico",
         "to": "ynot-app.ico"
       }
+    ],
+    "asarUnpack": [
+      "node_modules/sharp/**/*",
+      "node_modules/@img/**/*"
     ]
   },
   "scripts": {

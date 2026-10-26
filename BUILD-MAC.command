@@ -40,6 +40,9 @@ owner="$out/02 - Owner Only - Private"
 mkdir -p "$client" "$owner"
 npx --no-install electron-builder --mac "--$arch" --publish never "--config.directories.output=$client" "${signing[@]}"
 node scripts/build-license-admin.cjs "$owner" --publish never "${signing[@]}"
+if [ "$arch" = arm64 ]; then appfolder=mac-arm64; else appfolder=mac; fi
+bundle="$client/$appfolder/YNOT Album Studio.app"
+ELECTRON_RUN_AS_NODE=1 "$bundle/Contents/MacOS/YNOT Album Studio" "$PWD/scripts/test-packaged-sharp.cjs" "$bundle/Contents/Resources/app.asar" "$arch"
 if [ "$mode" = signed ]; then
   for dir in "$client" "$owner"; do
     for bundle in "$dir"/mac*/*.app; do
