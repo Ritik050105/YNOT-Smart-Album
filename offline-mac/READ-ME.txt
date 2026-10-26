@@ -1,0 +1,43 @@
+OFFLINE MAC INSTALLERS - STATUS AND PREPARATION
+
+CURRENT STATUS: SCRIPTS READY; MAC APPLICATION DMGs ARE MISSING.
+This folder is NOT yet a ready-to-install Mac release. There are no local Mac
+binaries on the Windows PC. A .command file cannot turn a Windows EXE into a Mac
+app. No downloads or external source will be used by these installer scripts.
+
+FOLDERS
+Owner Mac: Install Owner.command installs Album Studio + License Admin.
+Employee Mac: Install Employee.command installs Album Studio only.
+Each folder is independent; only give the Employee Mac folder to employees.
+Owner licensing files remain in the original USB's 02 - Owner Only - Private.
+They are deliberately not copied by the installers.
+
+BEFORE USE (INSTALLER/DEVELOPER ONLY)
+Obtain locally built and tested DMGs from the existing YNOT source on a Mac.
+A completely offline BUILD additionally needs the Mac-compatible Node/npm,
+Electron, native libraries and build tools already installed/cached on that Mac.
+The current kit does not contain that complete offline Mac build environment.
+Do not use the earlier online build launcher if downloads are forbidden.
+
+From a completed local build output folder, run on that Mac:
+  bash PREPARE-OFFLINE-PACKAGES.command "/path/to/YNOT-Mac-build-output"
+This copies only local files. It expects:
+  01 - Employee Installation/YNOT Album Studio-0.1.5-arm64.dmg
+  02 - Owner Only - Private/YNOT-License-Admin-1.0.1-arm64.dmg
+Use x64 filenames for Intel. Run again with the other architecture's output
+if needed. It creates payload folders and SHA256 files for both installers.
+It does not build apps, sign apps, access the internet or handle private keys.
+
+INSTALL (OWNER OR EMPLOYEE)
+Copy the appropriate whole folder to the Mac. Double-click its .command file.
+If USB permissions prevent double-clicking, open Terminal, type bash followed
+by a space, drag the .command file into Terminal, and press Return.
+Example: bash "/Volumes/YNOT USB/Employee Mac/Install Employee.command"
+The script chooses Apple Silicon or Intel automatically. Missing packages stop
+installation before copying any apps. No administrator password is required:
+apps go to ~/Applications for the current account, not the system /Applications.
+Licensing is manual; follow OFFLINE LICENSE STEPS.txt in the same folder.
+
+Test both installers and licensing on a real Mac before office rollout.
+Only syntax, command routing and missing-payload handling can be checked here
+on Windows. Actual Mac copy/mount/launch checks remain pending.

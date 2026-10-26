@@ -1,0 +1,43 @@
+OFFLINE LICENSE STEPS
+
+OWNER MAC
+1. Run Install Owner.command. It installs Album Studio and License Admin into
+   your Home/Applications folder, without downloading anything.
+2. Open License Admin there. Click Choose signing key and select the EXISTING
+   signing-private.pem from your private owner USB folder. Do not create a new key.
+3. If moving the admin to this Mac, use Restore backup and select the included
+   Mac-transfer-license-backup-2026-10-26.json. Review and confirm. Restore once
+   before issuing licenses. If more licenses have since been issued, use a fresh
+   backup from the active admin instead. Keep only one authoritative offline admin.
+4. On the employee Mac, open Album Studio and copy the activation computer ID.
+   Bring it to the owner via USB/text. No internet or remote ID lookup is needed.
+5. Enter Employee name and paste THAT employee computer's ID in License Admin.
+   Detect this computer reads the owner's Mac ID when run on the owner Mac.
+6. Click Generate and save license. Transfer only the generated JSON to the
+   employee. Do not transfer License Admin, the signing key or history backup.
+7. Back up history & files after issuance. Back up the private key separately.
+   Choose the signing key again after restarting, or place it in the owner's
+   ~/.ynot-licensing/signing-private.pem location for automatic detection.
+8. If the owner also uses Album Studio, issue a separate license for the owner's
+   Mac ID. Installing the admin tool does not activate Album Studio automatically.
+
+EMPLOYEE MAC
+1. Run Install Employee.command. Open Album Studio in Home/Applications.
+2. Copy its computer ID to the owner and obtain the matching license JSON.
+3. Choose the license-import option on the activation screen and select the JSON.
+4. Quit/reopen Album Studio while offline. Check a sample album, save and export.
+5. Keep a backup of your license. It is bound to this computer; copying it to a
+   different Mac will not activate that other Mac. Reimport on the same computer
+   is allowed. Hardware changes may require a new license.
+
+INSTALLATION NOTES
+The scripts only use local DMGs and macOS built-in tools. No Node, npm, Xcode,
+cloud service, network activation or downloads are used by these installers.
+They do not create/import licenses automatically and do not modify project data.
+An existing app in Home/Applications is not overwritten: quit and rename the old
+app in Finder before rerunning. Do not run the old and new versions together.
+Signed/notarized DMGs with stapled tickets are preferable for offline deployment.
+macOS may independently perform Gatekeeper checks or require IT approval. These
+scripts do not disable security controls, remove quarantine or bypass warnings.
+The installer verifies file integrity/signatures; checksums alone do not prove
+publisher identity. Use only the studio's trusted local packages.
