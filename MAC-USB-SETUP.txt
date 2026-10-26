@@ -1,0 +1,145 @@
+YNOT MAC SETUP - BUILD, INSTALL AND ACTIVATE
+Client 0.1.5 / License Admin 1.0.1 - prepared 26 October 2026
+
+IMPORTANT: THIS IS A BUILD KIT, NOT PREBUILT MAC INSTALLERS.
+Build and acceptance testing must happen on a real Mac. Windows EXEs will not
+run on macOS. The same license issuer key works for both Windows and Mac.
+
+1. WHAT TO COPY TO THE USB
+Copy the entire "YNOT USB Setup - 26 October 2026" folder, including:
+  01 - Employee Installation: existing Windows installer (not for Mac).
+  02 - Owner Only - Private: owner admin EXE, original signing-private.pem,
+       setup notes and Mac-transfer-license-backup-2026-10-26.json.
+  03 - Mac Build - Owner Only: this guide, source ZIP and Node.js installer.
+Keep the USB with the owner/installer. Never give the whole USB to employees.
+Employees receive only their matching Album Studio DMG and own license JSON.
+The source ZIP contains PUBLIC verification keys, no private signing key.
+The license-history backup includes signed licenses, not the private key.
+One existing history record was backed up and validated when this kit was made.
+If more licenses are issued later, export a fresh backup before moving admins.
+
+2. PREPARE THE BUILD MAC (ONCE)
+Use a Mac with a currently supported macOS, internet, and at least 10 GB of
+free working space. This is a planning allowance, not a measured disk limit.
+Apple menu > About This Mac:
+  Chip: Apple M1/M2/M3/etc. = Apple Silicon (arm64).
+  Processor: Intel = x64.
+Build on each architecture used in the office. Do not use Rosetta Terminal
+or Intel Node on an Apple Silicon build Mac. No cross-build is promised here.
+
+Copy YNOT-Mac-Source.zip from this folder to the Mac Desktop. Double-click it;
+you should get Desktop/YNOT-Mac-Source. Build on the Mac's local disk, not USB
+or NAS. Keep the private key outside this source directory.
+Install Prerequisites/node-v22.23.4.pkg (official Node.js installer included).
+Open Terminal and run:
+  xcode-select --install
+Complete Apple's Command Line Tools installer. If it says already installed,
+continue. Restart Terminal after installing Node. Then run:
+  node --version
+  node -p process.arch
+Expect Node 22 or newer and arm64 on Apple Silicon / x64 on Intel.
+The script downloads npm packages and Electron; first build needs internet.
+Ordinary employee Macs do NOT need Node.js, Xcode or the source code.
+
+3. BUILD BOTH APPS FOR A LOCAL TEST (NO APPLE DEVELOPER ACCOUNT)
+In Terminal:
+  cd "$HOME/Desktop/YNOT-Mac-Source"
+  bash BUILD-MAC.command test
+This installs locked dependencies, compiles the app, runs license/backup
+checks, and builds both DMGs for the current Mac architecture. It uses an
+ad-hoc signature for local testing, NOT a trusted Developer ID signature.
+It never installs either app automatically or reads your license signing key.
+
+Success prints a NEW Desktop folder such as:
+  YNOT-Mac-arm64-test-XXXXXX/
+    01 - Employee Installation/YNOT Album Studio-0.1.5-arm64.dmg
+    02 - Owner Only - Private/YNOT-License-Admin-1.0.1-arm64.dmg
+    DMG-SHA256.txt
+Intel files end in x64. Additional build files are not employee installers.
+If any step fails, stop; do not distribute partial output. Keep the error
+text and tell the developer. Never delete a lockfile or replace the issuer key.
+
+For your own verified local test build, macOS may show an unverified-developer
+warning. Try opening once, then System Settings > Privacy & Security > Open
+Anyway, if offered. Managed Macs may require IT approval. Do not disable
+Gatekeeper globally or remove security protections. If macOS says the app is
+damaged or harmful, stop and investigate; do not treat that as a normal prompt.
+See Apple's guide: https://support.apple.com/en-us/102445
+
+4. BUILD FOR NORMAL OFFICE DISTRIBUTION (RECOMMENDED)
+Use an Apple Developer account with Developer ID distribution access. On the
+build Mac, install a Developer ID Application certificate AND its private key
+in Keychain Access. This Apple certificate is separate from YNOT's offline
+license signing-private.pem. Never put Apple credentials in this USB/source.
+Install Xcode/Command Line Tools with notarytool available.
+In Terminal, create a Keychain profile interactively (do not paste secrets into
+chat or put passwords in a script):
+  xcrun notarytool store-credentials "YNOT-notary"
+Follow Apple's prompts for the account, app-specific password and Team ID.
+Then, in that Terminal:
+  export APPLE_KEYCHAIN_PROFILE="YNOT-notary"
+  cd "$HOME/Desktop/YNOT-Mac-Source"
+  bash BUILD-MAC.command signed
+This requires Developer ID signing, submits both app bundles for notarization,
+and verifies signatures, stapled tickets and Gatekeeper assessment. If signing
+or notarization fails, the build stops. Fix the reported issue and rerun.
+Do not use the test output as though it is a signed distribution build.
+
+The success folder is Desktop/YNOT-Mac-<arch>-signed-XXXXXX. Copy the two DMGs
+to separate employee and owner folders on the USB. Keep arm64/x64 filenames.
+On an Intel Mac repeat the build for x64, if the office uses Intel machines.
+You only need to build once per supported architecture, not on every employee
+Mac. Keep an archive of the successful source/version and DMG checksums.
+Apple signing reference: https://www.electronjs.org/docs/latest/tutorial/code-signing
+
+5. INSTALL THE OWNER ADMIN TOOL AND RESTORE HISTORY
+On the OWNER'S Mac only:
+- Double-click the matching YNOT-License-Admin DMG.
+- Drag YNOT License Admin.app into Applications. Eject the DMG.
+- Open it from Applications (not inside the mounted DMG).
+- Put the original signing-private.pem in a PRIVATE, local owner folder.
+  Use Choose signing key in the admin app to select it. Choose it after each
+  restart, or put it at ~/.ynot-licensing/signing-private.pem for auto-detection.
+- Click Restore backup and select Mac-transfer-license-backup-2026-10-26.json
+  from the USB owner folder. Review the preview; confirm Restore only when
+  records are correct. Restore copies licenses and rewrites paths for this Mac.
+  Do not copy the raw Windows license-history.json into Mac Application Support.
+- Use ONE authoritative admin computer. Offline admin histories do not sync.
+  If the owner switches from Windows to Mac, stop issuing on the Windows admin
+  until a fresh backup is restored there. This prevents divergent records.
+- Back up history & files after issuing licenses, plus a separate protected
+  backup of signing-private.pem. Losing the key prevents issuing new licenses.
+
+6. INSTALL AND ACTIVATE EACH EMPLOYEE MAC
+- Open the matching Album Studio DMG, drag YNOT Album Studio.app to Applications,
+  eject the DMG, and open the app from Applications.
+- Copy the computer ID from THAT Mac's activation screen.
+- On the owner admin Mac, enter Employee name and paste that computer ID.
+  "Detect this computer" identifies the computer RUNNING the admin tool;
+  it cannot fetch a remote employee Mac's ID.
+- Generate and save the license. Transfer only that employee's license JSON.
+- Import it in Album Studio on the employee Mac. Quit and reopen to confirm.
+The same license file can reactivate its assigned computer; copying it to a
+different computer will not activate that computer. This is device binding,
+not a guarantee against a determined attacker modifying application binaries.
+No offline solution provides instantaneous remote revocation or prevents all
+copying. A hardware replacement can require issuing a license for a new ID.
+
+7. REQUIRED MAC ACCEPTANCE BEFORE OFFICE ROLLOUT
+Use a temporary album on each supported Mac architecture:
+- Owner admin Detect ID equals Album Studio's ID on that same Mac.
+- Issue/activate a license; relaunch offline. Reject a different-Mac license.
+- Check duplicate prevention, history search, Finder reveal and backup/restore.
+- Import real photos, save/reopen, and export an image/PDF.
+- Select and move a photo to an empty spread; Command+Z and Command+Shift+Z.
+- Resize near another photo's width/height: blue/yellow size guides and snap;
+  drag beyond the threshold and confirm free resize resumes.
+- Empty Designer spreads should have no permanent print/frame outlines.
+- Check fonts, Command copy/paste, trackpad, Retina display and window sizing.
+- Check Finder/Dock icons and opening both apps after ejecting their DMGs.
+Only distribute after these pass. These checks have NOT been run on a Mac yet.
+The Windows installed app and license tests already passed separately.
+
+Source lockfile, not newer online examples, determines build-tool options.
+Node installer source: https://nodejs.org/dist/v22.23.4/
+Installer SHA256 is recorded in Prerequisites/NODE-SHA256.txt.

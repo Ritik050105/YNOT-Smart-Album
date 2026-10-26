@@ -13,7 +13,7 @@ Use a matching-architecture build machine for native dependencies.
 The existing macOS configuration supports separate Intel and Apple Silicon DMGs.
 For client distribution, configure an Apple Developer ID signing identity and
 notarization in the macOS build environment. Do not put credentials in this repo.
-See https://www.electron.build/code-signing-mac.html for the signing workflow.
+See https://www.electronjs.org/docs/latest/tutorial/code-signing for the signing workflow.
 
 Acceptance checks on each supported Mac architecture:
 - Launch the packaged app and copy its device ID. Generate its signed license
@@ -51,3 +51,5 @@ license for either platform by pasting the employee computer's ID.
 Keep the admin app, signing key and license backup with the studio owner only.
 The current USB contains Windows executables; it is NOT a finished Mac kit.
 A real Mac build, signing/notarization and acceptance run are still required.
+
+For the USB build launcher and full owner migration flow, use MAC-USB-SETUP.txt.

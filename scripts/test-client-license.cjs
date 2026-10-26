@@ -16,7 +16,7 @@ assert.throws(()=>validateLicense(envelope(payload,generateKeyPairSync('ed25519'
 const tampered=JSON.parse(good);tampered.payload=Buffer.from(JSON.stringify({...payload,client:'Tampered'})).toString('base64');
 assert.throws(()=>validateLicense(JSON.stringify(tampered),device,pub));
 for(const raw of ['{','null','{}','x'.repeat(16385)])assert.throws(()=>validateLicense(raw,device,pub));
-if(process.platform==='win32'){const id=deviceId();assert.match(id,/^[a-f0-9]{64}$/);assert.equal(deviceId(),id)}
+if(['win32','darwin'].includes(process.platform)){const id=deviceId();assert.match(id,/^[a-f0-9]{64}$/);assert.equal(deviceId(),id)}
 console.log('Offline license: valid signature accepted; wrong PC, wrong issuer, tampering, invalid input rejected; device identity stable.');
 
 const {macDeviceId}=require('../dist-electron/license');
