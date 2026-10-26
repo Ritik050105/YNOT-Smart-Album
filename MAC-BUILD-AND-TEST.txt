@@ -17,7 +17,7 @@ See https://www.electron.build/code-signing-mac.html for the signing workflow.
 
 Acceptance checks on each supported Mac architecture:
 - Launch the packaged app and copy its device ID. Generate its signed license
-  using the existing owner-only Windows admin tool; import it and relaunch.
+  using the owner-only admin tool; import it and relaunch.
 - Reject a license issued for another machine. Never ship the private signing key.
 - Import photos, select and drag a photo into an empty spread; Undo and Redo.
 - Resize a photo near a reference width/height: blue outlines and yellow size
@@ -30,4 +30,24 @@ Acceptance checks on each supported Mac architecture:
 - Verify Dock/Finder icons, quit/reopen behavior, and signed/notarized installation.
 
 Windows PC IDs are unchanged, so existing valid Windows licenses remain valid.
-The license admin utility remains Windows-only; it can issue a Mac device license.
+Owner-only License Admin (Windows and macOS):
+  npm run dist:admin
+Run on a Mac to produce a DMG for that Mac's architecture (Intel x64 or Apple
+Silicon arm64). Run on Windows to produce the portable Windows EXE. Outputs
+are in admin-license/release. Build separately on each target architecture.
+The application uses the same signed-license format on both platforms. Detect
+this computer reads the Mac hardware UUID or Windows hardware identity.
+The admin DMG must be signed and notarized for client distribution too.
+
+On the owner Mac, install the admin app in Applications. Choose signing key
+and select the existing owner-only signing-private.pem (never generate a new
+key for this deployment). Restore the license backup through the app, rather
+than copying raw history JSON: restore rewrites file paths for the local OS.
+Verify Detect this computer agrees with Album Studio on the same Mac, issue
+and activate a test license, test duplicate rejection, backup/restore preview,
+Finder reveal, and Command+C/V in the PC ID field. A Mac admin can issue a
+license for either platform by pasting the employee computer's ID.
+
+Keep the admin app, signing key and license backup with the studio owner only.
+The current USB contains Windows executables; it is NOT a finished Mac kit.
+A real Mac build, signing/notarization and acceptance run are still required.

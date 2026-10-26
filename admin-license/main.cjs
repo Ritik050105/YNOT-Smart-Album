@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('path');
 const { readSigningKey, issueLicense, readIssuedLicense } = require('./issuer.cjs');
 const { readHistory, rememberLicense } = require('./history.cjs');
@@ -17,7 +17,7 @@ function keyStatus() {
 function registerHandlers() {
   ipcMain.handle('admin:detect-pc', () => {
     try { return { deviceId: require('./device-license.cjs').deviceId() }; }
-    catch { return { error: 'Could not identify this Windows PC. Your entered PC ID was kept. Try again or copy the ID from Album Studio.' }; }
+    catch { return { error: 'Could not identify this computer (Windows or Mac). Your entered PC ID was kept. Try again or copy the ID from Album Studio.' }; }
   });
   ipcMain.handle('admin:backup', async () => {
     if (issuing) return { error: 'Finish the current operation first.' };
@@ -113,9 +113,10 @@ function registerHandlers() {
 if (!app.requestSingleInstanceLock()) app.quit();
 else app.whenReady().then(() => {
   registerHandlers();
+  if (process.platform === 'darwin') Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]));
   win = new BrowserWindow({ width: 680, height: 760, minWidth: 540, minHeight: 600, title: 'YNOT License Admin', autoHideMenuBar: true, backgroundColor: '#f3f6fc', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false } });
   win.webContents.on('did-start-navigation', () => { if (pendingRestore) { pendingRestore = null; issuing = false; } });
-  win.setMenu(null);
+  if (process.platform !== 'darwin') win.setMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
   win.loadFile(path.join(__dirname, 'index.html'));
