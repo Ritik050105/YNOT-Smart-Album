@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 finish() { printf '\nPress Return to close. '; read -r _ || true; }
 trap 'echo "Installation stopped. Read the message above." >&2; finish' ERR
 if [ "$(uname -s)" != Darwin ]; then echo 'This installer runs only on macOS.' >&2; exit 1; fi
-role="$(cat INSTALL-ROLE.txt)"
+role="$(tr -d '\r' < INSTALL-ROLE.txt)"
 case "$role" in
   owner) apps=('YNOT Album Studio' 'YNOT License Admin') ;;
   employee) apps=('YNOT Album Studio') ;;
