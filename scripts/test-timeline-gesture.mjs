@@ -3,11 +3,17 @@ import { build } from 'esbuild'
 
 const effects=[]
 globalThis.__gestureEffects=effects
-const bundle=await build({stdin:{contents:`export {useTimelineDrag} from './src/engine/useTimelineDrag'; export {useProjectStore} from './src/state/projectStore'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,plugins:[{
+const bundle=await build({stdin:{contents:`export {useTimelineDrag} from './src/engine/useTimelineDrag'; export {useProjectStore} from './src/state/projectStore'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,loader:{'.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'},plugins:[{
   name:'hook-lifecycle', setup(build) {
-    build.onResolve({filter:/^react$/},()=>({path:'react',namespace:'hook-test'}))
+ build.onResolve({filter:/^react\/jsx-runtime$/},()=>({path:'jsx',namespace:'jsx-test'}))
+ build.onLoad({filter:/.*/,namespace:'jsx-test'},()=>({contents:'export const Fragment=Symbol();export const jsx=()=>null;export const jsxs=()=>null;'}))
+ build.onResolve({filter:/^react-dom$/},()=>({path:'portal',namespace:'portal-test'}))
+ build.onLoad({filter:/.*/,namespace:'portal-test'},()=>({contents:'export const createPortal=()=>null;'}))
+    build.onResolve({filter:/^react-dom\/client$/},()=>({path:'client',namespace:'client-test'}))
+ build.onLoad({filter:/.*/,namespace:'client-test'},()=>({contents:'export const createRoot=()=>({render(){},unmount(){}});'}))
+ build.onResolve({filter:/^react$/},()=>({path:'react',namespace:'hook-test'}))
     build.onLoad({filter:/.*/,namespace:'hook-test'},()=>({contents:`
-      export const useRef=(current)=>({current});
+      export const useMemo=(fn)=>fn();export const useCallback=(fn)=>fn;export const useSyncExternalStore=(sub,get)=>get();export const useRef=(current)=>({current});
       export const useState=(value)=>[value,()=>{}];
       export const useEffect=(effect)=>globalThis.__gestureEffects.push(effect);
       export default {};
@@ -27,6 +33,7 @@ class Item {
   hasAttribute(name) {return name==='data-spread-drag'&&this.isSpread}
   setPointerCapture(id) {this.captured=id}
   getBoundingClientRect() {return {left:0,right:100,top:0,bottom:100,width:100}}
+  querySelector() {return null}
   querySelectorAll() {return this.children??[]}
 }
 globalThis.Element=Item
@@ -35,7 +42,8 @@ const first=new Item({timelineFrame:'frame-1'})
 first.matches['[data-timeline-frame]']=first
 first.matches['[data-timeline-spread]']=column
 column.children=[first,new Item({timelineFrame:'frame-2'})]
-const viewport=new Item()
+column.children[1].getBoundingClientRect=()=>({left:110,right:210,top:0,bottom:100,width:100})
+const viewport=Object.assign(new Item(),{scrollWidth:200,clientWidth:100})
 const dock=new Item({dockPhoto:'photo-1'})
 dock.matches['[data-timeline-frame], [data-dock-photo], [data-spread-drag]']=dock
 const button=new Item()

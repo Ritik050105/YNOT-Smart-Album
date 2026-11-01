@@ -1,3 +1,8 @@
+import {cyclingTemplates} from './templateBrowsing'
+import {EditedPsdLayer} from '@/engine/importEditedPsd'
+import {askTemplateCategory} from '@/components/ClassifyTemplate'
+import {classifyTemplates,recordTemplateUse} from '@/engine/templateCollections'
+import {snapRect} from '@/engine/smartGuides'
 import { fitTextBoxSize } from '@/engine/textBoxSize'
 import { spreadLayers, layerMembers, transformLayerSelection, arrangeLayerSelection, LayerAlignment, LayerAlignmentTarget, GapAnchor } from '@/engine/spreadLayers'
 import { changesLockedLayer } from '@/engine/layerLocks'
@@ -21,7 +26,7 @@ import {
 } from '@/engine/autoLayout'
 import { BUILT_IN_TEMPLATES, uniqueTemplates, findTemplate, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
-import { blobUrlToDataUrl } from '@/engine/projectFile'
+import { previewSource } from '@/engine/previewImage'
 import { computeAutoAdjust } from '@/engine/autoAdjust'
 import { validateCoverSize } from '@/engine/cover'
 import { DESIGN_WIDTH, boundedFrameRect, computePlaceholderBoxes } from '@/engine/layoutMath'
@@ -215,7 +220,8 @@ interface ProjectState {
   /** Canvas interaction mode — "pan" sticks the canvas in pan-and-drag mode (the TopBar's hand-tool
    *  button) as an alternative to holding Space, matching the reference app's Select/Pan toolbar
    *  icons. */
-  canvasTool: 'select' | 'pan' | 'frame' | 'text' | 'zoom'
+  drawingShape: 'rectangle' | 'circle' | 'triangle'
+  canvasTool: 'select' | 'pan' | 'frame' | 'shape' | 'shape-outline' | 'line' | 'text' | 'zoom'
   /** The Templates menu's frame-ratio filter (All/no-square/only-3x2) — shared between the menu
    *  bar and the Inspector's "Smart Grid Suggestions" picker so both reflect the same choice. */
   templateFrameFilter: TemplateFrameFilter
@@ -238,11 +244,12 @@ interface ProjectState {
    *  a dedicated zoomed-in editing mode with its own ruler and tool rail, separate from the
    *  overview's row of spread cards. */
   designerViewSpreadId: string | null
+  templateBrowseKind: 'image' | 'mixed'
   matchingTemplatesOpen: boolean
   fontPreview: { textBoxId: string; family: string } | null
   templatePreview: Spread | null
   favoriteTemplateIds: string[]
-  openMatchingTemplates: (spreadId: string) => void
+  openMatchingTemplates: (spreadId: string, kind?: 'image' | 'mixed') => void
   closeMatchingTemplates: () => void
   previewMatchingTemplate: (templateId: string | null, keepOrder?: boolean, scope?: TemplateScope) => void
   toggleTemplateFavorite: (templateId: string) => void
@@ -255,7 +262,7 @@ interface ProjectState {
   /** The Auto Build dialog's "Auto Build" button — appends new spreads built from `groups`
    *  (each a photo-id array, one per new spread) to the END of the existing album, leaving any
    *  spreads already there untouched. Unlike `runAutoBuild`, which replaces the whole album. */
-  runAutoBuildFromGroups: (groups: string[][], opts?: { allowTemplateRepeats?: boolean; matchTimelineOrder?: boolean; templateReuse?: 'low' | 'medium' | 'high' }) => void
+  runAutoBuildFromGroups: (groups: string[][], opts?: { groupDesigns?: {templateIds:string[];textBoxes?:TextBox[]}[]; enabledTemplateIds?: string[]; allowTemplateRepeats?: boolean; matchTimelineOrder?: boolean; templateReuse?: 'low' | 'medium' | 'high' }) => void
   selectSpread: (id: string | null) => void
   selectPlaceholder: (id: string | null) => void
   selectTextBox: (id: string | null) => void
@@ -286,7 +293,7 @@ interface ProjectState {
    *  project (which starts clean relative to its own just-loaded/just-created state). */
   markSaved: () => void
   setCurrentFilePath: (path: string | null) => void
-  setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'text' | 'zoom') => void
+  setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'shape' | 'shape-outline' | 'line' | 'text' | 'zoom') => void
   setTemplateFrameFilter: (f: TemplateFrameFilter) => void
   toggleShowPhotoFileNames: () => void
   enterDesignerView: (spreadId: string) => void
@@ -302,6 +309,8 @@ interface ProjectState {
   reorderSpreads: (fromIndex: number, toIndex: number) => void
   splitSpread: (spreadId: string, cutIndex?: number) => void
   moveTimelinePhoto: (sourceSpreadId: string, frameId: string, targetSpreadId: string | null, beforeFrameId?: string) => void
+  removePoolPhoto: (photoId:string) => void
+  removePoolPhotos: (photoIds:string[]) => void
   insertTimelinePhotos: (photoIds: string[], targetSpreadId: string | null, beforeFrameId?: string) => void
   mergeWithNext: (spreadId: string) => void
   flipSpread: (spreadId: string) => void
@@ -317,9 +326,11 @@ interface ProjectState {
   applyBackgroundToAllSpreads: (spreadId: string, pattern?: Spread['backgroundPattern']) => void
   makePhotoBackground: (spreadId: string, frameId: string) => void
   detachBackground: (spreadId: string) => void
+  applyExternalPsd: (spreadId: string, layers: EditedPsdLayer[]) => void
   applyExternalSpread: (spreadId: string, photo: PhotoAsset) => void
   relinkPhoto: (photoId: string, replacement: PhotoAsset) => void
   addImageFrame: (spreadId: string, rect: { x: number; y: number; width: number; height: number }, photoId?: string) => void
+  addImageFrames: (spreadId: string, rect: { x: number; y: number; width: number; height: number }, photoIds: string[], replaceFrameId?: string) => void
   updateImageFrame: (spreadId: string, frameId: string, rect: { x: number; y: number; width: number; height: number }) => void
   groupLayers: (spreadId: string, keys: string[]) => void
   ungroupLayers: (spreadId: string, groupId: string) => void
@@ -329,6 +340,7 @@ interface ProjectState {
   clearLayerFlags: (spreadId: string, layers: {kind:'image'|'text'|'background';id:string}[], flag:'locked'|'hidden') => void
   setLayerHidden: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, hidden: boolean) => void
   moveLayer: (spreadId: string, kind: 'image' | 'text', id: string, targetKind: 'image' | 'text', targetId: string) => void
+  setLayersLocked: (spreadId: string, keys: string[], locked: boolean) => void
   setLayerLocked: (spreadId: string, kind: 'image' | 'text' | 'background', id: string, locked: boolean) => void
   removeImageFrame: (spreadId: string, frameId: string) => void
   setPlacementPhoto: (spreadId: string, placeholderId: string, photoId: string | null) => void
@@ -350,7 +362,8 @@ interface ProjectState {
   addTextBox: (spreadId: string, box: TextBox) => void
   updateTextBox: (spreadId: string, textBoxId: string, patch: Partial<TextBox>) => void
   removeTextBox: (spreadId: string, textBoxId: string) => void
-  saveSpreadAsTemplate: (spreadId: string, name: string) => Promise<void>
+  addImportedTemplates: (templates:TemplateDefinition[]) => void
+  saveSpreadAsTemplate: (spreadId: string, name: string, kind?: 'image' | 'mixed') => Promise<void>
   importTemplateFromPhoto: (name: string, baseTemplateId: string, photoDataUrl: string) => Promise<void>
   deleteUserTemplate: (id: string) => void
   setAutoLayoutOptions: (opts: Partial<AutoLayoutOptions>) => void
@@ -367,6 +380,7 @@ interface ProjectState {
    *  (no spreads/templates to configure) and just need a name/client before landing in their
    *  own dedicated screen. */
   createSimpleProject: (kind: 'gallery' | 'slideshow', name: string, clientName: string) => void
+  addPhotosToBin: (photoIds: string[], bin: string) => void
   setPhotoBins: (photoId: string, bins: string[]) => void
   setPhotoFavorite: (photoId: string, favorite: boolean) => void
   /** Slideshow-only: reorders the flat `photos` array itself (there's no separate "slide" list —
@@ -377,7 +391,11 @@ interface ProjectState {
 
 function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project, changingLock = false, keepTemplateBrowser = false) {
   set((s) => {
-    const mutated = mutate(s.project)
+    let mutated = mutate(s.project)
+    const hasContent=(spread:Spread)=>spread.placements.some(p=>p.photoId)||spread.textBoxes.length>0||!!spread.backgroundPattern
+    // Remove only spreads emptied by this edit; deliberately inserted blank spreads stay available.
+    const kept=mutated.spreads.filter(spread=>spread.isCover||hasContent(spread)||!s.project.spreads.some(old=>old.id===spread.id&&hasContent(old)))
+    if(kept.length!==mutated.spreads.length)mutated={...mutated,spreads:kept.map((spread,order)=>({...spread,order}))}
     if (mutated === s.project) return {}
     if (!changingLock && changesLockedLayer(s.project, mutated)) {
       queueMicrotask(()=>window.dispatchEvent(new CustomEvent('album-studio:preference-notice',{detail:'Unlock the affected layer in Designer View → Layers before editing it.'})))
@@ -392,7 +410,7 @@ function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => vo
     const nextProject = { ...mutated, updatedAt: new Date().toISOString() }
     return {
       project: nextProject,
-      ...(added?{selectedSpreadId:added.id}:{}),
+      ...(added?{selectedSpreadId:added.id}:!mutated.spreads.some(spread=>spread.id===s.selectedSpreadId)?{selectedSpreadId:mutated.spreads[0]?.id??null,selectedPlaceholderId:null,selectedTextBoxId:null}:{}),
       fontPreview: null,
       templatePreview: null,
       matchingTemplatesOpen: keepTemplateBrowser ? s.matchingTemplatesOpen : false,
@@ -432,6 +450,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   preparingProject: false,
   isDirty: false,
   currentFilePath: null,
+  drawingShape: 'rectangle',
   canvasTool: 'select',
   templateFrameFilter: 'all',
   photoClipboard: null,
@@ -440,13 +459,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   canvasZoom: 1,
   canvasPan: { x: 0, y: 0 },
   designerViewSpreadId: null,
+  templateBrowseKind: 'image',
   matchingTemplatesOpen: false,
   fontPreview: null,
   templatePreview: null,
   favoriteTemplateIds: loadTemplateFavorites(),
-  openMatchingTemplates: (spreadId) => {
+  openMatchingTemplates: (spreadId, kind='image') => {
     const spread = get().project.spreads.find(s => s.id === spreadId && !s.isCover)
-    if (spread) set({ selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [], matchingTemplatesOpen: true, templatePreview: null })
+    if (spread) set({ selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [], matchingTemplatesOpen: true, templateBrowseKind: kind, templatePreview: null })
   },
   closeMatchingTemplates: () => set({ matchingTemplatesOpen: false, templatePreview: null }),
   previewMatchingTemplate: (templateId, keepOrder = true, scope = 'spread') => {
@@ -515,6 +535,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       .filter((g) => g.length > 0)
       .flatMap((group) => Array.from({ length: Math.ceil(group.length / 30) }, (_, i) => group.slice(i * 30, (i + 1) * 30)))
     if (photoGroups.length === 0) return
+    if(opts?.groupDesigns && opts.groupDesigns.length!==photoGroups.length)throw new Error('Bin template choices no longer match the selected groups. Reopen Auto Build.')
     const appearance = {
       backgroundColor: project.defaultBackgroundColor,
       gapPx: project.defaultGapPx,
@@ -532,11 +553,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const newSpreads = buildSpreadsFromGroups(
       photoGroups,
       appearance,
-      project.enabledTemplateIds,
+      opts?.enabledTemplateIds ?? project.enabledTemplateIds,
       layout,
       opts?.matchTimelineOrder ?? autoLayoutOptions.matchTimelineOrder,
       opts?.allowTemplateRepeats ?? false,
-      opts?.templateReuse
+      opts?.templateReuse,
+      opts?.groupDesigns
     )
     const maxOrder = project.spreads.reduce((m, s) => Math.max(m, s.order), -1)
     const appended = newSpreads.map((s, i) => ({ ...s, order: maxOrder + 1 + i }))
@@ -810,6 +832,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if(movedSelection)set({selectedSpreadId:movedSelection.spreadId,selectedPlaceholderId:movedSelection.frameId,selectedTextBoxId:null,selectedLayerKeys:[],multiSelectedPlaceholderIds:[]})
   },
 
+  removePoolPhoto: photoId => get().removePoolPhotos([photoId]),
+  removePoolPhotos: (photoIds) => withHistory(set,p=>{
+    const ids=new Set(photoIds.filter(id=>!p.spreads.some(s=>s.placements.some(pl=>pl.photoId===id&&pl.locked)||(s.backgroundPattern?.edits?.photoId===id&&s.backgroundLocked))))
+    if(!ids.size)return p
+    return {...p,photos:p.photos.filter(photo=>!ids.has(photo.id)),spreads:p.spreads.map(original=>{
+      const s=original.backgroundPattern?.edits?.photoId&&ids.has(original.backgroundPattern.edits.photoId)?{...original,backgroundPattern:undefined}:original
+      if(!s.placements.some(pl=>!!pl.photoId&&ids.has(pl.photoId)))return s
+      const remaining=s.placements.filter(pl=>!pl.photoId||!ids.has(pl.photoId))
+      if(s.isCover||s.placements.some(pl=>pl.hidden||pl.locked))return {...s,placements:s.placements.map(pl=>!!pl.photoId&&ids.has(pl.photoId)?{...pl,photoId:null}:pl)}
+      return {...buildSpreadFromPlacements(remaining,s.pageSide,s),id:s.id,order:s.order,textBoxes:s.textBoxes}
+    })}
+  }),
   insertTimelinePhotos: (photoIds, targetSpreadId, beforeFrameId) => withHistory(set, (p) => {
     const validIds = [...new Set(photoIds)].filter((id) => p.photos.some((photo) => photo.id === id))
     if (!validIds.length) return p
@@ -818,10 +852,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       borderWidth: p.defaultBorderWidth, borderColor: p.defaultBorderColor,
     }) : p.spreads.find((s) => s.id === targetSpreadId && !s.isCover)
     if (!target || (beforeFrameId && !target.placements.some((pl) => pl.placeholderId === beforeFrameId))) return p
+    if(targetSpreadId===null&&!p.spreads.some(s=>!s.isCover)&&p.layoutStart==='single')target.pageSide='right'
     const placements = target.placements.filter((pl) => pl.photoId)
     const at = beforeFrameId ? placements.findIndex((pl) => pl.placeholderId === beforeFrameId) : placements.length
     placements.splice(at < 0 ? placements.length : at, 0, ...validIds.map((id) => defaultPlacement(uuid(), id, { width: p.defaultBorderWidth, color: p.defaultBorderColor })))
-    const updated = { ...buildSpreadFromPlacements(placements, target.pageSide, target), id: target.id, order: target.order, textBoxes: target.textBoxes }
+    const candidates=cyclingTemplates({...p,spreads:[]},{...target,placements},get().templateFrameFilter,get().favoriteTemplateIds)
+    const height=DESIGN_WIDTH/(target.size??p.size).widthIn*(target.size??p.size).heightIn
+    const oldBoxes=computePlaceholderBoxes(target,DESIGN_WIDTH,height)
+    const stacked={...target,placements,customBoxes:placements.map((pl,i)=>{const old=oldBoxes.find(b=>b.placeholderId===pl.placeholderId);return {id:pl.placeholderId,...(old?{x:old.x/DESIGN_WIDTH,y:old.y/height,width:old.width/DESIGN_WIDTH,height:old.height/height}:{x:.1+(i%8)*.025,y:.1+(i%8)*.025,width:.6,height:.6}),preferredOrientation:'any' as const}}),flipped:false}
+    const base=candidates.length?applyPageTemplate({...target,placements},candidates[0].id,p.photos,p.size.widthIn/p.size.heightIn,true,'spread'):stacked
+    const updated = {...base,id:target.id,order:target.order,textBoxes:target.textBoxes}
     return { ...p, spreads: targetSpreadId === null ? [...p.spreads, updated] : p.spreads.map((s) => s.id === target.id ? updated : s) }
   }),
 
@@ -922,11 +962,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  applyTemplateToSpread: (spreadId, templateId, keepOrder = true, scope = 'spread') =>
-    withHistory(set, (p) => {
+  applyTemplateToSpread: (spreadId, templateId, keepOrder = true, scope = 'spread') => {
+    recordTemplateUse(templateId)
+    return withHistory(set, (p) => {
       const spreads = p.spreads.map((s) => (s.id === spreadId ? applyPageTemplate(s, templateId, p.photos, (s.size ?? p.size).widthIn / (s.size ?? p.size).heightIn, keepOrder, scope) : s))
       return spreads.some((spread, i) => spread !== p.spreads[i]) ? { ...p, spreads } : p
-    }),
+    })
+  },
 
   cycleSpreadTemplate: (spreadId, direction) => {
     const { project, userTemplates, templateFrameFilter } = get()
@@ -935,7 +977,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const eligible=pagePlacements(spread,(spread.size??project.size).widthIn/(spread.size??project.size).heightIn,'spread')
     const count=eligible.filter(p=>p.photoId).length||eligible.length
     if(!count)return
-    const candidates = [...templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn)]
+    const candidates = cyclingTemplates(project,spread,templateFrameFilter,get().favoriteTemplateIds)
     if (candidates.length < 2) return
     const current = candidates.findIndex((template) => template.id === spread.templateId)
     const next = current < 0 ? (direction > 0 ? 0 : candidates.length - 1) : (current + direction + candidates.length) % candidates.length
@@ -1005,6 +1047,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })
     return {...p,photos,spreads}
   }),
+  applyExternalPsd: (spreadId, layers) => withHistory(set, p => {
+    if (!layers.length || !p.spreads.some(s=>s.id===spreadId)) return p
+    return {...p,photos:[...p.photos,...layers.map(l=>l.photo)],spreads:p.spreads.map(s=>s.id!==spreadId?s:{...s,
+      flipped:false,marginPx:0,gapPx:0,backgroundPattern:undefined,backgroundColor:'#ffffff',textBoxes:[],
+      customBoxes:layers.map(l=>l.frame),placements:layers.map((l,i)=>({...defaultPlacement(l.frame.id,l.photo.id),hidden:l.hidden,opacity:l.opacity,groupId:l.groupId,zIndex:i}))})}
+  }),
   applyExternalSpread: (spreadId, photo) => withHistory(set, p => {
     if (!p.spreads.some(s => s.id === spreadId)) return p
     const frameId = uuid()
@@ -1029,6 +1077,26 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { ...s, flipped: false, customBoxes: [...existing, { id: frameId, ...bounded, preferredOrientation: 'any' as const }], placements: [...s.placements, { ...defaultPlacement(frameId, photoId && p.photos.some((photo) => photo.id === photoId) ? photoId : null) }] }
     }) }))
     get().selectPlaceholder(frameId)
+  },
+
+  addImageFrames: (spreadId, rect, photoIds, replaceFrameId) => {
+    const ids = [...new Set(photoIds)].filter(id => get().project.photos.some(photo => photo.id === id))
+    if (!ids.length) return
+    const state = get()
+    if (state.selectedSpreadId !== spreadId) state.selectSpread(spreadId)
+    const frameIds = ids.map(() => uuid())
+    const replace = !!replaceFrameId && state.project.spreads.find(s => s.id === spreadId)?.placements.some(p => p.placeholderId === replaceFrameId)
+    const bounded = boundedFrameRect(rect)
+    withHistory(set, p => ({ ...p, spreads: p.spreads.map(s => {
+      if (s.id !== spreadId) return s
+      const size = s.size ?? p.size
+      const height = DESIGN_WIDTH * size.heightIn / size.widthIn
+      const existing = computePlaceholderBoxes(s, DESIGN_WIDTH, height).map(box => ({ id: box.placeholderId, x: box.x / DESIGN_WIDTH, y: box.y / height, width: box.width / DESIGN_WIDTH, height: box.height / height, preferredOrientation: 'any' as const }))
+      const placements = s.placements.map(placement => placement.placeholderId === replaceFrameId ? { ...placement, photoId: ids[0] } : placement)
+      const firstNew = replace ? 1 : 0
+      return { ...s, flipped: false, customBoxes: [...existing, ...frameIds.slice(firstNew).map(id => ({ id, ...bounded, preferredOrientation: 'any' as const }))], placements: [...placements, ...frameIds.slice(firstNew).map((id, index) => defaultPlacement(id, ids[index + firstNew]))] }
+    }) }))
+    get().setLayerSelection((replace ? [replaceFrameId!, ...frameIds.slice(1)] : frameIds).map(id => 'image:' + id))
   },
 
   updateImageFrame: (spreadId, frameId, rect) => {
@@ -1119,6 +1187,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       textBoxes:s.textBoxes.map(t=>({...t,zIndex:layers.findIndex(l=>l.kind==='text'&&l.id===t.id)})),
     })}
   }, true),
+  setLayersLocked: (spreadId, keys, locked) => withHistory(set,p=>({...p,spreads:p.spreads.map(s=>s.id!==spreadId?s:{...s,placements:s.placements.map(m=>keys.includes('image:'+m.placeholderId)?{...m,locked}:m),textBoxes:s.textBoxes.map(m=>keys.includes('text:'+m.id)?{...m,locked}:m)})}),true),
   setLayerLocked: (spreadId, kind, id, locked) => withHistory(set,p=>({...p,spreads:p.spreads.map(s=>{
     if(s.id!==spreadId)return s
     if(kind==='background')return {...s,backgroundLocked:locked}
@@ -1126,6 +1195,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     return {...s,placements:s.placements.map(l=>members.some(m=>m.kind==='image'&&m.id===l.placeholderId)?{...l,locked}:l),textBoxes:s.textBoxes.map(l=>members.some(m=>m.kind==='text'&&m.id===l.id)?{...l,locked}:l)}
   })}),true,true),
   removeImageFrame: (spreadId, frameId) => {
+    if(get().project.spreads.find(s=>s.id===spreadId)?.placements.find(p=>p.placeholderId===frameId)?.locked)return
+    if(!get().designerViewSpreadId){get().updateMultiplePlacements(spreadId,[frameId],{photoId:null});get().selectPlaceholder(null);return}
     withHistory(set, (p) => ({ ...p, spreads: p.spreads.map((s) => {
       if (s.id !== spreadId) return s
       const size = s.size ?? p.size
@@ -1135,7 +1206,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     get().selectPlaceholder(null)
   },
 
-  setPlacementPhoto: (spreadId, placeholderId, photoId) =>
+  setPlacementPhoto: (spreadId, placeholderId, photoId) => {
+    if(photoId===null){get().removeImageFrame(spreadId,placeholderId);return}
     withHistory(set, (p) => ({
       ...p,
       spreads: p.spreads.map((s) =>
@@ -1146,7 +1218,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
               placements: s.placements.map((pl) => (pl.placeholderId === placeholderId ? { ...pl, photoId } : pl)),
             }
       ),
-    })),
+    }))
+  },
 
   swapPlacements: (spreadId, placeholderIdA, placeholderIdB) =>
     withHistory(set, (p) => ({
@@ -1207,6 +1280,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                       saturation: 0,
                       frameStyle: 'none',
                       rotationDeg: 0,
+                      imageRotationDeg: 0,
                       relightIntensity: 0,
                       cornerRadiusPx: 24,
                       blackWhiteMix: undefined,
@@ -1218,64 +1292,36 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       ),
     })),
 
-  updateMultiplePlacements: (spreadId, placeholderIds, patch) =>
-    withHistory(set, (p) => ({
-      ...p,
-      spreads: p.spreads.map((s) =>
-        s.id !== spreadId
-          ? s
-          : {
-              ...s,
-              placements: s.placements.map((pl) =>
-                placeholderIds.includes(pl.placeholderId) ? { ...pl, ...patch } : pl
-              ),
-            }
-      ),
-    })),
+  updateMultiplePlacements: (spreadId, placeholderIds, patch) => withHistory(set,p=>({...p,spreads:p.spreads.map(s=>{
+    if(s.id!==spreadId)return s
+    const placements=s.placements.map(pl=>placeholderIds.includes(pl.placeholderId)&&!pl.locked?{...pl,...patch}:pl)
+    if(patch.photoId===null&&!get().designerViewSpreadId&&!s.isCover&&!s.placements.some(pl=>pl.locked||pl.hidden))return {...buildSpreadFromPlacements(placements.filter(pl=>pl.photoId),s.pageSide,s),id:s.id,order:s.order,textBoxes:s.textBoxes}
+    return {...s,placements}
+  })})),
 
   copyToneAdjustments: (spreadId, placeholderId) => {
     const spread = get().project.spreads.find((s) => s.id === spreadId)
     const placement = spread?.placements.find((pl) => pl.placeholderId === placeholderId)
     if (!placement) return
-    const {
-      opacity,
-      warmth,
-      brightness,
-      contrast,
-      saturation,
-      relightIntensity,
-      borderWidth,
-      borderColor,
-      frameStyle,
-      rotationDeg,
-      cornerRadiusPx,
-    } = placement
-    set({
-      toneClipboard: {
-        blackWhiteMix: placement.blackWhiteMix,
-        opacity,
-        warmth,
-        brightness,
-        contrast,
-        saturation,
-        relightIntensity,
-        borderWidth,
-        borderColor,
-        frameStyle,
-        rotationDeg,
-        cornerRadiusPx,
-      },
-    })
+    set({toneClipboard:{warmth:placement.warmth,brightness:placement.brightness,contrast:placement.contrast,saturation:placement.saturation,relightIntensity:placement.relightIntensity,blackWhiteMix:placement.blackWhiteMix ? [...placement.blackWhiteMix] : undefined}})
   },
 
   pasteToneAdjustments: (spreadId, placeholderIds) => {
     const clip = get().toneClipboard
     if (!clip) return
-    get().updateMultiplePlacements(spreadId, placeholderIds, clip)
+    const spread=get().project.spreads.find(s=>s.id===spreadId)
+    const ids=placeholderIds.filter(id=>spread?.placements.some(p=>p.placeholderId===id&&!p.locked&&!p.hidden))
+    if(ids.length)get().updateMultiplePlacements(spreadId, ids, {...clip,blackWhiteMix:clip.blackWhiteMix?[...clip.blackWhiteMix]:undefined})
   },
 
-  autoAlignPlacement: (spreadId, placeholderId) =>
-    get().updatePlacement(spreadId, placeholderId, { focalX: 0.5, focalY: 0.5, zoom: 1 }),
+  autoAlignPlacement: (spreadId, placeholderId) => withHistory(set,p=>({...p,spreads:p.spreads.map(s=>{
+    if(s.id!==spreadId)return s
+    const placement=s.placements.find(pl=>pl.placeholderId===placeholderId);if(!placement||placement.locked||placement.hidden)return s
+    const size=s.size??p.size,height=DESIGN_WIDTH*size.heightIn/size.widthIn,boxes=computePlaceholderBoxes(s,DESIGN_WIDTH,height),box=boxes.find(b=>b.placeholderId===placeholderId);if(!box)return s
+    const targets=boxes.filter(b=>b.placeholderId!==placeholderId&&s.placements.some(pl=>pl.placeholderId===b.placeholderId&&pl.photoId&&!pl.hidden))
+    const aligned=snapRect(box,targets,DESIGN_WIDTH,height,Math.max(12,s.gapPx)).rect
+    return {...s,flipped:false,customBoxes:boxes.map(b=>{const value=b.placeholderId===placeholderId?aligned:b;return {id:b.placeholderId,x:value.x/DESIGN_WIDTH,y:value.y/height,width:value.width/DESIGN_WIDTH,height:value.height/height,preferredOrientation:'any' as const}}),placements:s.placements.map(pl=>pl.placeholderId===placeholderId?{...pl,focalX:.5,focalY:.5,zoom:1,imageRotationDeg:0}:pl)}
+  })})),
 
   autoAdjustPlacement: (spreadId, placeholderId) => get().autoEnhanceImages([{spreadId,frameId:placeholderId}]),
 
@@ -1328,19 +1374,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       spreads: p.spreads.map((s) =>
         s.id !== spreadId
           ? s
-          : { ...s, textBoxes: s.textBoxes.map((t) => (t.id === textBoxId ? (['text', 'fontFamily', 'fontSize', 'bold', 'italic', 'width', 'autoWidth'].some(key => key in patch) ? fitTextBoxSize({ ...t, ...patch, autoWidth: 'width' in patch ? false : patch.autoWidth ?? t.autoWidth }, s.size ?? p.size) : { ...t, ...patch }) : t)) }
+          : { ...s, textBoxes: s.textBoxes.map((t) => (t.id === textBoxId ? (['text', 'fontFamily', 'fontSize', 'bold', 'italic', 'width', 'autoWidth', 'letterSpacing', 'lineHeight'].some(key => key in patch) ? fitTextBoxSize({ ...t, ...patch, autoWidth: 'width' in patch ? false : patch.autoWidth ?? t.autoWidth }, s.size ?? p.size) : { ...t, ...patch }) : t)) }
       ),
     })),
 
-  removeTextBox: (spreadId, textBoxId) =>
+  removeTextBox: (spreadId, textBoxId) => {
     withHistory(set, (p) => ({
       ...p,
       spreads: p.spreads.map((s) =>
         s.id !== spreadId ? s : { ...s, textBoxes: s.textBoxes.filter((t) => t.id !== textBoxId) }
       ),
-    })),
+    }), true) // explicit delete must also remove locked template text
+    set((s) => ({ selectedTextBoxId: s.selectedTextBoxId === textBoxId ? null : s.selectedTextBoxId, selectedLayerKeys: s.selectedLayerKeys.filter((k) => k !== 'text:' + textBoxId) }))
+  },
 
-  saveSpreadAsTemplate: async (spreadId, name) => {
+  addImportedTemplates: templates => {for(const template of templates){if(template.category)classifyTemplates([template.id],[template.category,template.subcategory].filter(Boolean).join(' / '))}const next=[...get().userTemplates,...templates];saveUserTemplates(next);set({userTemplates:next})},
+  saveSpreadAsTemplate: async (spreadId, name, kind='mixed') => {
     const { project } = get()
     const spread = project.spreads.find((s) => s.id === spreadId)
     if (!spread) return
@@ -1358,7 +1407,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     const firstPhotoId = spread.placements.find((pl) => pl.photoId)?.photoId
     const firstPhoto = firstPhotoId ? project.photos.find((p) => p.id === firstPhotoId) : undefined
-    const thumbnailImage = firstPhoto ? await blobUrlToDataUrl(firstPhoto.src).catch(() => undefined) : undefined
+    const thumbnailImage = firstPhoto ? await previewSource(firstPhoto.src, 512).catch(() => undefined) : undefined
 
     const template: TemplateDefinition = {
       id: uuid(),
@@ -1370,7 +1419,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       createdAt: new Date().toISOString(),
       thumbnailColor: '#8a6fd1',
       thumbnailImage,
+      textBoxes: kind==='mixed'?structuredClone(spread.textBoxes):undefined,
+      kind,
+      absoluteFrames: !!spread.customBoxes,
     }
+    const category=await askTemplateCategory(template)
+    if(!category)return
+    template.category=category.split(' / ')[0];template.subcategory=category.split(' / ').slice(1).join(' / ')||undefined
+    classifyTemplates([template.id],category)
     const next = [...get().userTemplates, template]
     saveUserTemplates(next)
     set({ userTemplates: next })
@@ -1546,6 +1602,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   setSlideDuration: (ms) => withHistory(set, (p) => ({ ...p, slideDurationMs: Math.max(500, ms) })),
 
+  addPhotosToBin: (photoIds, bin) => {
+    if(!bin.trim())return
+    const ids=new Set(photoIds)
+    withHistory(set,p=>({...p,photos:p.photos.map(photo=>ids.has(photo.id)?{...photo,bins:[...new Set([...photo.bins,bin])]}:photo)}))
+  },
   setPhotoBins: (photoId, bins) =>
     withHistory(set, (p) => ({
       ...p,

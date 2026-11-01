@@ -1,3 +1,10 @@
+import SelectionActions from './SelectionActions'
+import FloatingTextToolbar from './FloatingTextToolbar'
+import {useSavedQuotes,insertSavedQuote} from '@/engine/savedQuotes'
+import StyledText from './StyledText'
+import {layerEditItems} from '@/engine/layerClipboard'
+import {usePreviewSource} from '@/engine/previewImage'
+import {layerOrderItems} from './layerOrderItems'
 import { fitTextBoxSize } from '@/engine/textBoxSize'
 import { GapAnchor, arrangeLayerSelection, spreadLayers, groupGeometry, layerMembers, selectionGeometry } from '@/engine/spreadLayers'
 import { usePreferences, getPreferences, preferenceDefaults, exportGapPresets, importGapPresets, previewGapPresetImport } from '@/state/preferences'
@@ -12,7 +19,7 @@ import Konva from 'konva'
 import useImage from 'use-image'
 import { skippedTextViewKey, useProjectStore } from '@/state/projectStore'
 import { DESIGN_WIDTH, computePlaceholderBoxes, resolvePageInsetsPx, edgeInsetToPx } from '@/engine/layoutMath'
-import { computeCoverCrop } from '@/engine/cropFit'
+import { computeCoverCrop, rotationCoverScale } from '@/engine/cropFit'
 import { ensureFontLoaded } from '@/engine/fonts'
 import { quotesForEventType } from '@/engine/textSuggestions'
 import { isEditableTarget } from '@/engine/keyboard'
@@ -26,6 +33,7 @@ import PhotoContextMenu from './PhotoContextMenu'
 import ContextMenu from './ContextMenu'
 import TextAutoFitStatus from './TextAutoFitStatus'
 import { drawSpreadBackground } from '@/engine/renderSpread'
+import { readDraggedPhotoIds } from '@/engine/photoDrag'
 
 export const STAGE_WIDTH = DESIGN_WIDTH
 
@@ -46,13 +54,13 @@ function PlaceholderImage({
   accent,
   src,
   box,
-  allBoxes,
   focalX,
   focalY,
   zoom,
   opacity,
   frameStyle,
   rotationDeg,
+  imageRotationDeg,
   relightIntensity,
   cornerRadiusPx,
   flipHorizontal,
@@ -68,19 +76,20 @@ function PlaceholderImage({
   multiSelected,
   canDrag,
   onSelect,
-  onSwapTo,
+  onMove,
+  onMoveEnd,
   onContextMenu,
 }: {
   accent: string
   src: string
   box: { placeholderId: string; x: number; y: number; width: number; height: number }
-  allBoxes: { placeholderId: string; x: number; y: number; width: number; height: number }[]
   focalX: number
   focalY: number
   zoom: number
   opacity: number
   frameStyle: FrameStyle
   rotationDeg: number
+  imageRotationDeg?: number
   relightIntensity: number
   cornerRadiusPx: number
   flipHorizontal: boolean
@@ -96,10 +105,11 @@ function PlaceholderImage({
   multiSelected: boolean
   canDrag: boolean
   onSelect: (e: Konva.KonvaEventObject<Event>) => void
-  onSwapTo: (targetPlaceholderId: string) => void
+  onMove: (rect: GuideRect) => GuideRect
+  onMoveEnd: (rect: GuideRect) => void
   onContextMenu: (e: Konva.KonvaEventObject<Event>) => void
 }) {
-  const [img] = useImage(src)
+  const [img] = useImage(usePreviewSource(src))
 
   const matPad = frameStyle === 'polaroid' ? Math.min(box.width, box.height) * 0.06 : 0
   const matPadBottom = frameStyle === 'polaroid' ? box.height * 0.16 : 0
@@ -134,42 +144,28 @@ function PlaceholderImage({
       y={centerY}
       rotation={rotationDeg}
       draggable={canDrag}
-      onDragStart={(e) => e.target.moveToTop()}
-      onDragEnd={(e) => {
-        // Relative (not raw) pointer position — accounts for the canvas's own zoom/pan transform
-        // so box-hit-testing still lines up once the stage is scaled or panned.
-        const pointer = e.target.getStage()?.getRelativePointerPosition()
-        e.target.position({ x: centerX, y: centerY })
-        e.target.getLayer()?.batchDraw()
-        if (!pointer) return
-        const target = allBoxes.find(
-          (b) =>
-            b.placeholderId !== box.placeholderId &&
-            pointer.x >= b.x &&
-            pointer.x <= b.x + b.width &&
-            pointer.y >= b.y &&
-            pointer.y <= b.y + b.height
-        )
-        if (target) onSwapTo(target.placeholderId)
-      }}
+      onDragMove={e => { const rect=onMove({x:e.target.x()-box.width/2,y:e.target.y()-box.height/2,width:box.width,height:box.height});e.target.position({x:rect.x+rect.width/2,y:rect.y+rect.height/2}) }}
+      onDragEnd={e => onMoveEnd({x:e.target.x()-box.width/2,y:e.target.y()-box.height/2,width:box.width,height:box.height})}
     >
       {frameStyle === 'polaroid' && (
         <Rect x={localBoxX} y={localBoxY} width={box.width} height={box.height} fill="#ffffff" />
       )}
+      {frameStyle==='shadow' && <Rect x={localPhotoX} y={localPhotoY} width={photoW} height={photoH} fill="white" shadowColor="black" shadowOpacity={.45} shadowBlur={Math.max(box.width,box.height)*.04} shadowOffsetY={Math.max(box.width,box.height)*.015} listening={false}/>}
       {img && crop && (
-        <KonvaImage
+        <Group clipFunc={ctx=>{const x=localPhotoX,y=localPhotoY,w=photoW,h=photoH,r=frameStyle==='rounded'?Math.min(cornerRadiusPx,w/2,h/2):0;ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}}><KonvaImage
           image={tonedImage}
-          x={localPhotoX}
-          y={localPhotoY}
+          x={localPhotoX + photoW/2}
+          y={localPhotoY + photoH/2}
+          rotation={imageRotationDeg??0}
           width={photoW}
           height={photoH}
-          offsetX={flipHorizontal ? photoW : 0}
-          offsetY={flipVertical ? photoH : 0}
-          scaleX={flipHorizontal ? -1 : 1}
-          scaleY={flipVertical ? -1 : 1}
+          offsetX={photoW/2}
+          offsetY={photoH/2}
+          scaleX={(flipHorizontal ? -1 : 1)*rotationCoverScale(photoW,photoH,imageRotationDeg??0)}
+          scaleY={(flipVertical ? -1 : 1)*rotationCoverScale(photoW,photoH,imageRotationDeg??0)}
           opacity={opacity}
           cornerRadius={frameStyle === 'rounded' ? cornerRadiusPx : 0}
-          shadowEnabled={frameStyle === 'shadow'}
+          shadowEnabled={false}
           shadowColor="black"
           shadowOpacity={0.45}
           shadowBlur={Math.max(box.width, box.height) * 0.04}
@@ -177,7 +173,7 @@ function PlaceholderImage({
           onClick={onSelect}
           onTap={onSelect}
           onContextMenu={onContextMenu}
-        />
+        /></Group>
       )}
       {img && crop && warmth !== 0 && (
         <Rect x={localPhotoX} y={localPhotoY} width={photoW} height={photoH}
@@ -306,13 +302,13 @@ export default function DesignerCanvas() {
   const setPlacementPhoto = useProjectStore((s) => s.setPlacementPhoto)
   const addPhotos = useProjectStore((s) => s.addPhotos)
   const updateSpread = useProjectStore((s) => s.updateSpread)
-  const swapPlacements = useProjectStore((s) => s.swapPlacements)
   const selectedLayerKeys = useProjectStore(s=>s.selectedLayerKeys)
   const multiSelectedPlaceholderIds = useProjectStore((s) => s.multiSelectedPlaceholderIds)
   const setCanvasTool = useProjectStore(s => s.setCanvasTool)
   const selectedPhotoIds = useProjectStore((s) => s.selectedPhotoIds)
   const setSelectedPhotoIds = useProjectStore((s) => s.setSelectedPhotoIds)
   const updateTextBox = useProjectStore((s) => s.updateTextBox)
+  const savedQuotes=useSavedQuotes()
   const addTextBox = useProjectStore((s) => s.addTextBox)
   const showGrid = useProjectStore((s) => s.showGrid)
   const toggleGrid = useProjectStore((s) => s.toggleGrid)
@@ -378,7 +374,7 @@ export default function DesignerCanvas() {
   // Preview only the canvas; project data and Undo history change once, on Apply.
   const spread=useMemo(()=>gapDrag?arrangeLayerSelection(gapDrag.source,project.size,gapDrag.keys,gapDrag.axis==='x'?'horizontal':'vertical','selection',gapDrag.gap,gapDrag.anchor):gapPreview,[baseSpread,project.size,gapDrag,gapPreview])
   const [coverGuide] = useImage(spread?.coverDetails?.guideSrc ?? '')
-  const [patternImage] = useImage(spread?.backgroundPattern?.src ?? '')
+  const [patternImage] = useImage(usePreviewSource(spread?.backgroundPattern?.src ?? ''))
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -402,11 +398,13 @@ export default function DesignerCanvas() {
     return()=>window.removeEventListener('keydown',cancel,true)
   },[!!gapEditor,!!pendingPresetImport])
   const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([])
-  const [liveFrame, setLiveFrame] = useState<(GuideRect & {id:string}) | null>(null)
+  const [liveFrame, setLiveFrame] = useState<(GuideRect & {id:string;rotationDeg?:number}) | null>(null)
   useEffect(()=>{setSmartGuides([]);setLiveFrame(null)},[selectedPlaceholderId,selectedTextBoxId,spread?.id,canvasTool])
   const boxes = spread ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight).filter(b=>!spread.placements.find(p=>p.placeholderId===b.placeholderId)?.hidden) : []
   const addImageFrame = useProjectStore((s) => s.addImageFrame)
+  const addImageFrames = useProjectStore((s) => s.addImageFrames)
   const updateImageFrame = useProjectStore((s) => s.updateImageFrame)
+  const drawEndRef = useRef<{x:number;y:number}|null>(null)
   const drawStartRef = useRef<{ x: number; y: number } | null>(null)
   const [draftFrame, setDraftFrame] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   useEffect(() => {
@@ -655,7 +653,7 @@ export default function DesignerCanvas() {
     if(gapEditor)setGapEditor({...gapEditor,...(gapCanApply?{previewBase:gapPreview}:{})},anchor)
     useProjectStore.getState().setGapAnchor(anchor)
   }
-  const restingGuides=activeGeometry&&canvasTool==='select'?snapRect({x:activeGeometry.x*STAGE_WIDTH,y:activeGeometry.y*stageHeight,width:activeGeometry.width*STAGE_WIDTH,height:activeGeometry.height*stageHeight,keys:activeGuideKeys},guideTargets(activeGuideKeys),STAGE_WIDTH,stageHeight,0).guides.filter(g=>g.segments):[]
+  const restingGuides=activeGeometry&&canvasTool==='select'?snapRect({x:activeGeometry.x*STAGE_WIDTH,y:activeGeometry.y*stageHeight,width:activeGeometry.width*STAGE_WIDTH,height:activeGeometry.height*stageHeight,keys:activeGuideKeys},guideTargets(activeGuideKeys),STAGE_WIDTH,stageHeight,0,undefined,[],[],spread?.gapPx??0).guides.filter(g=>g.segments):[]
   const selectedGapUnits=guideTargets([]).filter(t=>t.keys?.length&&t.keys.every(k=>activeGuideKeys.includes(k)))
   const sharedGapGuides=selectedSpacingGuides(selectedGapUnits)
   const guideInteraction=Konva.isDragging()||transformerRef.current?.isTransforming()||textTransformerRef.current?.isTransforming()||groupTransformerRef.current?.isTransforming()
@@ -708,12 +706,13 @@ export default function DesignerCanvas() {
   const hasVisibleContent = !!spread && (spread.placements.some(p=>p.photoId&&!p.hidden) || spread.textBoxes.some(t=>!t.hidden&&t.text.trim()) || !!spread.backgroundPattern)
   function alignRect(rect:GuideRect, id?:string, anchor?:string, threshold=6/stageScale) {
     const keys=transformKeys.length?transformKeys:id?spreadLayers(spread!).filter(l=>l.id===id).map(l=>l.kind+':'+l.id):[]
-    const result=snapRect({...rect,keys},guideTargets(keys),STAGE_WIDTH,stageHeight,threshold,anchor,showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH) : [],showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight) : [])
+    const result=snapRect({...rect,keys},guideTargets(keys),STAGE_WIDTH,stageHeight,threshold,anchor,[...(showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH)??[] : []),...guideTargets(keys).flatMap(t=>[t.x-(spread?.gapPx??0),t.x+t.width+(spread?.gapPx??0)])],[...(showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight)??[] : []),...guideTargets(keys).flatMap(t=>[t.y-(spread?.gapPx??0),t.y+t.height+(spread?.gapPx??0)])],spread?.gapPx??0)
     setSmartGuides(result.guides)
     return result.rect
   }
   function alignTransform(old: {x:number;y:number;width:number;height:number;rotation:number}, next: typeof old) {
     if(next.width<4*stageScale||next.height<4*stageScale)return old
+    if(Math.abs(next.rotation)>.0001)return next
     const rect=alignRect({x:(next.x-stagePos.x)/stageScale,y:(next.y-stagePos.y)/stageScale,width:next.width/stageScale,height:next.height/stageScale},selectedPlaceholderId??selectedTextBoxId??undefined,(selectedPlaceholderId ? transformerRef.current : textTransformerRef.current)?.getActiveAnchor()??undefined)
     return {...next,x:rect.x*stageScale+stagePos.x,y:rect.y*stageScale+stagePos.y,width:rect.width*stageScale,height:rect.height*stageScale}
   }
@@ -769,9 +768,10 @@ export default function DesignerCanvas() {
       panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY, stageX: stagePos.x, stageY: stagePos.y }
       return
     }
-    if ((canvasTool === 'frame' || canvasTool === 'text') && e.evt.button === 0) {
+    if ((canvasTool === 'frame' || ['shape','shape-outline','line'].includes(canvasTool) || canvasTool === 'text') && e.evt.button === 0) {
       const point = e.target.getStage()?.getRelativePointerPosition()
       if (!point || point.x < 0 || point.y < 0 || point.x > STAGE_WIDTH || point.y > stageHeight) return
+      drawEndRef.current=point
       drawStartRef.current = point
       setDraftFrame({ ...point, width: 0, height: 0 })
       return
@@ -807,6 +807,7 @@ export default function DesignerCanvas() {
       const x = Math.max(0, Math.min(STAGE_WIDTH, point.x))
       const y = Math.max(0, Math.min(stageHeight, point.y))
       const start = drawStartRef.current
+      drawEndRef.current={x,y}
       setDraftFrame(alignRect({ x: Math.min(x, start.x), y: Math.min(y, start.y), width: Math.abs(x - start.x), height: Math.abs(y - start.y) },undefined,`${y < start.y ? 'top' : 'bottom'}-${x < start.x ? 'left' : 'right'}`))
       return
     }
@@ -828,11 +829,16 @@ export default function DesignerCanvas() {
       marqueeStart.current=null;marqueeRect.current=null;setMarquee(null)
       return
     }
-    if (drawStartRef.current && draftFrame && spread && (canvasTool === 'text' || canvasTool === 'frame')) {
+    if (drawStartRef.current && draftFrame && spread && (canvasTool === 'text' || ['shape','shape-outline','line'].includes(canvasTool) || canvasTool === 'frame')) {
       const rect = { x: draftFrame.x / STAGE_WIDTH, y: draftFrame.y / stageHeight, width: Math.min(1 - draftFrame.x / STAGE_WIDTH, (draftFrame.width >= 4 ? draftFrame.width : 300) / STAGE_WIDTH), height: Math.min(1 - draftFrame.y / stageHeight, (draftFrame.height >= 4 ? draftFrame.height : canvasTool === 'frame' ? 240 : 80) / stageHeight) }
       if (canvasTool === 'frame') {
         addImageFrame(spread.id, rect, selectedPhotoIds.length === 1 ? selectedPhotoIds[0] : undefined)
         setCanvasTool('select')
+      }
+      else if(['shape','shape-outline','line'].includes(canvasTool)){
+        const id=uuid();let previous={width:.25,height:.25};try{previous=JSON.parse(localStorage.getItem('ynot:shape-size')??'null')??previous}catch{}
+        if(draftFrame.width<4){rect.width=Math.min(1-rect.x,Math.max(.01,Number(previous.width)||.25));rect.height=Math.min(1-rect.y,Math.max(.01,Number(previous.height)||.25))}
+        const lineEnd=stageRef.current?.getRelativePointerPosition(),lineStart=drawStartRef.current;let rotationDeg=0;if(canvasTool==='line'&&lineEnd&&lineStart){const dx=lineEnd.x-lineStart.x,dy=lineEnd.y-lineStart.y;rect.x=lineStart.x/STAGE_WIDTH;rect.y=lineStart.y/stageHeight;rect.width=Math.max(40,Math.hypot(dx,dy))/STAGE_WIDTH;rect.height=4/stageHeight;rotationDeg=Math.atan2(dy,dx)*180/Math.PI;}else localStorage.setItem('ynot:shape-size',JSON.stringify({width:rect.width,height:rect.height}));addTextBox(spread.id,{id,...rect,rotationDeg,shape:canvasTool==='line'?'line':useProjectStore.getState().drawingShape,shapeMode:canvasTool==='shape'?'both':'stroke',text:canvasTool==='line'?'Line':useProjectStore.getState().drawingShape,fontFamily:'Arial',fontSize:24,color:'#3154ce',align:'left',bold:false,italic:false});selectTextBox(id);setCanvasTool('select')
       }
       else if (canvasTool === 'text') {
         const id = uuid()
@@ -856,14 +862,14 @@ export default function DesignerCanvas() {
   // click with exactly one photo selected in the bottom dock "places" it (click-to-place, an
   // easier alternative to drag-and-drop); otherwise it's a normal single-placeholder select.
   function handlePlaceholderClick(placeholderId: string, evt: Event) {
-    if (canvasTool === 'frame' || canvasTool === 'text') return
+    if (canvasTool === 'frame' || ['shape','shape-outline','line'].includes(canvasTool) || canvasTool === 'text') return
     const keyEvt = evt as MouseEvent
     const isModified = 'shiftKey' in evt && (keyEvt.shiftKey || keyEvt.ctrlKey || keyEvt.metaKey)
     if (isModified) {
       toggleCanvasLayer('image',placeholderId)
       return
     }
-    if (selectedPhotoIds.length === 1 && spread) {
+    if (selectedPhotoIds.length === 1 && spread && !spread.placements.find(p=>p.placeholderId===placeholderId)?.photoId) {
       setPlacementPhoto(spread.id, placeholderId, selectedPhotoIds[0])
       setSelectedPhotoIds([], null)
       return
@@ -905,23 +911,22 @@ export default function DesignerCanvas() {
     if (pattern) { updateSpread(spread.id, { backgroundPattern: pattern }); return }
 
     // Dragging a photo from the bottom dock onto a frame — the existing "place" path.
-    const photoId = e.dataTransfer.getData('application/x-photo-id')
-    if (photoId) {
-      if (target) setPlacementPhoto(spread.id, target.placeholderId, photoId)
-      else addImageFrame(spread.id, spread.isCover && boxes.length === 0 ? { x: 0, y: 0, width: 1, height: 1 } : { x: Math.max(0, Math.min(0.7, x / STAGE_WIDTH)), y: Math.max(0, Math.min(0.7, y / stageHeight)), width: 0.3, height: 0.3 }, photoId)
-      return
+    const dropRect = spread.isCover && boxes.length === 0 ? { x: 0, y: 0, width: 1, height: 1 } : { x: Math.max(0, Math.min(0.7, x / STAGE_WIDTH)), y: Math.max(0, Math.min(0.7, y / stageHeight)), width: 0.3, height: 0.3 }
+    // A dragged multi-selection fills a frame with the first photo and stacks the rest as overlapping frames (one undo step).
+    function placeAll(ids: string[]) {
+      if (target && ids.length === 1) setPlacementPhoto(spread!.id, target.placeholderId, ids[0])
+      else if (target) addImageFrames(spread!.id, dropRect, ids, target.placeholderId)
+      else addImageFrames(spread!.id, dropRect, ids)
     }
+    const photoIds = readDraggedPhotoIds(e.dataTransfer, project.photos.map(p => p.id))
+    if (photoIds.length) { placeAll(photoIds); return }
 
     // Dragging image files straight from the OS onto a frame — import them into the pool AND
-    // drop the first one directly into the frame it landed on, so it's a single action instead
-    // of "import, then find it in the dock, then drag it again."
+    // place them in one step instead of "import, then find it in the dock, then drag it again."
     if (e.dataTransfer.files.length > 0) {
       const { newAssets, matchedAssets } = await importAndDedupe(Array.from(e.dataTransfer.files), project.photos)
       if (newAssets.length > 0) addPhotos(newAssets)
-      if (matchedAssets.length > 0) {
-        if (target) setPlacementPhoto(spread.id, target.placeholderId, matchedAssets[0].id)
-        else addImageFrame(spread.id, spread.isCover && boxes.length === 0 ? { x: 0, y: 0, width: 1, height: 1 } : { x: Math.max(0, Math.min(0.7, x / STAGE_WIDTH)), y: Math.max(0, Math.min(0.7, y / stageHeight)), width: 0.3, height: 0.3 }, matchedAssets[0].id)
-      }
+      if (matchedAssets.length > 0) placeAll(matchedAssets.map(a => a.id))
     }
   }
 
@@ -957,6 +962,7 @@ export default function DesignerCanvas() {
 
   return (
     <div className="designer-canvas-wrap">
+      <FloatingTextToolbar/><SelectionActions floating transform={{x:stagePos.x,y:stagePos.y,scale:stageScale,width:STAGE_WIDTH,height:stageHeight}}/>
       <div className="designer-toolbar">
         {!selectedGroupId && selectedBox && !spread.placements.find(p => p.placeholderId === selectedBox.placeholderId)?.locked && !spread.placements.find(p => p.placeholderId === selectedBox.placeholderId)?.photoId && canvasTool === 'select' && <div className="frame-tool-hint"><strong>Empty image frame</strong><span>Drag handles to resize</span><button className="btn" onClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}>Add image…</button><button className="btn" onClick={() => useProjectStore.getState().removeImageFrame(spread.id, selectedBox.placeholderId)}>Remove frame</button></div>}
         {canvasTool === 'frame' && <div className="frame-tool-hint" role="status"><strong>Image frame</strong><span>Drag to draw · Click for a standard frame</span><button className="btn" onClick={() => setCanvasTool('select')}>Done</button></div>}
@@ -986,6 +992,7 @@ export default function DesignerCanvas() {
           className="toolbar-quote-select"
           value=""
           onChange={(e) => {
+            if(e.target.value.startsWith('saved:')){insertSavedQuote(spread.id,e.target.value.slice(6));e.target.value='';return}
             const quote = quotesForEventType(project.eventType)[Number(e.target.value)]
             if (!quote) return
             void ensureFontLoaded(quote.fontFamily)
@@ -1009,6 +1016,7 @@ export default function DesignerCanvas() {
           <option value="" disabled>
             ✨ Insert matching quote…
           </option>
+          {[...new Set(savedQuotes.map(q=>q.category))].map(category=><optgroup label={category} key={category}>{savedQuotes.filter(q=>q.category===category).map(q=><option key={q.id} value={'saved:'+q.id}>{q.boxes.map(b=>b.text).join(' · ').slice(0,100)}</option>)}</optgroup>)}
           {quotesForEventType(project.eventType).map((q, i) => (
             <option key={q.text} value={i}>
               “{q.text}” — {q.fontFamily}
@@ -1061,14 +1069,16 @@ export default function DesignerCanvas() {
              ? <FixedBackground spread={spread} height={stageHeight} onContextMenu={e => { e.evt.preventDefault(); e.evt.stopPropagation(); setPhotoContextMenu({ openedAt: Date.now(), x: e.evt.clientX, y: e.evt.clientY }) }} />
              : <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fillPatternImage={patternImage} fillPatternScaleX={spread.backgroundPattern.tileSizePx / patternImage.width} fillPatternScaleY={spread.backgroundPattern.tileSizePx / patternImage.width} listening={false} />)}
 
+          <Group clipX={0} clipY={0} clipWidth={STAGE_WIDTH} clipHeight={stageHeight}>
           {spreadLayers(spread).filter(layer=>!layer.value.hidden).map(layer=>{
             if(layer.kind==='text') {
               const box=layer.value
             const x = box.x * STAGE_WIDTH
             const y = box.y * stageHeight
             return (
-              <Group key={box.id} name={`text-layer-${box.id}`} {...(transformKeys.includes('text:'+box.id)?groupLive:null)}><KonvaText
+              <Group key={box.id} name={`text-layer-${box.id}`} {...(transformKeys.includes('text:'+box.id)?groupLive:null)}><StyledText box={box}
                 key={box.id}
+                rotation={box.rotationDeg??0}
                 ref={selectedTextBoxId===box.id?textNodeRef:undefined}
                 visible={editingTextId !== box.id}
                 x={x}
@@ -1082,14 +1092,14 @@ export default function DesignerCanvas() {
                 fill={box.color}
                 align={box.align}
                 draggable={!box.groupId && !box.locked && canvasTool === 'select' && !isSpaceDown}
-                onClick={e=>{if(e.evt.shiftKey||e.evt.ctrlKey||e.evt.metaKey)toggleCanvasLayer('text',box.id);else selectTextBox(box.id)}}
+                onClick={(e:Konva.KonvaEventObject<MouseEvent>)=>{if(e.evt.shiftKey||e.evt.ctrlKey||e.evt.metaKey)toggleCanvasLayer('text',box.id);else selectTextBox(box.id)}}
                 onTap={() => selectTextBox(box.id)}
-                onContextMenu={e => openTextContextMenu(e, box.id)}
-                onDblClick={e => { if(!box.locked&&!e.evt.shiftKey) setEditingTextId(box.id) }}
-                onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:e.target.width(),height:e.target.height()},box.id);e.target.position(rect)}}
-                onTransform={e=>{const node=e.target;node.width(Math.max(4,node.width()*node.scaleX()));node.height(Math.max(4,node.height()*node.scaleY()));node.scale({x:1,y:1})}}
-                onTransformEnd={e=>{const node=e.target;updateTextBox(spread.id,box.id,{x:node.x()/STAGE_WIDTH,y:node.y()/stageHeight,width:node.width()/STAGE_WIDTH,height:node.height()/stageHeight});setSmartGuides([])}}
-                onDragEnd={(e) => {
+                onContextMenu={(e:Konva.KonvaEventObject<PointerEvent>) => openTextContextMenu(e, box.id)}
+                onDblClick={(e:Konva.KonvaEventObject<MouseEvent>) => { if(!box.shape&&!box.locked&&!e.evt.shiftKey) setEditingTextId(box.id) }}
+                onDragMove={(e:Konva.KonvaEventObject<MouseEvent>)=>{const bounds=e.target.getClientRect({relativeTo:e.target.getParent()!,skipShadow:true,skipStroke:true});const rect=alignRect(bounds,box.id);e.target.position({x:e.target.x()+rect.x-bounds.x,y:e.target.y()+rect.y-bounds.y})}}
+                onTransform={(e:Konva.KonvaEventObject<MouseEvent>)=>{const node=e.target as Konva.Text;const anchor=textTransformerRef.current?.getActiveAnchor();if(!box.shape&&anchor&&anchor!=='middle-left'&&anchor!=='middle-right'&&anchor!=='rotater')node.fontSize(Math.max(1,Math.min(1000,node.fontSize()*node.scaleY())));node.width(Math.max(4,node.width()*node.scaleX()));node.height(Math.max(4,node.height()*node.scaleY()));node.scale({x:1,y:1});if(box.shape&&anchor!=='rotater'&&Math.abs(node.rotation())<.001){const snapped=alignRect({x:node.x(),y:node.y(),width:node.width(),height:node.height()},box.id,anchor??undefined);node.setAttrs(snapped)}}}
+                onTransformEnd={(e:Konva.KonvaEventObject<MouseEvent>)=>{const node=e.target;updateTextBox(spread.id,box.id,{x:node.x()/STAGE_WIDTH,y:node.y()/stageHeight,autoWidth:false,width:node.width()/STAGE_WIDTH,height:node.height()/stageHeight,fontSize:(node as Konva.Text).fontSize(),rotationDeg:node.rotation()});setSmartGuides([])}}
+                onDragEnd={(e:Konva.KonvaEventObject<MouseEvent>) => {
                   setSmartGuides([])
                   updateTextBox(spread.id, box.id, {
                     x: e.target.x() / STAGE_WIDTH,
@@ -1130,8 +1140,8 @@ export default function DesignerCanvas() {
                 dash={[6, 5]}
                 onClick={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
                 onTap={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
-                onDblClick={() => !photo && handleEmptyFrameDoubleClick(box.placeholderId)}
-                onDblTap={() => !photo && handleEmptyFrameDoubleClick(box.placeholderId)}
+                
+                
               />
             )
           })}
@@ -1178,13 +1188,12 @@ export default function DesignerCanvas() {
                 key={box.placeholderId}
                 src={photo.src}
                 box={liveFrame?.id === box.placeholderId ? {...box,...liveFrame} : box}
-                allBoxes={boxes}
                 focalX={placement.focalX}
                 focalY={placement.focalY}
                 zoom={placement.zoom}
                 opacity={placement.opacity}
                 frameStyle={placement.frameStyle}
-                rotationDeg={placement.rotationDeg}
+                rotationDeg={liveFrame?.id===box.placeholderId?(liveFrame.rotationDeg??placement.rotationDeg):placement.rotationDeg} imageRotationDeg={placement.imageRotationDeg}
                 relightIntensity={placement.relightIntensity}
                 cornerRadiusPx={placement.cornerRadiusPx}
                 flipHorizontal={placement.flipHorizontal}
@@ -1200,7 +1209,8 @@ export default function DesignerCanvas() {
                 multiSelected={multiSelectedPlaceholderIds.includes(box.placeholderId)}
                 canDrag={canvasTool === 'select' && !isSpaceDown && !placement.locked && !placement.groupId}
                 onSelect={(e) => handlePlaceholderClick(box.placeholderId, e.evt)}
-                onSwapTo={(targetId) => swapPlacements(spread.id, box.placeholderId, targetId)}
+                onMove={rect=>alignRect(rect,box.placeholderId)}
+                onMoveEnd={rect=>{updateImageFrame(spread.id,box.placeholderId,{x:rect.x/STAGE_WIDTH,y:rect.y/stageHeight,width:rect.width/STAGE_WIDTH,height:rect.height/stageHeight});selectPlaceholder(box.placeholderId);setSmartGuides([])}}
                 onContextMenu={(e) => handlePlaceholderContextMenu(box.placeholderId, e.evt)}
               />
             )
@@ -1209,30 +1219,31 @@ export default function DesignerCanvas() {
           {[box].filter(b=>spread.placements.find(p=>p.placeholderId===b.placeholderId)?.locked).map(b=><KonvaText key={`lock-${b.placeholderId}`} x={b.x+5/stageScale} y={b.y+5/stageScale} text="Locked" fontSize={12/stageScale} fill={accent} listening={false} />)}
             </Group>
           })}
+          </Group>
           {!selectedGroupId && selectedBox && !spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)?.locked && canvasTool === 'select' && <>
-            <Rect ref={frameNodeRef} x={selectedBox.x} y={selectedBox.y} width={selectedBox.width} height={selectedBox.height}
+            <Rect ref={frameNodeRef} x={selectedBox.x+selectedBox.width/2} y={selectedBox.y+selectedBox.height/2} offsetX={selectedBox.width/2} offsetY={selectedBox.height/2} rotation={spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)?.rotationDeg??0} width={selectedBox.width} height={selectedBox.height}
               fill="rgba(0,0,0,0)" draggable
-              onDragMove={e=>{const rect=alignRect({x:e.target.x(),y:e.target.y(),width:selectedBox.width,height:selectedBox.height},selectedBox.placeholderId);e.target.position(rect);setLiveFrame({...rect,id:selectedBox.placeholderId})}}
-              onTransform={()=>{const node=frameNodeRef.current;if(node)setLiveFrame({id:selectedBox.placeholderId,x:node.x(),y:node.y(),width:node.width()*node.scaleX(),height:node.height()*node.scaleY()})}}
-              onDragEnd={(e) => {updateImageFrame(spread.id, selectedBox.placeholderId, { x: e.target.x() / STAGE_WIDTH, y: e.target.y() / stageHeight, width: selectedBox.width / STAGE_WIDTH, height: selectedBox.height / stageHeight });setSmartGuides([]);setLiveFrame(null)}}
+              onDragMove={e=>{const rect=alignRect({x:e.target.x()-selectedBox.width/2,y:e.target.y()-selectedBox.height/2,width:selectedBox.width,height:selectedBox.height},selectedBox.placeholderId);e.target.position({x:rect.x+selectedBox.width/2,y:rect.y+selectedBox.height/2});setLiveFrame({...rect,id:selectedBox.placeholderId})}}
+              onTransform={()=>{const node=frameNodeRef.current;if(node)setLiveFrame({id:selectedBox.placeholderId,x:node.x()-node.offsetX()*node.scaleX(),y:node.y()-node.offsetY()*node.scaleY(),width:node.width()*node.scaleX(),height:node.height()*node.scaleY(),rotationDeg:node.rotation()})}}
+              onDragEnd={(e) => {updateImageFrame(spread.id, selectedBox.placeholderId, { x: (e.target.x()-selectedBox.width/2) / STAGE_WIDTH, y: (e.target.y()-selectedBox.height/2) / stageHeight, width: selectedBox.width / STAGE_WIDTH, height: selectedBox.height / stageHeight });setSmartGuides([]);setLiveFrame(null)}}
               onTransformEnd={() => {
                 const node = frameNodeRef.current
                 if (!node) return
-                const rect = { x: node.x() / STAGE_WIDTH, y: node.y() / stageHeight, width: node.width() * node.scaleX() / STAGE_WIDTH, height: node.height() * node.scaleY() / stageHeight }
+                const rect = { x: (node.x()-node.offsetX()*node.scaleX()) / STAGE_WIDTH, y: (node.y()-node.offsetY()*node.scaleY()) / stageHeight, width: node.width() * node.scaleX() / STAGE_WIDTH, height: node.height() * node.scaleY() / stageHeight }
                 node.scale({ x: 1, y: 1 })
-                updateImageFrame(spread.id, selectedBox.placeholderId, rect)
+                if(transformerRef.current?.getActiveAnchor()==='rotater')updatePlacement(spread.id,selectedBox.placeholderId,{rotationDeg:node.rotation()});else updateImageFrame(spread.id, selectedBox.placeholderId, rect)
                 setSmartGuides([]);setLiveFrame(null)
               }}
               onClick={e=>{if(e.evt.shiftKey)toggleCanvasLayer('image',selectedBox.placeholderId)}}
-              onDblClick={() => handleEmptyFrameDoubleClick(selectedBox.placeholderId)}
+              
               onContextMenu={(e) => handlePlaceholderContextMenu(selectedBox.placeholderId, e.evt)} />
-            <Transformer ref={transformerRef} borderStroke={accent} anchorStroke={accent} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} />
+            <Transformer ref={transformerRef} borderDash={[4,3]} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} rotateEnabled={true} flipEnabled={false} boundBoxFunc={alignTransform} />
           </>}
           {group && group.members.some(l=>!l.value.hidden) && canvasTool==='select' && <>
             <Rect name="group-transform-box" onContextMenu={e => openTextContextMenu(e)} listening={!isShiftDown} ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke={accent} strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey&&selectedGroupId)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!)}}/>
-            {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-right','bottom-left','bottom-right']} borderStroke={accent} anchorStroke={accent} boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
+            {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-right','bottom-left','bottom-right']} borderDash={[4,3]} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
           </>}
-          {draftFrame && <Rect {...draftFrame} stroke={accent} strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />}
+          {draftFrame && (canvasTool==='line'&&drawStartRef.current&&drawEndRef.current?<Line points={[drawStartRef.current.x,drawStartRef.current.y,drawEndRef.current.x,drawEndRef.current.y]} stroke={accent} strokeWidth={2/stageScale} listening={false}/>:<Rect {...draftFrame} stroke={accent} strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />)}
 
             {spread.isCover && showPrintGuides && hasVisibleContent && <>
               {coverGuide && <KonvaImage image={coverGuide} x={0} y={0} width={STAGE_WIDTH} height={stageHeight} opacity={0.45} listening={false} />}
@@ -1331,7 +1342,7 @@ export default function DesignerCanvas() {
               />
             ))}
 
-          {!selectedGroupId && selectedTextBoxId && editingTextId !== selectedTextBoxId && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.locked && !spread.textBoxes.find(t=>t.id===selectedTextBoxId)?.hidden && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={false} flipEnabled={false} boundBoxFunc={alignTransform} borderStroke={accent} anchorStroke={accent} />}
+          {!selectedGroupId && selectedTextBoxId && editingTextId !== selectedTextBoxId && spread.textBoxes.some(t=>t.id===selectedTextBoxId&&!t.locked&&!t.hidden) && canvasTool==='select' && <Transformer ref={textTransformerRef} rotateEnabled={true} flipEnabled={false} boundBoxFunc={alignTransform} borderDash={[4,3]} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} />}
         </Layer>
         {(gridMode==='on' || (gridMode==='auto' && showGrid)) && <Layer listening={false} name="rule-of-thirds-grid">
           {[1 / 3, 2 / 3].flatMap(f => [
@@ -1349,11 +1360,11 @@ export default function DesignerCanvas() {
             const horizontal=g.axis==='x', x=horizontal?r.x:r.x+r.width+8/stageScale, y=horizontal?r.y-8/stageScale:r.y
             const points=horizontal?[x,y,x+r.width,y]:[x,y,x,y+r.height]
             return <Group key={j}><Rect {...r} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false}/><Line points={points} stroke="#423700" strokeWidth={4} strokeScaleEnabled={false}/><Line points={points} stroke="#ffcf33" strokeWidth={2} strokeScaleEnabled={false}/></Group>
-          })}</Group>:g.segments?<Group key={i} name="equal-spacing-guide">{g.segments.map((s,j)=>{
+          })}</Group>:g.segments?<Group key={i} name="equal-spacing-guide">{g.bands?.map((band,k)=><Rect key={"band"+k} {...band} fill="#ffdf00" opacity={.85} listening={false}/>)}{g.segments.map((s,j)=>{
             const x=g.axis==='x',tick=4/stageScale
             const label=`${inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi)} ${project.units}`
             const labelWidth=(label.length*8+12)/stageScale
-            return <Group key={j}><Line listening={false} points={x?[s.from,g.position,s.to,g.position]:[g.position,s.from,g.position,s.to]} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false}/>{[s.from,s.to].map((p,tickIndex)=><Line listening={false} key={tickIndex} points={x?[p,g.position-tick,p,g.position+tick]:[g.position-tick,p,g.position+tick,p]} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false}/>)}<KonvaText name="spacing-measurement" listening={canvasTool==='select'&&!!s.keys?.length} onMouseDown={e=>beginGapDrag(e,g,s)} onMouseEnter={e=>{e.target.getStage()!.container().style.cursor=g.axis==='x'?'ew-resize':'ns-resize'}} onMouseLeave={e=>{e.target.getStage()!.container().style.cursor=''}} onTouchStart={e=>{e.cancelBubble=true}} onClick={e=>{e.cancelBubble=true;if(suppressGapClick.current){suppressGapClick.current=false;return}if(s.keys){const pos=e.target.position();setGapEditor({axis:g.axis,keys:s.keys,x:pos.x,y:pos.y,previewBase:gapEditor?spread:undefined,dirty:gapEditor?.dirty,exactGap:(s.to-s.from)/(g.axis==='x'?STAGE_WIDTH:stageHeight),value:String(inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi))})}}} onTap={e=>{e.cancelBubble=true;if(s.keys){const pos=e.target.position();setGapEditor({axis:g.axis,keys:s.keys,x:pos.x,y:pos.y,previewBase:gapEditor?spread:undefined,dirty:gapEditor?.dirty,exactGap:(s.to-s.from)/(g.axis==='x'?STAGE_WIDTH:stageHeight),value:String(inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi))})}}} text={label} width={labelWidth} align="center" x={x?(s.from+s.to)/2-labelWidth/2:g.position+6/stageScale} y={x?g.position-17/stageScale:(s.from+s.to)/2-6/stageScale} fontSize={13/stageScale} fill="#2583ff"/></Group>
+            return <Group key={j}><Line listening={false} points={x?[s.from,g.position,s.to,g.position]:[g.position,s.from,g.position,s.to]} stroke="#ffcf33" strokeWidth={6} opacity={.8} strokeScaleEnabled={false}/><Line listening={false} points={x?[s.from,g.position,s.to,g.position]:[g.position,s.from,g.position,s.to]} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false}/>{[s.from,s.to].map((p,tickIndex)=><Line listening={false} key={tickIndex} points={x?[p,g.position-tick,p,g.position+tick]:[g.position-tick,p,g.position+tick,p]} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false}/>)}<KonvaText name="spacing-measurement" listening={canvasTool==='select'&&!!s.keys?.length} onMouseDown={e=>beginGapDrag(e,g,s)} onMouseEnter={e=>{e.target.getStage()!.container().style.cursor=g.axis==='x'?'ew-resize':'ns-resize'}} onMouseLeave={e=>{e.target.getStage()!.container().style.cursor=''}} onTouchStart={e=>{e.cancelBubble=true}} onClick={e=>{e.cancelBubble=true;if(suppressGapClick.current){suppressGapClick.current=false;return}if(s.keys){const pos=e.target.position();setGapEditor({axis:g.axis,keys:s.keys,x:pos.x,y:pos.y,previewBase:gapEditor?spread:undefined,dirty:gapEditor?.dirty,exactGap:(s.to-s.from)/(g.axis==='x'?STAGE_WIDTH:stageHeight),value:String(inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi))})}}} onTap={e=>{e.cancelBubble=true;if(s.keys){const pos=e.target.position();setGapEditor({axis:g.axis,keys:s.keys,x:pos.x,y:pos.y,previewBase:gapEditor?spread:undefined,dirty:gapEditor?.dirty,exactGap:(s.to-s.from)/(g.axis==='x'?STAGE_WIDTH:stageHeight),value:String(inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi))})}}} text={label} width={labelWidth} align="center" x={x?(s.from+s.to)/2-labelWidth/2:g.position+6/stageScale} y={x?g.position-17/stageScale:(s.from+s.to)/2-6/stageScale} fontSize={13/stageScale} fill="#2583ff"/></Group>
           })}</Group>:<Line listening={false} key={i} points={g.axis==='x'?[g.position,0,g.position,stageHeight]:[0,g.position,STAGE_WIDTH,g.position]} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false} />)}
         </Layer>
         <Layer name="gap-anchor-picker">
@@ -1372,7 +1383,7 @@ export default function DesignerCanvas() {
       {gapDrag&&<div className="canvas-anchor-hint" aria-label="Live gap change">{gapChangeText}</div>}
       {pickingGapAnchor&&<div className="canvas-anchor-hint" role="status">Click a selected element to keep it fixed · Escape cancels</div>}
 
-      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-230,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-(presetDraft?850:710),anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+(presetDraft?850:710)<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-(presetDraft?850:710)):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
+      {gapEditor&&<form className="canvas-gap-editor" aria-label="Edit spacing" style={{visibility:pickingGapAnchor||gapDrag?'hidden':undefined,left:Math.max(8,Math.min(viewportSize.width-292,(gapEditorBeside?anchorRight!+12:stagePos.x+gapEditor.x*stageScale))),top:Math.max(8,Math.min(viewportSize.height-(presetDraft?850:710),anchorGeometry?(gapEditorBeside?stagePos.y+anchorGeometry.y*stageHeight*stageScale:stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12+(presetDraft?850:710)<=viewportSize.height?stagePos.y+(anchorGeometry.y+anchorGeometry.height)*stageHeight*stageScale+12:stagePos.y+anchorGeometry.y*stageHeight*stageScale-(presetDraft?850:710)):stagePos.y+gapEditor.y*stageScale))}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();setGapEditor(null)}else if(e.key==='Enter'&&e.target instanceof HTMLInputElement){e.preventDefault();e.currentTarget.requestSubmit()}}} onSubmit={e=>{e.preventDefault();if(gapCanApply){useProjectStore.getState().updateSpread(spread.id,{customBoxes:gapPreview!.customBoxes,textBoxes:gapPreview!.textBoxes,flipped:gapPreview!.flipped});setGapEditor(null);setSmartGuides([])}}}>
         <label>Keep fixed<select aria-label="Canvas gap anchor" value={gapAnchor} onChange={e=>switchGapAnchor(e.target.value as GapAnchor)}><option value="first">First element</option><option value="center">Center</option><option value="last">Last element</option>{gapAnchor.includes(':')&&<option value={gapAnchor}>Picked element</option>}</select></label>
         <button className="btn btn--tiny" type="button" aria-pressed={pickingGapAnchor} onClick={()=>useProjectStore.getState().setPickingGapAnchor(!pickingGapAnchor)}>{pickingGapAnchor?'Cancel picking':'Pick anchor on canvas'}</button>
         <div className="canvas-gap-editor__comparison">
@@ -1383,6 +1394,7 @@ export default function DesignerCanvas() {
         <div className="canvas-gap-editor__percentages" role="group" aria-label="Quick percentage changes">
           {gapPresets.map(percent=><button key={percent} className="btn btn--tiny" type="button" aria-label={`Set gap change to ${percent}%`} aria-pressed={gapPercent===percent} title={`${percent>0?'+':''}${percent}% from the original gap`} disabled={Math.abs(originalGapIn)<1e-10} onClick={()=>updateGapPercent(String(percent))}>{percent<0?'−':'+'}{Math.abs(percent)}%</button>)}
         </div>
+        <details className="gap-preset-settings"><summary>Manage percentage presets</summary>
         {presetDraft?<div className="canvas-gap-editor__customize">
           <div className="canvas-gap-editor__preset-inputs">{presetDraft.map((value,index)=><label key={index}>Preset {index+1} (%)<input aria-label={`Gap preset ${index+1}`} type="number" min="-100" step="any" value={value} onChange={e=>{setPresetDraft(presetDraft.map((v,i)=>i===index?e.target.value:v));setPresetError('')}} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();if(validPresets)saveGapPresets(presetDraft.map(Number))}}}/></label>)}</div>
           {!validPresets&&<p role="status">Enter four different percentages of −100% or greater.</p>}
@@ -1401,6 +1413,7 @@ export default function DesignerCanvas() {
           <button className="btn btn--tiny" type="button" disabled={presetTransferBusy||!importPast.length} title="Restore the previous preset values and both preset history stacks" onClick={()=>stepImportHistory(false)}>Undo import</button>
           <button className="btn btn--tiny" type="button" disabled={presetTransferBusy||!importFuture.length} title="Restore the imported preset values and both preset history stacks" onClick={()=>stepImportHistory(true)}>Redo import</button>
         </div>
+        </details>
         {presetTransferStatus&&<p role="status">{presetTransferStatus}</p>}
         {presetError&&<p role="alert">{presetError}</p>}
         <p className="canvas-gap-editor__change" aria-label="Gap change from original">{gapChangeText}</p>
@@ -1445,7 +1458,7 @@ export default function DesignerCanvas() {
         })()}
       </div>
       </div>
-      {textContextMenu && spread?.id === textContextMenu.spreadId && spread.textBoxes.some(t => textContextMenu.textIds.includes(t.id) && !t.hidden) && <ContextMenu x={textContextMenu.x} y={textContextMenu.y} onClose={() => setTextContextMenu(null)} items={[{ label: 'Auto-fit width', disabled: !spread.textBoxes.some(t => textContextMenu.textIds.includes(t.id) && !t.locked && !t.hidden), onClick: () => useProjectStore.getState().autoFitTextBoxes(spread.id, textContextMenu.textIds) }]}><TextAutoFitStatus spread={spread} textIds={textContextMenu.textIds} /></ContextMenu>}
+      {textContextMenu && spread?.id === textContextMenu.spreadId && spread.textBoxes.some(t => textContextMenu.textIds.includes(t.id) && !t.hidden) && <ContextMenu x={textContextMenu.x} y={textContextMenu.y} onClose={() => setTextContextMenu(null)} items={[...layerEditItems(spread.id,textContextMenu.textIds.map(id=>'text:'+id)),...layerOrderItems(spread.id,'text',textContextMenu.textIds[0]),{ label: 'Auto-fit width', disabled: !spread.textBoxes.some(t => textContextMenu.textIds.includes(t.id) && !t.locked && !t.hidden), onClick: () => useProjectStore.getState().autoFitTextBoxes(spread.id, textContextMenu.textIds) }]}><TextAutoFitStatus spread={spread} textIds={textContextMenu.textIds} /></ContextMenu>}
       {photoContextMenu && spread && <PhotoContextMenu key={JSON.stringify(photoContextMenu)} x={photoContextMenu.x} y={photoContextMenu.y} spreadId={spread.id} frameId={photoContextMenu.placeholderId} />}
       {pendingPresetImport&&<GapPresetImportPreview name={pendingPresetImport.name} data={pendingPresetImport.data} error={presetError} onImport={confirmPresetImport} onCancel={cancelPresetImport}/>}
       <input ref={presetFileInput} aria-label="Import percentage presets file" type="file" accept=".json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void importPresetsFile(file)}} />

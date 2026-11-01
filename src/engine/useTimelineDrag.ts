@@ -10,14 +10,19 @@ function targetAt(x: number, y: number): TimelineTarget | null {
   const element = document.elementFromPoint(x, y)
   if (element?.closest('[data-cover-drop]')) return { spreadId: null, cover: true }
   if (element?.closest('[data-new-spread]')) return { spreadId: null }
+  const timeline = element?.closest<HTMLElement>('.spreads-panel__timeline')
+  const groups = timeline ? Array.from(timeline.querySelectorAll<HTMLElement>('[data-timeline-spread]')) : []
   const column = element?.closest<HTMLElement>('[data-timeline-spread]')
+    ?? groups.find(group => x < group.getBoundingClientRect().right) ?? groups.at(-1)
   if (!column) return null
-  const image = element?.closest<HTMLElement>('[data-timeline-frame]')
-  let beforeFrameId = image?.dataset.timelineFrame
-  if (image && x > image.getBoundingClientRect().left + image.getBoundingClientRect().width / 2) {
-    const frames = Array.from(column.querySelectorAll<HTMLElement>('[data-timeline-frame]'))
-    beforeFrameId = frames[frames.indexOf(image) + 1]?.dataset.timelineFrame
-  }
+  const overview=element?.closest<HTMLElement>('[data-spread-drag]')
+  if(overview){const spread=useProjectStore.getState().project.spreads.find(s=>s.id===column.dataset.timelineSpread);const rect=overview.getBoundingClientRect();const hit=spread&&overviewPhotoAt(spread,x-rect.left,y-rect.top,rect.width,rect.height);const placement=spread?.placements.find(p=>p.placeholderId===hit?.placeholderId);if(placement?.locked||placement?.hidden)return null;return {spreadId:column.dataset.timelineSpread!,beforeFrameId:hit?.placeholderId,replace:!!hit}}
+  // Use insertion midpoints across the whole row, including the gaps between photos.
+  const frames = Array.from(column.querySelectorAll<HTMLElement>('[data-timeline-frame]'))
+  const beforeFrameId = frames.find(frame => {
+    const rect = frame.getBoundingClientRect()
+    return x < rect.left + rect.width / 2
+  })?.dataset.timelineFrame
   return { spreadId: column.dataset.timelineSpread!, beforeFrameId }
 }
 
@@ -31,38 +36,46 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
 
   useEffect(() => {
     let scrollFrame = 0
+    let pointerFrame = 0
     let suppressClickUntil = 0
     function updateTarget() {
       const current = gesture.current
       if (!current?.active) return
       const next = targetAt(current.x, current.y)
-      setTarget((old) => old?.spreadId === next?.spreadId && old?.beforeFrameId === next?.beforeFrameId && old?.cover === next?.cover ? old : next)
+      setTarget((old) => old?.spreadId === next?.spreadId && old?.beforeFrameId === next?.beforeFrameId && old?.cover === next?.cover && old?.replace === next?.replace ? old : next)
     }
     function scroll() {
+      scrollFrame = 0
       const current = gesture.current
       if (!current?.active) return
       const under = document.elementFromPoint(current.x, current.y)
       const strip = under?.closest<HTMLElement>('.spreads-panel__timeline, .spreads-panel__row')
       const viewport = document.querySelector<HTMLElement>('.app-main')
+      let moved = false
       for (const pane of [strip, viewport]) {
         if (!pane) continue
         const rect = pane.getBoundingClientRect()
         if (current.y < rect.top || current.y > rect.bottom) continue
         const delta = current.x < rect.left + 32 ? -10 : current.x > rect.right - 32 ? 10 : 0
-        if (delta) pane.scrollLeft += delta
+        if (delta && pane.scrollWidth > pane.clientWidth) {
+          const before = pane.scrollLeft
+          pane.scrollLeft += delta
+          moved ||= pane.scrollLeft !== before
+        }
       }
-      updateTarget()
-      scrollFrame = requestAnimationFrame(scroll)
+      if (moved) { updateTarget(); scrollFrame = requestAnimationFrame(scroll) }
     }
     function cancel() {
       gesture.current = null
       cancelAnimationFrame(scrollFrame)
+      cancelAnimationFrame(pointerFrame)
+      scrollFrame = pointerFrame = 0
       setDrag(null)
       setTarget(null)
     }
     function down(event: PointerEvent) {
       if (event.button !== 0 || !(event.target instanceof Element)) return
-      if (event.target.closest('button, input, select, textarea, a')) return
+      if (event.target.closest('button, input, select, textarea, a, [data-overview-text]')) return
       const item = event.target.closest<HTMLElement>('[data-timeline-frame], [data-dock-photo], [data-spread-drag]')
       if (!item) return
       const state = useProjectStore.getState()
@@ -74,19 +87,12 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
         frameId=overviewPhotoAt(spread,event.clientX-r.left,event.clientY-r.top,r.width,r.height)?.placeholderId
       }
       if(frameId&&spread?.placements.find(p=>p.placeholderId===frameId)?.locked)return
-      if (item.hasAttribute('data-spread-drag') && spreadId && !frameId) {
-        const src = item.querySelector('canvas')?.toDataURL()
-        if (!src) return
-        event.preventDefault()
-        item.setPointerCapture(event.pointerId)
-        gesture.current = { source: { spreadId, photoIds: [] }, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, active: false, src, pointerId: event.pointerId }
-        return
-      }
+      if(item.hasAttribute('data-spread-drag')&&!frameId)return
       const photoId = item.dataset.dockPhoto ?? state.project.spreads.find((s) => s.id === spreadId)?.placements.find((p) => p.placeholderId === frameId)?.photoId
       if (!photoId) return
       const visibleIds = Array.from(document.querySelectorAll<HTMLElement>('[data-dock-photo]')).map((el) => el.dataset.dockPhoto!)
       const photoIds = frameId ? [photoId] : draggedPhotoIds(photoId, state.selectedPhotoIds, visibleIds)
-      const src = state.project.photos.find((p) => p.id === photoId)?.src
+      const src = item.querySelector('img')?.currentSrc || state.project.photos.find((p) => p.id === photoId)?.src
       if (!src) return
       event.preventDefault()
       item.setPointerCapture(event.pointerId)
@@ -98,9 +104,15 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
       current.x = event.clientX
       current.y = event.clientY
       if (!current.active && Math.hypot(current.x - current.startX, current.y - current.startY) < 5) return
-      if (!current.active) { current.active = true; scrollFrame = requestAnimationFrame(scroll) }
-      setDrag({ x: current.x, y: current.y, src: current.src })
-      updateTarget()
+      if (!current.active) current.active = true
+      if (!scrollFrame) scrollFrame = requestAnimationFrame(scroll)
+      if (!pointerFrame) pointerFrame = requestAnimationFrame(() => {
+        pointerFrame = 0
+        const latest = gesture.current
+        if (!latest?.active) return
+        setDrag({ x: latest.x, y: latest.y, src: latest.src })
+        updateTarget()
+      })
     }
     function up(event: PointerEvent) {
       const current = gesture.current
@@ -112,6 +124,12 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
           if(event.altKey){const frame=document.elementFromPoint(event.clientX,event.clientY)?.closest<HTMLElement>('[data-timeline-frame]');destination.replace=getPreferences().altDrop==='replace';if(frame)destination.beforeFrameId=frame.dataset.timelineFrame}
           commit.current(current.source, destination)
         }
+      }
+      if(!current.active){
+        const state=useProjectStore.getState(),source=current.source
+        if(source.spreadId){state.selectSpread(source.spreadId);state.selectPlaceholder(source.frameId??null)}
+        else {const id=(event.target as HTMLElement)?.closest<HTMLElement>('[data-dock-photo]')?.dataset.dockPhoto??source.photoIds[0];if(id&&(!state.selectedPhotoIds.includes(id)||event.shiftKey||event.ctrlKey||event.metaKey))state.togglePhotoSelection(id,Array.from(document.querySelectorAll<HTMLElement>('[data-dock-photo]')).map(el=>el.dataset.dockPhoto!),event.shiftKey?'range':event.ctrlKey||event.metaKey?'toggle':'single')}
+        suppressClickUntil=performance.now()+250
       }
       cancel()
     }
@@ -128,6 +146,7 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
     window.addEventListener('keydown', key, true)
     return () => {
       cancelAnimationFrame(scrollFrame)
+      cancelAnimationFrame(pointerFrame)
       window.removeEventListener('pointerdown', down, true)
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
