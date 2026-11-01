@@ -15,8 +15,9 @@ export interface NewProjectPayload {
 }
 
 export interface AlbumStudioBridge {
+  importRevocation: () => Promise<void>
   preferencesSystem: (action: 'cacheSize' | 'clearCache' | 'choosePhotoshop' | 'chooseCanva' | 'projectDirectory', value?: string) => Promise<string | number | null>
-  readExternalEdit: (file: string, revision?: string) => Promise<{data: Uint8Array; revision: string} | null>
+  readExternalEdit: (file: string, revision?: string) => Promise<{data: Uint8Array; revision: string; sourcePath?: string} | null>
   openExternalEditor: (args: { app: 'photoshop' | 'canva'; photoshopPath: string; canvaPath?: string; originalPath?: string; name: string; data: Uint8Array }) => Promise<string>
 
   getImagePath: (file: File) => string
@@ -28,7 +29,10 @@ export interface AlbumStudioBridge {
   readRecovery: () => Promise<{ filePath: string | null; contents: string } | null>
   writeRecovery: (snapshot: { filePath: string | null; contents: string }) => Promise<void>
   clearRecovery: () => Promise<void>
+  imagePreview: (data: Uint8Array | string) => Promise<{width:number;height:number;src:string;hasColorProfile:boolean}>
   decodeTiff: (data: Uint8Array) => Promise<string>
+  saveProjectPackage: (args: { filePath?: string; defaultName: string; contents: string }) => Promise<{ saved: boolean; filePath?: string }>
+  copyProjectPackage: (args: { defaultName: string; contents: string }) => Promise<{ saved: boolean; filePath?: string }>
   saveFile: (args: {
     defaultName: string
     filters: { name: string; extensions: string[] }[]
@@ -36,8 +40,13 @@ export interface AlbumStudioBridge {
   }) => Promise<{ canceled: boolean; filePath?: string }>
   pickDirectory: () => Promise<{ canceled: boolean; dirPath?: string }>
   writeFileInDir: (args: { dirPath: string; fileName: string; data: Uint8Array }) => Promise<{ filePath: string }>
+  takePendingProject: () => Promise<string | null>
+  onProjectOpen: (callback: () => void) => () => void
   openProjectFile: () => Promise<{ canceled: boolean; filePath?: string; contents?: string }>
   openProjectAtPath: (filePath: string) => Promise<{ ok: boolean; contents?: string }>
+  readCachedFont?: (family: string) => Promise<{data:Uint8Array;weight:string;style:string;unicodeRange:string}[] | null>
+  scanFonts: (action:'start'|'cancel'|'status') => Promise<{running:boolean;visited:number;skipped:number;fonts:{family:string;path:string}[]}>
+  readDiscoveredFont: (path:string) => Promise<string>
   listLocalFonts: () => Promise<{ fonts: string[] }>
   openNewProjectWindow: () => Promise<void>
   submitNewProject: (opts: NewProjectPayload) => Promise<void>

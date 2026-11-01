@@ -1,7 +1,7 @@
 {
   "name": "ynot-album-studio",
   "private": true,
-  "version": "0.1.6",
+  "version": "0.1.17",
   "description": "Internal album design studio built for YNOT Photography",
   "main": "dist-electron/main.js",
   "author": "YNOT Photography",
@@ -56,7 +56,7 @@
       "target": [
         "dmg"
       ],
-      "icon": "build/icon.png",
+      "icon": "build/icon.icns",
       "category": "public.app-category.photography",
       "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
@@ -68,11 +68,27 @@
       {
         "from": "build/icon.ico",
         "to": "ynot-app.ico"
+      },
+      {
+        "from": "src/data/googleFontsCatalog.json",
+        "to": "googleFontsCatalog.json"
+      },
+      {
+        "from": "scripts/prepare-fonts.cjs",
+        "to": "prepare-fonts.cjs"
       }
     ],
     "asarUnpack": [
       "node_modules/sharp/**/*",
       "node_modules/@img/**/*"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "ynot",
+        "name": "YNOT Album",
+        "description": "YNOT Album Studio project",
+        "role": "Editor"
+      }
     ]
   },
   "scripts": {

@@ -1,4 +1,6 @@
-import { requireActivation } from './activation'
+import { saveProjectPackage, readProjectPackage, copyProjectPackage } from './projectPackage'
+import { FontDiscovery } from './fontDiscovery'
+import { requireActivation, importRevocation } from './activation'
 import { app, BrowserWindow, ipcMain, dialog, Menu, screen, shell } from 'electron'
 import path from 'path'
 import { randomUUID } from 'crypto'
@@ -6,7 +8,7 @@ import { findPhotoshop, findCanva, findMacEditor, ExternalEditFiles } from './ex
 import fs from 'fs'
 import { execFile, spawn } from 'child_process'
 import { writeFileAtomic } from './files'
-import { decodeTiff } from './images'
+import { decodeTiff, imagePreview } from './images'
 import { readSiblingImage } from './siblingImages'
 import { readRecovery, writeRecovery, clearRecovery } from './recovery'
 import { fitWindowSize } from './windowSizing'
@@ -28,6 +30,25 @@ ipcMain.handle('export:revealLocation', async (_event, location: string) => {
   else throw new Error('This export location cannot be opened.')
 })
 
+const fontDiscovery=new FontDiscovery(path.join(app.getPath('userData'),'discovered-fonts.json'))
+const fontsReady=fontDiscovery.load()
+ipcMain.handle('fonts:scan',async (_event,action:string)=>{
+  await fontsReady
+  if(action==='start')void fontDiscovery.start().catch(console.error)
+  else if(action==='cancel')fontDiscovery.cancel()
+  else if(action!=='status')throw new Error('Invalid font scan action')
+  return fontDiscovery.status
+})
+// Fonts the installer pre-downloaded (scripts/prepare-fonts.cjs) into a fixed per-user folder.
+ipcMain.handle('fonts:cached',async (_event,family:string)=>{
+  if(typeof family!=='string')return null
+  const dir=path.join(app.getPath('appData'),'YNOT Album Studio','google-fonts',family.replace(/[^A-Za-z0-9]+/g,'_'))
+  try{
+    const faces:{file:string;weight:string;style:string;unicodeRange:string}[]=JSON.parse(await fs.promises.readFile(path.join(dir,'faces.json'),'utf8'))
+    return await Promise.all(faces.map(async f=>({data:new Uint8Array(await fs.promises.readFile(path.join(dir,path.basename(f.file)))),weight:f.weight,style:f.style,unicodeRange:f.unicodeRange})))
+  }catch{return null}
+})
+ipcMain.handle('fonts:read',async (_event,file:string)=>{await fontsReady;return fontDiscovery.read(file)})
 const isDev = !app.isPackaged
 app.setAppUserModelId('com.ynotphotography.albumstudio')
 const windowIcon = path.join(app.getAppPath(), 'build', process.platform==='darwin'?'icon.png':'icon.ico')
@@ -38,6 +59,7 @@ ipcMain.handle('images:missingPaths', async (_event, paths: string[]) => {
   return missing
 })
 ipcMain.handle('images:readSibling', (_event, locatedPath: string, fileName: string) => readSiblingImage(locatedPath, fileName))
+ipcMain.handle('images:preview', (_event, data: Uint8Array) => imagePreview(data))
 ipcMain.handle('images:decodeTiff', (_event, data: Uint8Array) => decodeTiff(data))
 
 // Electron shows its own default File/Edit/View/Window/Help menu unless the app sets one
@@ -58,17 +80,23 @@ function createSplash(): BrowserWindow {
     webPreferences: { contextIsolation: true },
   })
   splash.setMenu(null)
-  const logo = fs.readFileSync(path.join(app.getAppPath(), 'src', 'assets', 'ynot-mark-dark.png')).toString('base64')
+  const logo = fs.readFileSync(path.join(app.getAppPath(), 'build', 'icon.png')).toString('base64')
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     html,body{margin:0;height:100%;background:#f2f5fa;}
     body{display:grid;place-items:center;-webkit-user-select:none;}
-    .mark{width:64px;height:64px;max-width:16vmin;max-height:16vmin;display:grid;place-items:center;}
-    .mark{background:#3157c8;mask:url(data:image/png;base64,${logo}) center/contain no-repeat;}
+    .mark{width:240px;height:240px;max-width:35vmin;max-height:35vmin;background:url(data:image/png;base64,${logo}) center/contain no-repeat;}
   </style></head><body><div class="mark" role="status" aria-label="Loading YNOT Album Studio"></div></body></html>`
   splash.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
   return splash
 }
 let mainWindow: BrowserWindow | null = null
+let pendingProject: string | null = process.argv.find(arg=>/\.ynot$/i.test(arg)&&path.isAbsolute(arg))??null
+const hasInstanceLock=app.requestSingleInstanceLock()
+if(!hasInstanceLock)app.quit()
+function requestProject(file:string){if(!path.isAbsolute(file)||! /\.ynot$/i.test(file))return;pendingProject=file;mainWindow?.show();mainWindow?.focus();mainWindow?.webContents.send('project:requested')}
+app.on('open-file',(event,file)=>{event.preventDefault();requestProject(file)})
+app.on('second-instance',(_event,args)=>{const file=args.find(arg=>/\.ynot$/i.test(arg)&&path.isAbsolute(arg));if(file)requestProject(file);else{mainWindow?.show();mainWindow?.focus()}})
+ipcMain.handle('project:pending',()=>{const file=pendingProject;pendingProject=null;return file})
 
 function createWindow(splash?: BrowserWindow) {
   const win = new BrowserWindow({
@@ -165,6 +193,7 @@ function createNewProjectWindow() {
 }
 
 app.whenReady().then(async () => {
+  if(!hasInstanceLock)return
   if (app.isPackaged && !(await requireActivation())) { app.quit(); return }
   const splash = createSplash()
   createWindow(splash)
@@ -183,7 +212,7 @@ ipcMain.handle(
   'export:saveFile',
   async (_evt, args: { defaultName: string; filters: { name: string; extensions: string[] }[]; data: Uint8Array }) => {
     const { canceled, filePath } = await dialog.showSaveDialog({
-      defaultPath: /\.ablm(?:\.json)?$/i.test(args.defaultName) && desktopPreferences().projectDirectory ? path.join(desktopPreferences().projectDirectory!,path.basename(args.defaultName)) : args.defaultName,
+      defaultPath: /\.(ynot|ablm(?:\.json)?)$/i.test(args.defaultName) && desktopPreferences().projectDirectory ? path.join(desktopPreferences().projectDirectory!,path.basename(args.defaultName)) : args.defaultName,
       filters: args.filters,
     })
     if (canceled || !filePath) return { canceled: true as const }
@@ -208,16 +237,40 @@ ipcMain.handle(
   }
 )
 
-// Open an existing .ablm project file chosen via native dialog; contents are returned as text
-// (project files are self-contained JSON with photos embedded as data URLs).
+// Desktop projects store originals beside the metadata; legacy embedded files still open.
+ipcMain.handle('project:savePackage', async (_event, args: { filePath?: string; defaultName: string; contents: string }) => {
+  if (!args || typeof args.contents !== 'string' || typeof args.defaultName !== 'string' || (args.filePath !== undefined && typeof args.filePath !== 'string')) throw new Error('Invalid project save request.')
+  let target = args.filePath
+  if (!target) {
+    const directory = desktopPreferences().projectDirectory
+    const chosen = await dialog.showSaveDialog({
+      defaultPath: directory ? path.join(directory, path.basename(args.defaultName)) : path.basename(args.defaultName),
+      title: 'Save project',
+      filters: [{ name: 'YNOT Album Studio Project', extensions: ['ynot'] }],
+    })
+    if (chosen.canceled || !chosen.filePath) return { saved: false }
+    target = chosen.filePath
+  }
+  await saveProjectPackage(target, args.contents)
+  return { saved: true, filePath: target }
+})
+
+ipcMain.handle('project:copyPackage', async (_event, args: { defaultName: string; contents: string }) => {
+  if (!args || typeof args.contents !== 'string' || typeof args.defaultName !== 'string') throw new Error('Invalid project copy request.')
+  const chosen = await dialog.showOpenDialog({ title: 'Copy project to USB or another folder', properties: ['openDirectory', 'createDirectory'] })
+  if (chosen.canceled || !chosen.filePaths[0]) return { saved: false }
+  const filePath = await copyProjectPackage(chosen.filePaths[0], args.defaultName, args.contents)
+  return { saved: true, filePath }
+})
+
 ipcMain.handle('project:open', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     defaultPath: desktopPreferences().projectDirectory,
     properties: ['openFile'],
-    filters: [{ name: 'YNOT Album Studio Project', extensions: ['ablm', 'json'] }],
+    filters: [{ name: 'YNOT Album Studio Project', extensions: ['ynot', 'ablm', 'json'] }],
   })
   if (canceled || filePaths.length === 0) return { canceled: true as const }
-  const contents = fs.readFileSync(filePaths[0], 'utf-8')
+  const contents = await readProjectPackage(filePaths[0])
   return { canceled: false as const, filePath: filePaths[0], contents }
 })
 
@@ -226,7 +279,7 @@ ipcMain.handle('project:open', async () => {
 // last opened, so a stale recent entry degrades gracefully instead of crashing the renderer.
 ipcMain.handle('project:openPath', async (_evt, filePath: string) => {
   try {
-    const contents = fs.readFileSync(filePath, 'utf-8')
+    const contents = await readProjectPackage(filePath)
     return { ok: true as const, contents }
   } catch {
     return { ok: false as const }
@@ -262,12 +315,15 @@ ipcMain.handle('fonts:listLocal', async (): Promise<{ fonts: string[] }> => {
   if (process.platform !== 'win32') return { fonts: [] }
 
   const script = `
-    $names = @()
+    Add-Type -AssemblyName System.Drawing
+    $installed = New-Object System.Drawing.Text.InstalledFontCollection
+    $names = @($installed.Families | ForEach-Object { $_.Name })
+    $nativeFound = $names.Count -gt 0
     foreach ($regPath in 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts','HKCU:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts') {
       if (Test-Path $regPath) {
         $props = Get-ItemProperty -Path $regPath
         foreach ($p in $props.PSObject.Properties) {
-          if ($p.Name -notmatch '^PS') { $names += $p.Name }
+          if ($p.Name -notmatch '^PS' -and -not $nativeFound) { $names += $p.Name }
         }
       }
     }
@@ -342,10 +398,12 @@ ipcMain.handle('editor:open', async (_event,args:{app:string;photoshopPath:strin
   const folder=path.join(app.getPath('documents'),'YNOT External Edits');await fs.promises.mkdir(folder,{recursive:true})
   const file=path.join(folder,`${Date.now()}-${randomUUID().slice(0,8)}-${path.basename(name).replace(/[^a-z0-9_.-]/gi,'_')}`)
   writeFileAtomic(file,bytes)
-  await externalEditFiles.register(file,_event.sender.id)
+  await externalEditFiles.register(file,_event.sender.id,args.app==='canva'?app.getPath('downloads'):undefined)
   await new Promise<void>((resolve,reject)=>{const child=spawn(process.platform==='darwin'?'/usr/bin/open':executable,process.platform==='darwin'?['-a',executable,file]:[file],{detached:true,stdio:'ignore',windowsHide:true});child.once('error',reject);child.once('spawn',()=>{child.unref();resolve()})})
   return file
 })
 
 const externalEditFiles = new ExternalEditFiles()
 ipcMain.handle('editor:readEdit', (event,file:string,revision?:string) => externalEditFiles.read(file,event.sender.id,revision))
+
+ipcMain.handle('license:import-revocation',event=>{if(event.sender!==mainWindow?.webContents||event.senderFrame!==event.sender.mainFrame)throw new Error('Invalid application window.');return importRevocation()})

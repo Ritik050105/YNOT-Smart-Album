@@ -15,8 +15,9 @@ export interface NewProjectPayload {
 }
 
 export interface AlbumStudioBridge {
+  importRevocation: () => Promise<void>
   preferencesSystem: (action: 'cacheSize' | 'clearCache' | 'choosePhotoshop' | 'chooseCanva' | 'projectDirectory', value?: string) => Promise<string | number | null>
-  readExternalEdit: (file: string, revision?: string) => Promise<{data: Uint8Array; revision: string} | null>
+  readExternalEdit: (file: string, revision?: string) => Promise<{data: Uint8Array; revision: string; sourcePath?: string} | null>
   openExternalEditor: (args: { app: 'photoshop' | 'canva'; photoshopPath: string; canvaPath?: string; originalPath?: string; name: string; data: Uint8Array }) => Promise<string>
 
   isElectron: true
@@ -28,7 +29,10 @@ export interface AlbumStudioBridge {
   readRecovery: () => Promise<{ filePath: string | null; contents: string } | null>
   writeRecovery: (snapshot: { filePath: string | null; contents: string }) => Promise<void>
   clearRecovery: () => Promise<void>
+  imagePreview: (data: Uint8Array | string) => Promise<{width:number;height:number;src:string;hasColorProfile:boolean}>
   decodeTiff: (data: Uint8Array) => Promise<string>
+  saveProjectPackage: (args: { filePath?: string; defaultName: string; contents: string }) => Promise<{ saved: boolean; filePath?: string }>
+  copyProjectPackage: (args: { defaultName: string; contents: string }) => Promise<{ saved: boolean; filePath?: string }>
   saveFile: (args: {
     defaultName: string
     filters: { name: string; extensions: string[] }[]
@@ -36,8 +40,13 @@ export interface AlbumStudioBridge {
   }) => Promise<{ canceled: boolean; filePath?: string }>
   pickDirectory: () => Promise<{ canceled: boolean; dirPath?: string }>
   writeFileInDir: (args: { dirPath: string; fileName: string; data: Uint8Array }) => Promise<{ filePath: string }>
+  takePendingProject: () => Promise<string | null>
+  onProjectOpen: (callback: () => void) => () => void
   openProjectFile: () => Promise<{ canceled: boolean; filePath?: string; contents?: string }>
   openProjectAtPath: (filePath: string) => Promise<{ ok: boolean; contents?: string }>
+  scanFonts: (action:'start'|'cancel'|'status') => Promise<{running:boolean;visited:number;skipped:number;fonts:{family:string;path:string}[]}>
+  readCachedFont?: (family: string) => Promise<{data:Uint8Array;weight:string;style:string;unicodeRange:string}[] | null>
+  readDiscoveredFont: (path:string) => Promise<string>
   listLocalFonts: () => Promise<{ fonts: string[] }>
   /** Opens the dedicated "New Project" OS window (Home screen / TopBar "New Album"). */
   openNewProjectWindow: () => Promise<void>
@@ -55,6 +64,7 @@ export interface AlbumStudioBridge {
 const bridge: AlbumStudioBridge = {
   isElectron: true,
   getImagePath: file => webUtils.getPathForFile(file),
+  importRevocation: () => ipcRenderer.invoke('license:import-revocation'),
   preferencesSystem: (action, value) => ipcRenderer.invoke('preferences:system', action, value),
   readExternalEdit: (file, revision) => ipcRenderer.invoke('editor:readEdit',file,revision),
   openExternalEditor: (args) => ipcRenderer.invoke('editor:open', args),
@@ -65,12 +75,20 @@ const bridge: AlbumStudioBridge = {
   readRecovery: () => ipcRenderer.invoke('recovery:read'),
   writeRecovery: (snapshot) => ipcRenderer.invoke('recovery:write', snapshot),
   clearRecovery: () => ipcRenderer.invoke('recovery:clear'),
+  imagePreview: (data) => ipcRenderer.invoke('images:preview', data),
   decodeTiff: (data) => ipcRenderer.invoke('images:decodeTiff', data),
+  copyProjectPackage: args => ipcRenderer.invoke('project:copyPackage', args),
+  saveProjectPackage: args => ipcRenderer.invoke('project:savePackage', args),
   saveFile: (args) => ipcRenderer.invoke('export:saveFile', args),
   pickDirectory: () => ipcRenderer.invoke('export:pickDirectory'),
   writeFileInDir: (args) => ipcRenderer.invoke('export:writeFileInDir', args),
+  takePendingProject: () => ipcRenderer.invoke('project:pending'),
+  onProjectOpen: (callback) => {const listener=()=>callback();ipcRenderer.on('project:requested',listener);return()=>ipcRenderer.removeListener('project:requested',listener)},
   openProjectFile: () => ipcRenderer.invoke('project:open'),
   openProjectAtPath: (filePath) => ipcRenderer.invoke('project:openPath', filePath),
+  scanFonts: action => ipcRenderer.invoke('fonts:scan',action),
+  readCachedFont: family => ipcRenderer.invoke('fonts:cached',family),
+  readDiscoveredFont: path => ipcRenderer.invoke('fonts:read',path),
   listLocalFonts: () => ipcRenderer.invoke('fonts:listLocal'),
   openNewProjectWindow: () => ipcRenderer.invoke('window:openNewProject'),
   submitNewProject: (opts) => ipcRenderer.invoke('new-project:submit', opts),
