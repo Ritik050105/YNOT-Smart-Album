@@ -30,6 +30,9 @@ export interface AlbumStudioBridge {
   writeRecovery: (snapshot: { filePath: string | null; contents: string }) => Promise<void>
   clearRecovery: () => Promise<void>
   imagePreview: (data: Uint8Array | string) => Promise<{width:number;height:number;src:string;thumb:string;isBlackAndWhite?:boolean;hasColorProfile:boolean}>
+  prepareImage: (path: string) => Promise<{width:number;height:number;hasColorProfile:boolean;isBlackAndWhite?:boolean}>
+  warmImages: (paths: string[]) => Promise<void>
+  putTextPreview: (key: string, bytes: Uint8Array) => Promise<void>
   decodeTiff: (data: Uint8Array) => Promise<string>
   saveProjectPackage: (args: { filePath?: string; defaultName: string; contents: string }) => Promise<{ saved: boolean; filePath?: string }>
   copyProjectPackage: (args: { defaultName: string; contents: string }) => Promise<{ saved: boolean; filePath?: string }>

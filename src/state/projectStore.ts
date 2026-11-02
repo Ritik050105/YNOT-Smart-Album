@@ -27,6 +27,7 @@ import {
 import { BUILT_IN_TEMPLATES, uniqueTemplates, findTemplate, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
 import { previewSource } from '@/engine/previewImage'
+import { warmPhotos } from '@/engine/imageUrl'
 import { computeAutoAdjust } from '@/engine/autoAdjust'
 import { validateCoverSize } from '@/engine/cover'
 import { DESIGN_WIDTH, boundedFrameRect, computePlaceholderBoxes } from '@/engine/layoutMath'
@@ -1480,6 +1481,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   updateProjectSettings: (patch) => withHistory(set, (p) => ({ ...p, ...patch })),
 
   loadProjectFile: (file) => {
+    warmPhotos(file.project.photos)
     get().closeMatchingTemplates()
     saveUserTemplates(file.userTemplates)
     // Older saved project files predate these fields — default them so opening one doesn't

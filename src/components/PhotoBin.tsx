@@ -1,5 +1,7 @@
+import {PreviewImage} from '@/engine/previewImage'
 import ContextMenu from './ContextMenu'
-import { openInEditor } from './ExternalEditor'
+import { galleryActions } from '@/engine/galleryActions'
+import ImportProgress from './ImportProgress'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -7,7 +9,7 @@ import { useProjectStore } from '@/state/projectStore'
 import { useImportPhotos } from '@/engine/useImportPhotos'
 import { describeImportSummary } from '@/engine/importWorkflow'
 import { autoBuildTargetPhotoIds } from '@/engine/autoBuildTarget'
-import { draggedPhotoIds } from '@/engine/photoDrag'
+import { draggedPhotoIds, setPhotoDragPreview } from '@/engine/photoDrag'
 import { Spread } from '@/types'
 import AutoBuildModal from './AutoBuildModal'
 import Icon from './Icon'
@@ -47,6 +49,15 @@ type SortMode = 'time' | 'name' | 'bin'
  *  term for custom photo collections — e.g. "Ceremony", "Getting Ready") and filtered by one.
  *
  *  Used images remain selectable and draggable so the same image can appear on multiple pages. */
+function deleteGalleryPhotos(photoIds:string[]){
+ const state=useProjectStore.getState(),ids=[...new Set(photoIds)]
+ const locked=ids.filter(id=>state.project.spreads.some(s=>s.placements.some(p=>p.photoId===id&&p.locked)||(s.backgroundPattern?.edits?.photoId===id&&s.backgroundLocked)))
+ const eligible=ids.filter(id=>!locked.includes(id))
+ if(!eligible.length){if(locked.length)window.alert('Unlock these photos in all spreads before deleting them.');return}
+ const used=eligible.filter(id=>state.project.spreads.some(s=>s.placements.some(p=>p.photoId===id)||s.backgroundPattern?.edits?.photoId===id))
+ if(used.length&&!window.confirm(`${used.length} of ${eligible.length} selected photos are used in spreads. Delete them from the gallery and those spreads?${locked.length?` ${locked.length} locked photos will be kept.`:''} You can Undo this change.`))return
+ state.removePoolPhotos(eligible)
+}
 export default function PhotoBin() {
   const photos = useProjectStore((s) => s.project.photos)
   const spreads = useProjectStore((s) => s.project.spreads)
@@ -66,6 +77,7 @@ export default function PhotoBin() {
   const { handleFiles, importing, progress, lastSummary } = useImportPhotos()
   const importInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
+  const [emptyMenu,setEmptyMenu]=useState<{x:number;y:number}|null>(null)
   const [editorMenu,setEditorMenu]=useState<{x:number;y:number;src:string;name:string;photoId:string}|null>(null)
   const [browserTool, setBrowserTool] = useState<'search' | 'filter' | 'sort' | null>(null)
   const [descending, setDescending] = useState(false)
@@ -234,7 +246,7 @@ export default function PhotoBin() {
             All ({photos.length})
           </button>
           {allBins.map((b) => (
-            <button key={b} className={binFilter === b ? 'is-active' : ''} onClick={() => setBinFilter(b)}>
+            <button key={b} onDragOver={e=>{if(Array.from(e.dataTransfer.types).includes('application/x-photo-ids')){e.preventDefault();e.currentTarget.classList.add('is-drop-target');e.dataTransfer.dropEffect='copy'}}} onDragLeave={e=>e.currentTarget.classList.remove('is-drop-target')} onDrop={e=>{e.preventDefault();e.stopPropagation();e.currentTarget.classList.remove('is-drop-target');try{const ids=JSON.parse(e.dataTransfer.getData('application/x-photo-ids'));if(Array.isArray(ids)&&ids.every(id=>typeof id==='string'))useProjectStore.getState().addPhotosToBin(ids,b)}catch{}}} className={binFilter === b ? 'is-active' : ''} onClick={() => setBinFilter(b)}>
               {b} ({photos.filter((p) => p.bins.includes(b)).length})
             </button>
           ))}
@@ -289,6 +301,7 @@ export default function PhotoBin() {
         </span>
       </div>
 
+      {progress && <ImportProgress done={progress.done} total={progress.total}/>}
       <div className="photo-dock__status muted" role="status">
         {importing && progress ? `Importing ${progress.done} of ${progress.total}…` : lastSummary ? describeImportSummary(lastSummary) : ''}
         {(search.trim() || quickFilter !== 'all' || binFilter) && <> · Filters active <button className="btn btn--tiny" onClick={() => { setSearch(''); setQuickFilter('all'); setBinFilter('') }}>Clear all filters</button></>}
@@ -317,9 +330,32 @@ export default function PhotoBin() {
       </div>}
 
       <div className="photo-dock__strip" tabIndex={0} aria-label="Image browser"
+        onContextMenu={event=>{
+          if((event.target as HTMLElement).closest('[data-dock-photo]'))return
+          event.preventDefault();event.stopPropagation();setEmptyMenu({x:event.clientX,y:event.clientY})
+        }}
+        onPointerDown={event=>{
+          if(event.button!==0||(event.target as HTMLElement).closest('[data-dock-photo],button,input,select'))return
+          if(!event.shiftKey)useProjectStore.getState().setSelectedPhotoIds([],null)
+          const strip=event.currentTarget,startX=event.clientX,startY=event.clientY,old=useProjectStore.getState().selectedPhotoIds
+          const marker=document.createElement('div');Object.assign(marker.style,{position:'fixed',border:'1px solid var(--accent)',background:'color-mix(in srgb,var(--accent) 15%,transparent)',pointerEvents:'none',zIndex:'9999'});document.body.append(marker)
+          const move=(e:PointerEvent)=>{const left=Math.min(startX,e.clientX),top=Math.min(startY,e.clientY),right=Math.max(startX,e.clientX),bottom=Math.max(startY,e.clientY);Object.assign(marker.style,{left:left+'px',top:top+'px',width:right-left+'px',height:bottom-top+'px'});const ids=Array.from(strip.querySelectorAll<HTMLElement>('[data-dock-photo]')).filter(node=>{const r=node.getBoundingClientRect();return r.left<right&&r.right>left&&r.top<bottom&&r.bottom>top}).map(node=>node.dataset.dockPhoto!);useProjectStore.getState().setSelectedPhotoIds([...new Set([...(event.shiftKey?old:[]),...ids])],ids.at(-1)??null)}
+          const end=()=>{marker.remove();window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end)}
+          window.addEventListener('pointermove',move);window.addEventListener('pointerup',end);window.addEventListener('pointercancel',end);strip.focus()
+        }}
         onKeyDown={(event) => {
           if (event.target instanceof HTMLInputElement) return
+          if((event.ctrlKey||event.metaKey)&&['c','e','r'].includes(event.key.toLowerCase())){
+            const key=event.key.toLowerCase(),label=key==='c'?'Copy':key==='e'?'Edit in Adobe Photoshop':event.shiftKey?'Replace Image':'Reload from Original'
+            const action=galleryActions(selectedPhotoIds,deleteGalleryPhotos).find(a=>a.label===label)
+            event.preventDefault();event.stopPropagation();if(action&&!action.disabled)action.onClick();return
+          }
           const ids = sorted.map((photo) => photo.id)
+          if(event.key==='Delete'||event.key==='Backspace'){
+            event.preventDefault();event.stopPropagation()
+            deleteGalleryPhotos(selectedPhotoIds)
+            return
+          }
           if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
             event.preventDefault()
             useProjectStore.getState().setSelectedPhotoIds(ids, ids[0] ?? null)
@@ -346,7 +382,7 @@ export default function PhotoBin() {
               key={photo.id}
                 className={`photo-dock__item ${used ? 'is-used' : 'is-unused'} ${selected ? 'is-selected' : ''}`}
                 data-dock-photo={photo.id}
-                onContextMenu={e=>{e.preventDefault();setEditorMenu({x:e.clientX,y:e.clientY,src:photo.src,name:photo.fileName,photoId:photo.id})}}
+                onContextMenu={e=>{e.preventDefault();e.currentTarget.focus();if(!selectedPhotoIds.includes(photo.id))useProjectStore.getState().setSelectedPhotoIds([photo.id],photo.id);setEditorMenu({x:e.clientX,y:e.clientY,src:photo.src,name:photo.fileName,photoId:photo.id})}}
               aria-label={`${photo.fileName}${used ? ' — used in album; drag to reuse' : ''}`}
               tabIndex={-1}
               draggable
@@ -354,6 +390,7 @@ export default function PhotoBin() {
                 e.dataTransfer.setData('application/x-photo-id', photo.id)
                 e.dataTransfer.setData('application/x-photo-ids', JSON.stringify(draggedPhotoIds(photo.id, selectedPhotoIds, sorted.map((p) => p.id))))
                 e.dataTransfer.effectAllowed = 'copy'
+                setPhotoDragPreview(e.dataTransfer, e.currentTarget.querySelector('img'))
               }}
               onClick={(e) => {
                 e.currentTarget.focus({ preventScroll: true })
@@ -377,7 +414,7 @@ export default function PhotoBin() {
               }}
               title={`${photo.fileName} — ${new Date(photo.capturedAt).toLocaleString()}${used ? ' (placed)' : ''} — double-click to quick-place, click to select then click a canvas frame, shift/ctrl+click to multi-select`}
             >
-              <img src={photo.src} alt={photo.fileName} />
+              <PreviewImage src={photo.src} sourcePath={photo.sourcePath} alt={photo.fileName} />
               {showFileNames && <span className="photo-dock__filename">{photo.fileName}</span>}
               <button
                 className={`photo-dock__fav-btn ${photo.favorite ? 'is-favorite' : ''}`}
@@ -410,11 +447,7 @@ export default function PhotoBin() {
                   <span className="bin-chip">{photo.bins[0]}{photo.bins.length > 1 ? ` +${photo.bins.length - 1}` : ''}</span>
                 </div>
               )}
-              {used && (
-                <span className="photo-dock__badge">
-                  <Icon name="check" size={10} />
-                </span>
-              )}
+              <button className="photo-dock__delete" title="Remove photo from album" aria-label={`Remove ${photo.fileName}`} onClick={e=>{e.stopPropagation();deleteGalleryPhotos([photo.id])}}><Icon name="trash" size={13}/></button>
               {tagPopoverFor === photo.id &&
                 tagPopoverAnchor &&
                 createPortal(
@@ -445,7 +478,12 @@ export default function PhotoBin() {
             </div>
           )
         })}
-        {editorMenu && <ContextMenu x={editorMenu.x} y={editorMenu.y} onClose={()=>setEditorMenu(null)} items={(['photoshop','canva'] as const).map(app=>({label:app==='photoshop'?'Open in Adobe Photoshop':'Open in Canva',onClick:()=>openInEditor({app,src:editorMenu.src,name:editorMenu.name,photoId:editorMenu.photoId})}))}/>}
+        {emptyMenu && <ContextMenu x={emptyMenu.x} y={emptyMenu.y} onClose={()=>setEmptyMenu(null)} items={[
+          {label:'Import Images…',shortcut:'Ctrl+I',disabled:importing,onClick:()=>importInputRef.current?.click()},
+          {label:'Select All',separator:true,shortcut:'Ctrl+A',disabled:!sorted.length,onClick:()=>useProjectStore.getState().setSelectedPhotoIds(sorted.map(p=>p.id),sorted[0]?.id??null)},
+          {label:'Clear Selection',disabled:!selectedPhotoIds.length,onClick:()=>useProjectStore.getState().setSelectedPhotoIds([],null)},
+        ]}/>}
+        {editorMenu && <ContextMenu x={editorMenu.x} y={editorMenu.y} onClose={()=>setEditorMenu(null)} items={galleryActions(selectedPhotoIds.includes(editorMenu.photoId)?selectedPhotoIds:[editorMenu.photoId],deleteGalleryPhotos)}/>}
         {photos.length === 0 ? <button className="photo-dock__dropzone" disabled={importing}
           onClick={() => importInputRef.current?.click()}
           onDragOver={e => { e.preventDefault(); e.stopPropagation() }}

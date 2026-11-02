@@ -1,0 +1,32 @@
+// Proves RAW JPEG extraction and the ynot-img URL / cache-key logic (needs `npm run build:main` first).
+const assert = require('assert')
+const sharp = require('sharp')
+const path = require('path')
+const { extractRawJpeg } = require('../dist-electron/rawPreview')
+const { parseImgUrl, cacheKey } = require('../dist-electron/imageKeys')
+
+;(async () => {
+  const noise = (w, h) => sharp(require('crypto').randomBytes(w * h * 3), { raw: { width: w, height: h, channels: 3 } })
+  const big = await noise(800, 600).jpeg({ quality: 90 }).toBuffer()
+  const tiny = await noise(40, 30).jpeg().toBuffer()
+  const padded = (n) => Buffer.alloc(n, 0x41)
+  // thumbnail first, then the full preview, with a fake sensor-data gap between them
+  const raw = Buffer.concat([Buffer.from('II*\0FAKERAW'), padded(5000), tiny, padded(70000), big, padded(9000)])
+  assert(big.length > 40 * 1024, 'test JPEG must exceed the 40 KB thumbnail cutoff, got ' + big.length)
+  const found = extractRawJpeg(raw)
+  assert(found && found.equals(big), 'extracts the largest complete JPEG, not the thumbnail')
+  assert.strictEqual(extractRawJpeg(Buffer.concat([padded(1000), tiny, padded(1000)])), null, 'only thumbnails -> null')
+  assert.strictEqual(extractRawJpeg(Buffer.concat([padded(100), big.subarray(0, big.length - 500)])), null, 'truncated JPEG is ignored')
+
+  const b64 = (s) => Buffer.from(s).toString('base64url')
+  const win = path.resolve('/Photos/Wedding/IMG_0001 é.CR2')
+  assert.deepStrictEqual(parseImgUrl('ynot-img://t/' + b64(win)), { kind: 't', value: win })
+  assert.deepStrictEqual(parseImgUrl('ynot-img://r/' + b64(win) + '?v=2'), { kind: 'r', value: win })
+  assert.strictEqual(parseImgUrl('ynot-img://p/' + b64('relative/path.jpg')), null, 'relative paths rejected')
+  assert.strictEqual(parseImgUrl('ynot-img://x/abc'), null, 'text key too short')
+  assert.deepStrictEqual(parseImgUrl('ynot-img://x/0123456789abcdef'), { kind: 'x', value: '0123456789abcdef' })
+  assert.strictEqual(parseImgUrl('ynot-img://x/../../etc'), null)
+  assert.strictEqual(cacheKey('a', 1, 2), cacheKey('a', 1, 2))
+  assert.notStrictEqual(cacheKey('a', 1, 2), cacheKey('a', 1, 3), 'mtime change busts the cache')
+  console.log('raw-cache checks passed')
+})().catch((e) => { console.error(e); process.exit(1) })

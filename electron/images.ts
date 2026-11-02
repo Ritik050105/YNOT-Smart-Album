@@ -2,6 +2,7 @@ import sharp from 'sharp'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { stat } from 'fs/promises'
+import { RAW_EXT, extractRawJpegFromFile } from './rawPreview'
 
 export async function decodeTiff(data: Uint8Array): Promise<string> {
   if (!(data instanceof Uint8Array) || data.byteLength > 512 * 1024 * 1024) throw new Error('Invalid image data or image file larger than 512 MB.')
@@ -15,11 +16,13 @@ export async function decodeTiff(data: Uint8Array): Promise<string> {
 export async function imagePreview(data: Uint8Array | string) {
   if (typeof data === 'string') {
     if (data.startsWith('file:')) data = fileURLToPath(data)
-    if (!path.isAbsolute(data) || !/\.(jpe?g|png|webp|gif|bmp|tiff?|avif|heic)$/i.test(data)) throw new Error('Invalid image path')
+    if (!path.isAbsolute(data) || !/\.(jpe?g|png|webp|gif|bmp|tiff?|avif|heic)$/i.test(data) && !RAW_EXT.test(data)) throw new Error('Invalid image path')
     const info = await stat(data)
     if (!info.isFile() || info.size > 512 * 1024 * 1024) throw new Error('Invalid image file')
   } else if (!(data instanceof Uint8Array) || data.byteLength > 512 * 1024 * 1024) throw new Error('Invalid image data')
-  const input = sharp(typeof data === 'string' ? data : Buffer.from(data), { limitInputPixels: 100_000_000 })
+  const rawJpeg = typeof data === 'string' && RAW_EXT.test(data) ? await extractRawJpegFromFile(data) : null
+  if (typeof data === 'string' && RAW_EXT.test(data) && !rawJpeg) throw new Error('No embedded preview found in this RAW file.')
+  const input = sharp(rawJpeg ?? (typeof data === 'string' ? data : Buffer.from(data)), { limitInputPixels: 100_000_000 })
   const meta = await input.metadata()
   const rotated = (meta.orientation ?? 1) >= 5
   const preview = await input.rotate().resize(1600,1600,{fit:'inside',withoutEnlargement:true}).webp({quality:85,effort:2}).toBuffer()

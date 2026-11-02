@@ -1,6 +1,6 @@
 import { PhotoAsset } from '@/types'
 import { importPhotoFiles, ImportFailure } from './importPhotos'
-import { blobUrlToDataUrl } from './projectFile'
+import { warmPhotos } from './imageUrl'
 
 export interface ImportSummary {
   importedCount: number
@@ -16,7 +16,13 @@ export async function dedupeImportedAssets(assets: PhotoAsset[], existingPhotos:
   const matchedAssets: PhotoAsset[] = []
   const sources = new Map<string, Promise<string | null>>()
   function source(photo: PhotoAsset) {
-    if (!sources.has(photo.id)) sources.set(photo.id, blobUrlToDataUrl(photo.src).catch(() => null))
+    // Retain only fingerprints, never hundreds of full-resolution base64 strings.
+    if (!sources.has(photo.id)) sources.set(photo.id, (async () => {
+      const response = await fetch(photo.src)
+      if (!response.ok) return null
+      const digest = await crypto.subtle.digest('SHA-256', await response.arrayBuffer())
+      return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+    })().catch(() => null))
     return sources.get(photo.id)!
   }
   for (const asset of assets) {
@@ -26,7 +32,7 @@ export async function dedupeImportedAssets(assets: PhotoAsset[], existingPhotos:
       if (incoming !== null && incoming === existing) { match = candidate; break }
     }
     if (!match) { newAssets.push(asset); known.push(asset) }
-    else if (asset.src.startsWith('blob:')) URL.revokeObjectURL(asset.src)
+    else if (asset.src.startsWith('blob:') && !known.some(photo => photo.src === asset.src)) URL.revokeObjectURL(asset.src)
     matchedAssets.push(match ?? asset)
   }
   return { newAssets, matchedAssets }
@@ -41,6 +47,7 @@ export async function importAndDedupe(
   const { assets, failures, rejected } = await importPhotoFiles(files, onProgress)
   const { newAssets, matchedAssets } = await dedupeImportedAssets(assets, existingPhotos)
   const duplicateCount = assets.length - newAssets.length
+  warmPhotos(newAssets)
   return {
     newAssets,
     matchedAssets,

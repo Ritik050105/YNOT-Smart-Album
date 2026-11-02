@@ -109,7 +109,7 @@ function PlaceholderImage({
   onMoveEnd: (rect: GuideRect) => void
   onContextMenu: (e: Konva.KonvaEventObject<Event>) => void
 }) {
-  const [img] = useImage(usePreviewSource(src))
+  const [img] = useImage(usePreviewSource(src), 'anonymous')
 
   const matPad = frameStyle === 'polaroid' ? Math.min(box.width, box.height) * 0.06 : 0
   const matPadBottom = frameStyle === 'polaroid' ? box.height * 0.16 : 0
@@ -374,7 +374,7 @@ export default function DesignerCanvas() {
   // Preview only the canvas; project data and Undo history change once, on Apply.
   const spread=useMemo(()=>gapDrag?arrangeLayerSelection(gapDrag.source,project.size,gapDrag.keys,gapDrag.axis==='x'?'horizontal':'vertical','selection',gapDrag.gap,gapDrag.anchor):gapPreview,[baseSpread,project.size,gapDrag,gapPreview])
   const [coverGuide] = useImage(spread?.coverDetails?.guideSrc ?? '')
-  const [patternImage] = useImage(usePreviewSource(spread?.backgroundPattern?.src ?? ''))
+  const [patternImage] = useImage(usePreviewSource(spread?.backgroundPattern?.src ?? ''), 'anonymous')
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -443,6 +443,8 @@ export default function DesignerCanvas() {
   const updateGroupPreview=()=>{const n=groupNodeRef.current;if(n&&group){const resizing=!!groupTransformerRef.current?.isTransforming();const rect={x:n.x(),y:n.y(),width:n.width()*n.scaleX(),height:n.height()*n.scaleY()};if(!resizing)n.position(alignRect(rect));else alignRect(rect,undefined,groupTransformerRef.current?.getActiveAnchor()??undefined,0);setGroupLive({x:n.x()-group.x*STAGE_WIDTH*n.scaleX(),y:n.y()-group.y*stageHeight*n.scaleY(),scaleX:n.scaleX(),scaleY:n.scaleY()})}}
   const commitGroup=()=>{const n=groupNodeRef.current;if(n&&spread&&transformKeys.length){useProjectStore.getState().transformSelection(spread.id,transformKeys,{x:n.x()/STAGE_WIDTH,y:n.y()/stageHeight,width:n.width()*n.scaleX()/STAGE_WIDTH,height:n.height()*n.scaleY()/stageHeight});n.scale({x:1,y:1});setGroupLive(null);setSmartGuides([])}}
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
+  // The group box sits above its text and swallows clicks, so route select/double-click-to-edit to the text under the pointer.
+  const groupTextAtPointer=()=>{const p=stageRef.current?.getRelativePointerPosition();if(!p||!spread||!selectedGroupId)return undefined;const h=STAGE_WIDTH*size.heightIn/size.widthIn;return [...spread.textBoxes].reverse().find(t=>t.groupId===selectedGroupId&&!t.shape&&!t.locked&&!t.hidden&&p.x>=t.x*STAGE_WIDTH&&p.x<=(t.x+t.width)*STAGE_WIDTH&&p.y>=t.y*h&&p.y<=(t.y+t.height)*h)}
   useEffect(()=>{if(selectedLayerKeys.length||(editingTextId&&selectedTextBoxId!==editingTextId))setEditingTextId(null)},[selectedLayerKeys,selectedTextBoxId,editingTextId])
   const [textContextMenu, setTextContextMenu] = useState<{ x: number; y: number; textIds: string[]; spreadId: string } | null>(null)
   const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId?: string; openedAt: number } | null>(null)
@@ -1091,7 +1093,7 @@ export default function DesignerCanvas() {
                 fontStyle={`${box.bold ? 'bold' : ''} ${box.italic ? 'italic' : ''}`.trim() || 'normal'}
                 fill={box.color}
                 align={box.align}
-                draggable={!box.groupId && !box.locked && canvasTool === 'select' && !isSpaceDown}
+                draggable={!box.locked && canvasTool === 'select' && !isSpaceDown}
                 onClick={(e:Konva.KonvaEventObject<MouseEvent>)=>{if(e.evt.shiftKey||e.evt.ctrlKey||e.evt.metaKey)toggleCanvasLayer('text',box.id);else selectTextBox(box.id)}}
                 onTap={() => selectTextBox(box.id)}
                 onContextMenu={(e:Konva.KonvaEventObject<PointerEvent>) => openTextContextMenu(e, box.id)}
@@ -1101,6 +1103,16 @@ export default function DesignerCanvas() {
                 onTransformEnd={(e:Konva.KonvaEventObject<MouseEvent>)=>{const node=e.target;updateTextBox(spread.id,box.id,{x:node.x()/STAGE_WIDTH,y:node.y()/stageHeight,autoWidth:false,width:node.width()/STAGE_WIDTH,height:node.height()/stageHeight,fontSize:(node as Konva.Text).fontSize(),rotationDeg:node.rotation()});setSmartGuides([])}}
                 onDragEnd={(e:Konva.KonvaEventObject<MouseEvent>) => {
                   setSmartGuides([])
+                  // Grouped text (text templates) moves as one: apply this box's drag to the whole group.
+                  const grouped=box.groupId?groupGeometry(spread,box.groupId,project.size):null
+                  if(box.groupId&&grouped){
+                    if(!grouped.members.some(l=>l.value.locked)){
+                      const dx=e.target.x()/STAGE_WIDTH-box.x,dy=e.target.y()/stageHeight-box.y
+                      useProjectStore.getState().transformGroup(spread.id,box.groupId,{x:grouped.x+dx,y:grouped.y+dy,width:grouped.width,height:grouped.height})
+                    }
+                    e.target.position({x:x,y:y})
+                    return
+                  }
                   updateTextBox(spread.id, box.id, {
                     x: e.target.x() / STAGE_WIDTH,
                     y: e.target.y() / stageHeight,
@@ -1240,7 +1252,7 @@ export default function DesignerCanvas() {
             <Transformer ref={transformerRef} borderDash={[4,3]} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} rotateEnabled={true} flipEnabled={false} boundBoxFunc={alignTransform} />
           </>}
           {group && group.members.some(l=>!l.value.hidden) && canvasTool==='select' && <>
-            <Rect name="group-transform-box" onContextMenu={e => openTextContextMenu(e)} listening={!isShiftDown} ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke={accent} strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey&&selectedGroupId)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!)}}/>
+            <Rect name="group-transform-box" onContextMenu={e => openTextContextMenu(e)} listening={!isShiftDown} ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke={accent} strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey&&selectedGroupId)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!);else if(selectedTextBoxId){const hit=groupTextAtPointer();if(hit&&hit.id!==selectedTextBoxId)selectTextBox(hit.id)}}} onDblClick={e=>{if(e.evt.shiftKey||!selectedTextBoxId)return;const hit=groupTextAtPointer();if(hit){selectTextBox(hit.id);setEditingTextId(hit.id)}}}/>
             {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-right','bottom-left','bottom-right']} borderDash={[4,3]} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
           </>}
           {draftFrame && (canvasTool==='line'&&drawStartRef.current&&drawEndRef.current?<Line points={[drawStartRef.current.x,drawStartRef.current.y,drawEndRef.current.x,drawEndRef.current.y]} stroke={accent} strokeWidth={2/stageScale} listening={false}/>:<Rect {...draftFrame} stroke={accent} strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />)}

@@ -9,12 +9,14 @@ import fs from 'fs'
 import { execFile, spawn } from 'child_process'
 import { writeFileAtomic } from './files'
 import { decodeTiff, imagePreview } from './images'
+import { RAW_EXT } from './rawPreview'
+import { registerImageScheme, registerImageProtocol, prepareImage, warmImages, putTextPreview, pruneImageCache } from './imageCache'
 import { readSiblingImage } from './siblingImages'
 import { readRecovery, writeRecovery, clearRecovery } from './recovery'
 import { fitWindowSize } from './windowSizing'
 
 ipcMain.handle('images:showFile', async (_event, filePath: string, reveal: boolean) => {
-  if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !/\.(jpe?g|png|webp|gif|bmp|tiff?|psd|avif|heic)$/i.test(filePath) || !fs.statSync(filePath).isFile()) throw new Error('The original image is unavailable. Replace the image to reconnect its file.')
+  if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !/\.(jpe?g|png|webp|gif|bmp|tiff?|psd|avif|heic)$/i.test(filePath) && !RAW_EXT.test(filePath) || !fs.statSync(filePath).isFile()) throw new Error('The original image is unavailable. Replace the image to reconnect its file.')
   if (reveal) shell.showItemInFolder(filePath)
   else { const error = await shell.openPath(filePath); if (error) throw new Error(error) }
 })
@@ -60,6 +62,9 @@ ipcMain.handle('images:missingPaths', async (_event, paths: string[]) => {
 })
 ipcMain.handle('images:readSibling', (_event, locatedPath: string, fileName: string) => readSiblingImage(locatedPath, fileName))
 ipcMain.handle('images:preview', (_event, data: Uint8Array) => imagePreview(data))
+ipcMain.handle('images:prepare', (_event, file: string) => prepareImage(file))
+ipcMain.handle('images:warm', (_event, files: string[]) => { warmImages(files) })
+ipcMain.handle('text:putPreview', (_event, key: string, bytes: Uint8Array) => putTextPreview(key, bytes))
 ipcMain.handle('images:decodeTiff', (_event, data: Uint8Array) => decodeTiff(data))
 
 // Electron shows its own default File/Edit/View/Window/Help menu unless the app sets one
@@ -192,7 +197,11 @@ function createNewProjectWindow() {
   return win
 }
 
+registerImageScheme()
+
 app.whenReady().then(async () => {
+  registerImageProtocol()
+  void pruneImageCache()
   if (process.platform === 'darwin') app.dock?.setIcon(windowIcon) // always show the packaged latest logo in the Dock
   if(!hasInstanceLock)return
   if (app.isPackaged && !(await requireActivation())) { app.quit(); return }

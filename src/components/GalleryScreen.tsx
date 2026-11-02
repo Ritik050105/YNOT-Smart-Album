@@ -1,3 +1,4 @@
+import {PreviewImage} from '@/engine/previewImage'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
@@ -104,7 +105,7 @@ export default function GalleryScreen() {
           <div className="gallery-screen__grid">
             {visible.map((photo) => (
               <div key={photo.id} className="gallery-screen__item">
-                <img src={photo.src} alt={photo.fileName} />
+                <PreviewImage src={photo.src} sourcePath={photo.sourcePath} alt={photo.fileName} />
                 <button
                   className={`photo-dock__fav-btn ${photo.favorite ? 'is-favorite' : ''}`}
                   title={photo.favorite ? 'Remove from favorites' : 'Mark as favorite'}

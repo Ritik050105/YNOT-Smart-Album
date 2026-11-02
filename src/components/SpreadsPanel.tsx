@@ -381,7 +381,7 @@ export default function SpreadsPanel() {
               return photo ? <Fragment key={placement.placeholderId}>
                 {spread.placements.slice(0,placementIndex).some(p=>p.photoId&&photosById.has(p.photoId))&&<button className="timeline-cut" aria-label={`Split spread ${index+1} before ${photo.fileName}`} title="Click to split into two spreads here" onClick={e=>{e.stopPropagation();splitSpread(spread.id,placementIndex)}} onDoubleClick={e=>e.stopPropagation()} />}
                 {target?.spreadId===spread.id&&target.beforeFrameId===placement.placeholderId&&<span className="timeline-drop-marker" aria-label="Insert photo here">●</span>}
-                <PreviewImage src={photo.src} alt={photo.fileName} title={`${photo.fileName} — drag to move in the timeline`} draggable={false}
+                <PreviewImage src={photo.src} sourcePath={photo.sourcePath} alt={photo.fileName} title={`${photo.fileName} — drag to move in the timeline`} draggable={false}
                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); selectSpread(spread.id); setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: placement.placeholderId }) }}
                   data-timeline-frame={placement.placeholderId}
                   onClick={e => { e.stopPropagation(); selectSpread(spread.id); useProjectStore.getState().selectPlaceholder(placement.placeholderId) }}

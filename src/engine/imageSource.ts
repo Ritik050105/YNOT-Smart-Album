@@ -1,9 +1,9 @@
 import { readPsd } from 'ag-psd'
 
-export const IMAGE_FILE_ACCEPT = 'image/*,.psd,.tif,.tiff'
+export const IMAGE_FILE_ACCEPT = 'image/*,.psd,.tif,.tiff,.cr2,.cr3,.crw,.nef,.nrw,.arw,.srf,.sr2,.dng,.raf,.orf,.rw2,.rwl,.pef,.srw,.raw,.3fr,.erf,.mef,.mos,.mrw,.x3f,.kdc,.dcr,.iiq,.fff,.cap'
 
 export function isImageFile(file: File) {
-  return file.type.startsWith('image/') || /\.(psd|tiff?|jpe?g|png|webp|avif)$/i.test(file.name)
+  return file.type.startsWith('image/') || /\.(psd|tiff?|jpe?g|png|webp|avif|cr2|cr3|crw|nef|nrw|arw|srf|sr2|dng|raf|orf|rw2|rwl|pef|srw|raw|3fr|erf|mef|mos|mrw|x3f|kdc|dcr|iiq|fff|cap)$/i.test(file.name)
 }
 
 export async function imageFileSource(file: File): Promise<string> {

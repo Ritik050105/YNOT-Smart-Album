@@ -1,4 +1,5 @@
-import {seedPreview,previewSource} from './previewImage'
+import {seedPreview,previewSource,registerPath} from './previewImage'
+import { RAW_FILE, imgUrl } from './imageUrl'
 import { getPreferences } from '@/state/preferences'
 import exifr from 'exifr'
 import { v4 as uuid } from 'uuid'
@@ -57,7 +58,11 @@ function orientationFor(width: number, height: number): PhotoAsset['orientation'
 
 async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAsset> {
   const sourcePath = window.albumStudio?.getImagePath?.(file) || undefined
-  const src = await imageFileSource(file)
+  const isRaw = RAW_FILE.test(file.name)
+  const cached = !!(window.albumStudio?.prepareImage && sourcePath && (isRaw || /\.(jpe?g|png|webp|gif|avif|heic)$/i.test(file.name)))
+  if (isRaw && !cached) throw new Error('RAW photos can be imported in the desktop application only.')
+  // RAW photos use the camera's embedded JPEG (served by the image cache) as their source; the original stays referenced by sourcePath.
+  const src = isRaw ? imgUrl('r', sourcePath!) : await imageFileSource(file)
   let capturedAt: string | null = null
   let cameraModel: string | undefined
   let metadata: Record<string,string> = {}
@@ -74,9 +79,12 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
     capturedAt = file.lastModified ? new Date(file.lastModified).toISOString() : new Date(Date.now() + fallbackOrder).toISOString()
   }
 
-  const prepared = window.albumStudio?.imagePreview && /\.(jpe?g|png|webp|gif|tiff?|avif|heic)$/i.test(file.name)
+  const fast = cached ? await window.albumStudio!.prepareImage(sourcePath!) : null
+  if (fast && sourcePath) registerPath(src, sourcePath)
+  const legacy = !fast && window.albumStudio?.imagePreview && /\.(jpe?g|png|webp|gif|tiff?|avif|heic)$/i.test(file.name)
     ? await window.albumStudio.imagePreview(sourcePath ?? new Uint8Array(await file.arrayBuffer())) : null
-  if (prepared) seedPreview(src,prepared.src,prepared.thumb,sourcePath)
+  if (legacy) seedPreview(src,legacy.src,legacy.thumb,sourcePath)
+  const prepared = fast ?? (legacy || null)
   const { width, height } = prepared ?? await loadImageDimensions(src)
   const isBlackAndWhite = prepared ? prepared.isBlackAndWhite : await detectBlackAndWhite(await previewSource(src))
 
@@ -93,7 +101,7 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
     isBlackAndWhite,
     orientation: orientationFor(width, height),
     megapixels: Math.round((width * height) / 1_000_000),
-    mimeType: /\.(psd|tiff?)$/i.test(file.name) ? 'image/png' : file.type || 'image/jpeg',
+    mimeType: /\.(psd|tiff?)$/i.test(file.name) ? 'image/png' : isRaw ? 'image/jpeg' : file.type || 'image/jpeg',
     bins: getPreferences().autoBins && (file.webkitRelativePath ?? '').includes('/') ? [file.webkitRelativePath.split('/').slice(-2,-1)[0]] : [],
     favorite: false,
   }
