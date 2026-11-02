@@ -1,6 +1,7 @@
 export type PageSide = 'single' | 'left' | 'right' | 'spread'
 
 export interface PhotoAsset {
+  hasColorProfile?: boolean
   isBlackAndWhite?: boolean
   cameraModel?: string
   metadata?: Record<string,string>
@@ -37,6 +38,11 @@ export interface PlaceholderRect {
 }
 
 export interface TemplateDefinition {
+  kind?: 'image' | 'mixed'
+  category?: string
+  subcategory?: string
+  absoluteFrames?: boolean
+  textBoxes?: TextBox[]
   id: string
   name: string
   photoCount: number
@@ -54,6 +60,7 @@ export interface TemplateDefinition {
 export type FrameStyle = 'none' | 'rounded' | 'polaroid' | 'shadow'
 
 export interface PlacedPhoto {
+  imageRotationDeg?: number
   groupId?: string
   hidden?: boolean
   zIndex?: number
@@ -90,23 +97,41 @@ export interface PlacedPhoto {
 
 /** The subset of PlacedPhoto that "Copy/Paste Tone Adjustments" and multi-select batch editing
  *  operate on — everything about how a photo looks, not which photo or where it's cropped. */
-export type ToneAdjustments = Pick<
-  PlacedPhoto,
-  | 'opacity'
-  | 'warmth'
-  | 'brightness'
-  | 'contrast'
-  | 'saturation'
-  | 'blackWhiteMix'
-  | 'relightIntensity'
-  | 'borderWidth'
-  | 'borderColor'
-  | 'frameStyle'
-  | 'rotationDeg'
-  | 'cornerRadiusPx'
->
+export type ToneAdjustments = Pick<PlacedPhoto,'warmth'|'brightness'|'contrast'|'saturation'|'blackWhiteMix'|'relightIntensity'>
 
+export type TextEffectName='stroke'|'dropShadow'|'outerGlow'|'innerShadow'|'innerGlow'|'bevel'|'satin'|'colorOverlay'|'gradientOverlay'|'patternOverlay'|'texture'
+export interface TextEffect {
+ enabled:boolean;color:string;color2?:string;size:number;opacity:number;angle:number;distance:number
+ blendMode?:GlobalCompositeOperation;contour?:'linear'|'soft'|'sharp';antiAlias?:boolean;noise?:number
+ position?:'inside'|'center'|'outside';fillType?:'color'|'gradient'|'pattern';spread?:number
+ useGlobalLight?:boolean;knockout?:boolean;technique?:'smooth'|'chisel-hard'|'chisel-soft'|'softer'|'precise'
+ source?:'edge'|'center';range?:number;jitter?:number;invert?:boolean
+ bevelStyle?:'inner'|'outer'|'emboss'|'pillow';depth?:number;direction?:'up'|'down';soften?:number;altitude?:number
+ highlightMode?:GlobalCompositeOperation;shadowMode?:GlobalCompositeOperation;highlightOpacity?:number;shadowOpacity?:number
+ gradientStyle?:'linear'|'radial'|'angle'|'reflected'|'diamond';reverse?:boolean;dither?:boolean;scale?:number
+ offsetX?:number;offsetY?:number;pattern?:'stripes'|'dots'|'checker';patternSrc?:string
+}
 export interface TextBox {
+  /** Preview renders (font-template cards) fall back to a default font instead of failing when the real one can't be loaded. */
+  previewOnly?: boolean
+  sourceArtwork?: {fontRatio:number;src:string; text:string; fontFamily:string; color:string; bold:boolean; italic:boolean}
+
+  fillOpacity?:number
+  blendMode?:'source-over'|'multiply'|'screen'|'overlay'|'darken'|'lighten'
+  shape?:'rectangle'|'circle'|'triangle'|'line'
+  shapeRoundedEnds?:boolean
+  shapeStrokeStyle?:'solid'|'dashed'|'short-dashed'|'dotted'
+  shapeMode?:'fill'|'stroke'|'both'
+  shapeStroke?:string
+  shapeStrokeWidth?:number
+  underline?:boolean
+  strikeThrough?:boolean
+  letterSpacing?:number
+  lineHeight?:number
+  opacity?:number
+  effects?:Partial<Record<TextEffectName,TextEffect>>
+
+  rotationDeg?: number
   /** New text fits its content until a manual width is chosen. */
   autoWidth?: boolean
   groupId?: string
@@ -204,7 +229,7 @@ export interface Project {
   /** Client / couple name for this job, shown on proofing galleries and exports. */
   clientName: string
   /** Display unit for size fields in the UI — storage stays in inches regardless. */
-  units: 'in' | 'cm' | 'px'
+  units: 'in' | 'cm' | 'mm' | 'px'
   /** Metadata only (no real ICC conversion performed) — recorded so exports/handoff notes
    *  can say what color space the designer was working in, same as Pixellu's project setting. */
   colorProfile: string

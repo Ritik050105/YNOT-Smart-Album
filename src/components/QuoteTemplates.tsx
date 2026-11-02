@@ -7,6 +7,7 @@ import {selectionGeometry} from '@/engine/spreadLayers'
 import {useEffect,useState,useMemo,useRef} from 'react'
 import {TextBox} from '@/types'
 import {previewSource} from '@/engine/previewImage'
+import {ensureFontLoaded} from '@/engine/fonts'
 import {startFontTemplateDrag,endFontTemplateDrag} from '@/engine/fontTemplateDrag'
 import {imgUrl} from '@/engine/imageUrl'
 import {renderSpreadToCanvas} from '@/engine/renderSpread'
@@ -27,16 +28,19 @@ function groupedBoxes(q:typeof quotes[number],aspect:number):TextBox[]{
  const scale=Math.min(450/q.width,300/aspect/q.height),height=900/aspect,groupId=crypto.randomUUID()
  return q.layers.map(l=>({sourceArtwork:{fontRatio:l.fontSize/l.width,src:l.artwork,text:l.text,fontFamily:l.fontFamily,color:`rgb(${Math.round(l.color.r)},${Math.round(l.color.g)},${Math.round(l.color.b)})`,bold:l.bold,italic:l.italic},id:crypto.randomUUID(),groupId,text:l.text,fontFamily:l.fontFamily,fontSize:l.fontSize*scale,bold:l.bold,italic:l.italic,color:`rgb(${Math.round(l.color.r)},${Math.round(l.color.g)},${Math.round(l.color.b)})`,align:'left',autoWidth:false,x:(450-q.width*scale/2+l.x*scale)/900,y:(height/2-q.height*scale/2+l.y*scale)/height,width:l.width*scale/900,height:l.height*scale/height}))
 }
+/** Waits briefly for a template's fonts; false means some are still loading (the preview is then redrawn when they arrive). */
+const warmFonts=async(boxes:TextBox[])=>{let ready=true;await Promise.race([Promise.all([...new Set(boxes.map(b=>b.fontFamily))].map(f=>ensureFontLoaded(f))).catch(()=>{ready=false}),new Promise<void>(r=>setTimeout(()=>{ready=false;r()},2500))]);return ready}
 const hashText=(s:string)=>{let a=0x811c9dc5,b=0x1234567;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);a=Math.imul(a^c,16777619);b=Math.imul(b+c,2654435761)^(b>>>13)}return(a>>>0).toString(16).padStart(8,'0')+(b>>>0).toString(16).padStart(8,'0')}
 /** Template previews without photos depend only on the text boxes and spread size, so they are cached on disk by that hash and survive project edits and restarts. */
 function QuotePreview({boxes,spreadId,withImages}:{boxes:TextBox[];spreadId:string;withImages:boolean}){
  const project=useProjectStore(s=>withImages?s.project:null),size=useProjectStore(s=>(s.project.spreads.find(p=>p.id===spreadId)?.size??s.project.size))
- const [src,setSrc]=useState(''),[visible,setVisible]=useState(false),host=useRef<HTMLSpanElement>(null)
+ const [src,setSrc]=useState(''),[visible,setVisible]=useState(false),[fontTick,setFontTick]=useState(0),host=useRef<HTMLSpanElement>(null)
+ useEffect(()=>{const families=new Set(boxes.map(b=>b.fontFamily)),onFont=(e:Event)=>{if(families.has((e as CustomEvent<{family:string}>).detail?.family))setFontTick(t=>t+1)};window.addEventListener('album-studio:font-loaded',onFont);return()=>window.removeEventListener('album-studio:font-loaded',onFont)},[boxes])
  const key=useMemo(()=>hashText(JSON.stringify([boxes.map(({id,groupId,...rest})=>rest),size.widthIn,size.heightIn])),[boxes,size.widthIn,size.heightIn])
  const stored=!withImages&&!!window.albumStudio?.putTextPreview,[missed,setMissed]=useState(false)
  useEffect(()=>setMissed(false),[key])
  useEffect(()=>{const observer=new IntersectionObserver(([entry])=>setVisible(entry.isIntersecting),{rootMargin:'160px'});if(host.current)observer.observe(host.current);return()=>observer.disconnect()},[])
- useEffect(()=>{if(!visible||(stored&&!missed))return;let live=true;const current=useProjectStore.getState().project,spread=current.spreads.find(s=>s.id===spreadId);if(!spread)return;const size=spread.size??current.size;void Promise.all((project?.photos??[]).filter(p=>withImages&&spread.placements.some(l=>l.photoId===p.id)).map(async p=>[p.id,{...p,src:await previewSource(p.src,512)}] as const)).then(photos=>renderSpreadToCanvas(withImages?{...spread,backgroundColor:'#ffffff',textBoxes:boxes}:{...spread,backgroundHidden:false,coverDetails:undefined,placements:[],backgroundPattern:undefined,backgroundColor:'#ffffff',textBoxes:boxes},new Map(photos),size,220/size.widthIn)).then(async c=>{if(!live)return;if(stored){const blob=await new Promise<Blob|null>(r=>c.toBlob(r,'image/png'));if(blob)await window.albumStudio!.putTextPreview(key,new Uint8Array(await blob.arrayBuffer()))}if(live)setSrc(c.toDataURL())}).catch(()=>{if(live)setSrc('')});return()=>{live=false}},[project,spreadId,boxes,withImages,visible,stored,missed,key])
+ useEffect(()=>{if(!visible||(stored&&!missed))return;let live=true;const current=useProjectStore.getState().project,spread=current.spreads.find(s=>s.id===spreadId);if(!spread)return;const size=spread.size??current.size;let fontsReady=true;void Promise.all((project?.photos??[]).filter(p=>withImages&&spread.placements.some(l=>l.photoId===p.id)).map(async p=>[p.id,{...p,src:await previewSource(p.src,512)}] as const)).then(async photos=>{fontsReady=await warmFonts(boxes);return renderSpreadToCanvas(withImages?{...spread,backgroundColor:'#ffffff',textBoxes:boxes.map(b=>({...b,previewOnly:true}))}:{...spread,backgroundHidden:false,coverDetails:undefined,placements:[],backgroundPattern:undefined,backgroundColor:'#ffffff',textBoxes:boxes.map(b=>({...b,previewOnly:true}))},new Map(photos),size,220/size.widthIn)}).then(async c=>{if(!live)return;if(stored&&fontsReady){const blob=await new Promise<Blob|null>(r=>c.toBlob(r,'image/png'));if(blob)await window.albumStudio!.putTextPreview(key,new Uint8Array(await blob.arrayBuffer()))}if(live)setSrc(c.toDataURL())}).catch(()=>{if(live)setSrc('')});return()=>{live=false}},[project,spreadId,boxes,withImages,visible,stored,missed,key,fontTick])
  const shown=stored&&visible&&!missed?imgUrl('x',key):src
  return <span ref={host} style={{display:"block",minHeight:100}}>{shown?<img src={shown} alt="Quote composition on the current spread" draggable={false} onError={()=>{if(stored)setMissed(true)}}/>:<span>Preparing preview…</span>}</span>
 }

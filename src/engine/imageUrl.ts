@@ -5,7 +5,7 @@ const CACHEABLE = /\.(jpe?g|png|webp|gif|bmp|tiff?|avif|heic)$/i
 export const cacheAvailable = () => !!window.albumStudio?.prepareImage
 export const cacheable = (pathOrUrl: string) => CACHEABLE.test(pathOrUrl) || RAW_FILE.test(pathOrUrl)
 
-export function imgUrl(kind: 't' | 'p' | 'r' | 'x', value: string) {
+export function imgUrl(kind: 't' | 'p' | 'r' | 'x' | 'g', value: string) {
   if (kind === 'x') return `ynot-img://x/${value}`
   const bytes = new TextEncoder().encode(value)
   let binary = ''

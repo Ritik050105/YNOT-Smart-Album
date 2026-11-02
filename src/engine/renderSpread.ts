@@ -1,7 +1,9 @@
+import {effectPadding} from './blendingEffects'
+import {drawBlendingEffects} from './drawBlendingEffects'
 import { spreadLayers } from './spreadLayers'
 import { getPreferences } from '@/state/preferences'
 import { PhotoAsset, Spread, AlbumSize, PlacedPhoto, TextBox } from '@/types'
-import { computeCoverCrop } from './cropFit'
+import { computeCoverCrop, rotationCoverScale } from './cropFit'
 import { DESIGN_WIDTH, PlaceholderBox, computePlaceholderBoxes } from './layoutMath'
 import { ensureFontLoaded } from './fonts'
 import { imageToneFilter, applyBlackWhiteMix } from './imageTone'
@@ -146,12 +148,13 @@ export async function drawPlacement(ctx: CanvasRenderingContext2D, ph: Placehold
 
       const flipH = placement?.flipHorizontal ?? false
       const flipV = placement?.flipVertical ?? false
-      if (flipH || flipV) {
+      if (flipH || flipV || placement?.imageRotationDeg) {
         ctx.save()
         const cx = photoX + photoW / 2
         const cy = photoY + photoH / 2
         ctx.translate(cx, cy)
-        ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1)
+        ctx.rotate((placement?.imageRotationDeg??0)*Math.PI/180)
+        ctx.scale((flipH ? -1 : 1)*rotationCoverScale(photoW,photoH,placement?.imageRotationDeg??0), (flipV ? -1 : 1)*rotationCoverScale(photoW,photoH,placement?.imageRotationDeg??0))
         ctx.translate(-cx, -cy)
       }
       if (placement?.blackWhiteMix) {
@@ -166,7 +169,7 @@ export async function drawPlacement(ctx: CanvasRenderingContext2D, ph: Placehold
       } else {
         ctx.drawImage(img, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight, photoX, photoY, photoW, photoH)
       }
-      if (flipH || flipV) ctx.restore()
+      if (flipH || flipV || placement?.imageRotationDeg) ctx.restore()
       ctx.filter = 'none'
       ctx.globalAlpha = 1
 
@@ -233,40 +236,45 @@ function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w:
   ctx.closePath()
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {
-  let cursorY = y
-  for (const paragraph of text.split(/\r?\n/)) {
-    let line = ''
-    for (const word of paragraph.split(/\s+/)) {
-      const testLine = line ? `${line} ${word}` : word
-      if (ctx.measureText(testLine).width > maxWidth && line) {
-        ctx.fillText(line, x, cursorY)
-        line = word
-        cursorY += lineHeight
-      } else {
-        line = testLine
-      }
-    }
-    if (line) ctx.fillText(line, x, cursorY)
-    cursorY += lineHeight
+export async function drawTextBox(ctx:CanvasRenderingContext2D,box:TextBox,widthPx:number,heightPx:number){
+ const scale=widthPx/DESIGN_WIDTH,x=box.x*widthPx,y=box.y*heightPx,w=box.width*widthPx,h=box.height*heightPx
+ ctx.save();ctx.translate(x,y);ctx.rotate((box.rotationDeg??0)*Math.PI/180);ctx.globalAlpha*=box.opacity??1;ctx.globalCompositeOperation=box.blendMode??'source-over'
+ if(box.shape){
+  ctx.fillStyle=box.color;ctx.strokeStyle=box.shapeStroke??'#222222';ctx.lineWidth=(box.shapeStrokeWidth??2)*scale
+  const stroke=ctx.lineWidth
+  ctx.setLineDash(box.shapeStrokeStyle==='dotted'?[.01,stroke*3]:box.shapeStrokeStyle==='dashed'?[stroke*4,stroke*3]:box.shapeStrokeStyle==='short-dashed'?[stroke*2,stroke*2]:[])
+  ctx.lineCap=box.shapeStrokeStyle==='dotted'||box.shapeRoundedEnds?'round':'butt'
+  if(box.shape==='line'){ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);if(stroke>0)ctx.stroke()}
+  else if(box.shape==='circle'||box.shape==='triangle'){
+   const inset=box.shapeMode==='fill'?0:stroke/2;ctx.beginPath()
+   if(box.shape==='circle')ctx.ellipse(w/2,h/2,Math.max(0,w/2-inset),Math.max(0,h/2-inset),0,0,Math.PI*2)
+   else {ctx.moveTo(w/2,inset);ctx.lineTo(w-inset,h-inset);ctx.lineTo(inset,h-inset);ctx.closePath()}
+   if(box.shapeMode!=='stroke')ctx.fill();if(box.shapeMode!=='fill'&&stroke>0)ctx.stroke()
   }
-  return cursorY - y
-}
-
-export async function drawTextBox(ctx: CanvasRenderingContext2D, box: TextBox, widthPx: number, heightPx: number) {
-  const scale = widthPx / DESIGN_WIDTH
-
-    await ensureFontLoaded(box.fontFamily)
-    const x = box.x * widthPx
-    const y = box.y * heightPx
-    const w = box.width * widthPx
-    ctx.save()
-    ctx.font = `${box.italic ? 'italic ' : ''}${box.bold ? 'bold ' : ''}${box.fontSize * scale}px ${box.fontFamily}`
-    ctx.fillStyle = box.color
-    ctx.textAlign = box.align
-    ctx.textBaseline = 'top'
-    const tx = box.align === 'center' ? x + w / 2 : box.align === 'right' ? x + w : x
-    const height = wrapText(ctx, box.text, tx, y, w, box.fontSize * scale)
-    ctx.restore()
-    return height
+  else {if(box.shapeMode!=='stroke')ctx.fillRect(0,0,w,h);if(box.shapeMode!=='fill'&&stroke>0)ctx.strokeRect(stroke/2,stroke/2,Math.max(0,w-stroke),Math.max(0,h-stroke))}
+  ctx.restore();return h
+ }
+ const art=box.sourceArtwork
+ // Original glyph pixels preserve PSD typography until the user edits its content or styling.
+ if(art && Math.abs(box.fontSize/(box.width*900)-art.fontRatio)<.00001 && art.text===box.text && art.fontFamily===box.fontFamily && art.color===box.color && art.bold===box.bold && art.italic===box.italic && !box.underline && !box.strikeThrough && !box.letterSpacing && !Object.values(box.effects??{}).some(e=>e?.enabled)){
+   ctx.globalAlpha*=box.fillOpacity??1;ctx.drawImage(await loadImage(art.src),0,0,w,h);ctx.restore();return h
+ }
+ // Previews never wait on a download: use the font if it is ready, a fallback otherwise.
+ if(box.previewOnly)await Promise.race([ensureFontLoaded(box.fontFamily).catch(()=>{}),new Promise<void>(r=>setTimeout(r,30))]);else await ensureFontLoaded(box.fontFamily)
+ const pad=Math.ceil(Math.max(box.fontSize*3,effectPadding(box.effects))*scale),mask=document.createElement('canvas');mask.width=Math.ceil(w+2*pad);mask.height=Math.ceil(h+2*pad);const m=mask.getContext('2d')!
+ m.font=`${box.italic?'italic ':''}${box.bold?'bold ':''}${box.fontSize*scale}px ${box.fontFamily}`;m.textBaseline='top';m.textAlign=box.align;m.fillStyle=box.color;m.letterSpacing=`${(box.letterSpacing??0)*scale}px`
+ const tx=pad+(box.align==='center'?w/2:box.align==='right'?w:0),lineStep=box.fontSize*scale*(box.lineHeight??1.2);let cy=pad
+ const line=(text:string)=>{m.fillText(text,tx,cy);if(box.underline){const width=m.measureText(text).width;m.fillRect(tx-(box.align==='center'?width/2:box.align==='right'?width:0),cy+box.fontSize*scale,width,Math.max(1,scale))}if(box.strikeThrough){const width=m.measureText(text).width;m.fillRect(tx-(box.align==='center'?width/2:box.align==='right'?width:0),cy+box.fontSize*scale*.55,width,Math.max(1,scale))}cy+=lineStep}
+ for(const paragraph of box.text.split(/\r?\n/)){
+   let text=''
+   for(const word of paragraph.split(/\s+/)){
+     const next=text?text+' '+word:word
+     if(m.measureText(next).width<=w){text=next;continue}
+     if(text){line(text);text=''}
+     for(const char of Array.from(word)){if(text&&m.measureText(text+char).width>w){line(text);text=''}text+=char}
+   }
+   line(text)
+ }
+ await drawBlendingEffects(ctx,mask,box,pad,w,h,scale)
+ ctx.restore();return cy-pad
 }

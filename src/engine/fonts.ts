@@ -1,3 +1,8 @@
+import googleCatalog from '@/data/googleFontsCatalog.json'
+import {loadGoogleFont} from './googleFontCache'
+import bundledFonts from '@/assets/google-fonts/manifest.json'
+import bundledFontUrls from './bundledFontAssets'
+import {imgUrl} from './imageUrl'
 export interface FontOption {
   family: string
   category: 'local' | 'cloud'
@@ -15,29 +20,28 @@ export const LOCAL_FONTS: FontOption[] = [
   { family: 'Verdana', category: 'local' },
 ]
 
-/** A curated set of Google Fonts, loaded on demand so the app isn't shipping font files itself.
- *  EB Garamond leads the list — it's the typeface YNOT Photography's own branding uses. */
-export const CLOUD_FONTS: FontOption[] = [
-  { family: 'EB Garamond', category: 'cloud', googleFontParam: 'EB+Garamond:wght@400;500;600' },
-  { family: 'Playfair Display', category: 'cloud', googleFontParam: 'Playfair+Display:wght@400;700' },
-  { family: 'Montserrat', category: 'cloud', googleFontParam: 'Montserrat:wght@400;700' },
-  { family: 'Great Vibes', category: 'cloud', googleFontParam: 'Great+Vibes' },
-  { family: 'Cormorant Garamond', category: 'cloud', googleFontParam: 'Cormorant+Garamond:wght@400;600' },
-  { family: 'Pacifico', category: 'cloud', googleFontParam: 'Pacifico' },
-  { family: 'Oswald', category: 'cloud', googleFontParam: 'Oswald:wght@400;600' },
-  { family: 'Dancing Script', category: 'cloud', googleFontParam: 'Dancing+Script:wght@400;700' },
-  { family: 'Marcellus', category: 'cloud', googleFontParam: 'Marcellus' },
-]
+/** Licensed Google Fonts bundled for offline use; licenses accompany each family. */
+export const CLOUD_FONTS: FontOption[] = googleCatalog.map(font=>({family:font.family,category:'cloud'}))
 
 export const ALL_FONTS: FontOption[] = [...LOCAL_FONTS, ...CLOUD_FONTS]
 
 let localFontsCache: FontOption[] | null = null
+const discoveredFonts=new Map<string,string>()
+export function registerDiscoveredFonts(fonts:{family:string;path:string}[]){
+  discoveredFonts.clear()
+  for(const font of fonts)if(!discoveredFonts.has(font.family))discoveredFonts.set(font.family,font.path)
+}
+export async function discoveredFontData(family:string){
+  const path=discoveredFonts.get(family)
+  return path&&window.albumStudio?window.albumStudio.readDiscoveredFont(path):undefined
+}
 let localFontsPending: Promise<FontOption[]> | null = null
 
 /** Returns the fonts actually installed on this machine (via Electron's main process), falling
  *  back to the curated LOCAL_FONTS list when running in a browser preview or detection fails.
  *  Result is cached for the life of the app — fonts don't change mid-session. */
-export function getLocalFonts(): Promise<FontOption[]> {
+export function getLocalFonts(refresh=false): Promise<FontOption[]> {
+  if(refresh){localFontsCache=null;localFontsPending=null}
   if (localFontsCache) return Promise.resolve(localFontsCache)
   if (localFontsPending) return localFontsPending
 
@@ -60,7 +64,8 @@ export function getLocalFonts(): Promise<FontOption[]> {
   return localFontsPending
 }
 
-const loadedFontLinks = new Set<string>()
+const bundledLoads = new Map<string,Promise<void>>()
+const scannedLoads = new Map<string,Promise<void>>()
 let projectFonts: {family:string;dataUrl:string}[] = []
 const uploadedFaces = new Map<string, {dataUrl:string; face:FontFace}>()
 export function registerProjectFonts(fonts: typeof projectFonts) {
@@ -81,26 +86,29 @@ export async function loadUploadedFont(family:string,dataUrl:string) {
 export async function ensureFontLoaded(family: string): Promise<void> {
   const uploaded = projectFonts.find(f=>f.family===family)
   if (uploaded) return loadUploadedFont(uploaded.family,uploaded.dataUrl)
-  const font = CLOUD_FONTS.find((f) => f.family === family)
-  if (!font) return
-
-  if (!loadedFontLinks.has(family)) {
-    loadedFontLinks.add(family)
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = `https://fonts.googleapis.com/css2?family=${font.googleFontParam}&display=swap`
-    document.head.appendChild(link)
-  }
-
-  try {
-    if ('fonts' in document) {
-      await document.fonts.load(`16px "${family}"`)
-      // Canvas-based renderers (Konva) don't repaint on their own once a web font finishes
-      // loading after the initial draw — nothing about their props changed. Let listeners
-      // (the designer canvas) know it's safe to redraw with the real typeface now.
-      window.dispatchEvent(new CustomEvent('album-studio:font-loaded', { detail: { family } }))
+  if(discoveredFonts.has(family)){
+    if(uploadedFaces.has(family)||scannedLoads.has(family))return scannedLoads.get(family)
+    if(window.albumStudio?.isElectron){
+      // Scanned files load straight from disk through the font protocol — no base64 over IPC.
+      const load=new FontFace(family,`url(${JSON.stringify(imgUrl('g',discoveredFonts.get(family)!))})`).load().then(face=>{document.fonts.add(face);window.dispatchEvent(new CustomEvent('album-studio:font-loaded',{detail:{family}}))}).catch(error=>{scannedLoads.delete(family);throw error})
+      scannedLoads.set(family,load)
+      return load
     }
-  } catch {
-    // Offline or blocked — text will render with the browser's fallback font instead.
+    const data=await discoveredFontData(family);if(data)await loadUploadedFont(family,data)
+    return
   }
+  const font = bundledFonts.find(f=>f.family===family)
+  if(!font){if(googleCatalog.some(f=>f.family===family))await loadGoogleFont(family);return}
+  if(!bundledLoads.has(family)){
+    const pending=Promise.all(font.files.map(async file=>{
+      const url=(bundledFontUrls as Record<string,string>)['../assets/google-fonts/'+file]
+      if(!url)throw new Error('Bundled font unavailable: '+family)
+      const face=await new FontFace(family,`url(${JSON.stringify(url)})`,{weight:file.includes('wght')?'100 900':'400',style:/italic/i.test(file)?'italic':'normal'}).load()
+      document.fonts.add(face)
+    })).then(()=>{window.dispatchEvent(new CustomEvent('album-studio:font-loaded',{detail:{family}}))}).catch(error=>{bundledLoads.delete(family);throw error})
+    bundledLoads.set(family,pending)
+  }
+  await bundledLoads.get(family)
 }
+
+export function isBundledFont(family:string){return bundledFonts.some(f=>f.family===family)}

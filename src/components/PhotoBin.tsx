@@ -246,7 +246,7 @@ export default function PhotoBin() {
             All ({photos.length})
           </button>
           {allBins.map((b) => (
-            <button key={b} onDragOver={e=>{if(Array.from(e.dataTransfer.types).includes('application/x-photo-ids')){e.preventDefault();e.currentTarget.classList.add('is-drop-target');e.dataTransfer.dropEffect='copy'}}} onDragLeave={e=>e.currentTarget.classList.remove('is-drop-target')} onDrop={e=>{e.preventDefault();e.stopPropagation();e.currentTarget.classList.remove('is-drop-target');try{const ids=JSON.parse(e.dataTransfer.getData('application/x-photo-ids'));if(Array.isArray(ids)&&ids.every(id=>typeof id==='string'))useProjectStore.getState().addPhotosToBin(ids,b)}catch{}}} className={binFilter === b ? 'is-active' : ''} onClick={() => setBinFilter(b)}>
+            <button key={b} data-bin={b} onDragOver={e=>{if(Array.from(e.dataTransfer.types).includes('application/x-photo-ids')){e.preventDefault();e.currentTarget.classList.add('is-drop-target');e.dataTransfer.dropEffect='copy'}}} onDragLeave={e=>e.currentTarget.classList.remove('is-drop-target')} onDrop={e=>{e.preventDefault();e.stopPropagation();e.currentTarget.classList.remove('is-drop-target');try{const ids=JSON.parse(e.dataTransfer.getData('application/x-photo-ids'));if(Array.isArray(ids)&&ids.every(id=>typeof id==='string'))useProjectStore.getState().addPhotosToBin(ids,b)}catch{}}} className={binFilter === b ? 'is-active' : ''} onClick={() => setBinFilter(b)}>
               {b} ({photos.filter((p) => p.bins.includes(b)).length})
             </button>
           ))}

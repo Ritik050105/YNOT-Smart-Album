@@ -1,6 +1,7 @@
 import catalog from '@/data/googleFontsCatalog.json'
 
-type Face = {data:BufferSource;weight:string;style:string;unicodeRange:string}
+/** Either raw bytes (browser / first download) or an ynot-img:// URL served from the desktop font cache. */
+type Face = {data?:BufferSource;url?:string;weight:string;style:string;unicodeRange:string}
 const pending = new Map<string,Promise<void>>()
 function database():Promise<IDBDatabase>{
   return new Promise((resolve,reject)=>{
@@ -40,14 +41,17 @@ async function googleFontFaces(family:string):Promise<Face[]>{
         faces.push({data:await file.arrayBuffer(),weight:block.match(/font-weight:\s*([^;]+)/)?.[1]??'400',style:block.match(/font-style:\s*([^;]+)/)?.[1]??'normal',unicodeRange:block.match(/unicode-range:\s*([^;]+)/)?.[1]??'U+0-10FFFF'})
       }
       if(!faces.length)throw new Error('No font files returned for '+family)
-      await cached(family,faces)
+      if(window.albumStudio?.storeFontFaces){
+        // Keep the font on disk and serve it by URL from now on, like images.
+        try{await window.albumStudio.storeFontFaces(family,faces as {data:Uint8Array;weight:string;style:string;unicodeRange:string}[]);const stored=await window.albumStudio.readCachedFont?.(family);if(stored)faces=stored}catch{await cached(family,faces)}
+      }else await cached(family,faces)
     }
     return faces
 }
 export function loadGoogleFont(family:string):Promise<void>{
   if(!pending.has(family))pending.set(family,(async()=>{
     const faces=await googleFontFaces(family)
-    const loaded=await Promise.all(faces.map(face=>new FontFace(family,face.data,{weight:face.weight,style:face.style,unicodeRange:face.unicodeRange}).load()))
+    const loaded=await Promise.all(faces.map(face=>new FontFace(family,face.url?`url(${JSON.stringify(face.url)})`:face.data!,{weight:face.weight,style:face.style,unicodeRange:face.unicodeRange}).load()))
     loaded.forEach(face=>document.fonts.add(face))
     window.dispatchEvent(new CustomEvent('album-studio:font-loaded',{detail:{family}}))
   })().catch(error=>{pending.delete(family);throw error}))

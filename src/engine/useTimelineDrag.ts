@@ -4,10 +4,14 @@ import { useProjectStore } from '@/state/projectStore'
 import { draggedPhotoIds, overviewPhotoAt } from './photoDrag'
 
 export interface TimelineSource { spreadId?: string; frameId?: string; photoIds: string[] }
-export interface TimelineTarget { spreadId: string | null; beforeFrameId?: string; cover?: boolean; replace?: boolean }
+export interface TimelineTarget { spreadId: string | null; beforeFrameId?: string; cover?: boolean; replace?: boolean; /** A bin pill in the photo dock. */ bin?: string }
+
+const clearBinHighlight = () => document.querySelectorAll('[data-bin].is-drop-target').forEach(el => el.classList?.remove("is-drop-target"))
 
 function targetAt(x: number, y: number): TimelineTarget | null {
   const element = document.elementFromPoint(x, y)
+  const bin = element?.closest<HTMLElement>('[data-bin]')
+  if (bin) return { spreadId: null, bin: bin.dataset.bin ?? '' }
   if (element?.closest('[data-cover-drop]')) return { spreadId: null, cover: true }
   if (element?.closest('[data-new-spread]')) return { spreadId: null }
   const timeline = element?.closest<HTMLElement>('.spreads-panel__timeline')
@@ -42,7 +46,9 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
       const current = gesture.current
       if (!current?.active) return
       const next = targetAt(current.x, current.y)
-      setTarget((old) => old?.spreadId === next?.spreadId && old?.beforeFrameId === next?.beforeFrameId && old?.cover === next?.cover && old?.replace === next?.replace ? old : next)
+      clearBinHighlight()
+      if (next?.bin !== undefined) document.querySelectorAll<HTMLElement>('[data-bin]').forEach(el => { if (el.dataset.bin === next.bin) el.classList.add('is-drop-target') })
+      setTarget((old) => old?.spreadId === next?.spreadId && old?.beforeFrameId === next?.beforeFrameId && old?.cover === next?.cover && old?.replace === next?.replace && old?.bin === next?.bin ? old : next)
     }
     function scroll() {
       scrollFrame = 0
@@ -72,6 +78,7 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
       scrollFrame = pointerFrame = 0
       setDrag(null)
       setTarget(null)
+      clearBinHighlight()
     }
     function down(event: PointerEvent) {
       if (event.button !== 0 || !(event.target instanceof Element)) return

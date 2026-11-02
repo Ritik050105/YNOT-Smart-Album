@@ -88,6 +88,7 @@ export default function SpreadsPanel() {
     return () => { observer.disconnect(); cancelAnimationFrame(frame) }
   }, [project.size.widthIn, project.size.heightIn])
   const { drag, target } = useTimelineDrag((source, destination) => {
+    if (destination.bin) { if (source.photoIds.length) useProjectStore.getState().addPhotosToBin(source.photoIds, destination.bin); return }
     if(destination.replace && destination.spreadId && destination.beforeFrameId && source.photoIds[0]){if(source.spreadId===destination.spreadId&&source.frameId)useProjectStore.getState().swapPlacements(source.spreadId,source.frameId,destination.beforeFrameId);else useProjectStore.getState().setPlacementPhoto(destination.spreadId,destination.beforeFrameId,source.photoIds[0]);return}
     if (source.spreadId && !source.frameId) {
       if (destination.cover) return
@@ -135,6 +136,17 @@ export default function SpreadsPanel() {
     window.dispatchEvent(new CustomEvent('album-studio:setup-cover', { detail: { photoIds: newIds } }))
   }
 
+  /** Drop on any "new spread" target (overview card, empty timeline bar, end of the timeline). */
+  function dropOnNewSpread(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setNewSpreadDragOver(false)
+    const frame = readTimelineFrame(e.dataTransfer)
+    const ids = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id))
+    if (frame) moveTimelinePhoto(frame.spreadId, frame.frameId, null)
+    else if (ids.length) insertTimelinePhotos(ids, null)
+    else void handleNewSpreadDrop(e.dataTransfer.files)
+  }
   async function handleNewSpreadDrop(files: FileList | File[]) {
     const matched = await handleFiles(files)
     insertTimelinePhotos(matched.map((p) => p.id), null)
@@ -374,7 +386,7 @@ export default function SpreadsPanel() {
         </div>
       </div>
 
-      {project.spreads.length === 0 && <div className="spreads-panel__empty-timeline" />}
+      {project.spreads.length === 0 && <div className={`spreads-panel__empty-timeline ${newSpreadDragOver || (drag && target?.spreadId === null && !target.cover) ? 'is-drag-over' : ''}`} data-new-spread role="button" tabIndex={0} aria-label="Drop images here to start the album" onClick={() => newSpreadInputRef.current?.click()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); newSpreadInputRef.current?.click() } }} onDragOver={(e) => { e.preventDefault(); setNewSpreadDragOver(true) }} onDragLeave={() => setNewSpreadDragOver(false)} onDrop={dropOnNewSpread}>Drop images here to start the timeline</div>}
       {spreads.length > 0 && <PanelResizer axis="y" variable="--timeline-height" label="Resize timeline" initial={150} min={65} max={0.35}/>}{spreads.length > 0 && <div ref={timelineRef} className="spreads-panel__timeline" aria-label="Album image timeline" onClick={e=>{if(e.target===e.currentTarget)selectSpread(null)}}>
         <span className="timeline-boundary timeline-boundary--edge" role="separator" aria-label="Start of timeline" />
         {spreads.map((spread, index) => <Fragment key={spread.id}>
@@ -401,7 +413,7 @@ export default function SpreadsPanel() {
           {index < spreads.length - 1 && <button className="timeline-boundary" aria-label={`Merge spread ${index + 1} with next spread`} title={`Remove cut after spread ${index + 1} (merge with next)`} onClick={() => mergeWithNext(spread.id)} />}
         </Fragment>)}
         <span className="timeline-boundary timeline-boundary--edge" role="separator" aria-label="End of timeline" />
-        <div className="timeline-new-spread" data-new-spread onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const ids = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id)); const frame=readTimelineFrame(e.dataTransfer); if(frame)moveTimelinePhoto(frame.spreadId,frame.frameId,null); else if (ids.length) insertTimelinePhotos(ids, null); else void handleNewSpreadDrop(e.dataTransfer.files) }}>Drop images to add a spread</div>
+        <div className={`timeline-new-spread ${newSpreadDragOver || (drag && target?.spreadId === null && !target.cover) ? 'is-drag-over' : ''}`} data-new-spread onDragOver={(e) => { e.preventDefault(); setNewSpreadDragOver(true) }} onDragLeave={() => setNewSpreadDragOver(false)} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const ids = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id)); const frame=readTimelineFrame(e.dataTransfer); if(frame)moveTimelinePhoto(frame.spreadId,frame.frameId,null); else if (ids.length) insertTimelinePhotos(ids, null); else void handleNewSpreadDrop(e.dataTransfer.files) }}>Drop images to add a spread</div>
       </div>}
 
       {drag && createPortal(<img className="timeline-drag-preview" src={drag.src} alt="" style={{ left: drag.x, top: drag.y }} />,document.body)}

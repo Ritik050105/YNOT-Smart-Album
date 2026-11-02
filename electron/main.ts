@@ -10,7 +10,7 @@ import { execFile, spawn } from 'child_process'
 import { writeFileAtomic } from './files'
 import { decodeTiff, imagePreview } from './images'
 import { RAW_EXT } from './rawPreview'
-import { registerImageScheme, registerImageProtocol, prepareImage, warmImages, putTextPreview, pruneImageCache } from './imageCache'
+import { registerImageScheme, registerImageProtocol, prepareImage, warmImages, putTextPreview, pruneImageCache, cachedFontFaces, storeFontFaces, allowScannedFonts } from './imageCache'
 import { readSiblingImage } from './siblingImages'
 import { readRecovery, writeRecovery, clearRecovery } from './recovery'
 import { fitWindowSize } from './windowSizing'
@@ -41,15 +41,10 @@ ipcMain.handle('fonts:scan',async (_event,action:string)=>{
   else if(action!=='status')throw new Error('Invalid font scan action')
   return fontDiscovery.status
 })
-// Fonts the installer pre-downloaded (scripts/prepare-fonts.cjs) into a fixed per-user folder.
-ipcMain.handle('fonts:cached',async (_event,family:string)=>{
-  if(typeof family!=='string')return null
-  const dir=path.join(app.getPath('appData'),'YNOT Album Studio','google-fonts',family.replace(/[^A-Za-z0-9]+/g,'_'))
-  try{
-    const faces:{file:string;weight:string;style:string;unicodeRange:string}[]=JSON.parse(await fs.promises.readFile(path.join(dir,'faces.json'),'utf8'))
-    return await Promise.all(faces.map(async f=>({data:new Uint8Array(await fs.promises.readFile(path.join(dir,path.basename(f.file)))),weight:f.weight,style:f.style,unicodeRange:f.unicodeRange})))
-  }catch{return null}
-})
+// Fonts are served like images: installer-downloaded or previously cached faces come back as ynot-img://f/ URLs, scanned files as ynot-img://g/.
+allowScannedFonts(async file=>{await fontsReady;return fontDiscovery.has(file)})
+ipcMain.handle('fonts:cached',(_event,family:string)=>cachedFontFaces(family))
+ipcMain.handle('fonts:store',(_event,family:string,faces:{data:Uint8Array;weight:string;style:string;unicodeRange:string}[])=>storeFontFaces(family,faces))
 ipcMain.handle('fonts:read',async (_event,file:string)=>{await fontsReady;return fontDiscovery.read(file)})
 const isDev = !app.isPackaged
 app.setAppUserModelId('com.ynotphotography.albumstudio')
