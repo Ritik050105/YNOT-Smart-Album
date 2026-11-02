@@ -34,6 +34,7 @@ import ContextMenu from './ContextMenu'
 import TextAutoFitStatus from './TextAutoFitStatus'
 import { drawSpreadBackground } from '@/engine/renderSpread'
 import { readDraggedPhotoIds } from '@/engine/photoDrag'
+import { isFontTemplateDrag, dropFontTemplate } from '@/engine/fontTemplateDrag'
 
 export const STAGE_WIDTH = DESIGN_WIDTH
 
@@ -908,6 +909,7 @@ export default function DesignerCanvas() {
     // pixels, but box positions are in the Stage's unscaled content space.
     const x = (e.clientX - rect.left - stagePos.x) / stageScale
     const y = (e.clientY - rect.top - stagePos.y) / stageScale
+    if (isFontTemplateDrag(e.dataTransfer)) { dropFontTemplate(spread.id, x / STAGE_WIDTH, y / stageHeight); return }
     const target = e.altKey && getPreferences().altDrop==='add' ? undefined : findBoxAt(x, y)
     const pattern = readDraggedPattern(e.dataTransfer)
     if (pattern) { updateSpread(spread.id, { backgroundPattern: pattern }); return }

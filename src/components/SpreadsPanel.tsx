@@ -12,6 +12,7 @@ import { useProjectStore } from '@/state/projectStore'
 import { useImportPhotos } from '@/engine/useImportPhotos'
 import { exportSingleSpreadToPdf } from '@/engine/exportAlbum'
 import { readDraggedPhotoIds, readTimelineFrame, overviewPhotoAt } from '@/engine/photoDrag'
+import { isFontTemplateDrag, dropFontTemplate } from '@/engine/fontTemplateDrag'
 import { readDraggedPattern } from '@/engine/patterns'
 import { useTimelineDrag } from '@/engine/useTimelineDrag'
 import SpreadThumbnail from './SpreadThumbnail'
@@ -147,6 +148,12 @@ export default function SpreadsPanel() {
   function handleSpreadDrop(e: React.DragEvent, spreadId: string, beforeFrameId?: string) {
     e.preventDefault()
     e.stopPropagation()
+    if (isFontTemplateDrag(e.dataTransfer)) {
+      const card = (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-spread-drag]') ?? (e.currentTarget as HTMLElement), r = card.getBoundingClientRect()
+      dropFontTemplate(spreadId, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)
+      selectSpread(spreadId)
+      return
+    }
     const pattern = readDraggedPattern(e.dataTransfer)
     if (pattern) { updateSpread(spreadId, { backgroundPattern: pattern }); return }
     const frame = readTimelineFrame(e.dataTransfer)
