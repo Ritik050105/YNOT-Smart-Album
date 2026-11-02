@@ -4,6 +4,8 @@ import { fileURLToPath } from 'url'
 import { stat } from 'fs/promises'
 import { RAW_EXT, extractRawJpegFromFile } from './rawPreview'
 
+sharp.cache(false) // libvips otherwise keeps source files open, so Windows can't replace or delete originals (external edits, relink)
+
 export async function decodeTiff(data: Uint8Array): Promise<string> {
   if (!(data instanceof Uint8Array) || data.byteLength > 512 * 1024 * 1024) throw new Error('Invalid image data or image file larger than 512 MB.')
   const image = sharp(Buffer.from(data), { limitInputPixels: 100_000_000, sequentialRead: true })

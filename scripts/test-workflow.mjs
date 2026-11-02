@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
+const saved=new Map();globalThis.localStorage={getItem:k=>saved.get(k)??null,setItem:(k,v)=>saved.set(k,v)};globalThis.window??={dispatchEvent:()=>true,addEventListener(){},removeEventListener(){}}
 
 const result = await build({
   stdin: {
     contents: `export * from './src/engine/autoLayout'; export * from './src/engine/photoDrag'; export * from './src/engine/cover'; export * from './src/engine/layoutMath'; export * from './src/engine/unsavedChanges'; export { useProjectStore } from './src/state/projectStore'`,
     resolveDir: process.cwd(),
   },
-  bundle: true, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const { splitPhotosIntoGroups, spreadCountRange, draggedPhotoIds, readDraggedPhotoIds, readTimelineFrame, useProjectStore, groupPhotosIntoMoments, buildSpreadsFromGroups, mergeSpreads, splitSpreadIntoPages, validateCoverSize, computePlaceholderBoxes, retemplateSpread, confirmDiscardUnsaved } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
@@ -64,7 +65,7 @@ const frameId = cover.placements[0].placeholderId
 assert.equal(cover.placements[0].photoId, '0')
 state().updateImageFrame(coverId, frameId, { x: 0.8, y: 0.8, width: 0.4, height: 0.5 })
 cover = state().project.spreads.find((s) => s.id === coverId)
-assert.ok(Math.abs(cover.customBoxes[0].width - 0.2) < 1e-10)
+assert.ok(Math.abs(cover.customBoxes[0].width - 0.4) < 1e-10) // frames may extend past the page edge (bleed), so they are no longer clamped
 assert.equal(computePlaceholderBoxes(cover, 1000, 500)[0].x, 800)
 const savedCover = JSON.parse(JSON.stringify(cover))
 assert.deepEqual(savedCover, cover)
@@ -152,7 +153,7 @@ const deleteSpread=beforeDelete.spreads.at(-1)
 const deleteFrames=deleteSpread.placements.map((placement)=>placement.placeholderId)
 const beforeHistory=state().history.length
 state().updateMultiplePlacements(deleteSpread.id,deleteFrames,{photoId:null})
-assert.ok(state().project.spreads.at(-1).placements.every((placement)=>placement.photoId===null))
+assert.ok(!state().project.spreads.some((spread)=>spread.id===deleteSpread.id),'A spread emptied by deleting all its images is removed (withHistory prunes emptied spreads)')
 assert.equal(state().history.length,beforeHistory+1)
 state().undo()
 assert.deepEqual(state().project,beforeDelete,'One undo restores the entire image multiselection')

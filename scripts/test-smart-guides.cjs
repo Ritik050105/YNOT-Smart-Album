@@ -55,3 +55,14 @@ for(const anchor of ['middle-right','middle-left','bottom-center','top-center','
 const free=snapRect({x:470,y:330,width:132,height:93},[{x:100,y:100,width:120,height:80}],1000,800,6,'bottom-right');
 assert.equal(free.rect.width,132);assert.equal(free.rect.height,93);assert.ok(!free.guides.some(g=>g.matches));
 console.log('Matching sizes passed: horizontal, vertical, corner anchors, fixed opposite edge and dragging past snap');
+const cross=snapRect({x:300,y:80,width:100,height:100},[{x:100,y:40,width:100,height:100},{x:100,y:160,width:100,height:100},{x:300,y:200,width:100,height:100}],900,600,0);
+assert.ok(cross.guides.some(g=>g.bands?.some(b=>b.x===100&&b.y===140&&b.width===100&&b.height===20)),'Fill the entire matching gap in the neighboring column');
+assert.ok(cross.guides.some(g=>g.bands?.some(b=>b.x===300&&b.y===180&&b.width===100&&b.height===20)),'Fill the entire manipulated gap');
+console.log('Filled gap bands passed: matching gaps across columns');
+
+const layout={exports:{}};
+new Function('module','exports',transformSync(fs.readFileSync('src/engine/templateLayout.ts','utf8'),{loader:'ts',format:'cjs'}).code)(layout,layout.exports);
+assert.equal(layout.exports.supportsUniformGap([{id:'a',x:0,y:0,width:.5,height:1},{id:'b',x:.5,y:0,width:.5,height:1}],2,10,18),true);
+assert.equal(layout.exports.supportsUniformGap([{id:'a',x:0,y:0,width:.3,height:1},{id:'b',x:.6,y:0,width:.4,height:1}],2,10,18),false);
+assert.equal(layout.exports.supportsUniformGap([{id:'a',x:0,y:0,width:.5,height:1},{id:'b',x:.5,y:0,width:.5,height:1}],2,10,400),false);
+console.log('Uniform-gap template filtering passed: exact gap, editorial whitespace, oversized gap');

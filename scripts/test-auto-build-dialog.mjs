@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
+globalThis.localStorage??={getItem:()=>null,setItem(){}};globalThis.window??={dispatchEvent:()=>true,addEventListener(){},removeEventListener(){}}
 const result=await build({stdin:{contents:`export {default} from './src/components/AutoBuildModal';export {reset,clear} from 'react';export {templatesForCount} from './src/engine/templates'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,plugins:[{name:'dialog-state',setup(build){
   const stub=(filter,namespace,contents)=>{build.onResolve({filter},()=>({path:namespace,namespace}));build.onLoad({filter:/.*/,namespace},()=>({contents}))}
-  stub(/^react$/,'react',`let state=[],cursor=0;export const reset=()=>{cursor=0};export const clear=()=>{state=[];cursor=0};export const useState=value=>{const i=cursor++;if(!(i in state))state[i]=value;return [state[i],value=>state[i]=value]};export const useMemo=fn=>fn();export const useRef=current=>({current});export const useEffect=()=>{};`)
+  stub(/^react$/,'react',`let state=[],cursor=0;export const reset=()=>{cursor=0};export const clear=()=>{state=[];cursor=0};export const useState=value=>{const i=cursor++;if(!(i in state))state[i]=typeof value==='function'?value():value;return [state[i],value=>state[i]=value]};export const useMemo=fn=>fn();export const useRef=current=>({current});export const useEffect=()=>{};`)
   stub(/^react-dom$/,'portal','export const createPortal=node=>node;')
   stub(/^react\/jsx-runtime$/,'jsx','export const Fragment="fragment";export const jsx=(type,props)=>({type,props});export const jsxs=jsx;')
   stub(/^@\/state\/projectStore$/,'store','export const useProjectStore=selector=>selector(globalThis.dialogStore);')

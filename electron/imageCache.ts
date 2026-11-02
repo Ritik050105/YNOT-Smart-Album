@@ -7,6 +7,8 @@ import fs from 'fs'
 import { RAW_EXT, extractRawJpegFromFile } from './rawPreview'
 import { IMG_EXT, cacheKey, parseImgUrl, TEXT_KEY } from './imageKeys'
 
+sharp.cache(false) // libvips otherwise keeps source files open, so Windows can't replace or delete originals (external edits, relink)
+
 export interface PreparedImage { width: number; height: number; hasColorProfile: boolean; isBlackAndWhite?: boolean }
 
 const MAX_BYTES = 512 * 1024 * 1024

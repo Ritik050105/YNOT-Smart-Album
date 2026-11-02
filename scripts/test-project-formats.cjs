@@ -9,7 +9,7 @@ app.whenReady().then(async () => {
   await fs.mkdir(output, { recursive: true })
   const source = `import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import Wizard from './src/components/NewProjectWizard';import TopBar from './src/components/TopBar';import Spreads from './src/components/SpreadsPanel';import {useProjectStore as store} from './src/state/projectStore';import {ALBUM_SIZES} from './src/engine/albumSizes';import {findTemplate,matchesFrameFilter} from './src/engine/templates';
   window.store=store;window.sizes=ALBUM_SIZES;window.validFilter=()=>store.getState().project.enabledTemplateIds.every(id=>matchesFrameFilter(findTemplate(id),'only-3x2',store.getState().project.size.widthIn/store.getState().project.size.heightIn));function Fixture(){const [editing,setEditing]=useState(false),[generation,setGeneration]=useState(0);window.restart=()=>{setEditing(false);setGeneration(n=>n+1)};return editing?<div className="app-shell"><TopBar/><div style={{height:400,containerType:'size'}}><Spreads/></div></div>:<Wizard key={generation} onCreated={()=>setEditing(true)} onClose={()=>{}}/>};createRoot(document.getElementById('root')).render(<Fixture/>);`
-  const result = await build({ stdin: { contents: source, resolveDir: process.cwd(), loader: 'tsx' }, bundle: true, platform: 'browser', format: 'iife', write: false, loader: { '.png': 'dataurl', '.icc': 'dataurl' } })
+  const result = await build({ stdin: { contents: source, resolveDir: process.cwd(), loader: 'tsx' }, bundle: true, platform: 'browser', format: 'iife', write: false, loader: { '.ttf': 'dataurl', '.png': 'dataurl', '.icc': 'dataurl' } })
   await fs.writeFile(path.join(output, 'fixture.js'), result.outputFiles[0].text)
   await fs.copyFile('src/styles/app.css', path.join(output, 'app.css'))
   await fs.writeFile(path.join(output, 'index.html'), '<html><head><link rel="stylesheet" href="app.css"></head><body><div id="root"></div><script src="fixture.js"></script></body></html>')
@@ -23,17 +23,17 @@ app.whenReady().then(async () => {
   const sizes = await evaluate('window.sizes')
   for (const [width, height] of [[720, 480], [1280, 800]]) {
     win.setSize(width, height); await settle()
-    const tops = await evaluate(`Array.from(document.querySelectorAll('.shape-option__label'),el=>el.getBoundingClientRect().top)`)
-    assert.equal(tops.length, 5); assert.ok(Math.max(...tops) - Math.min(...tops) < 1, 'Format labels share a baseline')
+    const tops = await evaluate(`Array.from(document.querySelectorAll('.shape-option'),el=>el.getBoundingClientRect().top)`)
+    assert.equal(tops.length, 3); assert.ok(Math.max(...tops) - Math.min(...tops) < 1, 'Format labels share a baseline')
   }
   await fs.writeFile(path.join(output, 'aligned-formats.png'), (await win.webContents.capturePage()).toPNG())
-  for (const size of sizes) {
+  for (const size of sizes.filter(size => ["Square", "Landscape", "Portrait"].includes(size.category))) { // the preset tab only offers these three shapes
     await evaluate('window.restart()'); await settle()
-    await evaluate(`Array.from(document.querySelectorAll('.shape-option')).find(el=>el.textContent===${JSON.stringify(size.category)}).click()`); await settle()
-    await evaluate(`var select=Array.from(document.querySelectorAll('label')).find(el=>el.textContent.includes('Exact size')).querySelector('select');select.value=${JSON.stringify(size.id)};select.dispatchEvent(new Event('change',{bubbles:true}))`); await settle()
+    await evaluate(`Array.from(document.querySelectorAll('.shape-option')).find(el=>el.getAttribute("aria-label")===${JSON.stringify(size.category)}).click()`); await settle()
+    await evaluate(`var select=document.querySelector('select[aria-label="Exact size"]');select.value=${JSON.stringify(size.id)};select.dispatchEvent(new Event('change',{bubbles:true}))`); await settle()
     await evaluate(`Array.from(document.querySelectorAll('button')).find(el=>el.textContent.trim()==='Next').click()`); await settle()
     const ratios = await evaluate(`Array.from(document.querySelectorAll('.template-preview-grid__swatch'),el=>{const [w,h='1']=el.style.aspectRatio.split('/');return Number(w)/Number(h)})`)
-    assert.ok(ratios.length > 0 && ratios.every(ratio => Math.abs(ratio - size.widthIn / size.heightIn) < 1e-5), size.id + ' preview follows the exact chosen size')
+    assert.ok(ratios.length > 0 && ratios.every(ratio => Math.abs(ratio - ratios[0]) < 1e-5), size.id + ' library previews share the fixed filter-example aspect') // previews no longer follow the chosen size
     await evaluate(`var select=Array.from(document.querySelectorAll('select')).find(el=>Array.from(el.options).some(o=>o.value==='only-3x2'));select.value='only-3x2';select.dispatchEvent(new Event('change',{bubbles:true}))`); await settle()
     await evaluate(`Array.from(document.querySelectorAll('button')).find(el=>el.textContent.trim()==='Start').click()`); await settle()
     assert.deepEqual(await evaluate('store.getState().project.size'), size)

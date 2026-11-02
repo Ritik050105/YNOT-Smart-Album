@@ -5,7 +5,7 @@ const state={project:{photos:[{id:'b',capturedAt:'2020-01-02'},{id:'c',capturedA
   setSelectedPhotoIds:(ids)=>{state.selectedPhotoIds=ids;calls.push(['all',ids])},
   togglePhotoSelection:(...args)=>calls.push(['select',...args])}
 globalThis.__photoBrowserState=state
-const result=await build({entryPoints:['src/components/PhotoBin.tsx'],bundle:true,platform:'node',format:'esm',write:false,plugins:[{name:'shallow-render',setup(build){
+const result=await build({entryPoints:['src/components/PhotoBin.tsx'],bundle:true,loader:{'.ttf':'dataurl'},platform:'node',format:'esm',write:false,plugins:[{name:'shallow-render',setup(build){
   build.onResolve({filter:/^react$/},()=>({path:'react',namespace:'test'}))
   build.onLoad({filter:/.*/,namespace:'test'},()=>({contents:`export const useState=(value)=>{const index=globalThis.__hookIndex++;return [index in globalThis.__hooks?globalThis.__hooks[index]:(value==='all' && globalThis.__browserFilter ? globalThis.__browserFilter : value),(next)=>{globalThis.__hooks[index]=next}];};export const useEffect=()=>{};export const useRef=(current)=>({current});export const useMemo=(fn)=>fn();export default {};`}))
   build.onResolve({filter:/^react-dom$/},()=>({path:'react-dom',namespace:'portal'}))
@@ -19,6 +19,7 @@ const result=await build({entryPoints:['src/components/PhotoBin.tsx'],bundle:tru
 }}]})
 const {default:PhotoBin}=await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 const find=(node,predicate)=>{if(!node||typeof node!=='object')return null;if(predicate(node))return node;for(const child of [node.props?.children].flat(Infinity)){const match=find(child,predicate);if(match)return match}return null}
+globalThis.getComputedStyle=()=>({gridTemplateColumns:'100px 100px 100px'})
 globalThis.HTMLInputElement=class {}
 let focused='',scrolled=''
 const items=['a','b','c'].map((id)=>({dataset:{dockPhoto:id},focus(){focused=id},scrollIntoView(){scrolled=id}}))
@@ -48,7 +49,7 @@ assert.equal(usedPhoto.props.draggable,true,'Used photos remain draggable')
 usedPhoto.props.onClick({currentTarget:{focus(){}},shiftKey:false,ctrlKey:false,metaKey:false})
 assert.deepEqual(calls.pop(),['select','a',['a','b','c'],'single'],'Used photos remain selectable')
 const transfer={setData(type,value){this[type]=value}}
-usedPhoto.props.onDragStart({dataTransfer:transfer})
+usedPhoto.props.onDragStart({dataTransfer:transfer,currentTarget:{querySelector:()=>null}})
 assert.equal(transfer.effectAllowed,'copy','Reuse copies the photo instead of moving its original placement')
 assert.equal(transfer['application/x-photo-id'],'a')
 globalThis.__browserFilter='unplaced'

@@ -1,7 +1,9 @@
+import { createRequire } from 'node:module'
+const require=createRequire(import.meta.url)
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
-const bundle = await build({stdin:{contents:`export * from './src/engine/templates';export * from './src/engine/templateLayout';export * from './src/engine/templateMatching';export * from './src/engine/layoutMath';export * from './src/engine/cropFit';export * from './src/engine/autoLayout';export {PreviewCell} from './src/components/TemplatePreview'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false})
-const {BUILT_IN_TEMPLATES,resolveTemplateFrames,computePlaceholderBoxes,computeCoverCrop,rankTemplates,buildSpreadsFromGroups,PreviewCell} = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
+const bundle = await build({stdin:{contents:`export * from './src/engine/templates';export * from './src/engine/templateLayout';export * from './src/engine/templateMatching';export * from './src/engine/layoutMath';export * from './src/engine/cropFit';export * from './src/engine/autoLayout';export {createElement} from 'react';export {renderToStaticMarkup} from 'react-dom/server';export {PreviewCell} from './src/components/TemplatePreview'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'cjs',write:false,loader:{'.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'}})
+const {BUILT_IN_TEMPLATES,resolveTemplateFrames,computePlaceholderBoxes,computeCoverCrop,rankTemplates,buildSpreadsFromGroups,PreviewCell,createElement,renderToStaticMarkup} = (()=>{const module={exports:{}};new Function('require','module','exports',bundle.outputFiles[0].text)(require,module,module.exports);return module.exports})()
 let checked = 0, worstBestCrop = 0
 for (let count=20;count<=30;count++) {
   const candidates = BUILT_IN_TEMPLATES.filter(t=>t.photoCount===count)
@@ -44,7 +46,7 @@ for (let count=20;count<=30;count++) {
     frames.forEach((ph,i)=>{
       const photo=ranked[0].photos[i],placement={focalX:i%3/2,focalY:1-i%3/2,zoom:i%2+1,flipHorizontal:i%2===0}
       const crop=computeCoverCrop(photo.width,photo.height,ph.width*aspect,ph.height,placement.focalX,placement.focalY,placement.zoom)
-      const style=PreviewCell({ph,photo,placement,aspect}).props.style
+      const markup=renderToStaticMarkup(createElement(PreviewCell,{ph,photo,placement,aspect}));const style=Object.fromEntries(markup.match(/style="([^"]*)"/)[1].split(';').map(entry=>{const i=entry.indexOf(':');return [entry.slice(0,i).replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),entry.slice(i+1)]}))
       const [sizeX,sizeY]=style.backgroundSize.split(' ').map(parseFloat)
       const [posX,posY]=style.backgroundPosition.split(' ').map(parseFloat)
       assert.ok(Math.abs(sizeX-100*photo.width/crop.cropWidth)<1e-8)

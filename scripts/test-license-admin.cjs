@@ -30,6 +30,9 @@ app.whenReady().then(async () => {
   if (win.webContents.isLoading()) await new Promise(resolve=>win.webContents.once('did-finish-load',resolve));
   const run = code => win.webContents.executeJavaScript(code);
   await wait();
+  assert.match((await run(`window.licenseAdmin.history()`)).error,/Sign in/);
+  await run(`document.getElementById('username').value='TestOwner';document.getElementById('password').value='Test-only-password-2026';document.getElementById('login-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);await wait();
+  assert.equal((await run(`window.licenseAdmin.authStatus()`)).authenticated,true);
   assert.equal(await run(`document.getElementById('generate').disabled`), true);
   assert.equal(await run(`document.querySelector('label[for=employee]').textContent`),'Employee name');
   await run(`document.getElementById('detect-pc').click()`); await wait();
@@ -70,7 +73,12 @@ app.whenReady().then(async () => {
   await run(`document.querySelector('.history-row .history-actions button').click()`); await wait(); assert.equal(opened, output);
   await run(`document.querySelectorAll('.history-row .history-actions button')[1].click()`); await wait(); assert.equal(revealed, output);
   await win.webContents.reload(); await new Promise(resolve => win.webContents.once('did-finish-load', resolve)); await wait();
-  assert.equal(await run(`document.querySelectorAll('.history-row').length`), 1, 'History survives renderer restart');
+  assert.equal((await run(`window.licenseAdmin.authStatus()`)).authenticated,false,'Reload locks owner tool');
+  await run(`document.getElementById('username').value='TestOwner';document.getElementById('password').value='Test-only-password-2026';document.getElementById('login-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);await wait();
+  assert.equal(await run(`document.querySelectorAll('.history-row').length`), 1, 'History survives renderer restart and login');
+  const revocationFile=path.join(root,'revoke.json');save=revocationFile;confirm=1;await run(`window.licenseAdmin.revoke('a'.repeat(64))`);
+  const {validateActiveLicense}=require('../dist-electron/license');assert.throws(()=>validateActiveLicense(bytes,'a'.repeat(64),pub,fs.readFileSync(revocationFile,'utf8')),/revoked/);
+
   const historyFile = path.join(root, 'profile', 'license-history.json');
   const fromFreshProcess = require('child_process').execFileSync(process.execPath, ['-e', `console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).length)`, historyFile], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true, encoding: 'utf8' });
   assert.equal(fromFreshProcess.trim(), '1', 'History persisted on disk across processes');

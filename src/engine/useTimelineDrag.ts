@@ -87,7 +87,14 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
         frameId=overviewPhotoAt(spread,event.clientX-r.left,event.clientY-r.top,r.width,r.height)?.placeholderId
       }
       if(frameId&&spread?.placements.find(p=>p.placeholderId===frameId)?.locked)return
-      if(item.hasAttribute('data-spread-drag')&&!frameId)return
+      if(item.hasAttribute('data-spread-drag')&&!frameId){ // empty card area: drag the whole spread (reorder)
+        const preview=item.querySelector('canvas')?.toDataURL()
+        if(!spreadId||!preview)return
+        event.preventDefault()
+        item.setPointerCapture(event.pointerId)
+        gesture.current = { source: { spreadId, photoIds: [] }, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, active: false, src: preview, pointerId: event.pointerId }
+        return
+      }
       const photoId = item.dataset.dockPhoto ?? state.project.spreads.find((s) => s.id === spreadId)?.placements.find((p) => p.placeholderId === frameId)?.photoId
       if (!photoId) return
       const visibleIds = Array.from(document.querySelectorAll<HTMLElement>('[data-dock-photo]')).map((el) => el.dataset.dockPhoto!)

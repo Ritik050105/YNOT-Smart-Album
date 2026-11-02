@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { build } from 'esbuild'
 
-const result = await build({ stdin: { contents: `export * from './electron/recovery'; export * from './src/engine/sessionMarker'; export * from './src/engine/projectFile'; export {useProjectStore} from './src/state/projectStore'`, resolveDir: process.cwd() }, bundle: true, platform: 'node', format: 'esm', write: false })
+const result = await build({ stdin: { contents: `export * from './electron/recovery'; export * from './src/engine/sessionMarker'; export * from './src/engine/projectFile'; export {useProjectStore} from './src/state/projectStore'`, resolveDir: process.cwd() }, loader: { '.ttf': 'dataurl', '.woff2': 'dataurl', '.otf': 'dataurl' }, bundle: true, platform: 'node', format: 'esm', write: false })
 const api = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ynot-recovery-'))
 const target = path.join(directory, 'recovery.json')
@@ -39,10 +39,19 @@ try {
   older(contents)
   await old
   assert.equal(api.readRecovery(target).filePath,null,'An older project must not replace the current recovery')
+  api.writeRecovery(target,{filePath:null,contents})
+  assert.ok(fs.existsSync(`${target}.bak`),'Previous checkpoint is retained')
   fs.writeFileSync(target,'broken')
+  assert.equal(api.readRecovery(target).contents,contents,'Corrupt newest checkpoint falls back to previous valid snapshot')
+  fs.unlinkSync(target)
+  assert.equal(api.readRecovery(target).contents,contents,'Missing newest checkpoint falls back too')
+  fs.writeFileSync(target,'broken')
+  fs.writeFileSync(`${target}.bak`,'broken backup')
   assert.throws(()=>api.readRecovery(target))
   assert.equal(fs.readFileSync(target,'utf8'),'broken','Corrupt recovery is retained for manual recovery')
   api.clearRecovery(target)
   assert.equal(api.readRecovery(target),null)
+  assert.equal(fs.existsSync(`${target}.bak`),false,'Discard clears backup too')
   console.log('Recovery checks passed: unsaved edits/photos, untitled album, saved-file isolation, invalid/corrupt data, stale writes and discard.')
 } finally { fs.rmSync(directory,{recursive:true,force:true}) }
+

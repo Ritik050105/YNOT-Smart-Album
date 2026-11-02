@@ -2,7 +2,7 @@ const path = require('node:path'), fs = require('node:fs/promises'), assert = re
 if (!process.versions.electron) {
   (async () => {
     const out = await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'ynot-text-location-'));
-    const result = await require('esbuild').build({stdin:{contents:"import {useProjectStore} from './src/state/projectStore';window.store=useProjectStore",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,platform:'browser',loader:{'.png':'dataurl','.icc':'dataurl'}});
+    const result = await require('esbuild').build({stdin:{contents:"import {useProjectStore} from './src/state/projectStore';window.store=useProjectStore",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,platform:'browser',loader:{'.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'}});
     await fs.writeFile(path.join(out,'fixture.js'),result.outputFiles[0].text);
     await fs.writeFile(path.join(out,'index.html'),'<script src="fixture.js"></script>');
     for (const phase of ['write','read','invalid','broken']) {

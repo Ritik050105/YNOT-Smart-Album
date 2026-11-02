@@ -6,7 +6,7 @@ for(const [platform,arch,expected] of [['win32','x64',['--win']],['darwin','arm6
  assert.deepEqual(Array.from(args.slice(3,3+expected.length)),expected);
  assert.deepEqual(Array.from(args.slice(-3)),['--publish','never','--config.forceCodeSigning=true']);
 }
-const pkg=require('../admin-license/package.json');assert.deepEqual(pkg.build.mac.target[0].arch,['arm64','x64']);assert.ok(!pkg.build.files.some(f=>f.includes('private')));
+const pkg=require('../admin-license/package.json');assert.deepEqual(pkg.build.mac.target,['dmg']);assert.ok(pkg.build.mac.artifactName.includes('${arch}'),'Mac architecture comes from the --arm64/--x64 CLI flag and is named in the artifact');assert.ok(!pkg.build.files.some(f=>f.includes('private')));
 console.log('PASS: Windows, Intel Mac and Apple Silicon admin build targets; private signing key excluded.');
 
 let signedOptions;

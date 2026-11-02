@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 import fs from 'node:fs'
-const result=await build({stdin:{contents:`export * from './src/engine/autoLayout';export * from './src/engine/templates';export * from './src/engine/templateMatching';export {useProjectStore} from './src/state/projectStore'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false})
+const result=await build({stdin:{contents:`export * from './src/engine/autoLayout';export * from './src/engine/templates';export * from './src/engine/templateMatching';export {useProjectStore} from './src/state/projectStore'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,loader:{'.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'}})
 const {findTemplate,useProjectStore,matchTemplatePhotos,rankTemplates,templatesForCount,matchesFrameFilter,setUserTemplateRegistry,buildSpreadsFromGroups,groupPhotosForCount,groupPhotosIntoMoments,sortPhotosByCapturedAt,autoBuildSpreads}=await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 const photo=(id,ratio=1.5,time=0)=>({id:String(id),width:ratio*100,height:100,orientation:ratio<1?'portrait':'landscape',capturedAt:new Date(time*60000).toISOString()})
 const template=(id,ratios)=>({id,photoCount:ratios.length,placeholders:ratios.map((ratio,index)=>({id:String(index),x:0,y:0,width:ratio/4,height:0.25})),pageSide:'spread',isBuiltIn:false})

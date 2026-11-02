@@ -33,8 +33,9 @@ async function googleFontFaces(family:string):Promise<Face[]>{
       faces=[]
       for(const block of css.match(/@font-face\s*\{[^}]+\}/g)??[]){
         const url=block.match(/url\(([^)]+)\)/)?.[1]?.replace(/["']/g,'')
-        if(!url||(new URL(url).hostname!=='fonts.gstatic.com'||new URL(url).protocol!=='https:'))throw new Error('Invalid Google font source')
-        const file=await fetch(url,{signal:AbortSignal.timeout(30000)})
+        const parsed=(()=>{try{return url?new URL(url):null}catch{return null}})()
+        if(!parsed||parsed.hostname!=='fonts.gstatic.com'||parsed.protocol!=='https:')throw new Error('Invalid Google font source: '+(url??'(none)').slice(0,120))
+        const file=await fetch(parsed.href,{signal:AbortSignal.timeout(30000)})
         if(!file.ok)throw new Error('Font download failed: '+family)
         faces.push({data:await file.arrayBuffer(),weight:block.match(/font-weight:\s*([^;]+)/)?.[1]??'400',style:block.match(/font-style:\s*([^;]+)/)?.[1]??'normal',unicodeRange:block.match(/unicode-range:\s*([^;]+)/)?.[1]??'U+0-10FFFF'})
       }

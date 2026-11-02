@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const saved=new Map()
 globalThis.localStorage={getItem:key=>saved.get(key)??null,setItem:(key,value)=>saved.set(key,value)}
-const bundle=await build({stdin:{contents:`export {useProjectStore} from './src/state/projectStore';export * from './src/engine/templates';export * from './src/engine/autoLayout'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false})
+globalThis.window??={dispatchEvent:()=>true,addEventListener(){},removeEventListener(){}}
+const bundle=await build({stdin:{contents:`export {useProjectStore} from './src/state/projectStore';export * from './src/engine/templates';export * from './src/engine/autoLayout'`,resolveDir:process.cwd()},bundle:true,loader:{'.ttf':'dataurl'},platform:'node',format:'esm',write:false})
 const {useProjectStore:store,setUserTemplateRegistry,retemplateSpread,createBlankSpread}=await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const template={id:'assignment-test',name:'Assignment',photoCount:2,placeholders:[{id:'left',x:0,y:0,width:0.25,height:1},{id:'right',x:0.25,y:0,width:0.75,height:1}],pageSide:'spread',isBuiltIn:false,thumbnailColor:'#fff'}
 setUserTemplateRegistry([template])
