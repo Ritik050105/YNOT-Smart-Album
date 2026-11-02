@@ -76,9 +76,9 @@ export default function SpreadsPanel() {
     if (!row) return
     const measure = () => {
       const css = getComputedStyle(row)
-      const available = row.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom) - 12
+      const available = row.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom) - 4
       const ratio = project.size.widthIn / project.size.heightIn
-      const height = Math.max(32, Math.min(available, (row.clientWidth - 48) / Math.max(1, ratio)))
+      const height = Math.max(32, Math.min(available, (row.clientWidth - 32) / Math.max(1, ratio)))
       row.parentElement?.style.setProperty('--overview-height', `${height}px`)
     }
     let frame = 0

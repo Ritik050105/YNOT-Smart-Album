@@ -131,8 +131,8 @@ function newProject(opts: Partial<NewProjectOptions> & { name: string; kind?: Pr
   const now = new Date().toISOString()
   const kind = opts.kind ?? 'album'
   const defaultBackgroundColor = opts.defaultBackgroundColor ?? '#ffffff'
-  const defaultGapPx = opts.defaultGapPx ?? 8
-  const defaultMarginPx = opts.defaultMarginPx ?? 24
+  const defaultGapPx = opts.defaultGapPx ?? 6
+  const defaultMarginPx = opts.defaultMarginPx ?? 10
   const defaultBorderWidth = opts.defaultBorderWidth ?? 0
   const defaultBorderColor = opts.defaultBorderColor ?? '#ffffff'
   // Matches the reference app: a brand-new album starts with zero spreads — they only appear

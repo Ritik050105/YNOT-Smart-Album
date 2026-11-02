@@ -1,3 +1,5 @@
+import {recordRecentProject} from '@/engine/recentProjects'
+import PanelResizer from '@/components/PanelResizer'
 import { useEffect, useState } from 'react'
 import MenuBar from './components/MenuBar'
 import TopBar from './components/TopBar'
@@ -31,6 +33,7 @@ import { confirmDiscardUnsaved } from '@/engine/unsavedChanges'
 export default function App() {
   const customFonts = useProjectStore(s=>s.project.customFonts)
   useEffect(()=>{ registerProjectFonts(customFonts ?? []); for(const f of customFonts ?? []) void ensureFontLoaded(f.family).catch(console.error) },[customFonts])
+  const selectedTextBoxId = useProjectStore(s => s.selectedTextBoxId)
   const selectedPlaceholderId = useProjectStore(s => s.selectedPlaceholderId)
   const matchingTemplatesOpen = useProjectStore(s => s.matchingTemplatesOpen)
   const [resumePrompt, setResumePrompt] = useState<OpenSessionMarker | null>(null)
@@ -111,6 +114,8 @@ export default function App() {
   useEffect(() => {
     if (!window.albumStudio) return
     return window.albumStudio.onNewProjectCreated((opts) => {
+      // A pending "Continue where you left off?" prompt is drawn instead of the editor, so a new project would stay hidden behind it (blank window).
+      handleStartFresh()
       createProjectFromWizard(opts as never)
       setPreparingProject(true)
       const { project: created, userTemplates } = useProjectStore.getState()
@@ -125,19 +130,74 @@ export default function App() {
     })
   }, [createProjectFromWizard, setPreparingProject, markSaved, setCurrentFilePath])
 
-  const userTemplates = useProjectStore((s) => s.userTemplates)
-  useEffect(() => {
-    if (!window.albumStudio?.isElectron || !recoveryChecked || resumePrompt) return
-    if (!isDirty) { clearOpenSession(); return }
-    const timer = window.setTimeout(() => {
-      void persistRecovery(serializeProjectFile(project, userTemplates), {
-        projectId: project.id, filePath: currentFilePath, name: project.name,
-        clientName: project.clientName, sizeLabel: project.size.label,
-        spreadCount: project.spreads.filter((spread) => !spread.isCover).length,
-      }).then(() => setRecoveryError('')).catch((error) => setRecoveryError(`Recovery copy could not be updated. Save your album: ${String(error)}`))
-    }, 1000)
-    return () => { window.clearTimeout(timer); invalidateRecovery() }
-  }, [isDirty, currentFilePath, project, userTemplates, resumePrompt, recoveryChecked])
+  useEffect(()=>{
+    if(!window.albumStudio?.isElectron||!recoveryChecked||resumePrompt)return
+    let busy = false, disposed = false
+    let lastSnapshot: ReturnType<typeof useProjectStore.getState> | null = null
+    let queued = false
+    const save = async () => {
+      const latest = useProjectStore.getState()
+      if (busy || disposed || latest.project.id !== project.id) return
+      if (!latest.isDirty) {
+        if (lastSnapshot) { clearOpenSession(); lastSnapshot = null }
+        return
+      }
+      if (lastSnapshot?.project === latest.project && lastSnapshot.userTemplates === latest.userTemplates && lastSnapshot.currentFilePath === latest.currentFilePath) return
+      busy = true
+      try {
+        await persistRecovery(serializeProjectFile(latest.project, latest.userTemplates, true), {
+          projectId: latest.project.id, filePath: latest.currentFilePath,
+          name: latest.project.name, clientName: latest.project.clientName,
+          sizeLabel: latest.project.size.label,
+          spreadCount: latest.project.spreads.filter(s => !s.isCover).length,
+        })
+        if (!disposed) { lastSnapshot = latest; setRecoveryError('') }
+      } catch (error) {
+        if (!disposed) setRecoveryError(`Recovery copy could not be updated. Save your album: ${String(error)}`)
+      } finally {
+        busy = false
+        const current = useProjectStore.getState()
+        if (current.project !== latest.project || current.userTemplates !== latest.userTemplates || current.currentFilePath !== latest.currentFilePath || current.isDirty !== latest.isDirty) saveNow()
+      }
+    }
+    const saveNow = () => {
+      if (queued || disposed) return
+      queued = true
+      queueMicrotask(() => { queued = false; void save() })
+    }
+    const unsubscribe = useProjectStore.subscribe((next, previous) => {
+      if (next.project !== previous.project || next.userTemplates !== previous.userTemplates || next.currentFilePath !== previous.currentFilePath || next.isDirty !== previous.isDirty) {
+        if (!next.isDirty || next.project.id !== project.id) invalidateRecovery()
+        saveNow()
+      }
+    })
+    const timer = window.setInterval(saveNow, 2000)
+    window.addEventListener('blur', saveNow)
+    saveNow()
+    return () => {
+      disposed = true
+      unsubscribe()
+      window.clearInterval(timer)
+      window.removeEventListener('blur', saveNow)
+      invalidateRecovery()
+    }
+  },[resumePrompt,recoveryChecked,project.id])
+
+  useEffect(()=>{
+    const bridge=window.albumStudio
+    if(!bridge?.isElectron||!bridge.onProjectOpen||!recoveryChecked||resumePrompt)return
+    let opening=false
+    const open=async()=>{
+      if(opening)return
+      opening=true
+      try {const filePath=await bridge.takePendingProject();if(!filePath)return
+        if(useProjectStore.getState().isDirty&&!window.confirm('Open this album and discard unsaved changes to the current album?'))return
+        const file=await openProjectFromPath(filePath);if(!file)throw new Error('This album could not be opened.')
+        loadProjectFile(file);setCurrentFilePath(filePath);setShowHome(false);revealLeftPanel();clearOpenSession();recordRecentProject({projectId:file.project.id,createdAt:file.project.createdAt,name:file.project.name,clientName:file.project.clientName,sizeLabel:file.project.size.label,filePath,spreadCount:file.project.spreads.filter(s=>!s.isCover).length,kind:file.project.kind})
+      }catch(error){window.alert(String(error))}finally{opening=false}
+    }
+    const off=bridge.onProjectOpen(()=>void open());void open();return off
+  },[recoveryChecked,resumePrompt,loadProjectFile,setCurrentFilePath,revealLeftPanel])
 
   async function handleContinueSession() {
     if (!resumePrompt) return
@@ -228,7 +288,7 @@ export default function App() {
         {bottomPanelOpen && <PhotoBin />}
       </div>
       </div>
-      {rightPanelOpen && <aside className="app-sidebar app-sidebar--right" aria-label="Album sidebar">{selectedPlaceholderId ? <Inspector /> : <AlbumInfoPanel />}</aside>}
+      {rightPanelOpen && <PanelResizer axis="x" variable="--inspector-width" label="Resize right panel" initial={320} min={240} max={0.45}/>}{rightPanelOpen && <aside className="app-sidebar app-sidebar--right" aria-label="Album sidebar">{selectedPlaceholderId || selectedTextBoxId ? <Inspector /> : <AlbumInfoPanel />}</aside>}
       </div>
     </div>
   )

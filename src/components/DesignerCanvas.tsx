@@ -545,7 +545,7 @@ export default function DesignerCanvas() {
   // that still fits entirely inside the measured viewport, and centers it. This is a real
   // computation off the actual available space, not a flat reset to some assumed-visible size.
   function fitToView() {
-    const rawScale = Math.min(viewportSize.width / STAGE_WIDTH, viewportSize.height / stageHeight) * 0.94
+    const rawScale = Math.min(viewportSize.width / STAGE_WIDTH, viewportSize.height / stageHeight) * 0.98
     const scale = Math.max(0.05, Math.min(3, rawScale || 1))
     setStageScale(scale)
     setStagePos({

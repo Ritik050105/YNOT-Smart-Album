@@ -103,7 +103,7 @@ export interface SpreadAppearanceDefaults {
 export const FALLBACK_APPEARANCE_DEFAULTS: SpreadAppearanceDefaults = {
   backgroundColor: '#ffffff',
   gapPx: 8,
-  marginPx: 24,
+  marginPx: 10,
   borderWidth: 0,
   borderColor: '#ffffff',
 }
@@ -151,11 +151,11 @@ export function spreadCountRange(photoCount: number, minPhotos: number, maxPhoto
 }
 
 /** Keep meaningful cuts when a user changes the count, instead of flattening smart groups. */
-export function groupPhotosForCount(photos: PhotoAsset[], count: number, options: AutoLayoutOptions, min = 1, max = 30, canGroup?: (size: number, index: number) => boolean): PhotoAsset[][] {
+export function groupPhotosForCount(photos: PhotoAsset[], count: number, options: AutoLayoutOptions, min = 1, max = 30, canGroup?: (size: number, index: number) => boolean, preserveOrder=false): PhotoAsset[][] {
   if (!photos.length) return []
   max = Math.max(1, Math.min(30, Math.floor(max) || 1))
   min = Math.max(1, Math.min(max, Math.floor(min) || 1))
-  const sorted = sortPhotosByCapturedAt(photos)
+  const sorted = preserveOrder ? [...photos] : sortPhotosByCapturedAt(photos)
   const range = spreadCountRange(sorted.length, min, max)
   const n = Math.max(range.min, Math.min(range.max, Math.round(count) || range.min))
   const minimum = sorted.length >= n * min ? min : 1
@@ -252,14 +252,15 @@ export function buildSpreadsFromGroups(
   layout: AutoBuildLayoutOptions = DEFAULT_AUTO_BUILD_LAYOUT,
   matchTimelineOrder = true,
   allowTemplateRepeats = false,
-  templateReuse: 'low' | 'medium' | 'high' = allowTemplateRepeats ? 'high' : 'medium'
+  templateReuse: 'low' | 'medium' | 'high' = allowTemplateRepeats ? 'high' : 'medium',
+  groupDesigns?: {templateIds:string[];textBoxes?:TextBox[]}[]
 ): Spread[] {
   const border = { width: appearance.borderWidth, color: appearance.borderColor }
   let lastTemplateId: string | undefined
   const uses = new Map<string, number>()
   return groups.map((group, index) => {
     const forceSingle = (index === 0 && layout.start === 'single') || (index === groups.length - 1 && layout.end === 'single')
-    let candidates = autoBuildTemplates(group.length, enabledTemplateIds, layout, forceSingle)
+    let candidates = autoBuildTemplates(group.length, groupDesigns?.[index]?.templateIds ?? enabledTemplateIds, layout, forceSingle)
     if (!candidates.length) throw new Error(`No enabled template matches ${group.length} images with the current frame and layout filters. Change the filters or images per spread.`)
     if (templateReuse === 'low' && candidates.length) {
       const leastUsed = Math.min(...candidates.map((t) => uses.get(t.id) ?? 0))
@@ -276,12 +277,14 @@ export function buildSpreadsFromGroups(
     )
     const readingOrder = templateFramesInReadingOrder(template)
     placements.sort((a, b) => readingOrder.findIndex(frame => frame.id === a.placeholderId) - readingOrder.findIndex(frame => frame.id === b.placeholderId))
-    const textBoxes: TextBox[] = []
+    const groupId=uuid()
+    const textBoxes: TextBox[] = (groupDesigns?.[index]?.textBoxes ?? template.textBoxes ?? []).map(t=>({...structuredClone(t),id:uuid(),groupId:t.groupId?groupId:undefined}))
     return {
       id: uuid(),
       order: index,
       pageSide: forceSingle ? (index === 0 ? 'right' : 'left') : template.pageSide,
       templateId: template.id,
+      customBoxes: template.absoluteFrames?structuredClone(template.placeholders):undefined,
       placements,
       textBoxes,
       backgroundColor: appearance.backgroundColor,
@@ -332,7 +335,7 @@ export function retemplateSpread(spread: Spread, templateId: string, photos?: Ph
     }
   }
   const placements = templateFramesInReadingOrder(template).map((ph, i) => ordered[i] ? { ...ordered[i], placeholderId: ph.id } : defaultPlacement(ph.id, null))
-  return { ...spread, templateId: template.id, customBoxes: undefined, placements }
+  return { ...spread, templateId: template.id, customBoxes: template.absoluteFrames?template.placeholders:undefined, placements, textBoxes: template.textBoxes ? [...spread.textBoxes.filter(t=>t.locked||t.hidden),...template.textBoxes.map(t=>({...t,id:uuid()}))] : spread.textBoxes }
 }
 
 export function buildSpreadFromPlacements(source: PlacedPhoto[], pageSide: Spread['pageSide'], like: Spread): Spread {

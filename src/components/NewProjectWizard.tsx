@@ -37,7 +37,7 @@ const BORDER_STYLES = [
 
 const GAP_STYLES = [
   { label: 'None', px: 0 },
-  { label: 'Thin', px: 8 },
+  { label: 'Thin', px: 6 },
   { label: 'Medium', px: 16 },
   { label: 'Thick', px: 28 },
 ]
@@ -140,7 +140,7 @@ export default function NewProjectWizard({
   const [includeFullSpreadTemplates, setIncludeFullSpreadTemplates] = useState(true)
 
   const [backgroundColor, setBackgroundColor] = useState('#ffffff')
-  const [gapPx, setGapPx] = useState(8)
+  const [gapPx, setGapPx] = useState(6)
   const [borderWidth, setBorderWidth] = useState(0)
   const [borderColor, setBorderColor] = useState('#000000')
   const [libraryFilter, setLibraryFilter] = useState<TemplateFrameFilter>('all')
@@ -250,7 +250,7 @@ export default function NewProjectWizard({
       colorProfile: 'sRGB',
       defaultBackgroundColor: backgroundColor,
       defaultGapPx: gapPx,
-      defaultMarginPx: 24,
+      defaultMarginPx: 10,
       defaultBorderWidth: borderWidth,
       defaultBorderColor: borderColor,
       enabledTemplateIds,
@@ -413,13 +413,7 @@ export default function NewProjectWizard({
                 </div>
                 <div className="field-section">
                   <div className="field-section__title">Layout Type</div>
-                  <label className="field">
-                    Starts with
-                    <select value={layoutStart} onChange={(e) => setLayoutStart(e.target.value as 'spread' | 'single')}>
-                      <option value="spread">Full spread</option>
-                      <option value="single">Single page/side</option>
-                    </select>
-                  </label>
+                  <label className="checkbox-row"><input type="checkbox" checked={layoutStart==='single'} onChange={e=>setLayoutStart(e.target.checked?'single':'spread')}/>Start with right-hand page only (RHS)</label>
                   <label className="field">
                     Ends with
                     <select value={layoutEnd} onChange={(e) => setLayoutEnd(e.target.value as 'spread' | 'single')}>
@@ -470,7 +464,7 @@ export default function NewProjectWizard({
             {previewTemplates.map((t) => (
               <div key={t.id} className={`library-preview ${matchesFrameFilter(t, libraryFilter, FILTER_EXAMPLE_ASPECT) ? '' : 'is-excluded'}`}
                 title={`${t.name} — ${matchesFrameFilter(t, libraryFilter, FILTER_EXAMPLE_ASPECT) ? 'Included' : 'Excluded by selected filter'}`}>
-                <TemplateThumb template={t} aspect={FILTER_EXAMPLE_ASPECT} marginPx={24} gapPx={gapPx} backgroundColor={backgroundColor}
+                <TemplateThumb template={t} aspect={FILTER_EXAMPLE_ASPECT} marginPx={10} gapPx={gapPx} backgroundColor={backgroundColor}
                   borderColor={borderColor} borderWidth={borderWidth} className="template-preview-grid__swatch" />
                 <span className="sr-only">{t.name}: {matchesFrameFilter(t, libraryFilter, FILTER_EXAMPLE_ASPECT) ? 'Included' : 'Excluded by selected filter'}</span>
               </div>
