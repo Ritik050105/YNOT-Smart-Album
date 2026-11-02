@@ -758,3 +758,12 @@ button:disabled { cursor:not-allowed; }
 @media(max-width:800px){.layer-effect-panel{right:12px;top:74px;max-height:calc(100vh - 90px)}}
 @media(prefers-reduced-motion:reduce){.layer-effect-panel{animation:none}}
 .effect-preview{display:block;width:100%;height:150px;object-fit:contain;background:#252529;border:1px solid var(--border);border-radius:10px;margin-bottom:18px;}
+/* QA: photo delete button no longer covers every thumbnail; it appears on hover, focus or selection */
+.photo-dock__item:not(:hover):not(:focus-within):not(.is-selected) .photo-dock__delete { opacity: 0; pointer-events: none; }
+.photo-dock__delete:focus-visible { opacity: 1; }
+/* QA: Auto Build template-category label ran into the checkbox before it */
+.field-section + label { display: inline-flex; align-items: center; gap: 8px; margin-left: 14px; }
+/* QA: font-template import control showed the raw browser file input */
+.quote-browser-tools label:has(> input[type=file]) { position:relative; cursor:pointer; padding:6px 12px; border:1px solid var(--border); border-radius:6px; background:var(--panel-alt); }
+.quote-browser-tools label > input[type=file] { position:absolute; inset:0; opacity:0; width:100%; cursor:pointer; }
+.quote-browser-tools label:has(> input[type=file]:focus-visible) { outline:2px solid var(--accent); }
