@@ -412,6 +412,8 @@ function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => vo
     return {
       project: nextProject,
       ...(added?{selectedSpreadId:added.id}:!mutated.spreads.some(spread=>spread.id===s.selectedSpreadId)?{selectedSpreadId:mutated.spreads[0]?.id??null,selectedPlaceholderId:null,selectedTextBoxId:null}:{}),
+      // Emptying the spread open in Designer View deletes it, so go back to the normal window instead of showing a blank canvas.
+      ...(s.designerViewSpreadId && !mutated.spreads.some(spread=>spread.id===s.designerViewSpreadId)?{designerViewSpreadId:null,canvasTool:'select' as const}:{}),
       fontPreview: null,
       templatePreview: null,
       matchingTemplatesOpen: keepTemplateBrowser ? s.matchingTemplatesOpen : false,
@@ -702,7 +704,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       window.dispatchEvent(new CustomEvent('album-studio:empty-cover'))
       return
     }
-    set({ designerViewSpreadId: null })
+    // A leftover Pan/Text/Shape tool would block moving and editing in the normal window, so always come back on Select.
+    set({ designerViewSpreadId: null, canvasTool: 'select' })
   },
   setCanvasViewportMirror: (zoom, pan) => set({ canvasZoom: zoom, canvasPan: pan }),
 

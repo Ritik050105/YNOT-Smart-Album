@@ -93,7 +93,7 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
         const r=item.getBoundingClientRect()
         frameId=overviewPhotoAt(spread,event.clientX-r.left,event.clientY-r.top,r.width,r.height)?.placeholderId
       }
-      if(frameId&&spread?.placements.find(p=>p.placeholderId===frameId)?.locked)return
+      if(frameId&&spread?.placements.find(p=>p.placeholderId===frameId)?.locked){window.dispatchEvent(new CustomEvent('album-studio:preference-notice',{detail:'This photo is locked. Select it and press Unlock in the top bar to move it.'}));return}
       if(item.hasAttribute('data-spread-drag')&&!frameId){ // empty card area: drag the whole spread (reorder)
         const preview=item.querySelector('canvas')?.toDataURL()
         if(!spreadId||!preview)return
