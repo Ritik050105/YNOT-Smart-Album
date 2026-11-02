@@ -1,3 +1,6 @@
+import {deleteTextBoxOrGroup} from '@/engine/layerClipboard'
+import {rotateTextAroundCenter} from '@/engine/textRotation'
+import TextAppearance from './TextAppearance'
 import { pagePlacements } from '@/engine/pageTemplates'
 import { usePreferences } from '@/state/preferences'
 import { useEffect, useState } from 'react'
@@ -93,23 +96,10 @@ export default function Inspector() {
   const photo = placement?.photoId ? project.photos.find((p) => p.id === placement.photoId) : undefined
   if (placement?.locked || textBox?.locked) return <div className="panel inspector"><strong>Layer locked</strong><p className="muted">Unlock this layer to edit, move or resize it.</p><button className="btn" onClick={()=>useProjectStore.getState().setLayerLocked(spread.id,placement?'image':'text',placement?.placeholderId??textBox!.id,false)}>Unlock layer</button></div>
   const groupId=placement?.groupId??textBox?.groupId
-  if(groupId)return <div className="panel inspector"><strong>Group selected</strong><p className="muted">Drag the group on the canvas or resize it with the corner handles.</p><div className="designer-layers__actions"><button className="btn" onClick={()=>useProjectStore.getState().setLayerLocked(spread.id,placement?'image':'text',placement?.placeholderId??textBox!.id,true)}>Lock group</button><button className="btn" onClick={()=>useProjectStore.getState().setLayerHidden(spread.id,placement?'image':'text',placement?.placeholderId??textBox!.id,true)}>Hide group</button><button className="btn" onClick={()=>useProjectStore.getState().ungroupLayers(spread.id,groupId)}>Ungroup</button></div></div>
   const spreadAspect = size.widthIn / size.heightIn
   const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / spreadAspect).find(
     (b) => b.placeholderId === selectedPlaceholderId
   )
-  // Match only editable foreground photos, as in the template browser.
-  const templatePlacements=pagePlacements(spread,spreadAspect,'spread')
-  const quickPickPhotos: (PhotoAsset | undefined)[] = (() => {
-    const placed = templatePlacements
-      .map((p) => (p.photoId ? project.photos.find((ph) => ph.id === p.photoId) : undefined))
-      .filter((p): p is PhotoAsset => !!p)
-    return placed
-  })()
-  const suggestions = rankTemplates(quickPickPhotos.filter((photo): photo is PhotoAsset => !!photo),
-    templatesForCount(templatePlacements.filter(p=>p.photoId).length||templatePlacements.length, project.enabledTemplateIds, frameFilter, spreadAspect), spreadAspect, true, spread.marginPx, spread.gapPx).map((match) => match.template)
-
-
   let dpi: number | null = null
   if (photo && boxForSelected && placement) {
     const boxWIn = (boxForSelected.width / 900) * size.widthIn
@@ -123,101 +113,7 @@ export default function Inspector() {
     <>
     <div className="panel inspector">
 
-      {!placement && !textBox && <section className="smart-grid">
-        <h4>
-          <Icon name="sparkles" size={13} />
-          Smart Grid Suggestions
-        </h4>
-        <label className="smart-grid__filter">
-          Frame ratio filter
-          <select value={frameFilter} onChange={(e) => setFrameFilter(e.target.value as TemplateFrameFilter)}>
-            <option value="all">All Templates</option>
-            <option value="no-square">Templates without square frames</option>
-            <option value="only-3x2">Templates only with 3:2 frame ratios</option>
-          </select>
-        </label>
-        <p className="template-match-count">{suggestions.length} matching templates found</p>
-        <div className="template-grid">
-          {suggestions
-            .slice(0, 9)
-            .map((t) => (
-              <button
-                key={t.id}
-                aria-pressed={spread.templateId === t.id}
-                className={`template-swatch ${spread.templateId === t.id ? 'is-active' : ''}`}
-                onClick={() => applyTemplateToSpread(spread.id, t.id)}
-                onMouseEnter={(e) => setHoverPreview({ template: t, rect: e.currentTarget.getBoundingClientRect() })}
-                onMouseLeave={() => setHoverPreview((cur) => (cur?.template.id === t.id ? null : cur))}
-                title={t.name}
-              >
-                <TemplateThumb template={t} aspect={spreadAspect} marginPx={spread.marginPx} gapPx={spread.gapPx} className="template-swatch__shape" />
-                <span className="template-swatch__name">{t.name}</span>
-              </button>
-            ))}
-        </div>
-        <button className="btn btn--tiny btn--block" onClick={() => openMatchingTemplates(spread.id)}>
-          <Icon name="grid" size={11} />
-          Browse All Templates ({suggestions.length})
-        </button>
-        <div className="smart-grid__group">
-        <span className="smart-grid__caption">Save this layout</span>
-        <div className="save-template-row">
-          <input
-            aria-label="Template name"
-            placeholder="Template name"
-            value={templateName}
-            onChange={(e) => setTemplateName(e.target.value)}
-          />
-          <button
-            className="btn"
-            disabled={!templateName.trim()}
-            onClick={() => {
-              saveSpreadAsTemplate(spread.id, templateName.trim())
-              setTemplateName('')
-            }}
-          >
-            <Icon name="save" size={13} />
-            Save
-          </button>
-        </div>
 
-        </div>
-        <div className="smart-grid__group">
-        <span className="smart-grid__caption">Custom grid</span>
-        <div className="custom-grid-row">
-          <label>Rows<input
-            type="number"
-            min={1}
-            max={10}
-            value={customRows}
-            onChange={(e) => setCustomRows(Math.max(1, Math.min(10, Number(e.target.value))))}
-          />
-          </label>
-          <label>Columns<input
-            type="number"
-            min={1}
-            max={10}
-            value={customCols}
-            onChange={(e) => setCustomCols(Math.max(1, Math.min(10, Number(e.target.value))))}
-          /></label>
-          <button
-            className="btn btn--tiny"
-            onClick={() => applyTemplateToSpread(spread.id, generateCustomGrid(customRows, customCols).id)}
-          >
-            <Icon name="grid" size={11} />
-            Apply
-          </button>
-        </div>
-        <button
-          className="btn btn--tiny btn--block"
-          title="Re-apply this spread's current template to every spread in the album"
-          onClick={() => applyTemplateToAllSpreads(spread.templateId)}
-        >
-          <Icon name="layers" size={11} />
-          Apply to all spreads
-        </button>
-        </div>
-      </section>}
 
       {!placement && !textBox && <><section>
         <h4>
@@ -291,7 +187,7 @@ export default function Inspector() {
       {placement && (
         <section>
           {photo && <div className="image-design__heading"><strong title={photo.fileName}>{photo.fileName}</strong><span title={dpi !== null && dpi < size.dpi ? 'Low image resolution' : 'Image resolution'}>{dpi !== null && dpi < size.dpi ? '⚠' : '◈'}</span></div>}
-          <ImageDesign placement={placement} photo={photo} width={boxForSelected?.width ?? 300} height={boxForSelected?.height ?? 200} update={patch => updatePlacement(spread.id, placement.placeholderId, patch)}/>
+          <ImageDesign spreadId={spread.id} placement={placement} photo={photo} width={boxForSelected?.width ?? 300} height={boxForSelected?.height ?? 200} update={patch => updatePlacement(spread.id, placement.placeholderId, patch)}/>
           {boxForSelected && <details className="inspector-group">
             <summary>Frame position &amp; size</summary>
             <div className="frame-dimensions">
@@ -378,7 +274,7 @@ export default function Inspector() {
             min={0}
             max={1}
             step={0.01}
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { focalX: v })}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { focalX: v, zoom: Math.max(placement.zoom??1,1/(2*Math.max(.05,Math.min(v,1-v)))) })}
           />
           <SliderField buttons
             label="Focal Y"
@@ -386,7 +282,7 @@ export default function Inspector() {
             min={0}
             max={1}
             step={0.01}
-            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { focalY: v })}
+            onChange={(v) => updatePlacement(spread.id, placement.placeholderId, { focalY: v, zoom: Math.max(placement.zoom??1,1/(2*Math.max(.05,Math.min(v,1-v)))) })}
           />
           </details>}
           <div className="text-style-row">
@@ -418,6 +314,7 @@ export default function Inspector() {
             <Icon name="type" size={13} />
             Text
           </h4>
+          {textBox.shape&&<TextAppearance spreadId={spread.id} box={textBox}/>}<div hidden={!!textBox.shape}>
           <button
             className={`btn btn--toggle btn--block ${textBox.autoWidth ? 'is-active' : ''}`}
             aria-pressed={!!textBox.autoWidth}
@@ -428,6 +325,7 @@ export default function Inspector() {
             Auto-fit width
           </button>
           <FontPicker value={textBox.fontFamily} onChange={family => updateTextBox(spread.id, textBox.id, { fontFamily: family })} />
+          <SliderField label="Text angle" value={textBox.rotationDeg??0} min={-180} max={180} suffix="°" onChange={rotationDeg=>updateTextBox(spread.id,textBox.id,rotateTextAroundCenter(textBox,rotationDeg,spreadAspect))}/>
           <SliderField buttons
             label="Size"
             value={textBox.fontSize}
@@ -445,13 +343,13 @@ export default function Inspector() {
               className={`btn btn--toggle ${textBox.bold ? 'is-active' : ''}`}
               onClick={() => updateTextBox(spread.id, textBox.id, { bold: !textBox.bold })}
             >
-              Bold
+              <strong>B</strong>
             </button>
             <button
               className={`btn btn--toggle ${textBox.italic ? 'is-active' : ''}`}
               onClick={() => updateTextBox(spread.id, textBox.id, { italic: !textBox.italic })}
             >
-              Italic
+              <em>I</em>
             </button>
             {(['left', 'center', 'right'] as const).map((a) => (
               <button
@@ -459,22 +357,17 @@ export default function Inspector() {
                 className={`btn btn--toggle ${textBox.align === a ? 'is-active' : ''}`}
                 onClick={() => updateTextBox(spread.id, textBox.id, { align: a })}
               >
-                {a === 'left' ? 'Align left' : a === 'center' ? 'Center' : 'Align right'}
+                <span aria-label={'Align '+a} title={'Align '+a}><Icon name={`align-${a}`} size={18}/></span>
               </button>
             ))}
           </div>
-          <button className="btn btn--danger btn--block" onClick={() => removeTextBox(spread.id, textBox.id)}>
+          </div>{!textBox.shape&&<TextAppearance spreadId={spread.id} box={textBox}/>}<button disabled={textBox.locked} className="btn btn--danger btn--block" onClick={() => deleteTextBoxOrGroup(spread.id, textBox.id)}>
             <Icon name="trash" size={13} />
-            Delete Text Box
+            {textBox.shape==='line'?'Delete Line':textBox.shape?'Delete Shape':'Delete Text Box'}
           </button>
         </section>
       )}
     </div>
-    {hoverPreview &&
-      createPortal(
-        <TemplateHoverPreview template={hoverPreview.template} rect={hoverPreview.rect} aspect={spreadAspect} photos={quickPickPhotos} marginPx={spread.marginPx} gapPx={spread.gapPx} placements={spread.placements} />,
-        document.body
-      )}
     </>
   )
 }

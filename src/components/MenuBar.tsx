@@ -1,3 +1,4 @@
+import {copyLayers,pasteLayers,deleteLayers,duplicateLayers,deleteTextBoxOrGroup} from '@/engine/layerClipboard'
 import { modKeyLabel } from '@/engine/keyboard'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useEffect, useRef, useState } from 'react'
@@ -67,9 +68,6 @@ export default function MenuBar() {
   const setPlacementPhoto = useProjectStore((s) => s.setPlacementPhoto)
   const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
   const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
-  const copyPlacement = useProjectStore((s) => s.copyPlacement)
-  const pastePlacement = useProjectStore((s) => s.pastePlacement)
-  const cutPlacement = useProjectStore((s) => s.cutPlacement)
   const removeTextBox = useProjectStore((s) => s.removeTextBox)
   const selectPlaceholder = useProjectStore((s) => s.selectPlaceholder)
   const selectTextBox = useProjectStore((s) => s.selectTextBox)
@@ -148,7 +146,7 @@ export default function MenuBar() {
 
   function deleteSelection() {
     if (spread && selectedTextBoxId) {
-      removeTextBox(spread.id, selectedTextBoxId)
+      deleteTextBoxOrGroup(spread.id, selectedTextBoxId)
       return
     }
     if (spread && framePlaceholderIds.length > 0) {
@@ -181,6 +179,7 @@ export default function MenuBar() {
         { label: 'Open Recent Project', onClick: () => undefined, children: loadRecentProjects().filter(p => p.filePath).map(p => ({ label: p.name, disabled: !window.albumStudio?.isElectron, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:open-project', {detail:{filePath:p.filePath}})) })) },
         { label: 'Save', separator: true, disabled: !isDirty, shortcut: 'Ctrl+S', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:save-project')) },
         { label: 'Save As…', shortcut: 'Ctrl+Shift+S', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:save-project-as')) },
+        { label: 'Copy project to USB or folder…', disabled: !window.albumStudio?.copyProjectPackage, onClick: () => window.dispatchEvent(new CustomEvent('album-studio:copy-project')) },
         { label: 'Cloud Proofing (pending)', separator: true, disabled: true, onClick: () => undefined },
         { label: 'Import Images…', separator: true, shortcut: 'Ctrl+I', onClick: () => window.dispatchEvent(new CustomEvent('album-studio:import-images')) },
         {
@@ -203,13 +202,13 @@ export default function MenuBar() {
           separator: true,
           shortcut: 'Ctrl+X',
           disabled: !spread || framePlaceholderIds.length !== 1 || !hasPhotoInSelection,
-          onClick: () => spread && cutPlacement(spread.id, framePlaceholderIds[0]),
+          onClick: () => spread && (copyLayers(spread.id),deleteLayers(spread.id)),
         },
         {
           label: 'Copy',
           shortcut: 'Ctrl+C',
           disabled: !spread || framePlaceholderIds.length !== 1 || !hasPhotoInSelection,
-          onClick: () => spread && copyPlacement(spread.id, framePlaceholderIds[0]),
+          onClick: () => spread && copyLayers(spread.id,framePlaceholderIds.map(id=>'image:'+id)),
         },
         {
           label: 'Copy Tone Adjustments',
@@ -218,11 +217,12 @@ export default function MenuBar() {
           onClick: () => spread && copyToneAdjustments(spread.id, framePlaceholderIds[0]),
         },
         { label: 'Copy Filename(s)', disabled: !hasPhotoInSelection, onClick: copyFilenames },
+        { label: 'Duplicate', disabled: !hasPhotoInSelection, onClick: () => spread && duplicateLayers(spread.id,framePlaceholderIds.map(id=>'image:'+id)) },
         {
           label: 'Paste',
           shortcut: 'Ctrl+V',
           disabled: !spread || !photoClipboard || !hasFrameSelection,
-          onClick: () => spread && pastePlacement(spread.id, framePlaceholderIds),
+          onClick: () => spread && pasteLayers(spread.id),
         },
         {
           label: 'Paste Tone Adjustments',
@@ -354,6 +354,7 @@ export default function MenuBar() {
     {
       label: 'Help',
       items: [
+        {label:'Import license revocation…',disabled:!window.albumStudio?.importRevocation,onClick:()=>void window.albumStudio?.importRevocation()},
         {
           label: 'Keyboard & Mouse Shortcuts',
           shortcut: '?',

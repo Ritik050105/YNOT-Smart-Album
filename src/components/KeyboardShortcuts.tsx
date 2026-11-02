@@ -1,3 +1,4 @@
+import {copyLayers,pasteLayers,deleteLayers,deleteTextBoxOrGroup} from '@/engine/layerClipboard'
 import { groupGeometry, spreadLayers, selectionGeometry } from '@/engine/spreadLayers'
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
@@ -103,6 +104,7 @@ export default function KeyboardShortcuts() {
         return
       }
       if (mod && !editable && e.key.toLowerCase() === 'c') {
+        if(s.selectedSpreadId&&!e.shiftKey){e.preventDefault();copyLayers(s.selectedSpreadId);return}
         if (s.selectedSpreadId && s.selectedPlaceholderId) {
           e.preventDefault()
           if (e.shiftKey) s.copyToneAdjustments(s.selectedSpreadId, s.selectedPlaceholderId)
@@ -111,6 +113,7 @@ export default function KeyboardShortcuts() {
         return
       }
       if (mod && !editable && e.key.toLowerCase() === 'v') {
+        if(s.selectedSpreadId&&!e.shiftKey){e.preventDefault();pasteLayers(s.selectedSpreadId);return}
         if (!s.selectedSpreadId) return
         const targets = s.multiSelectedPlaceholderIds.length > 0
           ? s.multiSelectedPlaceholderIds
@@ -125,6 +128,7 @@ export default function KeyboardShortcuts() {
         return
       }
       if (mod && !editable && !e.shiftKey && e.key.toLowerCase() === 'x') {
+        if(s.selectedSpreadId){e.preventDefault();copyLayers(s.selectedSpreadId);deleteLayers(s.selectedSpreadId);return}
         if (s.selectedSpreadId && s.selectedPlaceholderId) {
           e.preventDefault()
           s.cutPlacement(s.selectedSpreadId, s.selectedPlaceholderId)
@@ -140,9 +144,11 @@ export default function KeyboardShortcuts() {
         return
       }
       if (!editable && (e.key === 'Delete' || e.key === 'Backspace')) {
+        if(s.designerViewSpreadId){e.preventDefault();deleteLayers(s.designerViewSpreadId);return}
+        if (s.selectedSpreadId && s.selectedLayerKeys.length) { e.preventDefault(); deleteLayers(s.selectedSpreadId, s.selectedLayerKeys); return }
         if (s.selectedSpreadId && s.selectedTextBoxId) {
           e.preventDefault()
-          s.removeTextBox(s.selectedSpreadId, s.selectedTextBoxId)
+          deleteTextBoxOrGroup(s.selectedSpreadId, s.selectedTextBoxId)
           return
         }
         if (s.selectedSpreadId && s.multiSelectedPlaceholderIds.length > 0) {
@@ -274,13 +280,13 @@ function ShortcutsHelpModal({ onClose }: { onClose: () => void }) {
         </section>
         <section>
           <h4>Selection &amp; editing</h4>
-          <Row keys="Delete / Backspace" label="Clear the selected photo(s), or delete the selected text box" />
+          <Row keys="Delete / Backspace" label="Delete selected elements; normal view rearranges the remaining photos" />
           <Row keys={`${modKeyLabel}+G / ${modKeyLabel}+Shift+G`} label="Group / ungroup selected layers" />
           <Row keys="Shift+click / drag on empty canvas" label="Select multiple layers" />
           <Row keys="Escape" label="Deselect; press again to leave Designer view. Closes template browser." />
           <Row keys={`${modKeyLabel}+A`} label="Select all layers in Designer view; all placed photos in overview" />
           <Row keys="Shift / Ctrl+click" label="Multi-select photos on the canvas" />
-          <Row keys={`${modKeyLabel}+X / C / V`} label="Cut / copy / paste the selected image" />
+          <Row keys={`${modKeyLabel}+X / C / V`} label="Cut / copy / paste as new elements" />
           <Row keys={`${modKeyLabel}+Shift+C / V`} label="Copy / paste tone adjustments" />
           <Row keys={`${modKeyLabel}+D`} label="Deselect all" />
           <Row keys="Arrow keys" label="Move selected text or a multiple-layer selection (Shift = bigger step)" />
