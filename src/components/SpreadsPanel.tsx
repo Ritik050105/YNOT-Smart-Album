@@ -1,3 +1,9 @@
+import SelectionActions from './SelectionActions'
+import {cyclingTemplates,useTemplateBrowsing} from '@/state/templateBrowsing'
+import FloatingTextToolbar from './FloatingTextToolbar'
+import { createPortal } from 'react-dom'
+import {PreviewImage} from '@/engine/previewImage'
+import PanelResizer from './PanelResizer'
 import { usePreferences, getPreferences } from '@/state/preferences'
 import { openInEditor } from './ExternalEditor'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
@@ -11,6 +17,7 @@ import { useTimelineDrag } from '@/engine/useTimelineDrag'
 import SpreadThumbnail from './SpreadThumbnail'
 import ContextMenu, { ContextMenuItem } from './ContextMenu'
 import Icon from './Icon'
+import QuoteTemplates from './QuoteTemplates'
 import PhotoContextMenu from './PhotoContextMenu'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 
@@ -45,12 +52,12 @@ export default function SpreadsPanel() {
   const pasteSpreadAfter = useProjectStore((s) => s.pasteSpreadAfter)
   const convertSpreadPageType = useProjectStore((s) => s.convertSpreadPageType)
   const applyTemplateToAllSpreads = useProjectStore((s) => s.applyTemplateToAllSpreads)
+  useTemplateBrowsing()
   const cycleSpreadTemplate = useProjectStore((s) => s.cycleSpreadTemplate)
   const openMatchingTemplates = useProjectStore(s => s.openMatchingTemplates)
   const templatePreview = useProjectStore(s => s.templatePreview)
   const { handleFiles } = useImportPhotos()
   const [exportingId, setExportingId] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; spreadId: string } | null>(null)
   const [coverDragOver, setCoverDragOver] = useState(false)
   const [newSpreadDragOver, setNewSpreadDragOver] = useState(false)
@@ -58,8 +65,29 @@ export default function SpreadsPanel() {
   const newSpreadInputRef = useRef<HTMLInputElement>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
   const spreadsRef = useRef<HTMLDivElement>(null)
+  useEffect(()=>{
+    const track=spreadsRef.current,first=track?.querySelector<HTMLElement>('[data-overview-spread]');if(!track||!first)return
+    const measure=()=>{const left=first.getBoundingClientRect().left-track.getBoundingClientRect().left+track.scrollLeft;timelineRef.current?.style.setProperty('--timeline-start',`${Math.max(24,left)}px`)}
+    const observer=new ResizeObserver(measure);observer.observe(track);observer.observe(first);measure();return()=>observer.disconnect()
+  },[project.spreads.length])
+  useEffect(() => {
+    const row = spreadsRef.current
+    if (!row) return
+    const measure = () => {
+      const css = getComputedStyle(row)
+      const available = row.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom) - 12
+      const ratio = project.size.widthIn / project.size.heightIn
+      const height = Math.max(32, Math.min(available, (row.clientWidth - 48) / Math.max(1, ratio)))
+      row.parentElement?.style.setProperty('--overview-height', `${height}px`)
+    }
+    let frame = 0
+    const observer = new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure) })
+    observer.observe(row)
+    measure()
+    return () => { observer.disconnect(); cancelAnimationFrame(frame) }
+  }, [project.size.widthIn, project.size.heightIn])
   const { drag, target } = useTimelineDrag((source, destination) => {
-    if(destination.replace && destination.spreadId && destination.beforeFrameId && source.photoIds[0]){useProjectStore.getState().setPlacementPhoto(destination.spreadId,destination.beforeFrameId,source.photoIds[0]);return}
+    if(destination.replace && destination.spreadId && destination.beforeFrameId && source.photoIds[0]){if(source.spreadId===destination.spreadId&&source.frameId)useProjectStore.getState().swapPlacements(source.spreadId,source.frameId,destination.beforeFrameId);else useProjectStore.getState().setPlacementPhoto(destination.spreadId,destination.beforeFrameId,source.photoIds[0]);return}
     if (source.spreadId && !source.frameId) {
       if (destination.cover) return
       const interiors = useProjectStore.getState().project.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
@@ -75,10 +103,17 @@ export default function SpreadsPanel() {
   const spreads = project.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order).map(s => templatePreview?.id === s.id ? templatePreview : s)
   useEffect(() => {
     const group = Array.from(timelineRef.current?.children ?? []).find((el) => (el as HTMLElement).dataset.timelineSpread === selectedSpreadId)
-    group?.scrollIntoView({ block: 'nearest', inline: 'center' })
+    group?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     const card = Array.from(spreadsRef.current?.children ?? []).find((el) => (el as HTMLElement).dataset.overviewSpread === selectedSpreadId)
-    card?.scrollIntoView({ block: 'nearest', inline: 'center' })
+    card?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [selectedSpreadId])
+
+  // With no cover yet there was nothing to select, so the button looked dead: open cover setup instead.
+  function goToCover() {
+    if (cover) selectSpread(cover.id)
+    else window.dispatchEvent(new CustomEvent('album-studio:setup-cover'))
+    for (const el of [spreadsRef.current, timelineRef.current]) el?.scrollTo({ left: 0, behavior: 'smooth' })
+  }
 
   async function exportSpread(spread: typeof project.spreads[number]) {
     setExportingId(spread.id)
@@ -145,7 +180,7 @@ export default function SpreadsPanel() {
       { label: 'Cut', onClick: () => cutSpread(spreadId) },
       { label: 'Copy', onClick: () => copySpread(spreadId) },
       { label: 'Paste', disabled: !spreadClipboard, onClick: () => pasteSpreadAfter(spreadId) },
-      { label: 'Delete Spread', danger: true, onClick: () => setConfirmDeleteId(spreadId) },
+      { label: 'Delete Spread', danger: true, onClick: () => deleteSpread(spreadId) },
       {
         label: spread.pageSide === 'spread' ? 'Convert to Single Page/Side' : 'Convert to Full Spread',
         onClick: () => convertSpreadPageType(spreadId),
@@ -174,13 +209,15 @@ export default function SpreadsPanel() {
 
   return (
     <div className={`spreads-panel ${project.spreads.length === 0 ? 'spreads-panel--empty' : ''}`} style={{ '--spread-aspect': project.size.widthIn / project.size.heightIn } as CSSProperties}>
-      {showCoverButton && <button className="go-cover-button btn btn--tiny" onClick={()=>{spreadsRef.current?.scrollTo({left:0,behavior:'smooth'});if(cover)selectSpread(cover.id)}}>Go to Cover</button>}
+      <FloatingTextToolbar/><SelectionActions floating/>
+      {showCoverButton && <button className="go-cover-button btn btn--tiny" onClick={goToCover}>Go to Cover</button>}
+      <div id="overview-font-template-browser" />
       <div ref={spreadsRef} className="spreads-panel__row" style={{cursor:canvasTool==='pan'?'grab':undefined}}
         onPointerDownCapture={e=>{if(canvasTool!=='pan'||e.button!==0||(e.target as HTMLElement).closest('button'))return;e.preventDefault();e.stopPropagation();pan.current={x:e.clientX,y:e.clientY,left:e.currentTarget.scrollLeft,top:e.currentTarget.scrollTop};e.currentTarget.setPointerCapture(e.pointerId)}}
         onPointerMove={e=>{if(!pan.current)return;e.currentTarget.scrollLeft=pan.current.left+pan.current.x-e.clientX;e.currentTarget.scrollTop=pan.current.top+pan.current.y-e.clientY}}
         onPointerUp={e=>{if(pan.current){pan.current=null;e.currentTarget.releasePointerCapture(e.pointerId)}}}
         onPointerCancel={()=>{pan.current=null}}
-        onClickCapture={e=>{if(canvasTool==='pan'&&!(e.target as HTMLElement).closest('button')){e.preventDefault();e.stopPropagation()}}}>
+        onClick={e=>{if(e.target===e.currentTarget)selectSpread(null)}} onClickCapture={e=>{if(canvasTool==='pan'&&!(e.target as HTMLElement).closest('button')){e.preventDefault();e.stopPropagation()}}}>
         {cover ? (
           <div
             className={`spreads-panel__card spreads-panel__card--cover ${selectedSpreadId === cover.id ? 'is-selected' : ''}`}
@@ -251,7 +288,7 @@ export default function SpreadsPanel() {
             style={{ '--spread-aspect': (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn } as CSSProperties}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => handleSpreadDrop(e, spread.id)}
-            onClick={() => selectSpread(spread.id)}
+            onClick={e => selectSpread(e.target===e.currentTarget?null:spread.id)}
             onDoubleClick={() => enterDesignerView(spread.id)}
             onContextMenu={(e) => openContextMenu(e, spread.id)}
             title={`Spread ${index + 1} — double-click to design, right-click for more options`}
@@ -269,42 +306,24 @@ export default function SpreadsPanel() {
               e.preventDefault(); e.stopPropagation(); selectSpread(spread.id)
               setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: box?.placeholderId })
             }}>
-            <SpreadThumbnail selectedPlaceholderId={selectedSpreadId === spread.id ? selectedPlaceholderId : null} spread={spread} photosById={photosById} size={project.size} responsive />
+            <SpreadThumbnail dropPlaceholderId={target?.replace && target.spreadId === spread.id ? target.beforeFrameId : null} selectedPlaceholderId={selectedSpreadId === spread.id ? selectedPlaceholderId : null} spread={spread} photosById={photosById} size={project.size} responsive />
             <div className="spread-card-controls" onDoubleClick={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
               <div className="spread-card-controls__actions">
                 <button title="Flip spread horizontally" aria-label="Flip spread horizontally" onClick={() => flipSpread(spread.id)}><Icon name="flipSpread" size={16} /></button>
                 <button title="Edit in Designer View" aria-label="Edit in Designer View" onClick={() => enterDesignerView(spread.id)}><Icon name="edit" size={16} /></button>
               </div>
-              <div className="spread-card-controls__templates">
-                <button title="Previous template (Up)" onClick={() => { selectSpread(spread.id); cycleSpreadTemplate(spread.id, -1) }}><Icon name="chevronLeft" size={12} /></button>
+              <div className="spread-card-controls__center"><div className="spread-card-controls__templates">
+                <button disabled={cyclingTemplates(project,spread,useProjectStore.getState().templateFrameFilter,useProjectStore.getState().favoriteTemplateIds).length<2} title="Previous template (Up)" onClick={() => { selectSpread(spread.id); cycleSpreadTemplate(spread.id, -1) }}><Icon name="chevronLeft" size={12} /></button>
                 <button title="Browse matching templates" onClick={() => openMatchingTemplates(spread.id)}><Icon name="grid" size={12} /></button>
-                <button title="Next template (Down)" onClick={() => { selectSpread(spread.id); cycleSpreadTemplate(spread.id, 1) }}><Icon name="chevronRight" size={12} /></button>
+                <button disabled={cyclingTemplates(project,spread,useProjectStore.getState().templateFrameFilter,useProjectStore.getState().favoriteTemplateIds).length<2} title="Next template (Down)" onClick={() => { selectSpread(spread.id); cycleSpreadTemplate(spread.id, 1) }}><Icon name="chevronRight" size={12} /></button>
               </div>
-              <span>{index + 1}</span>
+              <button title="Browse mixed templates" aria-label="Browse mixed templates" onClick={()=>useProjectStore.getState().openMatchingTemplates(spread.id,'mixed')}>T▦</button><QuoteTemplates spreadId={spread.id} compact /></div>
+              <div className="spread-card-controls__end"><span>{index + 1}</span><button title={`Delete spread ${index + 1}`} aria-label={`Delete spread ${index + 1}`} onClick={()=>{selectSpread(spread.id);deleteSpread(spread.id)}}><Icon name="trash" size={14}/></button></div>
             </div>
             {exportingId === spread.id && (
               <div className="spreads-panel__exporting">
                 <Icon name="download" size={14} />
                 Exporting…
-              </div>
-            )}
-            {confirmDeleteId === spread.id && (
-              <div className="spreads-panel__confirm" onClick={(e) => e.stopPropagation()}>
-                <p>Delete spread {index + 1}? Its photos stay in your pool.</p>
-                <div className="spreads-panel__confirm-actions">
-                  <button className="btn btn--tiny" onClick={() => setConfirmDeleteId(null)}>
-                    Cancel
-                  </button>
-                  <button
-                    className="btn btn--tiny btn--danger"
-                    onClick={() => {
-                      deleteSpread(spread.id)
-                      setConfirmDeleteId(null)
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
               </div>
             )}
             </div>
@@ -349,18 +368,20 @@ export default function SpreadsPanel() {
       </div>
 
       {project.spreads.length === 0 && <div className="spreads-panel__empty-timeline" />}
-      {spreads.length > 0 && <div ref={timelineRef} className="spreads-panel__timeline" aria-label="Album image timeline">
+      {spreads.length > 0 && <PanelResizer axis="y" variable="--timeline-height" label="Resize timeline" initial={150} min={65} max={0.35}/>}{spreads.length > 0 && <div ref={timelineRef} className="spreads-panel__timeline" aria-label="Album image timeline" onClick={e=>{if(e.target===e.currentTarget)selectSpread(null)}}>
+        <span className="timeline-boundary timeline-boundary--edge" role="separator" aria-label="Start of timeline" />
         {spreads.map((spread, index) => <Fragment key={spread.id}>
           <div className={`spreads-panel__photos ${selectedSpreadId === spread.id ? 'is-selected' : ''} ${target?.spreadId === spread.id ? 'is-drop-target' : ''}`}
             data-timeline-spread={spread.id} aria-label={`Images in spread ${index + 1}`}
-            onClick={() => selectSpread(spread.id)} onDoubleClick={() => enterDesignerView(spread.id)}
+            onClick={e => selectSpread(e.target===e.currentTarget?null:spread.id)} onDoubleClick={() => enterDesignerView(spread.id)}
             onContextMenu={(e) => openContextMenu(e, spread.id)}
             onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleSpreadDrop(e, spread.id)}>
             {spread.placements.map((placement, placementIndex) => {
               const photo = placement.photoId ? photosById.get(placement.photoId) : undefined
               return photo ? <Fragment key={placement.placeholderId}>
-                {placementIndex > 0 && <button className="timeline-cut" title={`Cut timeline before ${photo.fileName}`} onDoubleClick={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); splitSpread(spread.id, placementIndex) }}><Icon name="scissors" size={10} /></button>}
-                <img src={photo.src} alt={photo.fileName} title={`${photo.fileName} — drag to move in the timeline`} draggable={false}
+                {spread.placements.slice(0,placementIndex).some(p=>p.photoId&&photosById.has(p.photoId))&&<button className="timeline-cut" aria-label={`Split spread ${index+1} before ${photo.fileName}`} title="Click to split into two spreads here" onClick={e=>{e.stopPropagation();splitSpread(spread.id,placementIndex)}} onDoubleClick={e=>e.stopPropagation()} />}
+                {target?.spreadId===spread.id&&target.beforeFrameId===placement.placeholderId&&<span className="timeline-drop-marker" aria-label="Insert photo here">●</span>}
+                <PreviewImage src={photo.src} alt={photo.fileName} title={`${photo.fileName} — drag to move in the timeline`} draggable={false}
                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); selectSpread(spread.id); setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: placement.placeholderId }) }}
                   data-timeline-frame={placement.placeholderId}
                   onClick={e => { e.stopPropagation(); selectSpread(spread.id); useProjectStore.getState().selectPlaceholder(placement.placeholderId) }}
@@ -368,13 +389,15 @@ export default function SpreadsPanel() {
                   onDrop={(e) => handleSpreadDrop(e, spread.id, placement.placeholderId)} />
               </Fragment> : null
             })}
+            {target?.spreadId===spread.id&&!target.beforeFrameId&&<span className="timeline-drop-marker" aria-label="Append photo here">●</span>}
           </div>
           {index < spreads.length - 1 && <button className="timeline-boundary" aria-label={`Merge spread ${index + 1} with next spread`} title={`Remove cut after spread ${index + 1} (merge with next)`} onClick={() => mergeWithNext(spread.id)} />}
         </Fragment>)}
+        <span className="timeline-boundary timeline-boundary--edge" role="separator" aria-label="End of timeline" />
         <div className="timeline-new-spread" data-new-spread onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const ids = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id)); const frame=readTimelineFrame(e.dataTransfer); if(frame)moveTimelinePhoto(frame.spreadId,frame.frameId,null); else if (ids.length) insertTimelinePhotos(ids, null); else void handleNewSpreadDrop(e.dataTransfer.files) }}>Drop images to add a spread</div>
       </div>}
 
-      {drag && <img className="timeline-drag-preview" src={drag.src} alt="" style={{ left: drag.x + 12, top: drag.y + 12 }} />}
+      {drag && createPortal(<img className="timeline-drag-preview" src={drag.src} alt="" style={{ left: drag.x, top: drag.y }} />,document.body)}
       {drag && <span className="sr-only" role="status">{target ? 'Release to place image' : 'Move over the timeline to place image'}</span>}
 
       {photoMenu && <PhotoContextMenu key={JSON.stringify(photoMenu)} {...photoMenu} />}

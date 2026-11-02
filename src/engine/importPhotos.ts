@@ -1,10 +1,12 @@
+import {seedPreview,previewSource} from './previewImage'
 import { getPreferences } from '@/state/preferences'
 import exifr from 'exifr'
 import { v4 as uuid } from 'uuid'
 import { PhotoAsset } from '@/types'
 import { imageFileSource, isImageFile } from './imageSource'
+import { hasColorProfile } from './colorProfile'
 
-const CONCURRENCY = 6
+const CONCURRENCY = 3
 
 async function detectBlackAndWhite(src: string): Promise<boolean | undefined> {
   try {
@@ -54,6 +56,7 @@ function orientationFor(width: number, height: number): PhotoAsset['orientation'
 }
 
 async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAsset> {
+  const sourcePath = window.albumStudio?.getImagePath?.(file) || undefined
   const src = await imageFileSource(file)
   let capturedAt: string | null = null
   let cameraModel: string | undefined
@@ -71,13 +74,17 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
     capturedAt = file.lastModified ? new Date(file.lastModified).toISOString() : new Date(Date.now() + fallbackOrder).toISOString()
   }
 
-  const { width, height } = await loadImageDimensions(src)
-  const isBlackAndWhite = await detectBlackAndWhite(src)
+  const prepared = window.albumStudio?.imagePreview && /\.(jpe?g|png|webp|gif|tiff?|avif|heic)$/i.test(file.name)
+    ? await window.albumStudio.imagePreview(sourcePath ?? new Uint8Array(await file.arrayBuffer())) : null
+  if (prepared) seedPreview(src,prepared.src,prepared.thumb,sourcePath)
+  const { width, height } = prepared ?? await loadImageDimensions(src)
+  const isBlackAndWhite = prepared ? prepared.isBlackAndWhite : await detectBlackAndWhite(await previewSource(src))
 
   return {
     id: uuid(),
     fileName: file.name,
-    sourcePath: window.albumStudio?.getImagePath?.(file) || undefined,
+    sourcePath,
+    hasColorProfile: prepared?.hasColorProfile ?? await hasColorProfile(file),
     src,
     width,
     height,

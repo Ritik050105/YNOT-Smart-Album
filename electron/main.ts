@@ -193,6 +193,7 @@ function createNewProjectWindow() {
 }
 
 app.whenReady().then(async () => {
+  if (process.platform === 'darwin') app.dock?.setIcon(windowIcon) // always show the packaged latest logo in the Dock
   if(!hasInstanceLock)return
   if (app.isPackaged && !(await requireActivation())) { app.quit(); return }
   const splash = createSplash()
