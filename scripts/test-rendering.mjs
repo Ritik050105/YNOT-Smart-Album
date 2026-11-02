@@ -26,7 +26,7 @@ globalThis.window = { albumStudio: { isElectron: true,
 const result = await build({ stdin: {
   contents: `export * from './src/engine/autoLayout'; export * from './src/engine/layoutMath'; export * from './src/engine/renderSpread'; export * from './src/engine/exportAlbum'; export * from './src/engine/exportUtil'; export * from './src/engine/exportPreflight'; export * from './src/engine/projectFile'; export * from './src/engine/importWorkflow'; export * from './src/engine/patterns'; export { buildSpreadPsdBytes } from './src/engine/exportPsd'; export { initializeCanvas, readPsd } from 'ag-psd'`,
   resolveDir: process.cwd(),
-}, bundle: true, platform: 'node', format: 'esm', write: false, loader: { '.png': 'dataurl', '.icc': 'dataurl' } })
+}, bundle: true, platform: 'node', format: 'esm', write: false, loader: { '.ttf': 'dataurl', '.png': 'dataurl', '.icc': 'dataurl' } })
 const engine = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 engine.initializeCanvas(createCanvas)
 const catalogueBundle=await build({stdin:{contents:`export * from './src/engine/templates'; export { GENERATED_TEMPLATES } from './src/engine/templateGenerator'; export { geometrySignature } from './src/engine/templateLayout'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false})
@@ -124,9 +124,13 @@ const checks = engine.exportPreflight({ ...project, photos: [{ ...photos.get('ph
 assert.ok(checks.coverNeedsReview)
 assert.equal(checks.lowResolution.length, 2)
 const lines = []
-await engine.drawTextBox({ save(){}, restore(){}, measureText:()=>({width:20}), fillText:(text,x,y)=>lines.push({text,y}) }, { ...spread.textBoxes[0], text: 'First\n\nThird' }, 900, 600)
-assert.deepEqual(lines.map((line)=>line.text), ['First','Third'])
-assert.equal(lines[1].y-lines[0].y,64)
+// Text is now drawn on an offscreen mask canvas, so record fillText on the canvases the renderer creates.
+const realCreateElement = globalThis.document.createElement
+globalThis.document.createElement = (tag) => { const canvas = realCreateElement(tag); const getContext = canvas.getContext.bind(canvas); canvas.getContext = (...args) => { const real = getContext(...args); return new Proxy(real, { get: (target, key) => key === 'fillText' ? (text, x, y) => { lines.push({ text, y }); return target.fillText(text, x, y) } : typeof target[key] === 'function' ? target[key].bind(target) : target[key], set: (target, key, value) => { target[key] = value; return true } }) }; return canvas }
+await engine.drawTextBox(new Proxy({ measureText:()=>({width:20}), fillText:(text,x,y)=>lines.push({text,y}) }, { get:(target,key)=>key in target ? target[key] : () => {} }), { ...spread.textBoxes[0], text: 'First\n\nThird' }, 900, 600)
+globalThis.document.createElement = realCreateElement
+assert.deepEqual(lines.map((line)=>line.text), ['First','','Third']) // a blank paragraph keeps its line
+assert.ok(Math.abs((lines[2].y-lines[0].y)-2*(lines[1].y-lines[0].y))<1e-6,'Blank paragraph keeps one full line of spacing')
 assert.throws(()=>engine.deserializeProjectFile('{"formatVersion":1,"project":{}}'))
 const savedProject = { ...project, photos: [...photos.values()] }
 await engine.saveProjectToFile(savedProject, [], 'C:\\test\\album.ablm.json')
