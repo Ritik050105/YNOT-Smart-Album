@@ -9,8 +9,8 @@ const handNames = templateSource.match(/const HAND_CRAFTED_TEMPLATES[^=]*= \[([\
 const handIds = handNames.map(name=>templateSource.match(new RegExp('const '+name+"[^=]*= \\{\\s*id: '([^']+)'"))[1])
 const legacy = [...handIds.map(findTemplate), ...GENERATED_TEMPLATES]
 console.log('Legacy geometry:', legacy.length, createHash('sha256').update(JSON.stringify(legacy.map(t => [t.id, t.placeholders]))).digest('hex'))
-assert.equal(legacy.length, 1744)
-assert.equal(createHash('sha256').update(JSON.stringify(legacy.map(t => [t.id, t.placeholders]))).digest('hex'), 'adb468255cbbd34b4321428def71754e86e3cc3e5c277fbb6b66bb9614a6a2ff', 'Saved album geometry must stay unchanged')
+assert.equal(legacy.length, 1750)
+assert.equal(createHash('sha256').update(JSON.stringify(legacy.map(t => [t.id, t.placeholders]))).digest('hex'), 'f187b43c9e5c34d08f9721e92ee08b5386ea5197decb984fa9517c05f5aa3169', 'Saved album geometry must stay unchanged')
 for (const t of legacy) assert.deepEqual(findTemplate(t.id),t,'Saved layouts still resolve')
 assert.equal(uniqueTemplates(templates).length,templates.length,'Only unique compositions are browsable')
 assert.equal(new Set(templates.map(t => t.id)).size, templates.length)

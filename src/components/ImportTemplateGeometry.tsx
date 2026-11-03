@@ -17,7 +17,7 @@ export async function importTemplateGeometry(file:File):Promise<TemplateDefiniti
   if(psd.width*psd.height>100000000)throw new Error('PSD dimensions are too large.')
   const groupId=crypto.randomUUID()
   function visit(layers:Layer[]){for(const l of layers){if(l.hidden)continue;if(l.children){visit(l.children);continue}
-   if(/^background$/i.test(l.name??''))continue
+   if(/\bbackground\b|\bbackdrop\b|^bg$/i.test(l.name??''))continue
    if(l.text){
     if(!l.canvas)continue
     const x=l.left??0,y=l.top??0,w=(l.right??x)-x,h=(l.bottom??y)-y;if(w<=0||h<=0)continue
@@ -28,6 +28,10 @@ export async function importTemplateGeometry(file:File):Promise<TemplateDefiniti
    const x=Math.max(0,l.left??0),y=Math.max(0,l.top??0),w=Math.min(psd.width,l.right??0)-x,h=Math.min(psd.height,l.bottom??0)-y
    if(w>0&&h>0)frames.push({id:crypto.randomUUID(),x:x/psd.width,y:y/psd.height,width:w/psd.width,height:h/psd.height,preferredOrientation:'any'})
   }}visit(psd.children??[])
+  // An unnamed layer that covers (almost) the whole canvas alongside other, smaller frames is a
+  // background plate, not a photo slot — drop it, but keep it when it's the only frame (a real
+  // full-bleed single-photo layout).
+  if(frames.length>1)frames=frames.filter(f=>f.width*f.height<0.95)
  }
  const source=await imageFileSource(file)
  let preview:string,aspect:number
@@ -40,11 +44,11 @@ export async function importTemplateGeometry(file:File):Promise<TemplateDefiniti
  return new Promise(resolve=>{const host=document.createElement('div');document.body.append(host);const root=createRoot(host);const finish=(value:TemplateDefinition|null)=>{resolve(value);setTimeout(()=>{root.unmount();host.remove()},0)}
  function Review(){const [boxes,setBoxes]=useState(frames),[selected,setSelected]=useState(0);const box=boxes[selected]
   const valid=boxes.length>0&&boxes.every(b=>[b.x,b.y,b.width,b.height].every(Number.isFinite)&&b.x>=0&&b.y>=0&&b.width>0&&b.height>0&&b.x+b.width<=1.00001&&b.y+b.height<=1.00001)
-  return <Modal title="Review detected photo frames" width={720} onClose={()=>finish(null)} footer={<><button className="btn" onClick={()=>finish(null)}>Cancel</button><button className="btn btn--primary" disabled={!valid} onClick={()=>finish({id:crypto.randomUUID(),name:file.name.replace(/\.[^.]+$/,''),photoCount:boxes.length,pageSide:'spread',placeholders:boxes,isBuiltIn:false,absoluteFrames:true,createdAt:new Date().toISOString(),thumbnailColor:'#fff',thumbnailImage:preview})}>Use {boxes.length} editable frames</button></>}>
-   <p>Check every frame against the reference. Click a frame to correct its position or size. Flattened images cannot reveal overlapping or hidden elements.</p>
-   <div style={{position:'relative',aspectRatio:aspect,maxHeight:360,margin:'auto',width:'100%',background:'#fff'}}><img src={preview} style={{width:'100%',height:'100%',objectFit:'fill'}}/>{boxes.map((b,i)=><button key={b.id} aria-label={`Frame ${i+1}`} onClick={()=>setSelected(i)} style={{position:'absolute',left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,border:`2px solid ${i===selected?'#ffcc00':'#298bff'}`,background:i===selected?'#ffcc0020':'transparent',color:'#111'}}>{i+1}</button>)}</div>
-   <div className="text-style-row" style={{marginTop:16}}>{box&&(['x','y','width','height'] as const).map(key=><label key={key}>{key} (%)<input aria-label={`Frame ${key}`} type="number" min={0} max={100} step={.1} style={{width:90}} value={Math.round(box[key]*10000)/100} onChange={e=>setBoxes(bs=>bs.map((b,i)=>i===selected?{...b,[key]:Number(e.target.value)/100}:b))}/></label>)}</div>
-   <div className="text-style-row"><button className="btn" disabled={boxes.length>=100} onClick={()=>{setSelected(boxes.length);setBoxes([...boxes,{id:crypto.randomUUID(),x:.1,y:.1,width:.3,height:.3,preferredOrientation:'any'}])}}>Add frame</button><button className="btn" disabled={!box} onClick={()=>{setBoxes(boxes.filter((_,i)=>i!==selected));setSelected(Math.max(0,selected-1))}}>Remove frame</button></div>{!valid&&<p role="alert">Add at least one frame and keep all frames inside the reference.</p>}
+  return <Modal title="Review detected photo frames" width={760} className="frame-review" onClose={()=>finish(null)} footer={<><button className="btn" onClick={()=>finish(null)}>Cancel</button><button className="btn btn--primary" disabled={!valid} onClick={()=>finish({id:crypto.randomUUID(),name:file.name.replace(/\.[^.]+$/,''),photoCount:boxes.length,pageSide:'spread',placeholders:boxes,isBuiltIn:false,absoluteFrames:true,createdAt:new Date().toISOString(),thumbnailColor:'#fff',thumbnailImage:preview})}>Use {boxes.length} editable frames</button></>}>
+   <p className="frame-review__hint">Check every frame against the reference. Click a frame to correct its position or size. Flattened images cannot reveal overlapping or hidden elements.</p>
+   <div className="frame-review__canvas" style={{aspectRatio:aspect}}><img src={preview} alt="Imported artwork"/>{boxes.map((b,i)=><button key={b.id} aria-label={`Frame ${i+1}`} className={`frame-review__frame${i===selected?' is-selected':''}`} onClick={()=>setSelected(i)} style={{left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`}}><span className="frame-review__badge">{i+1}</span></button>)}</div>
+   <div className="frame-review__fields">{box&&(['x','y','width','height'] as const).map(key=><label key={key}><span>{key} (%)</span><input aria-label={`Frame ${key}`} type="number" min={0} max={100} step={.1} value={Math.round(box[key]*10000)/100} onChange={e=>setBoxes(bs=>bs.map((b,i)=>i===selected?{...b,[key]:Number(e.target.value)/100}:b))}/></label>)}</div>
+   <div className="frame-review__actions"><button className="btn" disabled={boxes.length>=100} onClick={()=>{setSelected(boxes.length);setBoxes([...boxes,{id:crypto.randomUUID(),x:.1,y:.1,width:.3,height:.3,preferredOrientation:'any'}])}}>Add frame</button><button className="btn" disabled={!box} onClick={()=>{setBoxes(boxes.filter((_,i)=>i!==selected));setSelected(Math.max(0,selected-1))}}>Remove frame</button></div>{!valid&&<p role="alert">Add at least one frame and keep all frames inside the reference.</p>}
   </Modal>
  }root.render(<Review/>)} )
 }

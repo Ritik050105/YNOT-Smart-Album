@@ -24,6 +24,18 @@ function QuoteBrowser({children,onClose}:{children:ReactNode;onClose:()=>void}){
  const host=document.getElementById('designer-font-template-browser')??document.getElementById('overview-font-template-browser')
  return host?createPortal(<section className="font-template-browser" aria-label="Font templates"><header><strong>Font templates</strong><button className="btn" onClick={onClose} aria-label="Close font templates">×</button></header>{children}</section>,host):<Modal title="Font templates" onClose={onClose} width={900}>{children}</Modal>
 }
+// fontCombinations()/quotes.json are static per aspect ratio, but every spread card on the
+// timeline renders its own QuoteTemplates instance — without this cache each one was recomputing
+// the whole font-combination + quote library from scratch, which was the normal window's lag.
+const staticQuoteItemsCache=new Map<number,ReturnType<typeof buildStaticQuoteItems>>()
+function buildStaticQuoteItems(aspect:number){
+ return [...fontCombinations(aspect),...quotes.map(q=>({id:q.id,name:q.name,category:'Wedding',subcategory:'',title:true,content:true,boxes:groupedBoxes(q,aspect)}))]
+}
+function staticQuoteItems(aspect:number){
+ let cached=staticQuoteItemsCache.get(aspect)
+ if(!cached){cached=buildStaticQuoteItems(aspect);staticQuoteItemsCache.set(aspect,cached)}
+ return cached
+}
 function groupedBoxes(q:typeof quotes[number],aspect:number):TextBox[]{
  const scale=Math.min(450/q.width,300/aspect/q.height),height=900/aspect,groupId=crypto.randomUUID()
  return q.layers.map(l=>({sourceArtwork:{fontRatio:l.fontSize/l.width,src:l.artwork,text:l.text,fontFamily:l.fontFamily,color:`rgb(${Math.round(l.color.r)},${Math.round(l.color.g)},${Math.round(l.color.b)})`,bold:l.bold,italic:l.italic},id:crypto.randomUUID(),groupId,text:l.text,fontFamily:l.fontFamily,fontSize:l.fontSize*scale,bold:l.bold,italic:l.italic,color:`rgb(${Math.round(l.color.r)},${Math.round(l.color.g)},${Math.round(l.color.b)})`,align:'left',autoWidth:false,x:(450-q.width*scale/2+l.x*scale)/900,y:(height/2-q.height*scale/2+l.y*scale)/height,width:l.width*scale/900,height:l.height*scale/height}))
@@ -55,7 +67,7 @@ export default function QuoteTemplates({spreadId,compact=false,saveHost}:{spread
  const [subcategory,setSubcategory]=useState(''),[subfilter,setSubfilter]=useState('')
  const [category,setCategory]=useState('Wedding'),[custom,setCustom]=useState(''),[title,setTitle]=useState(true),[content,setContent]=useState(true)
  const [filter,setFilter]=useState(false),[event,setEvent]=useState('All events'),[titles,setTitles]=useState(true),[contents,setContents]=useState(true)
- const items=useMemo(()=>[...fontCombinations(size.widthIn/size.heightIn),...quotes.map(q=>({id:q.id,name:q.name,category:'Wedding',subcategory:'',title:true,content:true,boxes:groupedBoxes(q,size.widthIn/size.heightIn)})),...saved.map(q=>({...q,name:q.boxes.map(b=>b.text).join(' · '),title:q.title??true,content:q.content??true,boxes:q.boxes.map(b=>({...b,id:crypto.randomUUID(),locked:false,hidden:false,groupId:q.id}))}))],[saved,size.widthIn,size.heightIn])
+ const items=useMemo(()=>[...staticQuoteItems(size.widthIn/size.heightIn),...saved.map(q=>({...q,name:q.boxes.map(b=>b.text).join(' · '),title:q.title??true,content:q.content??true,boxes:q.boxes.map(b=>({...b,id:crypto.randomUUID(),locked:false,hidden:false,groupId:q.id}))}))],[saved,size.widthIn,size.heightIn])
  const visible=items.filter(q=>(q.id.startsWith('ynot-combination-')?inspiredTemplates:localTemplates)&&(q.name.toLowerCase().includes(search.toLowerCase()))&&(!filter||((event==='All events'||q.category===event)&&(!subfilter||q.subcategory===subfilter)&&((titles&&q.title)||(contents&&q.content)))))
  const chosen=visible.find(q=>q.id===active)
  useEffect(()=>{if(compact&&selectedSpreadId!==spreadId)setOpen(false)},[compact,selectedSpreadId,spreadId])

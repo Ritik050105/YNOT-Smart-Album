@@ -513,8 +513,107 @@ const coverFrontSpineBack: TemplateDefinition = {
   thumbnailColor: '#2b2b2e',
 }
 
+/** A caption text box with sane, overridable defaults. */
+function caption(x: number, y: number, width: number, height: number, color = '#222222'): import('@/types').TextBox {
+  return { id: `hc${nextHandCraftedId++}`, text: 'Your Title Here', x, y, width, height, fontFamily: 'Playfair Display', fontSize: 28, color, align: 'center', bold: false, italic: false, autoWidth: false }
+}
+
+/** One side full-bleed, the other side a photo + caption below it. */
+const fullLeftCaption: TemplateDefinition = {
+  id: 'gen-mixed-full-left-caption',
+  name: 'Full Left + Caption',
+  photoCount: 2,
+  pageSide: 'spread',
+  placeholders: [rect(0, 0, 0.5 - GAP / 2, 1, 'any'), rect(0.5 + GAP / 2, 0, 0.5 - GAP / 2, 0.6, 'any')],
+  textBoxes: [caption(0.5 + GAP / 2, 0.62, 0.5 - GAP / 2, 0.36)],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#6b4f8a',
+}
+const fullRightCaption: TemplateDefinition = {
+  id: 'gen-mixed-full-right-caption',
+  name: 'Full Right + Caption',
+  photoCount: 2,
+  pageSide: 'spread',
+  placeholders: [rect(0.5 + GAP / 2, 0, 0.5 - GAP / 2, 1, 'any'), rect(0, 0, 0.5 - GAP / 2, 0.6, 'any')],
+  textBoxes: [caption(0, 0.62, 0.5 - GAP / 2, 0.36)],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#704f8a',
+}
+
+/** One side full-bleed with the caption overlaid directly on the photo, the other side two stacked photos. */
+const fullLeftOverlay: TemplateDefinition = {
+  id: 'gen-mixed-full-left-overlay',
+  name: 'Full Left Overlay + Two',
+  photoCount: 3,
+  pageSide: 'spread',
+  placeholders: [
+    rect(0, 0, 0.5 - GAP / 2, 1, 'any'),
+    rect(0.5 + GAP / 2, 0, 0.5 - GAP / 2, 0.5 - GAP / 2, 'any'),
+    rect(0.5 + GAP / 2, 0.5 + GAP / 2, 0.5 - GAP / 2, 0.5 - GAP / 2, 'any'),
+  ],
+  textBoxes: [caption(0.04, 0.78, 0.42, 0.14, '#ffffff')],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#4f5a8a',
+}
+const fullRightOverlay: TemplateDefinition = {
+  id: 'gen-mixed-full-right-overlay',
+  name: 'Full Right Overlay + Two',
+  photoCount: 3,
+  pageSide: 'spread',
+  placeholders: [
+    rect(0.5 + GAP / 2, 0, 0.5 - GAP / 2, 1, 'any'),
+    rect(0, 0, 0.5 - GAP / 2, 0.5 - GAP / 2, 'any'),
+    rect(0, 0.5 + GAP / 2, 0.5 - GAP / 2, 0.5 - GAP / 2, 'any'),
+  ],
+  textBoxes: [caption(0.54, 0.78, 0.42, 0.14, '#ffffff')],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#4f6a8a',
+}
+
+/** Same full-bleed-plus-stack idea as above but without text, for the image template library. */
+const fullLeftTriple: TemplateDefinition = {
+  id: 'gen-full-left-triple',
+  name: 'Full Left + Three',
+  photoCount: 4,
+  pageSide: 'spread',
+  placeholders: [
+    rect(0, 0, 0.5 - GAP / 2, 1, 'any'),
+    rect(0.5 + GAP / 2, 0, 0.5 - GAP / 2, (1 - 2 * GAP) / 3, 'any'),
+    rect(0.5 + GAP / 2, (1 - 2 * GAP) / 3 + GAP, 0.5 - GAP / 2, (1 - 2 * GAP) / 3, 'any'),
+    rect(0.5 + GAP / 2, 2 * (1 - 2 * GAP) / 3 + 2 * GAP, 0.5 - GAP / 2, (1 - 2 * GAP) / 3, 'any'),
+  ],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#4f8a6b',
+}
+const fullRightTriple: TemplateDefinition = {
+  id: 'gen-full-right-triple',
+  name: 'Full Right + Three',
+  photoCount: 4,
+  pageSide: 'spread',
+  placeholders: [
+    rect(0.5 + GAP / 2, 0, 0.5 - GAP / 2, 1, 'any'),
+    rect(0, 0, 0.5 - GAP / 2, (1 - 2 * GAP) / 3, 'any'),
+    rect(0, (1 - 2 * GAP) / 3 + GAP, 0.5 - GAP / 2, (1 - 2 * GAP) / 3, 'any'),
+    rect(0, 2 * (1 - 2 * GAP) / 3 + 2 * GAP, 0.5 - GAP / 2, (1 - 2 * GAP) / 3, 'any'),
+  ],
+  isBuiltIn: true,
+  createdAt: new Date(0).toISOString(),
+  thumbnailColor: '#4f8a76',
+}
+
 const HAND_CRAFTED_TEMPLATES: TemplateDefinition[] = [
   full,
+  fullLeftCaption,
+  fullRightCaption,
+  fullLeftOverlay,
+  fullRightOverlay,
+  fullLeftTriple,
+  fullRightTriple,
   framedSingle,
   coverFrontSpineBack,
   seamlessPortrait,
@@ -564,7 +663,7 @@ export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefini
   return templates.filter(t => {
     // Ignore tiny spacing variants that look identical in the template browser.
     const frames = t.placeholders.map(p => [p.x, p.y, p.width, p.height].map(v => Math.round(v * 20)).join(',')).sort().join('|')
-    const signature = `${t.pageSide}:${t.id === 'cover-front-spine-back' ? 'cover' : t.photoCount}:${frames}`
+    const signature = `${!t.isBuiltIn?t.id+':':''}${t.pageSide}:${t.id === 'cover-front-spine-back' ? 'cover' : t.photoCount}:${frames}`
     if (seen.has(signature)) return false
     seen.add(signature)
     return true
