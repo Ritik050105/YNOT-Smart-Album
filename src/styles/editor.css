@@ -167,6 +167,7 @@
 .album-editor .spreads-panel__card--cover { flex-basis: var(--overview-height); }
 .spread-thumb__fold { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--border-soft); pointer-events: none; }
 .album-editor .spread-card-controls { height: 36px; background: var(--panel-raised); }
+.album-editor .spread-card-controls button.is-active { color: var(--accent); }
 .album-editor .spread-card-controls button { width: 30px; height: 30px; }
 .album-editor .spread-card-controls span { font-size: 14px; }
 .album-editor.designer-view .designer-canvas { background: var(--bg-canvas); box-shadow: none; border-radius: 0; }

@@ -322,6 +322,7 @@ interface ProjectState {
   deleteSpread: (spreadId: string) => void
   applyTemplateToSpread: (spreadId: string, templateId: string, keepOrder?: boolean, scope?: TemplateScope) => void
   cycleSpreadTemplate: (spreadId: string, direction: -1 | 1) => void
+  cycleSpreadMixedTemplate: (spreadId: string, direction: -1 | 1) => void
   applyTemplateToAllSpreads: (templateId: string) => void
   updateSpread: (spreadId: string, patch: Partial<Spread>) => void
   applyBackgroundToAllSpreads: (spreadId: string, pattern?: Spread['backgroundPattern']) => void
@@ -967,6 +968,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   applyTemplateToSpread: (spreadId, templateId, keepOrder = true, scope = 'spread') => {
+    if (get().project.spreads.find((s) => s.id === spreadId)?.templateLocked) return
     recordTemplateUse(templateId)
     return withHistory(set, (p) => {
       const spreads = p.spreads.map((s) => (s.id === spreadId ? applyPageTemplate(s, templateId, p.photos, (s.size ?? p.size).widthIn / (s.size ?? p.size).heightIn, keepOrder, scope) : s))
@@ -989,10 +991,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (get().selectedSpreadId === spreadId) set({ selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [] })
   },
 
+  cycleSpreadMixedTemplate: (spreadId, direction) => {
+    const { project, templateFrameFilter } = get()
+    const spread = project.spreads.find((item) => item.id === spreadId)
+    if (!spread || spread.isCover || !spread.placements.length) return
+    const candidates = cyclingTemplates(project,spread,templateFrameFilter,get().favoriteTemplateIds,'mixed')
+    if (candidates.length < 2) return
+    const current = candidates.findIndex((template) => template.id === spread.templateId)
+    const next = current < 0 ? (direction > 0 ? 0 : candidates.length - 1) : (current + direction + candidates.length) % candidates.length
+    get().applyTemplateToSpread(spreadId, candidates[next].id)
+    if (get().selectedSpreadId === spreadId) set({ selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [] })
+  },
+
   applyTemplateToAllSpreads: (templateId) =>
     withHistory(set, (p) => ({
       ...p,
-      spreads: p.spreads.map((s) => s.isCover ? s : applyPageTemplate(s,templateId,p.photos,(s.size??p.size).widthIn/(s.size??p.size).heightIn,true,'spread')),
+      spreads: p.spreads.map((s) => s.isCover || s.templateLocked ? s : applyPageTemplate(s,templateId,p.photos,(s.size??p.size).widthIn/(s.size??p.size).heightIn,true,'spread')),
     })),
 
   updateSpread: (spreadId, patch) =>

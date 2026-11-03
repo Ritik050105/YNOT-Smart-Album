@@ -155,6 +155,9 @@ export interface TextBox {
 export interface Spread {
   backgroundHidden?: boolean
   backgroundLocked?: boolean
+  /** Keeps this spread's chosen layout fixed — template browsing/cycling/auto-rearrange can't
+   *  change it, though photos within its frames can still be swapped freely. */
+  templateLocked?: boolean
   backgroundPattern?: { name: string; src: string; tileSizePx: number; mode?: 'cover'; width?: number; height?: number; edits?: PlacedPhoto }
   /** Normalized frame positions after a layout is customized in Designer View. */
   customBoxes?: PlaceholderRect[]

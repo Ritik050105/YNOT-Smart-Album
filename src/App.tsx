@@ -22,13 +22,12 @@ import SlideshowScreen from './components/SlideshowScreen'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import { useBottomDockResize } from '@/engine/useBottomDockResize'
-import { deserializeProjectFile, serializeProjectFile, openProjectFromPath } from '@/engine/projectFile'
+import { deserializeProjectFile, serializeProjectFile, openProjectFromPath, saveProjectToFile } from '@/engine/projectFile'
 import { loadOpenSession, persistRecovery, invalidateRecovery, clearOpenSession, OpenSessionMarker } from '@/engine/sessionMarker'
 import { ProjectFile } from '@/types'
 import ContinueSessionPrompt from './components/ContinueSessionPrompt'
 import CoverSetup from './components/CoverSetup'
 import Modal from './components/Modal'
-import { confirmDiscardUnsaved } from '@/engine/unsavedChanges'
 
 export default function App() {
   const customFonts = useProjectStore(s=>s.project.customFonts)
@@ -96,9 +95,19 @@ export default function App() {
     function onEnterEditor() {
       setShowHome(false)
     }
-    function onGoHome() {
-      if (!confirmDiscardUnsaved(useProjectStore.getState().isDirty)) return
-      useProjectStore.getState().markSaved()
+    async function onGoHome() {
+      const state = useProjectStore.getState()
+      if (state.isDirty) {
+        try {
+          const result = await saveProjectToFile(state.project, state.userTemplates, state.currentFilePath)
+          if (!result.saved) return // user canceled the save location dialog; stay in the editor
+          if (result.filePath) state.setCurrentFilePath(result.filePath)
+          state.markSaved()
+        } catch (error) {
+          window.alert(error instanceof Error ? error.message : 'Could not save the album. Your edits are still open.')
+          return
+        }
+      }
       setShowHome(true)
     }
     window.addEventListener('album-studio:enter-editor', onEnterEditor)
