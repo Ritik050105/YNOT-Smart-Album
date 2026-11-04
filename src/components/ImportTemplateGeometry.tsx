@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client'
 import {readPsd,Layer} from 'ag-psd'
 import {TemplateDefinition,PlaceholderRect,TextBox} from '@/types'
 import {imageFileSource,isImageFile,MAX_ARTWORK_BYTES,MAX_ARTWORK_LABEL,MAX_ARTWORK_PIXELS} from '@/engine/imageSource'
-import {detectCornerRadius,detectTemplateFrames,opaqueBounds,vectorMaskGeometry} from '@/engine/templateGeometry'
+import {detectCornerRadius,detectTemplateFrames,maskVisibleBounds,opaqueBounds,vectorMaskGeometry} from '@/engine/templateGeometry'
 import Modal from './Modal'
 import Icon from './Icon'
 
@@ -67,7 +67,11 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
   // A clipped layer is painted through the layer beneath it — a texture or colour wash, never a
   // frame of its own.
   if(l.clipping)continue
-  let x=Math.max(0,l.left??0),y=Math.max(0,l.top??0)
+  // The layer's own origin, which may sit off-canvas — a cover photo often starts well left of the
+  // page. Offsets into its canvas are measured from here, so clamping to the page has to come after
+  // they are added, never before, or the frame lands as far off as the origin was.
+  const originX=l.left??0,originY=l.top??0
+  let x=Math.max(0,originX),y=Math.max(0,originY)
   let w=Math.min(psd.width!,l.right??0)-x,h=Math.min(psd.height!,l.bottom??0)-y
   if(w<=0||h<=0)continue
   if(l.text){
@@ -100,10 +104,22 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
    // frames appear over real ones.
    const ink=opaqueBounds(l.canvas)
    if(!ink)continue
-   const right=clip(x+ink.x+ink.width,psd.width!),bottom=clip(y+ink.y+ink.height,psd.height!)
-   x=clip(x+ink.x,psd.width!);y=clip(y+ink.y,psd.height!);w=right-x;h=bottom-y
+   const right=clip(originX+ink.x+ink.width,psd.width!),bottom=clip(originY+ink.y+ink.height,psd.height!)
+   x=clip(originX+ink.x,psd.width!);y=clip(originY+ink.y,psd.height!);w=right-x;h=bottom-y
    const alpha=detectCornerRadius(l.canvas,ink)
    if(alpha>0){const r=toDesign(alpha);radii=[r,r,r,r]}
+  }
+  // A raster mask crops the layer without touching its pixels, so the frame has to be cut down to
+  // what the mask leaves showing. Covers lean on this: a cover photo is usually one oversized image
+  // masked back to its panel, and read without the mask it claims most of the spread.
+  const mask=l.mask&&!l.mask.disabled&&l.mask.canvas&&(l.mask.defaultColor??0)<128?l.mask:null
+  if(mask){
+   const visible=maskVisibleBounds(mask.canvas!)
+   if(!visible)continue
+   const mx=(mask.left??0)+visible.x,my=(mask.top??0)+visible.y
+   const right=Math.min(clip(x+w,psd.width!),clip(mx+visible.width,psd.width!))
+   const bottom=Math.min(clip(y+h,psd.height!),clip(my+visible.height,psd.height!))
+   x=Math.max(x,clip(mx,psd.width!));y=Math.max(y,clip(my,psd.height!));w=right-x;h=bottom-y
   }
   if(w<=0||h<=0)continue
   // A layer named like the paper, or sitting in the group that holds it, is the paper. Covering the

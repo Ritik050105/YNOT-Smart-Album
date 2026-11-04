@@ -55,6 +55,28 @@ export function vectorMaskGeometry(knots: { points: number[] }[]): (Bounds & { r
   return { x: minX, y: minY, width, height, radii }
 }
 
+/** The part of a layer a raster mask leaves showing. A mask renders as greyscale — white keeps the
+ *  pixel, black hides it — so this is the box of the pixels bright enough to survive. Returns null
+ *  when the mask hides the layer entirely. */
+export function maskVisibleBounds(canvas: HTMLCanvasElement, threshold = 128): Bounds | null {
+  const w = canvas.width, h = canvas.height
+  if (!w || !h) return null
+  const data = canvas.getContext('2d', { willReadFrequently: true })?.getImageData(0, 0, w, h).data
+  if (!data) return null
+  let left = w, right = -1, top = h, bottom = -1
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4
+    // A mask carries its value in the colour channels; some encoders also leave it in alpha.
+    if (data[i] <= threshold || data[i + 3] <= threshold) continue
+    if (x < left) left = x
+    if (x > right) right = x
+    if (y < top) top = y
+    if (y > bottom) bottom = y
+  }
+  if (right < 0) return null
+  return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 }
+}
+
 export function detectCornerRadius(canvas: HTMLCanvasElement, bounds?: Bounds | null): number {
   const box = bounds ?? { x: 0, y: 0, width: canvas.width, height: canvas.height }
   const w = box.width, h = box.height, limit = Math.floor(Math.min(w, h) / 2)

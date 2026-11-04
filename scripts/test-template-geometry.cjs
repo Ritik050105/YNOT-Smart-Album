@@ -10,7 +10,7 @@ import{importEditedPsd}from'./src/engine/importEditedPsd';
 import{writePsdUint8Array}from'ag-psd';
 import{createRoot}from'react-dom/client';
 import TemplateThumb from'./src/components/TemplatePreview';
-const summary=t=>t&&{photoCount:t.photoCount,kind:t.kind,textCount:t.textBoxes?.length??0,textContent:t.textBoxes?.[0]?.text,textColor:t.textBoxes?.[0]?.color,textAlign:t.textBoxes?.[0]?.align,radii:t.placeholders.map(p=>p.cornerRadiusPx??0),background:t.backgroundColor??null};
+const summary=t=>t&&{photoCount:t.photoCount,kind:t.kind,textCount:t.textBoxes?.length??0,textContent:t.textBoxes?.[0]?.text,textColor:t.textBoxes?.[0]?.color,textAlign:t.textBoxes?.[0]?.align,radii:t.placeholders.map(p=>p.cornerRadiusPx??0),boxes:t.placeholders.map(p=>({x:p.x,y:p.y,width:p.width,height:p.height})),background:t.backgroundColor??null};
 /** A filled rounded rectangle, so the corner-radius probe has transparent corners to measure. */
 function roundedLayer(w,h,r){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.beginPath();x.roundRect(0,0,w,h,r);x.fill();return c}
 window.run=async()=>{
@@ -32,6 +32,9 @@ window.run=async()=>{
    {name:'Scenic Plate',left:0,top:0,canvas:bg},
   ]},
   {name:'one',left:20,top:30,canvas:roundedLayer(80,60,12)},
+  // Starts off the left edge, the way an oversized cover photo does: the visible part is the only
+  // part that is a frame, and it must not slide to the page edge on the way there.
+  {name:'overhang',left:-60,top:120,canvas:roundedLayer(140,90,0)},
   {name:'two',left:310,top:210,canvas:square,hidden:true},
   {name:'title',left:40,top:360,canvas:textLayer,text:{text:'Hello Album',style:{fontSize:20,fillColor:{r:255,g:0,b:0}},paragraphStyle:{justification:'center'}}},
  ]});
@@ -80,7 +83,7 @@ app.disableHardwareAcceleration();app.whenReady().then(async()=>{
  assert.equal(r.blank.length,0,'a blank reference yields no frames');
  assert.equal(r.frames.length,4,'four painted blocks yield four frames');
  assert.ok(Math.abs(r.frames[0].width-.45)<.001,'traced frame keeps its width');
- assert.equal(r.layers.length,5,'every PSD layer is readable');
+ assert.equal(r.layers.length,6,'every PSD layer is readable');
  // By name, not index: the fixture's layer order is part of what it is testing.
  const layer=n=>r.layers.find(l=>(l.name??'').includes(n));
  assert.equal(layer('two')?.hidden,true,'a hidden layer is reported hidden');
@@ -109,12 +112,17 @@ app.disableHardwareAcceleration();app.whenReady().then(async()=>{
  await js(`start('psd')`);await settle();
  const body=await js('document.body.textContent');
  assert.ok(body.includes('Review imported template'),'the PSD import opens the review screen');
- assert.ok(body.includes('1 photo frame'),`the review reports one photo frame: ${body}`);
+ assert.ok(body.includes('2 photo frames'),`the review reports both photo frames: ${body}`);
  assert.ok(body.includes('Hello Album'),'the review lists the detected text layer');
  assert.ok(body.includes('Background #204080'),`the review reports the detected page colour: ${body}`);
  await js(`press('Add mixed template')`);
  const psd=await js('result');
- assert.equal(psd.photoCount,1,'the page-sized plates are background, not photo frames');
+ assert.equal(psd.photoCount,2,'the page-sized plates are background, not photo frames');
+ // -60 + 140 = 80 wide once the off-canvas part is cut, at x=0, y=120 of a 600x400 page.
+ const overhang=psd.boxes.find(b=>Math.abs(b.y-120/400)<0.01);
+ assert.ok(overhang,`the off-canvas layer is kept: ${JSON.stringify(psd.boxes)}`);
+ assert.ok(Math.abs(overhang.x-0)<0.005,`it starts at the page edge (got ${overhang.x})`);
+ assert.ok(Math.abs(overhang.width-80/600)<0.01,`only its visible 80px is the frame (got ${overhang.width*600})`);
  assert.equal(psd.kind,'mixed');assert.equal(psd.textCount,1);assert.equal(psd.textContent,'Hello Album');
  assert.equal(psd.textColor,'#ff0000','the text layer keeps its Photoshop fill colour');
  assert.equal(psd.textAlign,'center','the text layer keeps its Photoshop alignment');
