@@ -106,8 +106,12 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
    if(alpha>0){const r=toDesign(alpha);radii=[r,r,r,r]}
   }
   if(w<=0||h<=0)continue
-  // A page-sized plate, or one named like one, is the paper the design sits on, not a photo slot.
-  if(w*h>=area*0.9||inBackgroundGroup||isBackgroundName(l.name)){backgrounds.push(l.canvas);continue}
+  // A layer named like the paper, or sitting in the group that holds it, is the paper. Covering the
+  // whole page only means that when nothing has been read yet: PSD children arrive bottom first, so
+  // a page-sized layer below everything else is a plate, while one above the plates is a full-bleed
+  // photo — which is the whole design on some spreads.
+  const bottomPlate=w*h>=area*0.9&&!backgrounds.length&&!frames.length
+  if(bottomPlate||inBackgroundGroup||isBackgroundName(l.name)){backgrounds.push(l.canvas);continue}
   // Stray 1px strokes and specks are decoration, not frames.
   if(w*h<area*0.001)continue
   frames.push({id:crypto.randomUUID(),x:x/psd.width!,y:y/psd.height!,width:w/psd.width!,height:h/psd.height!,

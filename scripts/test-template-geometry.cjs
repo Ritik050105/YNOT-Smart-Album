@@ -24,19 +24,32 @@ window.run=async()=>{
  window.pngFile=new File([png],'layout.png',{type:'image/png'});
  const textLayer=document.createElement('canvas');textLayer.width=120;textLayer.height=30;
  const bg=document.createElement('canvas');bg.width=600;bg.height=400;const bgx=bg.getContext('2d');bgx.fillStyle='#204080';bgx.fillRect(0,0,600,400);
+ // Plates first, the way Photoshop orders children bottom-up, and inside the group designers
+ // actually use — which is what marks them as paper rather than a full-bleed photo.
  const psd=writePsdUint8Array({width:600,height:400,canvas:c,children:[
+  {name:'Background',opened:true,children:[
+   {name:'page',left:0,top:0,canvas:bg},
+   {name:'Scenic Plate',left:0,top:0,canvas:bg},
+  ]},
   {name:'one',left:20,top:30,canvas:roundedLayer(80,60,12)},
   {name:'two',left:310,top:210,canvas:square,hidden:true},
-  {name:'Background',left:0,top:0,canvas:bg},
-  {name:'Scenic Plate',left:0,top:0,canvas:bg},
   {name:'title',left:40,top:360,canvas:textLayer,text:{text:'Hello Album',style:{fontSize:20,fillColor:{r:255,g:0,b:0}},paragraphStyle:{justification:'center'}}},
  ]});
  window.psdFile=new File([psd],'layered.psd',{type:'image/vnd.adobe.photoshop'});
+ // A spread whose whole design is one full-bleed photo over two named page plates. The photo covers
+ // the canvas, so an area rule alone reads it as more paper and the import finds no photo at all.
+ const half=document.createElement('canvas');half.width=300;half.height=400;const hx=half.getContext('2d');hx.fillStyle='#101820';hx.fillRect(0,0,300,400);
+ const full=document.createElement('canvas');full.width=600;full.height=400;const fx=full.getContext('2d');fx.fillStyle='#c08040';fx.fillRect(0,0,600,400);
+ const bleed=writePsdUint8Array({width:600,height:400,canvas:c,children:[
+  {name:'Background',opened:true,children:[{name:'BG left page',left:0,top:0,canvas:half},{name:'BG right page',left:300,top:0,canvas:half}]},
+  {name:'Images',opened:true,children:[{name:'hero',left:0,top:0,canvas:full}]},
+ ]});
+ window.bleedFile=new File([bleed],'full-bleed.psd',{type:'image/vnd.adobe.photoshop'});
  const imported=importEditedPsd(psd);
  return {blank,frames,squareRadius:detectCornerRadius(square),roundedRadius:detectCornerRadius(roundedLayer(80,60,12)),
   layers:imported.map(l=>({name:l.photo.fileName,hidden:l.hidden,frame:l.frame,width:l.photo.width}))};
 };
-window.start=which=>{window.error=null;window.result=importTemplateGeometry(which==='psd'?window.psdFile:window.pngFile).then(summary,e=>{window.error=String(e&&e.stack||e);return 'ERROR'})};
+window.start=which=>{window.error=null;window.result=importTemplateGeometry(which==='psd'?window.psdFile:which==='bleed'?window.bleedFile:window.pngFile).then(summary,e=>{window.error=String(e&&e.stack||e);return 'ERROR'})};
 /** Renders a template thumbnail and reports where each cell actually landed, as a fraction. */
 window.thumbCells=async template=>{
  const host=document.createElement('div');host.style.width='400px';document.body.append(host)
@@ -68,7 +81,10 @@ app.disableHardwareAcceleration();app.whenReady().then(async()=>{
  assert.equal(r.frames.length,4,'four painted blocks yield four frames');
  assert.ok(Math.abs(r.frames[0].width-.45)<.001,'traced frame keeps its width');
  assert.equal(r.layers.length,5,'every PSD layer is readable');
- assert.equal(r.layers[1].hidden,true);assert.equal(r.layers[0].width,80);
+ // By name, not index: the fixture's layer order is part of what it is testing.
+ const layer=n=>r.layers.find(l=>(l.name??'').includes(n));
+ assert.equal(layer('two')?.hidden,true,'a hidden layer is reported hidden');
+ assert.equal(layer('one')?.width,80,'a layer keeps its own pixel width');
  assert.equal(r.squareRadius,0,'a square layer reports no corner radius');
  assert.ok(Math.abs(r.roundedRadius-12)<=4,`a 12px rounded layer measures close to 12 (got ${r.roundedRadius})`);
 
@@ -104,6 +120,13 @@ app.disableHardwareAcceleration();app.whenReady().then(async()=>{
  assert.equal(psd.textAlign,'center','the text layer keeps its Photoshop alignment');
  assert.ok(psd.radii[0]>0,'the rounded photo layer carries its corner radius into the frame');
  assert.equal(psd.background,'#204080','the background plate becomes the template page colour');
+
+ // The full-bleed spread: its one photo must survive as a frame, not vanish into the background.
+ await js(`start('bleed')`);await settle();
+ await js(`press('Add image template')`);
+ const bleed=await js('result');
+ assert.equal(bleed.photoCount,1,`a full-bleed photo over named page plates stays a photo frame (got ${bleed.photoCount})`);
+ assert.deepEqual(bleed.radii,[0],'a plain full-bleed photo has no corner radius');
 
  // Flattened artwork still offers the traced frames, and cancelling still resolves to null.
  await js(`start('png')`);await settle();
