@@ -10,11 +10,27 @@ import { usePreferences } from '@/state/preferences'
 import { pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { importedDesignTemplates, isFullSpreadTemplate, templatesForCount } from '@/engine/templates'
+import { importedDesignTemplates, isFullSpreadTemplate, templatesForCount, uniqueTemplates } from '@/engine/templates'
 import { rankTemplates, templateFramesInReadingOrder } from '@/engine/templateMatching'
 import { isEditableTarget } from '@/engine/keyboard'
 import TemplateThumb from './TemplatePreview'
 import Icon from './Icon'
+
+/** Each category offers its 30 best-fitting layouts for the spread's photo count, not the few
+ *  hundred the library can technically produce — past that the strip is a wall of near-identical
+ *  grids nobody scrolls through. Full-spread layouts are the head of the queue and always kept. */
+const PER_CATEGORY_LIMIT = 30
+function capPerCategory<T extends { template: { id: string; isBuiltIn?: boolean } }>(ranked: T[]): T[] {
+  const kept = new Map<string, number>()
+  return ranked.filter(({ template }) => {
+    if (isFullSpreadTemplate(template as never)) return true
+    const category = templateCategory(template as never)
+    const used = kept.get(category) ?? 0
+    if (used >= PER_CATEGORY_LIMIT) return false
+    kept.set(category, used + 1)
+    return true
+  })
+}
 
 /** Template previews leave the album unchanged until applied. */
 export default function MatchingTemplatesPanel() {
@@ -56,9 +72,9 @@ export default function MatchingTemplatesPanel() {
   const rows = useMemo(() => {
     if (!open || !spread || !count) return [[], []]
     const photos = placements.flatMap(p => { const photo = project.photos.find(photo => photo.id === p.photoId); return photo ? [photo] : [] })
-    const candidates = [...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)]
+    const candidates = uniqueTemplates([...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)])
       .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (templateCategory(t)!=='reference'||isFullSpreadTemplate(t)||supportsUniformGap(t.placeholders,aspect,spread.marginPx*(target==='spread'?1:2),spread.gapPx*(target==='spread'?1:2))) && (kind!=='mixed'||templateCategory(t)!=='reference') && (categories[templateCategory(t)]||(kind==='mixed'&&templateCategory(t)==='generated')) && matchesCollection(t.id,collection,collections,favorites) && (!favoritesOnly || favorites.includes(t.id)))
-    return (count > 1 ? [false, true] : [true]).map(keepOrder => rankTemplates(photos, candidates, aspect, !autoRearrange || keepOrder, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2))
+    return (count > 1 ? [false, true] : [true]).map(keepOrder => capPerCategory(rankTemplates(photos, candidates, aspect, !autoRearrange || keepOrder, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
       .sort((a, b) => Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative','generated'].indexOf(templateCategory(a.template))-['reference','creative','generated'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))))
   }, [kind,collection,collections,userTemplates, categories, open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
   useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [kind,collection, categories, userTemplates, open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
@@ -116,9 +132,9 @@ export default function MatchingTemplatesPanel() {
     {(count > 1 ? ['Rearrange Timeline', 'Match Timeline Order'] : ['Match Timeline Order']).map((label, row) => <div className="matching-templates__row" key={label}>
       <span className="matching-templates__label">{label}:</span>
       <button className="btn btn--icon" aria-label={`Previous ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ left: -strips.current[row]!.clientWidth * 0.8, behavior: 'smooth' })}><Icon name="chevronLeft" size={14} /></button>
-      <div className="matching-templates__strip" ref={el => { strips.current[row] = el }} aria-label={label} onPointerDown={e=>{if(e.button!==0||(e.target as Element).closest('button'))return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setMarquee({x:e.clientX,y:e.clientY,left:e.clientX,top:e.clientY,width:0,height:0});setSelection([])}} onPointerMove={e=>{if(!marquee)return;const box={...marquee,left:Math.min(marquee.x,e.clientX),top:Math.min(marquee.y,e.clientY),width:Math.abs(e.clientX-marquee.x),height:Math.abs(e.clientY-marquee.y)};setMarquee(box);setSelection(Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-template-id]')).filter(el=>{const r=el.getBoundingClientRect();return r.right>=box.left&&r.left<=box.left+box.width&&r.bottom>=box.top&&r.top<=box.top+box.height}).map(el=>el.dataset.templateId!))}} onPointerUp={()=>setMarquee(null)} onPointerCancel={()=>setMarquee(null)} onScroll={event => { const offset = Math.max(0, Math.floor(event.currentTarget.scrollLeft / (tileWidth + 12)) - 1); setOffsets(current => current.map((value, i) => i === row ? offset : value)) }}>
+      <div className="matching-templates__strip" ref={el => { strips.current[row] = el }} aria-label={label} onPointerDown={e=>{if(e.button!==0||(e.target as Element).closest('button'))return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setMarquee({x:e.clientX,y:e.clientY,left:e.clientX,top:e.clientY,width:0,height:0});setSelection([])}} onPointerMove={e=>{if(!marquee)return;const box={...marquee,left:Math.min(marquee.x,e.clientX),top:Math.min(marquee.y,e.clientY),width:Math.abs(e.clientX-marquee.x),height:Math.abs(e.clientY-marquee.y)};setMarquee(box);setSelection(Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-template-id]')).filter(el=>{const r=el.getBoundingClientRect();return r.right>=box.left&&r.left<=box.left+box.width&&r.bottom>=box.top&&r.top<=box.top+box.height}).map(el=>el.dataset.templateId!))}} onPointerUp={()=>setMarquee(null)} onPointerCancel={()=>setMarquee(null)} onScroll={event => { const offset = Math.max(0, Math.floor(event.currentTarget.scrollLeft / (tileWidth + 12)) - 2); setOffsets(current => current[row] === offset ? current : current.map((value, i) => i === row ? offset : value)) }}>
         <div style={{ position: 'relative', flex: '0 0 auto', width: Math.max(0, rows[row].length * (tileWidth + 12) - 12), height: tileWidth / aspect + 12 }}>
-        {rows[row].slice(offsets[row], offsets[row] + Math.ceil((strips.current[row]?.clientWidth ?? tileWidth * 10) / (tileWidth + 12)) + 3).map(({template, photos}, slot) => { const index = offsets[row] + slot; return <div className={`matching-template ${active?.row === row && active.index === index ? 'is-previewing' : ''} ${spread.templateId === template.id ? 'is-current' : ''} ${selection.includes(template.id)?'is-selected':''}`} key={template.id} data-template-id={template.id} onContextMenu={e=>{e.preventDefault();setMenu({x:e.clientX,y:e.clientY,id:template.id});if(!selection.includes(template.id))setSelection([template.id])}} style={{ position: 'absolute', left: index * (tileWidth + 12), width: tileWidth }}>
+        {rows[row].slice(offsets[row], offsets[row] + Math.ceil((strips.current[row]?.clientWidth ?? tileWidth * 10) / (tileWidth + 12)) + 8).map(({template, photos}, slot) => { const index = offsets[row] + slot; return <div className={`matching-template ${active?.row === row && active.index === index ? 'is-previewing' : ''} ${spread.templateId === template.id ? 'is-current' : ''} ${selection.includes(template.id)?'is-selected':''}`} key={template.id} data-template-id={template.id} onContextMenu={e=>{e.preventDefault();setMenu({x:e.clientX,y:e.clientY,id:template.id});if(!selection.includes(template.id))setSelection([template.id])}} style={{ position: 'absolute', left: index * (tileWidth + 12), width: tileWidth }}>
           <button className="matching-template__apply" title={`${template.name} — preview, click to apply`} onMouseEnter={() => { setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onFocus={() => { setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onClick={e => { if(e.shiftKey||e.ctrlKey||e.metaKey){setSelection(ids=>ids.includes(template.id)?ids.filter(id=>id!==template.id):[...ids,template.id]);return}apply(spread.id, template.id, !autoRearrange || count <= 1 || row === 1, target); close() }}>
             <TemplateThumb template={template} photos={templateFramesInReadingOrder(template).map(frame=>photos[template.placeholders.indexOf(frame)])} placements={placements} aspect={aspect} marginPx={spread.marginPx * (target === 'spread' ? 1 : 2)} gapPx={spread.gapPx * (target === 'spread' ? 1 : 2)} />
             <span className="sr-only">{label}: {template.name}</span>

@@ -612,11 +612,15 @@ const fullRightTriple: TemplateDefinition = {
  *  hand-written layout are skipped so `uniqueTemplates` has nothing to drop. New ids are appended
  *  after every existing `rect()` call so saved albums keep their placeholder ids. */
 const FULL_SPREAD_TEMPLATES: TemplateDefinition[] = []
-/** The full-bleed page runs edge to edge — right up to the gutter, with no gutter inset — while the
- *  facing page's photos sit inside a quiet margin. That contrast is the whole look, and it also
- *  keeps this family's geometry distinct from the ordinary two-page layouts it would otherwise
- *  duplicate at low photo counts. */
-const PAGE_INSET = 0.04
+/** `placeGridInRect` with its gutters taken back out, so the cells meet edge to edge. */
+function flushGrid(count: number, x: number, y: number, w: number, h: number) {
+  return placeGridInRect(0, count, x, y, w, h)
+    .map(p => ({ ...p, id: `hc${nextHandCraftedId++}`, x: p.x - GAP / 2, y: p.y - GAP / 2, width: p.width + GAP, height: p.height + GAP }))
+}
+/** Both pages run edge to edge: the reference designs this family copies leave no white border
+ *  anywhere on the spread, so the facing page's photos butt up against each other and against the
+ *  page edges exactly as the full-bleed page does. */
+const PAGE_INSET = 0
 for (const side of ['left', 'right'] as const) {
   const label = side === 'left' ? 'Left' : 'Right'
   const fullX = side === 'left' ? 0 : 0.5
@@ -625,19 +629,26 @@ for (const side of ['left', 'right'] as const) {
   /** `count` photos filling `height` from `top` on the facing page — a simple stack while they
    *  still read at that size, a balanced grid once a stack would be a row of slivers. */
   const stack = (count: number, top: number, height: number) => {
-    if (count > 4) return placeGridInRect(0, count, pageX, top, pageW, height).map(p => ({ ...p, id: `hc${nextHandCraftedId++}` }))
-    const cellH = (height - GAP * (count - 1)) / count
-    return Array.from({ length: count }, (_, i) => rect(pageX, top + i * (cellH + GAP), pageW, cellH))
+    if (count > 4) return flushGrid(count, pageX, top, pageW, height)
+    const cellH = height / count
+    return Array.from({ length: count }, (_, i) => rect(pageX, top + i * cellH, pageW, cellH))
   }
   /** `count` photos in a row on a common baseline, tallest next to the full-bleed page and each
    *  one a step shorter as it moves away from it. */
   const cascade = (count: number) => {
-    const cellW = (pageW - GAP * (count - 1)) / count, tallest = 1 - PAGE_INSET * 2
+    const cellW = pageW / count, tallest = 1
     return Array.from({ length: count }, (_, i) => {
       const step = side === 'left' ? i : count - 1 - i
       const height = tallest - step * (tallest * 0.5 / count)
-      return rect(pageX + i * (cellW + GAP), 1 - PAGE_INSET - height, cellW, height)
+      return rect(pageX + i * cellW, 1 - height, cellW, height)
     })
+  }
+  /** The facing page carrying one of the ordinary grid designs — a feature photo with the rest
+   *  beside it — rather than a plain stack, so the family covers the same layouts the image
+   *  template browser offers, just with one page given over to a single photo. */
+  const hero = (count: number) => {
+    const heroH = count <= 3 ? 0.62 : 0.5
+    return [rect(pageX, 0, pageW, heroH), ...flushGrid(count - 1, pageX, heroH, pageW, 1 - heroH)]
   }
   const add = (t: Omit<TemplateDefinition, 'isBuiltIn' | 'createdAt' | 'pageSide'>) =>
     FULL_SPREAD_TEMPLATES.push({ ...t, pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString() })
@@ -655,17 +666,21 @@ for (const side of ['left', 'right'] as const) {
       id: `gen-full-${side}-cascade-${count}`, name: `Full ${label} Cascade + ${count}`, photoCount: count + 1,
       placeholders: [rect(fullX, 0, 0.5, 1), ...cascade(count)], thumbnailColor: '#8a7a4f',
     })
+    if (count >= 3) add({
+      id: `gen-full-${side}-hero-${count}`, name: `Full ${label} + Feature + ${count - 1}`, photoCount: count + 1,
+      placeholders: [rect(fullX, 0, 0.5, 1), ...hero(count)], thumbnailColor: '#4f7a8a',
+    })
     // Caption under the photos on the facing page.
     add({
       id: `gen-mixed-full-${side}-caption-${count}`, name: `Full ${label} + ${count} + Caption`, photoCount: count + 1,
-      placeholders: [rect(fullX, 0, 0.5, 1), ...stack(count, PAGE_INSET, 0.74 - PAGE_INSET)],
-      textBoxes: [caption(pageX, 0.78, pageW, 0.18)], thumbnailColor: '#6b4f8a',
+      placeholders: [rect(fullX, 0, 0.5, 1), ...stack(count, 0, 0.78)],
+      textBoxes: [caption(pageX + 0.02, 0.8, pageW - 0.04, 0.16)], thumbnailColor: '#6b4f8a',
     })
     // Caption overlaid on the full-bleed page itself, white so it reads against a photo.
     add({
       id: `gen-mixed-full-${side}-overlay-${count}`, name: `Full ${label} Overlay + ${count}`, photoCount: count + 1,
       placeholders: [rect(fullX, 0, 0.5, 1), ...stack(count, PAGE_INSET, 1 - PAGE_INSET * 2)],
-      textBoxes: [caption(fullX + PAGE_INSET, 0.78, 0.5 - PAGE_INSET * 2, 0.14, '#ffffff')], thumbnailColor: '#4f5a8a',
+      textBoxes: [caption(fullX + 0.04, 0.78, 0.5 - 0.08, 0.14, '#ffffff')], thumbnailColor: '#4f5a8a',
     })
   }
 }
@@ -742,7 +757,10 @@ const editorialAdditions = EDITORIAL_TEMPLATES.filter(t => {
 })
 // Appended after everything the library was ever built from, so a hand-written layout always wins
 // the dedup pass below and the geometry of saved albums is untouched.
-const legacyTemplates = [...existingTemplates, ...editorialAdditions, ...FULL_SPREAD_TEMPLATES]
+// Full-spread first: now that this family runs edge to edge it collides with the classic
+// two-page layouts that carry a gutter gap, and the edge-to-edge version is the one designers
+// asked for, so it is the one `uniqueTemplates` should keep.
+const legacyTemplates = [...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions]
 
 export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefinition[] {
   const seen = new Set<string>()

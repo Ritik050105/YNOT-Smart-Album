@@ -16,10 +16,10 @@ function formatDate(iso: string): string {
 }
 
 type HomeTab = 'albums' | 'galleries' | 'slideshows'
+// Albums are the only kind of project the app creates. Gallery and slideshow projects saved by
+// earlier versions still open, they just have no home here any more.
 const HOME_TABS: { id: HomeTab; label: string }[] = [
   { id: 'albums', label: 'Albums' },
-  { id: 'galleries', label: 'Galleries' },
-  { id: 'slideshows', label: 'Slideshows' },
 ]
 
 const KIND_FOR_TAB: Record<HomeTab, 'album' | 'gallery' | 'slideshow'> = {
@@ -38,7 +38,6 @@ export default function HomeScreen() {
   const classic=usePreferences(s=>s.values.classicHome)
   const loadProjectFile = useProjectStore((s) => s.loadProjectFile)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
-  const createSimpleProject = useProjectStore((s) => s.createSimpleProject)
   const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
   const [tab, setTab] = useState<HomeTab>('albums')
   const [recent, setRecent] = useState<RecentProjectEntry[]>(() => loadRecentProjects())
@@ -47,12 +46,9 @@ export default function HomeScreen() {
   const [statuses, setStatuses] = useState<AlbumStatus[]>([])
   const [sort, setSort] = useState<ProjectSort>('modified')
   const toolsRef = useRef<HTMLDivElement>(null)
-  const [newProjectMenuOpen, setNewProjectMenuOpen] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
-  const [simpleCreate, setSimpleCreate] = useState<{ kind: 'gallery' | 'slideshow'; name: string; clientName: string } | null>(null)
   const [opening, setOpening] = useState<string | null>(null)
   const [openError, setOpenError] = useState<string | null>(null)
-  const newProjectMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!tool) return
@@ -62,15 +58,6 @@ export default function HomeScreen() {
     window.addEventListener('keydown', escape)
     return () => { window.removeEventListener('mousedown', close); window.removeEventListener('keydown', escape) }
   }, [tool])
-
-  useEffect(() => {
-    if (!newProjectMenuOpen) return
-    function onClickOutside(e: MouseEvent) {
-      if (newProjectMenuRef.current && !newProjectMenuRef.current.contains(e.target as Node)) setNewProjectMenuOpen(false)
-    }
-    window.addEventListener('mousedown', onClickOutside)
-    return () => window.removeEventListener('mousedown', onClickOutside)
-  }, [newProjectMenuOpen])
 
   function enterEditor() {
     window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))
@@ -118,18 +105,6 @@ export default function HomeScreen() {
     }
   }
 
-  function handleCreateSimple(kind: 'gallery' | 'slideshow') {
-    setNewProjectMenuOpen(false)
-    setSimpleCreate({ kind, name: kind === 'gallery' ? 'Untitled Gallery' : 'Untitled Slideshow', clientName: '' })
-  }
-
-  function confirmCreateSimple() {
-    if (!simpleCreate || !simpleCreate.name.trim()) return
-    createSimpleProject(simpleCreate.kind, simpleCreate.name.trim(), simpleCreate.clientName.trim())
-    setSimpleCreate(null)
-    enterEditor()
-  }
-
   async function handleOpenRecent(entry: RecentProjectEntry) {
     if (!entry.filePath) {
       void handleOpenAny()
@@ -167,7 +142,7 @@ export default function HomeScreen() {
         <span className="home-screen__mark">
           <BrandMark />
         </span>
-        <h1>YNOT Album Studio</h1>
+        <h1>YNOT ALBUM STUDIO</h1>
       </header>
 
       <div className="home-screen__navigation">
@@ -175,27 +150,10 @@ export default function HomeScreen() {
           {HOME_TABS.map(t => <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'is-active' : ''}
             onClick={() => { setTab(t.id); setTool(null); setSearch('') }}>{t.label}</button>)}
         </div>
-          <div className="split-button" ref={newProjectMenuRef}>
-            <button className="btn btn--primary" onClick={() => setNewProjectMenuOpen((o) => !o)}>
-              <Icon name="plus" size={14} />
-              New Project
-              <Icon name="chevronDown" size={12} />
-            </button>
-            {newProjectMenuOpen && (
-              <div className="split-button__menu">
-                <button
-                  onClick={() => {
-                    setNewProjectMenuOpen(false)
-                    openNewProjectUI()
-                  }}
-                >
-                  Album
-                </button>
-                <button onClick={() => handleCreateSimple('gallery')}>Gallery</button>
-                <button onClick={() => handleCreateSimple('slideshow')}>Slideshow</button>
-              </div>
-            )}
-          </div>
+          <button className="btn btn--primary" onClick={() => openNewProjectUI()}>
+            <Icon name="plus" size={14} />
+            New Project
+          </button>
       </div>
       <div className="home-screen__toolbar home-screen__toolbar--compact" ref={toolsRef}>
         <span className="home-screen__result-count">{visibleRecent.length} {visibleRecent.length === 1 ? tabLabel : tab}</span>
@@ -234,7 +192,7 @@ export default function HomeScreen() {
           </p>
           <button
             className="btn btn--primary"
-            onClick={() => (tab === 'albums' ? openNewProjectUI() : handleCreateSimple(activeKind as 'gallery' | 'slideshow'))}
+            onClick={() => openNewProjectUI()}
           >
             Create {tabLabel[0].toUpperCase() + tabLabel.slice(1)}
           </button>
@@ -282,40 +240,6 @@ export default function HomeScreen() {
         <NewProjectWizard onClose={() => setNewProjectOpen(false)} onCreated={() => void handleAlbumCreated()} />
       )}
 
-      {simpleCreate && (
-        <Modal
-          title={`New ${simpleCreate.kind === 'gallery' ? 'Gallery' : 'Slideshow'}`}
-          onClose={() => setSimpleCreate(null)}
-          width={360}
-          footer={
-            <>
-              <button className="btn" onClick={() => setSimpleCreate(null)}>
-                Cancel
-              </button>
-              <div className="footer-spacer" />
-              <button className="btn btn--primary" disabled={!simpleCreate.name.trim()} onClick={confirmCreateSimple}>
-                Create
-              </button>
-            </>
-          }
-        >
-          <label className="field">
-            Name
-            <input
-              autoFocus
-              value={simpleCreate.name}
-              onChange={(e) => setSimpleCreate({ ...simpleCreate, name: e.target.value })}
-            />
-          </label>
-          <label className="field">
-            Client name (optional)
-            <input
-              value={simpleCreate.clientName}
-              onChange={(e) => setSimpleCreate({ ...simpleCreate, clientName: e.target.value })}
-            />
-          </label>
-        </Modal>
-      )}
     </div>
   )
 }

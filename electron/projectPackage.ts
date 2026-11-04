@@ -72,7 +72,7 @@ export async function copyProjectPackage(destination: string, defaultName: strin
   const target = path.join(folder, 'Album.ynot')
   try {
     await saveProjectPackage(target, contents)
-    await fs.writeFile(path.join(folder, 'OPEN PROJECT.txt'), 'Open Album.ynot in YNOT Album Studio.\nKeep this whole folder together when moving or backing it up.\nYour original photos are included in Album.ynot.assets.\n')
+    await fs.writeFile(path.join(folder, 'OPEN PROJECT.txt'), 'Open Album.ynot in YNOT ALBUM STUDIO.\nKeep this whole folder together when moving or backing it up.\nYour original photos are included in Album.ynot.assets.\n')
     return target
   } catch (error) {
     await fs.rm(folder, { recursive: true, force: true }).catch(() => {})

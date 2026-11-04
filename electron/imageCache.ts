@@ -180,6 +180,28 @@ export function registerImageProtocol() {
 }
 
 /** Deletes the least recently used cached images until the folder is back under ~3 GB. */
+/** Bytes held by the app's own on-disk caches — the rendered image, text-preview and font
+ *  caches under userData. Chromium's HTTP cache is near empty here because every image is served
+ *  from disk through the ynot-img:// protocol, so reporting that instead always read 0 MB. */
+export async function cacheBytes() {
+  let total = 0
+  for (const dir of [imageDir(), textDir(), fontDir()]) {
+    try {
+      for (const entry of await fs.promises.readdir(dir, { withFileTypes: true, recursive: true })) {
+        if (!entry.isFile()) continue
+        total += (await fs.promises.stat(path.join(entry.parentPath ?? dir, entry.name))).size
+      }
+    } catch { /* that cache folder does not exist yet */ }
+  }
+  return total
+}
+
+/** Empties those same caches. Everything in them is re-derived from the originals on next use. */
+export async function clearCaches() {
+  for (const dir of [imageDir(), textDir(), fontDir()]) await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {})
+  return cacheBytes()
+}
+
 export async function pruneImageCache() {
   try {
     const names = await fs.promises.readdir(imageDir())

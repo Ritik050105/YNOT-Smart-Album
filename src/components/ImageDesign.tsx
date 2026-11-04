@@ -20,19 +20,24 @@ export default function ImageDesign({ placement, photo, width, height, update }:
   const [draft,setDraft]=useState<Partial<PlacedPhoto>|null>(null)
   const rendered=draft?{...placement,...draft}:placement
   const [error, setError] = useState('')
+  // A drag fires a pointermove per frame, and redrawing the preview on each one leaves several
+  // full re-renders in flight at once, so it lags a frame or two behind the pointer. Coalescing
+  // them onto animation frames keeps the preview live under the cursor.
   useEffect(() => {
     let current = true
-    const preview = document.createElement('canvas')
-    const scale = Math.min(600 / width, 420 / height)
-    preview.width = Math.max(1, Math.round(width * scale)); preview.height = Math.max(1, Math.round(height * scale))
-    const ctx = preview.getContext('2d')!
-    setError('')
-    void drawPlacement(ctx, { placeholderId: placement.placeholderId, x: 0, y: 0, width: preview.width, height: preview.height }, {...rendered,rotationDeg:0}, photo?{...photo,src:previewSrc}:undefined, scale).then(() => {
-      if (!current || !canvas.current) return
-      canvas.current.width = preview.width; canvas.current.height = preview.height
-      canvas.current.getContext('2d')!.drawImage(preview, 0, 0)
-    }).catch(() => { if (current) setError('Image preview unavailable. Locate the original image to reconnect it.') })
-    return () => { current = false }
+    const frame = requestAnimationFrame(() => {
+      const preview = document.createElement('canvas')
+      const scale = Math.min(600 / width, 420 / height)
+      preview.width = Math.max(1, Math.round(width * scale)); preview.height = Math.max(1, Math.round(height * scale))
+      const ctx = preview.getContext('2d')!
+      setError('')
+      void drawPlacement(ctx, { placeholderId: placement.placeholderId, x: 0, y: 0, width: preview.width, height: preview.height }, {...rendered,rotationDeg:0}, photo?{...photo,src:previewSrc}:undefined, scale).then(() => {
+        if (!current || !canvas.current) return
+        canvas.current.width = preview.width; canvas.current.height = preview.height
+        canvas.current.getContext('2d')!.drawImage(preview, 0, 0)
+      }).catch(() => { if (current) setError('Image preview unavailable. Locate the original image to reconnect it.') })
+    })
+    return () => { current = false; cancelAnimationFrame(frame) }
   }, [placement, draft, photo, previewSrc, width, height])
   const cropPreview=photo?computeCoverCrop(photo.width,photo.height,width,height,rendered.focalX,rendered.focalY,rendered.zoom):null
   function slider(label: string, key: keyof PlacedPhoto, min: number, max: number, reset = 0, suffix = '', factor = 1) {

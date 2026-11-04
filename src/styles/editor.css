@@ -839,3 +839,22 @@ button:disabled { cursor:not-allowed; }
 .font-template-browser .quote-browser-tools { margin-top: 4px; gap: 8px; }
 .font-template-browser .quote-browser-tools .btn, .font-template-browser > header .btn { min-height: 26px; padding-block: 2px; }
 .font-template-browser .quote-browser-tools input[type=text], .font-template-browser .quote-browser-tools input:not([type]) { height: 26px; }
+
+/* Panels and toolbars open with a short slide instead of snapping into place a frame later. */
+@keyframes ynot-panel-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes ynot-panel-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes ynot-panel-slide-right { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+.matching-templates, .font-template-browser { animation: ynot-panel-drop .16s ease-out; }
+.bottom-panel .photo-dock { animation: ynot-panel-rise .16s ease-out; }
+.album-editor .app-sidebar--right { animation: ynot-panel-slide-right .16s ease-out; }
+/* The text bar appeared as a blink; this is the same move, just quick. It is centred with a
+   translateX, so its keyframes have to carry that too. */
+@keyframes ynot-text-bar-drop { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translateX(-50%); } }
+.floating-text-tools { animation: ynot-text-bar-drop .11s ease-out; }
+.floating-text-tools__spacing { animation: ynot-panel-drop .11s ease-out; }
+/* The font-template browser is the same height as the image and mixed template strips. */
+.designer-view .font-template-browser, .album-editor .font-template-browser { max-height: 34vh; }
+@media (prefers-reduced-motion: reduce) {
+  .matching-templates, .font-template-browser, .bottom-panel .photo-dock,
+  .album-editor .app-sidebar--right, .floating-text-tools, .floating-text-tools__spacing { animation: none; }
+}

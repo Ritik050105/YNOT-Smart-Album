@@ -194,6 +194,9 @@ body {
   margin: 0;
   font-size: 20px;
   font-weight: 700;
+  /* The UI font draws lowercase as small caps, so the name came out at two heights. */
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 .home-tabs {
   max-width: 1040px;
@@ -1836,8 +1839,9 @@ input[type='checkbox'] {
 
 .text-edit-overlay {
   position: absolute;
-  background: rgba(255, 255, 255, 0.97);
-  border: 1.5px dashed var(--accent);
+  /* Transparent so text is edited against the artwork it will sit on, not a white card. */
+  background: transparent;
+  border: 1.5px solid var(--accent);
   border-radius: 4px;
   resize: none;
   padding: 3px 5px;

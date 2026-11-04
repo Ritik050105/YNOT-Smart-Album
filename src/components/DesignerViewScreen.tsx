@@ -61,6 +61,13 @@ function Ruler({orientation,pxPerIn,zoom,panPx,unit,dpi,pointer}: {
  *  reveals itself once the user actually selects a placeholder or text box to edit. */
 export default function DesignerViewScreen() {
   const matchingTemplatesOpen = useProjectStore(s => s.matchingTemplatesOpen)
+  const templateBrowseKind = useProjectStore(s => s.templateBrowseKind)
+  /** The Browse buttons are a toggle: pressing the one that is already showing puts the strip away. */
+  const toggleBrowse = (kind: 'image' | 'mixed') => {
+    const store = useProjectStore.getState()
+    if (store.matchingTemplatesOpen && store.templateBrowseKind === kind) store.closeMatchingTemplates()
+    else if (store.designerViewSpreadId) store.openMatchingTemplates(store.designerViewSpreadId, kind)
+  }
   const project = useProjectStore((s) => s.project)
   const designerViewSpreadId = useProjectStore((s) => s.designerViewSpreadId)
   const exitDesignerView = useProjectStore((s) => s.exitDesignerView)
@@ -133,9 +140,9 @@ export default function DesignerViewScreen() {
         <button className="btn btn--icon designer-view__back" title="Back to the album overview" onClick={() => exitDesignerView()}>
           <Icon name="chevronLeft" size={16} />
         </button>
-        <div className="template-toolbar-group"><button className="btn" onClick={()=>useProjectStore.getState().openMatchingTemplates(spread.id,'image')}>Browse Image Templates</button>
+        <div className="template-toolbar-group"><button className="btn" aria-pressed={matchingTemplatesOpen&&templateBrowseKind==='image'} onClick={()=>toggleBrowse('image')}>Browse Image Templates</button>
         <QuoteTemplates spreadId={spread.id} saveHost="designer-save-font"/>
-        <button className="btn" onClick={()=>useProjectStore.getState().openMatchingTemplates(spread.id,'mixed')}>Browse Mixed Templates</button></div>
+        <button className="btn" aria-pressed={matchingTemplatesOpen&&templateBrowseKind==='mixed'} onClick={()=>toggleBrowse('mixed')}>Browse Mixed Templates</button></div>
         {spread.isCover&&<button className="btn" onClick={()=>window.dispatchEvent(new CustomEvent('album-studio:setup-cover',{detail:{mode:'custom'}}))}>Cover Specifications</button>}
         <button className="btn" aria-pressed={rightPanelOpen} onClick={toggleRightPanel}>Inspector panel</button><button className="btn" aria-pressed={bottomPanelOpen} onClick={()=>useProjectStore.getState().toggleBottomPanel()}>Image gallery</button><SelectionActions/><div className="designer-view__spacer"/>
         <div className="template-toolbar-group template-toolbar-group--save"><button className="btn" disabled={saving||!spread.placements.length} onClick={()=>void handleSaveTemplate('image')}>Save Image Templates</button>
@@ -230,7 +237,7 @@ export default function DesignerViewScreen() {
         )}
       </div>
 
-      <div className="bottom-panel" hidden={matchingTemplatesOpen}>
+      <div className="bottom-panel">
         <button
           className="panel-toggle panel-toggle--bottom"
           onMouseDown={handleBottomHandleMouseDown}

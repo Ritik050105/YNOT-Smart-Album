@@ -1,6 +1,5 @@
 import SelectionActions from './SelectionActions'
 import {cyclingTemplates,useTemplateBrowsing} from '@/state/templateBrowsing'
-import FloatingTextToolbar from './FloatingTextToolbar'
 import { createPortal } from 'react-dom'
 import {PreviewImage} from '@/engine/previewImage'
 import PanelResizer from './PanelResizer'
@@ -228,7 +227,7 @@ export default function SpreadsPanel() {
 
   return (
     <div className={`spreads-panel ${project.spreads.length === 0 ? 'spreads-panel--empty' : ''}`} style={{ '--spread-aspect': project.size.widthIn / project.size.heightIn } as CSSProperties}>
-      <FloatingTextToolbar/><SelectionActions floating/>
+      <SelectionActions floating/>
       {showCoverButton && <button className="go-cover-button btn btn--tiny" onClick={goToCover}>Go to Cover</button>}
       <div id="overview-font-template-browser" />
       <div ref={spreadsRef} className="spreads-panel__row" style={{cursor:canvasTool==='pan'?'grab':undefined}}

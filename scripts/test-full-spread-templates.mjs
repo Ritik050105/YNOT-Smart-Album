@@ -14,15 +14,18 @@ const { BUILT_IN_TEMPLATES, importedDesignTemplates, setUserTemplateRegistry, te
 
 const byId = id => BUILT_IN_TEMPLATES.find(t => t.id === id)
 
-// The original hand-written six, plus the families generated from them.
+// The generated family. It now runs edge to edge, which makes its 1-3 photo members identical to
+// the six hand-written layouts it grew out of, so dedup keeps the generated ones (they are first
+// in the library) and drops the originals. The old ids stay resolvable through findTemplate, so
+// albums that already reference one keep their geometry.
 const mixedIds = [
-  'gen-mixed-full-left-caption', 'gen-mixed-full-right-caption',
-  'gen-mixed-full-left-overlay', 'gen-mixed-full-right-overlay',
+  'gen-mixed-full-left-caption-1', 'gen-mixed-full-right-caption-1',
+  'gen-mixed-full-left-overlay-1', 'gen-mixed-full-right-overlay-1',
   'gen-mixed-full-left-caption-3', 'gen-mixed-full-right-overlay-3',
   'gen-mixed-band-top-2', 'gen-mixed-band-bottom-6',
 ]
-const imageIds = ['gen-full-left-triple', 'gen-full-right-triple', 'gen-full-left-2', 'gen-full-right-4',
-  'gen-full-left-cascade-3', 'gen-full-right-cascade-3']
+const imageIds = ['gen-full-left-3', 'gen-full-right-3', 'gen-full-left-2', 'gen-full-right-4',
+  'gen-full-left-cascade-3', 'gen-full-right-cascade-3', 'gen-full-left-hero-4']
 for (const id of [...mixedIds, ...imageIds]) {
   const t = byId(id)
   assert.ok(t, `${id} survives dedup`)
@@ -51,6 +54,29 @@ for (const side of ['left', 'right']) {
   const heights = row.map(p => p.height)
   const stepping = side === 'left' ? heights : [...heights].reverse()
   for (let i = 1; i < stepping.length; i++) assert.ok(stepping[i] < stepping[i - 1], `${side} cascade steps down away from the full page`)
+}
+
+// No white border anywhere: the facing page's photos reach the gutter, the outer edge, the top and
+// the bottom, and they meet each other with no gutter between them. A cascade is the one exception
+// — its steps are meant to leave the top corner open — so it only has to reach three edges.
+for (const side of ['left', 'right']) {
+  for (const n of [2, 3, 5, 9]) {
+    for (const kind of ['', 'hero-']) {
+      const t = byId(`gen-full-${side}-${kind}${n}`)
+      if (!t) continue
+      const facing = t.placeholders.filter(p => (side === 'left' ? p.x >= 0.5 - 1e-6 : p.x + p.width <= 0.5 + 1e-6))
+      assert.ok(facing.length, `${t.id} puts photos on the facing page`)
+      const near = (a, b) => Math.abs(a - b) < 1e-6
+      assert.ok(facing.some(p => near(p.y, 0)), `${t.id} reaches the top of the facing page`)
+      assert.ok(facing.some(p => near(p.y + p.height, 1)), `${t.id} reaches the bottom of the facing page`)
+      assert.ok(facing.some(p => near(p.x, side === 'left' ? 0.5 : 0)), `${t.id} reaches the gutter`)
+      assert.ok(facing.some(p => near(p.x + p.width, side === 'left' ? 1 : 0.5)), `${t.id} reaches the outer edge`)
+      const area = facing.reduce((sum, p) => sum + p.width * p.height, 0)
+      assert.ok(near(area, 0.5), `${t.id} tiles the facing page with no gaps (covered ${area})`)
+    }
+  }
+  const cascade = byId(`gen-full-${side}-cascade-4`)
+  assert.ok(cascade.placeholders.slice(1).every(p => Math.abs(p.y + p.height - 1) < 1e-6), `${cascade.id} sits flush on the bottom edge`)
 }
 
 // Every album photo count has somewhere to go: 30+ image layouts, a mixed layout, and a full-bleed

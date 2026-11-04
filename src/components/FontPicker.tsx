@@ -56,7 +56,9 @@ export default function FontPicker({value,onChange,scanEnabled=true}:{value:stri
       setError(failures.join(' · '))
 
   }
-  const options=[...new Set([...fonts,...CLOUD_FONTS,...(custom??[]),...(scan?.fonts??[])].map(f=>f.family))].sort()
+  // Installed fonts, the families the bundled templates use, anything this project embeds — plus
+  // whatever is already selected, so an album that predates this list never shows a blank picker.
+  const options=[...new Set([...fonts,...CLOUD_FONTS,...(custom??[]),...(scan?.fonts??[])].map(f=>f.family).concat(value?[value]:[]))].sort()
   return <div className="font-picker" ref={picker} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setOpen(false)}} onKeyDown={e=>{
     e.stopPropagation()
     if(e.key==='Escape'){e.preventDefault();setOpen(false);trigger.current?.focus()}

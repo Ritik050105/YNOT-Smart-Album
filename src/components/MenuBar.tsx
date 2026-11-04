@@ -189,7 +189,7 @@ export default function MenuBar() {
           disabled: project.spreads.length === 0,
           onClick: () => window.dispatchEvent(new CustomEvent('album-studio:open-export')),
         },
-        { label: 'Quit YNOT Album Studio', separator: true, shortcut: 'Ctrl+Q', disabled: !window.albumStudio?.isElectron, onClick: () => { void window.albumStudio?.closeCurrentWindow() } },
+        { label: 'Quit YNOT ALBUM STUDIO', separator: true, shortcut: 'Ctrl+Q', disabled: !window.albumStudio?.isElectron, onClick: () => { void window.albumStudio?.closeCurrentWindow() } },
       ],
     },
     {
@@ -360,7 +360,7 @@ export default function MenuBar() {
           shortcut: '?',
           onClick: () => window.dispatchEvent(new CustomEvent('album-studio:toggle-shortcuts-help')),
         },
-        { label: 'About YNOT Album Studio…', onClick: () => setAboutOpen(true) },
+        { label: 'About YNOT ALBUM STUDIO…', onClick: () => setAboutOpen(true) },
       ],
     },
   ]
@@ -469,10 +469,10 @@ export default function MenuBar() {
       <ExternalEditor /><PreferenceBehavior />
       {aboutOpen && (
         <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setAboutOpen(false)}>
-          <div className="modal-card" style={{ width: 360 }} role="dialog" aria-modal="true" aria-label="About YNOT Album Studio">
+          <div className="modal-card" style={{ width: 360 }} role="dialog" aria-modal="true" aria-label="About YNOT ALBUM STUDIO">
             <div className="modal-card__header">
               <div>
-                <h2>About YNOT Album Studio</h2>
+                <h2>About YNOT ALBUM STUDIO</h2>
               </div>
               <button className="btn btn--icon btn--ghost" onClick={() => setAboutOpen(false)} aria-label="Close">
                 <Icon name="x" size={16} />

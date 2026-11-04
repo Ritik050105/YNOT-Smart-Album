@@ -10,7 +10,7 @@ import { execFile, spawn } from 'child_process'
 import { writeFileAtomic } from './files'
 import { decodeTiff, imagePreview } from './images'
 import { RAW_EXT } from './rawPreview'
-import { registerImageScheme, registerImageProtocol, prepareImage, warmImages, putTextPreview, pruneImageCache, cachedFontFaces, storeFontFaces, allowScannedFonts } from './imageCache'
+import { registerImageScheme, registerImageProtocol, prepareImage, warmImages, putTextPreview, pruneImageCache, cachedFontFaces, storeFontFaces, allowScannedFonts, cacheBytes, clearCaches } from './imageCache'
 import { readSiblingImage } from './siblingImages'
 import { readRecovery, writeRecovery, clearRecovery } from './recovery'
 import { fitWindowSize } from './windowSizing'
@@ -72,7 +72,7 @@ function createSplash(): BrowserWindow {
   const splash = new BrowserWindow({
     icon: windowIcon,
     ...fitWindowSize(screen.getPrimaryDisplay().workAreaSize, { width: 1440, height: 900 }, { width: 720, height: 480 }),
-    title: 'YNOT Album Studio',
+    title: 'YNOT ALBUM STUDIO',
     resizable: false,
     show: true,
     center: true,
@@ -85,7 +85,7 @@ function createSplash(): BrowserWindow {
     html,body{margin:0;height:100%;background:#f2f5fa;}
     body{display:grid;place-items:center;-webkit-user-select:none;}
     .mark{width:240px;height:240px;max-width:35vmin;max-height:35vmin;background:url(data:image/png;base64,${logo}) center/contain no-repeat;}
-  </style></head><body><div class="mark" role="status" aria-label="Loading YNOT Album Studio"></div></body></html>`
+  </style></head><body><div class="mark" role="status" aria-label="Loading YNOT ALBUM STUDIO"></div></body></html>`
   splash.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
   return splash
 }
@@ -103,7 +103,7 @@ function createWindow(splash?: BrowserWindow) {
     icon: windowIcon,
     ...fitWindowSize(screen.getPrimaryDisplay().workAreaSize, { width: 1440, height: 900 }, { width: 720, height: 480 }),
     backgroundColor: '#1e201f',
-    title: 'YNOT Album Studio',
+    title: 'YNOT ALBUM STUDIO',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -377,8 +377,8 @@ for (const [channel, handler] of Object.entries({
 const preferenceFile = () => path.join(app.getPath('userData'), 'desktop-preferences.json')
 function desktopPreferences(): {projectDirectory?:string} { try{return JSON.parse(fs.readFileSync(preferenceFile(),'utf8'))}catch{return {}} }
 ipcMain.handle('preferences:system', async (event, action: string, value?:string) => {
-  if(action==='cacheSize')return event.sender.session.getCacheSize()
-  if(action==='clearCache'){await event.sender.session.clearCache();return event.sender.session.getCacheSize()}
+  if(action==='cacheSize')return (await event.sender.session.getCacheSize())+await cacheBytes()
+  if(action==='clearCache'){await event.sender.session.clearCache();await clearCaches();return (await event.sender.session.getCacheSize())+await cacheBytes()}
   if(action==='choosePhotoshop'||action==='chooseCanva'){
     const editor=action==='chooseCanva'?'Canva':'Photoshop'
     const result=await dialog.showOpenDialog({title:`Choose ${editor}`,properties:['openFile'],filters:[{name:editor,extensions:[process.platform==='darwin'?'app':'exe']}]})

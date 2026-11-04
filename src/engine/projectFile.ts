@@ -52,7 +52,7 @@ export async function serializeProjectFile(project: Project, userTemplates: Temp
 export function deserializeProjectFile(jsonText: string): ProjectFile {
   const parsed = JSON.parse(jsonText) as ProjectFile
   if (parsed?.formatVersion !== 1 || !parsed.project || !Array.isArray(parsed.project.photos) || !Array.isArray(parsed.project.spreads) || !parsed.project.size || !Array.isArray(parsed.userTemplates) || !parsed.project.spreads.every((s) => Array.isArray(s.placements) && Array.isArray(s.textBoxes))) {
-    throw new Error('This file is not a valid YNOT Album Studio project.')
+    throw new Error('This file is not a valid YNOT ALBUM STUDIO project.')
   }
   return parsed
 }

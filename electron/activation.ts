@@ -22,7 +22,7 @@ export async function requireActivation(): Promise<boolean> {
   }
   try { readLicense(destination); return true } catch { /* A missing or invalid license requires activation. */ }
   for (;;) {
-    const { response } = await dialog.showMessageBox({ type: 'info', title: 'Activate YNOT Album Studio', message: 'Activate this client PC', detail: `Send this PC ID to your license administrator, then import the signed license they provide. No internet connection is required.\n\nPC ID: ${device}`, buttons: ['Import license', 'Copy PC ID', 'Exit'], defaultId: 0, cancelId: 2, noLink: true })
+    const { response } = await dialog.showMessageBox({ type: 'info', title: 'Activate YNOT ALBUM STUDIO', message: 'Activate this client PC', detail: `Send this PC ID to your license administrator, then import the signed license they provide. No internet connection is required.\n\nPC ID: ${device}`, buttons: ['Import license', 'Copy PC ID', 'Exit'], defaultId: 0, cancelId: 2, noLink: true })
     if (response === 2) return false
     if (response === 1) { clipboard.writeText(device); continue }
     const result = await dialog.showOpenDialog({ title: 'Import signed PC license', properties: ['openFile'], filters: [{ name: 'YNOT license', extensions: ['json'] }] })
@@ -49,6 +49,6 @@ export async function importRevocation():Promise<void> {
     const confirm=await dialog.showMessageBox({type:'warning',message:'Revoke this PC license?',detail:'This blocks licenses issued on or before '+new Date(cutoff).toLocaleString()+'. Projects are preserved. Save your work and close the app after importing; the block is enforced on the next launch.',buttons:['Cancel','Import revocation'],defaultId:0,cancelId:0})
     if(confirm.response!==1)return
     writeFileAtomic(destination,Buffer.from(raw))
-    await dialog.showMessageBox({type:'info',message:'Revocation imported',detail:'Save your work and close YNOT Album Studio. This license will be refused on the next launch.'})
+    await dialog.showMessageBox({type:'info',message:'Revocation imported',detail:'Save your work and close YNOT ALBUM STUDIO. This license will be refused on the next launch.'})
   }catch(e){dialog.showErrorBox('Revocation not imported',String(e))}
 }

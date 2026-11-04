@@ -20,8 +20,11 @@ export const LOCAL_FONTS: FontOption[] = [
   { family: 'Verdana', category: 'local' },
 ]
 
-/** Licensed Google Fonts bundled for offline use; licenses accompany each family. */
-export const CLOUD_FONTS: FontOption[] = googleCatalog.map(font=>({family:font.family,category:'cloud'}))
+/** Licensed Google Fonts bundled for offline use; licenses accompany each family. Only these are
+ *  offered in the font list — the full 1900-family Google catalog was a wall of names that are not
+ *  installed on the machine and that no template uses, so it stays a load-on-demand fallback for
+ *  albums that already reference one of those families. */
+export const CLOUD_FONTS: FontOption[] = bundledFonts.map(font=>({family:font.family,category:'cloud'}))
 
 export const ALL_FONTS: FontOption[] = [...LOCAL_FONTS, ...CLOUD_FONTS]
 
