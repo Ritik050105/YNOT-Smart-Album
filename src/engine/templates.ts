@@ -629,6 +629,16 @@ for (const side of ['left', 'right'] as const) {
     const cellH = (height - GAP * (count - 1)) / count
     return Array.from({ length: count }, (_, i) => rect(pageX, top + i * (cellH + GAP), pageW, cellH))
   }
+  /** `count` photos in a row on a common baseline, tallest next to the full-bleed page and each
+   *  one a step shorter as it moves away from it. */
+  const cascade = (count: number) => {
+    const cellW = (pageW - GAP * (count - 1)) / count, tallest = 1 - PAGE_INSET * 2
+    return Array.from({ length: count }, (_, i) => {
+      const step = side === 'left' ? i : count - 1 - i
+      const height = tallest - step * (tallest * 0.5 / count)
+      return rect(pageX + i * (cellW + GAP), 1 - PAGE_INSET - height, cellW, height)
+    })
+  }
   const add = (t: Omit<TemplateDefinition, 'isBuiltIn' | 'createdAt' | 'pageSide'>) =>
     FULL_SPREAD_TEMPLATES.push({ ...t, pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString() })
   // Up to 29 on the facing page, so every album photo count from 2 to 30 has a full-spread option.
@@ -637,6 +647,13 @@ for (const side of ['left', 'right'] as const) {
     add({
       id: `gen-full-${side}-${count}`, name: `Full ${label} + ${count}`, photoCount: count + 1,
       placeholders: [rect(fullX, 0, 0.5, 1), ...stack(count, PAGE_INSET, 1 - PAGE_INSET * 2)], thumbnailColor: '#4f8a6b',
+    })
+    // The facing photos as a cascade instead: a row sitting on a common baseline, each one shorter
+    // than the last as it steps away from the full-bleed page, so the two pages read as one
+    // descending run rather than a block beside a block. Beyond five the steps become slivers.
+    if (count >= 2 && count <= 5) add({
+      id: `gen-full-${side}-cascade-${count}`, name: `Full ${label} Cascade + ${count}`, photoCount: count + 1,
+      placeholders: [rect(fullX, 0, 0.5, 1), ...cascade(count)], thumbnailColor: '#8a7a4f',
     })
     // Caption under the photos on the facing page.
     add({

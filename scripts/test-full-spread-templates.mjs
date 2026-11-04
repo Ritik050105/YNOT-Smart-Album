@@ -21,7 +21,8 @@ const mixedIds = [
   'gen-mixed-full-left-caption-3', 'gen-mixed-full-right-overlay-3',
   'gen-mixed-band-top-2', 'gen-mixed-band-bottom-6',
 ]
-const imageIds = ['gen-full-left-triple', 'gen-full-right-triple', 'gen-full-left-2', 'gen-full-right-4']
+const imageIds = ['gen-full-left-triple', 'gen-full-right-triple', 'gen-full-left-2', 'gen-full-right-4',
+  'gen-full-left-cascade-3', 'gen-full-right-cascade-3']
 for (const id of [...mixedIds, ...imageIds]) {
   const t = byId(id)
   assert.ok(t, `${id} survives dedup`)
@@ -37,6 +38,19 @@ for (const id of mixedIds) assert.equal(templateCategory(byId(id)), 'generated',
 for (const id of imageIds) {
   assert.equal(templateCategory(byId(id)), 'reference', `${id} classifies as reference (Smart design)`)
   assert.ok(isFullSpreadTemplate(byId(id)), `${id} is exempt from the uniform-gap check`)
+}
+
+// The cascade family: one page full-bleed, the facing photos on a common baseline, each a step
+// shorter as it moves away from that page. Both pages then read as one descending run.
+for (const side of ['left', 'right']) {
+  const t = byId(`gen-full-${side}-cascade-3`)
+  const [page, ...row] = t.placeholders
+  assert.deepEqual([page.x, page.y, page.width, page.height], [side === 'left' ? 0 : 0.5, 0, 0.5, 1], `${side} cascade keeps one page full-bleed`)
+  const baseline = row.map(p => +(p.y + p.height).toFixed(4))
+  assert.equal(new Set(baseline).size, 1, `${side} cascade sits the facing photos on one baseline`)
+  const heights = row.map(p => p.height)
+  const stepping = side === 'left' ? heights : [...heights].reverse()
+  for (let i = 1; i < stepping.length; i++) assert.ok(stepping[i] < stepping[i - 1], `${side} cascade steps down away from the full page`)
 }
 
 // Every album photo count has somewhere to go: 30+ image layouts, a mixed layout, and a full-bleed

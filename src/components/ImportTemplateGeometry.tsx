@@ -2,7 +2,7 @@ import {CSSProperties,useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {readPsd,Layer} from 'ag-psd'
 import {TemplateDefinition,PlaceholderRect,TextBox} from '@/types'
-import {imageFileSource,isImageFile} from '@/engine/imageSource'
+import {imageFileSource,isImageFile,MAX_ARTWORK_BYTES,MAX_ARTWORK_LABEL,MAX_ARTWORK_PIXELS} from '@/engine/imageSource'
 import {detectCornerRadius,detectTemplateFrames,opaqueBounds,vectorMaskGeometry} from '@/engine/templateGeometry'
 import Modal from './Modal'
 import Icon from './Icon'
@@ -51,7 +51,7 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
  // Read the header alone first: decoding every layer of an oversized PSD would exhaust memory
  // before the dimension check below ever ran.
  const header=readPsd(bytes,{skipThumbnail:true,skipLayerImageData:true,skipCompositeImageData:true})
- if(!header.width||!header.height||header.width*header.height>100000000)throw new Error('PSD dimensions are too large.')
+ if(!header.width||!header.height||header.width*header.height>MAX_ARTWORK_PIXELS)throw new Error('PSD dimensions are too large.')
  const psd=readPsd(bytes,{skipCompositeImageData:true,skipThumbnail:true})
  if(!psd.width||!psd.height)throw new Error('PSD dimensions are too large.')
  const frames:PlaceholderRect[]=[],textBoxes:TextBox[]=[],groupId=crypto.randomUUID()
@@ -129,7 +129,7 @@ export async function detectTemplate(file:File):Promise<Detected>{
  let preview:string,aspect:number
  try{
   const img=new Image();img.src=source;await img.decode()
-  if(img.width*img.height>100000000)throw new Error('Image dimensions are too large.')
+  if(img.width*img.height>MAX_ARTWORK_PIXELS)throw new Error('Image dimensions are too large.')
   aspect=img.width/img.height
   const c=document.createElement('canvas')
   c.width=Math.max(1,Math.round(img.width*Math.min(1,900/Math.max(img.width,img.height))));c.height=Math.max(1,Math.round(c.width/aspect))
@@ -142,7 +142,7 @@ export async function detectTemplate(file:File):Promise<Detected>{
 }
 
 export async function importTemplateGeometry(file:File):Promise<TemplateDefinition|null>{
- if(!isImageFile(file)||file.size>128*1024*1024)throw new Error('Choose an image or PSD up to 128 MB.')
+ if(!isImageFile(file)||file.size>MAX_ARTWORK_BYTES)throw new Error(`Choose an image or PSD up to ${MAX_ARTWORK_LABEL}.`)
  const found=await detectTemplate(file)
  const name=file.name.replace(/\.[^.]+$/,'')
  return new Promise(resolve=>{
