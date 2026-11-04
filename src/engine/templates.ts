@@ -606,6 +606,65 @@ const fullRightTriple: TemplateDefinition = {
   thumbnailColor: '#4f8a76',
 }
 
+/** The six hand-written full-spread layouts above, widened into a family: one page carries a
+ *  full-bleed image while the facing page carries a stack of 1-4 smaller photos, optionally with a
+ *  caption under the stack or overlaid on the full-bleed page itself. Counts already covered by a
+ *  hand-written layout are skipped so `uniqueTemplates` has nothing to drop. New ids are appended
+ *  after every existing `rect()` call so saved albums keep their placeholder ids. */
+const FULL_SPREAD_TEMPLATES: TemplateDefinition[] = []
+const HALF = 0.5 - GAP / 2
+for (const side of ['left', 'right'] as const) {
+  const label = side === 'left' ? 'Left' : 'Right'
+  const fullX = side === 'left' ? 0 : 0.5 + GAP / 2
+  const pageX = side === 'left' ? 0.5 + GAP / 2 : 0
+  /** `count` photos stacked down the facing page, filling `height` from `top`. */
+  const stack = (count: number, top: number, height: number) => {
+    const cellH = (height - GAP * (count - 1)) / count
+    return Array.from({ length: count }, (_, i) => rect(pageX, top + i * (cellH + GAP), HALF, cellH))
+  }
+  const add = (t: Omit<TemplateDefinition, 'isBuiltIn' | 'createdAt' | 'pageSide'>) =>
+    FULL_SPREAD_TEMPLATES.push({ ...t, pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString() })
+  for (let count = 1; count <= 4; count++) {
+    // Image-only: facing page is nothing but the stack. 3 is `ref`-classified above already.
+    if (count !== 3) add({
+      id: `gen-full-${side}-${count}`, name: `Full ${label} + ${count}`, photoCount: count + 1,
+      placeholders: [rect(fullX, 0, HALF, 1), ...stack(count, 0, 1)], thumbnailColor: '#4f8a6b',
+    })
+    // Caption under the stack on the facing page.
+    if (count !== 1) add({
+      id: `gen-mixed-full-${side}-caption-${count}`, name: `Full ${label} + ${count} + Caption`, photoCount: count + 1,
+      placeholders: [rect(fullX, 0, HALF, 1), ...stack(count, 0, 0.78)],
+      textBoxes: [caption(pageX, 0.8, HALF, 0.18)], thumbnailColor: '#6b4f8a',
+    })
+    // Caption overlaid on the full-bleed page, white so it reads against a photo.
+    if (count !== 2) add({
+      id: `gen-mixed-full-${side}-overlay-${count}`, name: `Full ${label} Overlay + ${count}`, photoCount: count + 1,
+      placeholders: [rect(fullX, 0, HALF, 1), ...stack(count, 0, 1)],
+      textBoxes: [caption(fullX + 0.04, 0.78, HALF - 0.08, 0.14, '#ffffff')], thumbnailColor: '#4f5a8a',
+    })
+  }
+}
+
+/** Mixed layouts that are not full-spread: a photo grid with a caption band across the top or the
+ *  bottom of the whole spread. Gives the mixed browser a built-in option at every common count. */
+for (const edge of ['top', 'bottom'] as const) {
+  for (let count = 1; count <= 6; count++) {
+    const bandH = 0.18, photosY = edge === 'top' ? bandH + GAP : 0
+    FULL_SPREAD_TEMPLATES.push({
+      id: `gen-mixed-band-${edge}-${count}`,
+      name: `${count} Photo${count === 1 ? '' : 's'} + ${edge === 'top' ? 'Title Above' : 'Caption Below'}`,
+      photoCount: count,
+      pageSide: 'spread',
+      placeholders: placeGridInRect(0, count, 0, photosY, 1, 1 - bandH - GAP)
+        .map(p => ({ ...p, id: `hc${nextHandCraftedId++}` })),
+      textBoxes: [caption(0.2, edge === 'top' ? 0.01 : 1 - bandH + 0.01, 0.6, bandH - 0.02)],
+      isBuiltIn: true,
+      createdAt: new Date(0).toISOString(),
+      thumbnailColor: '#8a6b4f',
+    })
+  }
+}
+
 const HAND_CRAFTED_TEMPLATES: TemplateDefinition[] = [
   full,
   fullLeftCaption,
@@ -656,14 +715,19 @@ const editorialAdditions = EDITORIAL_TEMPLATES.filter(t => {
   signatures.add(signature)
   return true
 })
-const legacyTemplates = [...existingTemplates, ...editorialAdditions]
+// Appended after everything the library was ever built from, so a hand-written layout always wins
+// the dedup pass below and the geometry of saved albums is untouched.
+const legacyTemplates = [...existingTemplates, ...editorialAdditions, ...FULL_SPREAD_TEMPLATES]
 
 export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefinition[] {
   const seen = new Set<string>()
   return templates.filter(t => {
     // Ignore tiny spacing variants that look identical in the template browser.
     const frames = t.placeholders.map(p => [p.x, p.y, p.width, p.height].map(v => Math.round(v * 20)).join(',')).sort().join('|')
-    const signature = `${!t.isBuiltIn?t.id+':':''}${t.pageSide}:${t.id === 'cover-front-spine-back' ? 'cover' : t.photoCount}:${frames}`
+    // Captions are part of the design: the same photo grid with and without a text box, or with the
+    // caption in a different place, are different templates and both belong in the browser.
+    const text = (t.textBoxes ?? []).map(b => [b.x, b.y, b.width, b.height].map(v => Math.round(v * 20)).join(',')).sort().join('|')
+    const signature = `${!t.isBuiltIn?t.id+':':''}${t.pageSide}:${t.id === 'cover-front-spine-back' ? 'cover' : t.photoCount}:${frames}:${text}`
     if (seen.has(signature)) return false
     seen.add(signature)
     return true
@@ -741,6 +805,25 @@ let userTemplateRegistry: TemplateDefinition[] = []
 
 export function setUserTemplateRegistry(templates: TemplateDefinition[]) {
   userTemplateRegistry = templates
+}
+
+/** Imported PSD/artwork templates carry absolute frames — a finished design, not a layout that
+ *  flexes to a photo count — so `templatesForCount` would only ever surface one on a spread that
+ *  happens to hold exactly as many photos. The template browsers offer them at any count instead,
+ *  and applying one retemplates the spread to its own frames. `templatesForCount` already returned
+ *  the exact-count matches, and `retemplateSpread` refuses a template with fewer frames than the
+ *  spread has photos rather than dropping any, so only designs with more frames are added here. */
+export function importedDesignTemplates(
+  photoCount: number,
+  enabledTemplateIds: string[] | null = null,
+  frameFilter: TemplateFrameFilter = 'all',
+  aspect = 1
+): TemplateDefinition[] {
+  return userTemplateRegistry.filter((t) =>
+    t.absoluteFrames &&
+    t.photoCount > photoCount &&
+    (enabledTemplateIds === null || enabledTemplateIds.includes(t.id)) &&
+    (frameFilter === 'all' || matchesFrameFilter(t, frameFilter, aspect)))
 }
 
 /** Looks up a template by id across both the built-in library and the user's saved/imported ones. */

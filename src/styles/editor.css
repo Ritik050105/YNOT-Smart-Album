@@ -169,18 +169,48 @@
 .album-editor .spread-card-controls { height: 36px; background: var(--panel-raised); }
 .album-editor .spread-card-controls button.is-active { color: var(--accent); }
 
-.frame-review__hint { margin: 0 0 14px; color: var(--text-muted); font-size: 13px; }
-.frame-review__canvas { position: relative; width: 100%; max-height: 420px; margin: 0 auto; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-lg); border: 1px solid var(--border); }
+/* Imported-template review: artwork on the left at its true proportions, everything the import
+   detected on the right, so nothing is judged from a stretched preview. */
+.frame-review .modal-card__body { overflow: hidden; }
+.frame-review__layout { display: grid; grid-template-columns: minmax(0, 1fr) 272px; gap: 22px; align-items: start; }
+.frame-review__stage { display: grid; gap: 10px; min-width: 0; }
+.frame-review__hint { margin: 0; color: var(--text-muted); font-size: 12.5px; }
+/* Bounding the width by the height budget keeps the box exactly on the artwork's own ratio, so the
+   percentage-positioned frame overlay lands on the pixels it describes — no letterboxing to drift against. */
+.frame-review__canvas { position: relative; width: min(100%, calc(min(46vh, 420px) * var(--art-aspect))); aspect-ratio: var(--art-aspect); margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-lg); border: 1px solid var(--border); }
 .frame-review__canvas > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
-.frame-review__frame { position: absolute; padding: 0; border: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 10%, transparent); transition: background 0.12s var(--ease), border-color 0.12s var(--ease); cursor: pointer; }
-.frame-review__frame:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
-.frame-review__frame.is-selected { border-color: #ffcc00; background: color-mix(in srgb, #ffcc00 22%, transparent); box-shadow: 0 0 0 1px #ffcc00; }
-.frame-review__badge { position: absolute; top: 6px; left: 6px; min-width: 20px; height: 20px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(0, 0, 0, 0.72); color: #fff; font: 600 11px/1 'Segoe UI', sans-serif; }
-.frame-review__frame.is-selected .frame-review__badge { background: #ffcc00; color: #211c1f; }
-.frame-review__fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px; }
-.frame-review__fields label { display: grid; gap: 4px; font-size: 12px; color: var(--text-muted); text-transform: capitalize; }
-.frame-review__fields input { width: 100%; box-sizing: border-box; }
-.frame-review__actions { display: flex; gap: 8px; margin-top: 14px; }
+.frame-review__text { position: absolute; border: 1px dashed color-mix(in srgb, var(--text) 45%, transparent); border-radius: 3px; pointer-events: none; }
+/* Outlined, not tinted: the designer is checking the frames against the artwork's own colours. */
+.frame-review__frame { position: absolute; padding: 0; border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 4px; background: transparent; transition: background 0.12s var(--ease), border-color 0.12s var(--ease), box-shadow 0.12s var(--ease); cursor: pointer; }
+.frame-review__frame:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.frame-review__frame.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: var(--shadow-glow); }
+.frame-review__badge { position: absolute; top: 6px; left: 6px; min-width: 20px; height: 20px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(0, 0, 0, 0.6); color: #fff; font: 600 11px/1 'Segoe UI', sans-serif; }
+.frame-review__frame.is-selected .frame-review__badge { background: var(--accent); color: #fff; }
+
+/* The side column, not the whole dialog, takes the overflow — otherwise a short window clips the
+   last card mid-field instead of giving it a scrollbar of its own. 236px covers the dialog's
+   header, footer and body padding. */
+.frame-review__side { display: grid; gap: 12px; align-content: start; max-height: calc(100vh - 260px); overflow-y: auto; padding-right: 4px; }
+.frame-review__group { display: grid; gap: 9px; padding: 12px 13px; border: 1px solid var(--border-soft); border-radius: 12px; background: var(--panel-alt); }
+.frame-review__group h3 { margin: 0; font: 600 11px/1 'Segoe UI', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.frame-review__summary, .frame-review__texts { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.frame-review__summary li { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.frame-review__summary svg { flex: 0 0 auto; color: var(--text-muted); }
+.frame-review__toggle { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.frame-review__swatch { width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--border); }
+.frame-review__note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-muted); }
+.frame-review__texts li { display: grid; gap: 2px; padding-bottom: 7px; border-bottom: 1px solid var(--border-soft); }
+.frame-review__texts li:last-child { padding-bottom: 0; border-bottom: 0; }
+.frame-review__texts label { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.frame-review__text-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.frame-review__text-meta { padding-left: 47px; font-size: 11px; color: var(--text-muted); }
+.frame-review__fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.frame-review__fields label, .frame-review__radius { display: grid; gap: 4px; font-size: 11.5px; color: var(--text-muted); text-transform: capitalize; }
+.frame-review__fields input, .frame-review__radius input { width: 100%; box-sizing: border-box; }
+.frame-review__actions { display: flex; gap: 8px; }
+.frame-review__valid { margin-right: auto; font-size: 12.5px; color: var(--text-muted); }
+.frame-review__valid[role='alert'] { color: var(--danger, #c5433f); }
+@media (max-width: 900px) { .frame-review__layout { grid-template-columns: minmax(0, 1fr); } }
 
 .template-transfer__spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: template-transfer-spin 0.7s linear infinite; vertical-align: middle; }
 @keyframes template-transfer-spin { to { transform: rotate(360deg); } }

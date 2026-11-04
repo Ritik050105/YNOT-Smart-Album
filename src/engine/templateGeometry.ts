@@ -1,5 +1,27 @@
 import { PlaceholderRect } from '@/types'
 
+/** Reads a layer's own alpha channel to tell a rounded rectangle from a square one. Walks in along
+ *  the top-left diagonal until the pixel turns opaque: for a corner arc of radius r the diagonal
+ *  meets it r - r/√2 from the corner, so the inset scales straight back up to the radius. Returns 0
+ *  unless all four corners agree and the edge midpoints are solid — anything else is a cut-out or
+ *  an irregular shape, not a rounded frame. */
+export function detectCornerRadius(canvas: HTMLCanvasElement): number {
+  const w = canvas.width, h = canvas.height, limit = Math.floor(Math.min(w, h) / 2)
+  if (limit < 4) return 0
+  const data = canvas.getContext('2d', { willReadFrequently: true })?.getImageData(0, 0, w, h).data
+  if (!data) return 0
+  const opaque = (x: number, y: number) => data[(y * w + x) * 4 + 3] > 128
+  if (!opaque(Math.floor(w / 2), 0) || !opaque(0, Math.floor(h / 2))) return 0
+  const insets = ([[1, 1], [-1, 1], [1, -1], [-1, -1]] as const).map(([sx, sy]) => {
+    for (let d = 0; d < limit; d++) if (opaque(sx > 0 ? d : w - 1 - d, sy > 0 ? d : h - 1 - d)) return d
+    return limit
+  })
+  const inset = Math.min(...insets)
+  // A single clipped corner is artwork, not a frame radius.
+  if (inset === 0 || Math.max(...insets) - inset > Math.max(2, inset * 0.5)) return 0
+  return Math.min(limit, Math.round(inset / (1 - Math.SQRT1_2)))
+}
+
 /** Split a flattened layout at its background gutters; review ambiguous artwork before saving. */
 export function detectTemplateFrames(data: Uint8ClampedArray, width: number, height: number): PlaceholderRect[] {
   const colors = new Map<string, number>()

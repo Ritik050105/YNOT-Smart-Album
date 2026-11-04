@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { PhotoAsset, Spread, PlacedPhoto, TextBox } from '@/types'
+import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TextBox } from '@/types'
 import { suggestTemplate, findTemplate, templatesForCount, TemplateFrameFilter } from './templates'
 import { rankTemplates, templateFramesInReadingOrder } from './templateMatching'
 
@@ -273,7 +273,7 @@ export function buildSpreadsFromGroups(
     uses.set(template.id, (uses.get(template.id) ?? 0) + 1)
     lastTemplateId = template.id
     const placements: PlacedPhoto[] = template.placeholders.map((ph, i) =>
-      defaultPlacement(ph.id, assigned[i]?.id ?? null, border)
+      frameAppearance(ph, defaultPlacement(ph.id, assigned[i]?.id ?? null, border))
     )
     const readingOrder = templateFramesInReadingOrder(template)
     placements.sort((a, b) => readingOrder.findIndex(frame => frame.id === a.placeholderId) - readingOrder.findIndex(frame => frame.id === b.placeholderId))
@@ -319,6 +319,14 @@ export function autoBuildSpreads(
   return buildSpreadsFromGroups(groups, appearance, enabledTemplateIds, layout, options.matchTimelineOrder)
 }
 
+/** Rounded corners measured from an imported design's artwork belong to the frame, so every
+ *  placement dropped into that frame inherits them. Frames without a radius leave the placement's
+ *  own frame style alone. */
+function frameAppearance(frame: PlaceholderRect, placement: PlacedPhoto): PlacedPhoto {
+  if (!frame.cornerRadiusPx) return placement
+  return { ...placement, frameStyle: 'rounded', cornerRadiusPx: frame.cornerRadiusPx }
+}
+
 /** Rebuilds a single spread's placements against a different template, keeping as many existing photos as possible. */
 export function retemplateSpread(spread: Spread, templateId: string, photos?: PhotoAsset[], aspect = 1, keepOrder = true): Spread {
   const template = findTemplate(templateId)
@@ -334,8 +342,8 @@ export function retemplateSpread(spread: Spread, templateId: string, photos?: Ph
       ordered = templateFramesInReadingOrder(template).map(frame => assigned[template.placeholders.indexOf(frame)])
     }
   }
-  const placements = templateFramesInReadingOrder(template).map((ph, i) => ordered[i] ? { ...ordered[i], placeholderId: ph.id } : defaultPlacement(ph.id, null))
-  return { ...spread, templateId: template.id, customBoxes: template.absoluteFrames?template.placeholders:undefined, placements, textBoxes: template.textBoxes ? [...spread.textBoxes.filter(t=>t.locked||t.hidden),...template.textBoxes.map(t=>({...t,id:uuid()}))] : spread.textBoxes }
+  const placements = templateFramesInReadingOrder(template).map((ph, i) => frameAppearance(ph, ordered[i] ? { ...ordered[i], placeholderId: ph.id } : defaultPlacement(ph.id, null)))
+  return { ...spread, templateId: template.id, backgroundColor: template.backgroundColor ?? spread.backgroundColor, customBoxes: template.absoluteFrames?template.placeholders:undefined, placements, textBoxes: template.textBoxes ? [...spread.textBoxes.filter(t=>t.locked||t.hidden),...template.textBoxes.map(t=>({...t,id:uuid()}))] : spread.textBoxes }
 }
 
 export function buildSpreadFromPlacements(source: PlacedPhoto[], pageSide: Spread['pageSide'], like: Spread): Spread {

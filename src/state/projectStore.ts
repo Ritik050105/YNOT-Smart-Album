@@ -24,7 +24,7 @@ import {
   defaultPlacement,
   buildSpreadFromPlacements,
 } from '@/engine/autoLayout'
-import { BUILT_IN_TEMPLATES, uniqueTemplates, findTemplate, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
+import { BUILT_IN_TEMPLATES, uniqueTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
 import { previewSource } from '@/engine/previewImage'
 import { warmPhotos } from '@/engine/imageUrl'
@@ -481,7 +481,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const selected = pagePlacements(spread, size.widthIn / size.heightIn, scope)
     const count = selected.filter(p => p.photoId).length || selected.length
     if(!count){set({templatePreview:null});return}
-    if (!templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, size.widthIn / size.heightIn / (scope === 'spread' ? 1 : 2)).some(t => t.id === templateId)) return
+    const previewAspect = size.widthIn / size.heightIn / (scope === 'spread' ? 1 : 2)
+    // Imported designs are browsable at any photo count, so they are preview-able at any count too.
+    if (![...templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...importedDesignTemplates(count, project.enabledTemplateIds, templateFrameFilter, previewAspect)].some(t => t.id === templateId)) return
     set({ templatePreview: applyPageTemplate(spread, templateId, project.photos, size.widthIn / size.heightIn, keepOrder, scope) })
   },
   toggleTemplateFavorite: (templateId) => {

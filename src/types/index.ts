@@ -35,6 +35,10 @@ export interface PlaceholderRect {
   height: number
   /** Preferred photo orientation for this slot, used by auto-layout matching. */
   preferredOrientation: 'landscape' | 'portrait' | 'any'
+  /** Rounded frame corners carried over from an imported design (measured from a PSD layer's own
+   *  transparent corners), in the 900px-wide design space. Applied to the placement when the
+   *  template is used, so the photo is drawn with the same corners the artwork had. */
+  cornerRadiusPx?: number
 }
 
 export interface TemplateDefinition {
@@ -42,6 +46,9 @@ export interface TemplateDefinition {
   category?: string
   subcategory?: string
   absoluteFrames?: boolean
+  /** Page colour the design was drawn on — read from an imported PSD's background layer so the
+   *  spread adopts it instead of staying white behind the artwork. */
+  backgroundColor?: string
   textBoxes?: TextBox[]
   id: string
   name: string

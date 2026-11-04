@@ -10,7 +10,7 @@ import { usePreferences } from '@/state/preferences'
 import { pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { templatesForCount } from '@/engine/templates'
+import { importedDesignTemplates, templatesForCount } from '@/engine/templates'
 import { rankTemplates, templateFramesInReadingOrder } from '@/engine/templateMatching'
 import { isEditableTarget } from '@/engine/keyboard'
 import TemplateThumb from './TemplatePreview'
@@ -56,7 +56,7 @@ export default function MatchingTemplatesPanel() {
   const rows = useMemo(() => {
     if (!open || !spread || !count) return [[], []]
     const photos = placements.flatMap(p => { const photo = project.photos.find(photo => photo.id === p.photoId); return photo ? [photo] : [] })
-    const candidates = templatesForCount(count, project.enabledTemplateIds, filter, aspect)
+    const candidates = [...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)]
       .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (templateCategory(t)!=='reference'||supportsUniformGap(t.placeholders,aspect,spread.marginPx*(target==='spread'?1:2),spread.gapPx*(target==='spread'?1:2))) && (kind!=='mixed'||templateCategory(t)!=='reference') && (categories[templateCategory(t)]||(kind==='mixed'&&templateCategory(t)==='generated')) && matchesCollection(t.id,collection,collections,favorites) && (!favoritesOnly || favorites.includes(t.id)))
     return (count > 1 ? [false, true] : [true]).map(keepOrder => rankTemplates(photos, candidates, aspect, !autoRearrange || keepOrder, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2))
       .sort((a, b) => (['reference','creative','generated'].indexOf(templateCategory(a.template))-['reference','creative','generated'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))))

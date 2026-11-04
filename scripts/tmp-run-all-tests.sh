@@ -1,6 +1,6 @@
 #!/bin/bash
-cd "E:/Smart album application/.claude/worktrees/project-analysis-ce4b4c" || exit 1
-skip="test-activation.cjs test-admin-platform.cjs test-bin-template-update.cjs test-blending-effects.cjs test-canva-download-sync.cjs test-client-license.cjs test-cover-setup.cjs test-designer-first-drag.cjs test-designer-refinements.cjs test-full-spread-templates.mjs"
+cd "E:/Smart album application/.claude/worktrees/session-627417" || exit 1
+skip="test-activation.cjs test-admin-platform.cjs test-bin-template-update.cjs test-blending-effects.cjs test-canva-download-sync.cjs test-client-license.cjs test-cover-setup.cjs test-designer-first-drag.cjs test-designer-refinements.cjs "
 pass=0
 fail=0
 failed_list=""
@@ -10,7 +10,7 @@ for f in scripts/test-*.cjs scripts/test-*.mjs; do
   for s in $skip; do [ "$base" = "$s" ] && skipit=1; done
   [ $skipit -eq 1 ] && continue
   if grep -qE "from 'electron'|require\('electron'\)|require\(\"electron\"\)" "$f" || [[ "$f" == *.cjs ]]; then
-    runner="npx electron"
+    runner="./node_modules/electron/dist/electron.exe"
     tmo=60
   else
     runner="node"
