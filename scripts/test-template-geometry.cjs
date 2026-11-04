@@ -43,7 +43,7 @@ window.thumbCells=async template=>{
  createRoot(host).render(<TemplateThumb template={template} aspect={2} marginPx={40} gapPx={30}/>)
  await new Promise(r=>setTimeout(r,120))
  const box=host.querySelector('.template-thumb').getBoundingClientRect()
- const cells=[...host.querySelectorAll('.gallery-cell')].map(c=>{const r=c.getBoundingClientRect();return {x:(r.left-box.left)/box.width,width:r.width/box.width,radius:getComputedStyle(c).borderRadius}})
+ const cells=[...host.querySelectorAll('.gallery-cell')].map(c=>{const r=c.getBoundingClientRect();return {x:(r.left-box.left)/box.width,width:r.width/box.width,radius:parseFloat(getComputedStyle(c).borderRadius),thumbWidth:box.width}})
  host.remove();return cells
 };
 window.press=label=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===label);if(!b)throw new Error('No button '+label+' in: '+[...document.querySelectorAll('button')].map(b=>b.textContent.trim()).join(' | '));b.click()};
@@ -100,7 +100,11 @@ app.disableHardwareAcceleration();app.whenReady().then(async()=>{
  const [absolute]=await js(`thumbCells(${JSON.stringify(design)})`);
  assert.ok(Math.abs(absolute.x-.25)<.005,`an imported design keeps its frame at x=0.25 (got ${absolute.x})`);
  assert.ok(Math.abs(absolute.width-.5)<.005,`an imported design keeps its frame width (got ${absolute.width})`);
- assert.ok(parseFloat(absolute.radius)>0,`a rounded imported frame previews rounded (got ${absolute.radius})`);
+ // The radius is authored in the 900px design space and drawn in cqw, so it must come out as that
+ // same fraction of the thumbnail — if .template-thumb stops being the query container it resolves
+ // against the viewport instead and balloons.
+ assert.ok(Math.abs(absolute.radius - absolute.thumbWidth * 90 / 900) < 1,
+  `a 90px design-space radius previews as 10% of the ${absolute.thumbWidth}px thumbnail (got ${absolute.radius}px)`);
  const [relative]=await js(`thumbCells(${JSON.stringify({...design,absoluteFrames:false,placeholders:[{...design.placeholders[0],cornerRadiusPx:undefined}]})})`);
  assert.ok(Math.abs(relative.x-.25)>.005,`an ordinary template is re-flowed to the album gap (got ${relative.x})`);
 

@@ -1985,6 +1985,10 @@ input[type='checkbox'] {
   overflow: hidden;
   border-radius: 3px;
   background: var(--panel-raised);
+  /* Frame border widths and imported corner radii are authored against the 900px-wide design space
+     and expressed in cqw, so the thumbnail itself has to be the query container — without this they
+     resolve against the viewport and come out wildly oversized in every preview but the wizard's. */
+  container-type: inline-size;
 }
 .template-thumb .gallery-cell {
   background-color: var(--panel-raised);
