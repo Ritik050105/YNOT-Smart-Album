@@ -323,6 +323,7 @@ interface ProjectState {
   applyTemplateToSpread: (spreadId: string, templateId: string, keepOrder?: boolean, scope?: TemplateScope) => void
   cycleSpreadTemplate: (spreadId: string, direction: -1 | 1) => void
   cycleSpreadMixedTemplate: (spreadId: string, direction: -1 | 1) => void
+  cycleSpreadPhotos: (spreadId: string, direction: -1 | 1) => void
   applyTemplateToAllSpreads: (templateId: string) => void
   updateSpread: (spreadId: string, patch: Partial<Spread>) => void
   applyBackgroundToAllSpreads: (spreadId: string, pattern?: Spread['backgroundPattern']) => void
@@ -1003,6 +1004,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const next = current < 0 ? (direction > 0 ? 0 : candidates.length - 1) : (current + direction + candidates.length) % candidates.length
     get().applyTemplateToSpread(spreadId, candidates[next].id)
     if (get().selectedSpreadId === spreadId) set({ selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [] })
+  },
+
+  /** What the cycle arrows do once the layout is locked: the frames stay exactly where they are and
+   *  the photos rotate between them, which is what "photos can still be swapped" on the lock button
+   *  promises. Rotating (rather than shuffling at random) keeps the two arrows inverses of each
+   *  other, so a designer can step back to the arrangement they just left. */
+  cycleSpreadPhotos: (spreadId, direction) => {
+    withHistory(set, (p) => {
+      const spread = p.spreads.find((s) => s.id === spreadId)
+      if (!spread) return p
+      const movable = spread.placements.filter((pl) => !pl.locked && !pl.hidden)
+      if (movable.length < 2) return p
+      const photoIds = movable.map((pl) => pl.photoId)
+      // An empty frame is part of the rotation, so a half-filled layout still cycles.
+      const rotated = photoIds.map((_, i) => photoIds[(i + direction + photoIds.length) % photoIds.length])
+      let next = 0
+      const placements = spread.placements.map((pl) => pl.locked || pl.hidden ? pl : { ...pl, photoId: rotated[next++] })
+      return { ...p, spreads: p.spreads.map((s) => s.id === spreadId ? { ...s, placements } : s) }
+    })
   },
 
   applyTemplateToAllSpreads: (templateId) =>

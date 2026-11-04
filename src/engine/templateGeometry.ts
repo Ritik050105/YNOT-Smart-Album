@@ -5,11 +5,36 @@ import { PlaceholderRect } from '@/types'
  *  meets it r - r/√2 from the corner, so the inset scales straight back up to the radius. Returns 0
  *  unless all four corners agree and the edge midpoints are solid — anything else is a cut-out or
  *  an irregular shape, not a rounded frame. */
-export function detectCornerRadius(canvas: HTMLCanvasElement): number {
-  const w = canvas.width, h = canvas.height, limit = Math.floor(Math.min(w, h) / 2)
-  if (limit < 4) return 0
+export interface Bounds { x: number; y: number; width: number; height: number }
+
+/** The box that actually has pixels in it. A Photoshop layer's canvas is often far larger than its
+ *  artwork — a masked or clipped layer keeps the whole source image, and a shape layer carries the
+ *  padding its effects need — so the raw layer bounds describe a frame much bigger than the design
+ *  shows. Returns null when the layer is empty. */
+export function opaqueBounds(canvas: HTMLCanvasElement): Bounds | null {
+  const w = canvas.width, h = canvas.height
+  if (!w || !h) return null
   const data = canvas.getContext('2d', { willReadFrequently: true })?.getImageData(0, 0, w, h).data
-  if (!data) return 0
+  if (!data) return null
+  let left = w, right = -1, top = h, bottom = -1
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (data[(y * w + x) * 4 + 3] <= 16) continue
+    if (x < left) left = x
+    if (x > right) right = x
+    if (y < top) top = y
+    if (y > bottom) bottom = y
+  }
+  if (right < 0) return null
+  return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 }
+}
+
+export function detectCornerRadius(canvas: HTMLCanvasElement, bounds?: Bounds | null): number {
+  const box = bounds ?? { x: 0, y: 0, width: canvas.width, height: canvas.height }
+  const w = box.width, h = box.height, limit = Math.floor(Math.min(w, h) / 2)
+  if (limit < 4) return 0
+  const image = canvas.getContext('2d', { willReadFrequently: true })?.getImageData(box.x, box.y, w, h)
+  if (!image) return 0
+  const data = image.data
   const opaque = (x: number, y: number) => data[(y * w + x) * 4 + 3] > 128
   if (!opaque(Math.floor(w / 2), 0) || !opaque(0, Math.floor(h / 2))) return 0
   const insets = ([[1, 1], [-1, 1], [1, -1], [-1, -1]] as const).map(([sx, sy]) => {

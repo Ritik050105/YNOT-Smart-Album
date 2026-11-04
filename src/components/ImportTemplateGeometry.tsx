@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client'
 import {readPsd,Layer} from 'ag-psd'
 import {TemplateDefinition,PlaceholderRect,TextBox} from '@/types'
 import {imageFileSource,isImageFile} from '@/engine/imageSource'
-import {detectCornerRadius,detectTemplateFrames} from '@/engine/templateGeometry'
+import {detectCornerRadius,detectTemplateFrames,opaqueBounds} from '@/engine/templateGeometry'
 import Modal from './Modal'
 import Icon from './Icon'
 
@@ -53,8 +53,11 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
   if(l.hidden)continue
   if(l.children){visit(l.children);continue}
   if(!l.canvas)continue
-  const x=Math.max(0,l.left??0),y=Math.max(0,l.top??0)
-  const w=Math.min(psd.width!,l.right??0)-x,h=Math.min(psd.height!,l.bottom??0)-y
+  // A clipped layer is painted through the layer beneath it — a texture or colour wash, never a
+  // frame of its own.
+  if(l.clipping)continue
+  let x=Math.max(0,l.left??0),y=Math.max(0,l.top??0)
+  let w=Math.min(psd.width!,l.right??0)-x,h=Math.min(psd.height!,l.bottom??0)-y
   if(w<=0||h<=0)continue
   if(l.text){
    const t=l.text,style=t.style,text=t.text??''
@@ -70,12 +73,21 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
     sourceArtwork:{src:l.canvas.toDataURL('image/png'),fontRatio:fontSize/(w/psd.width!*900),text,fontFamily,color,bold,italic}})
    continue
   }
+  // Trim to the pixels the layer actually paints: a masked or oversized layer canvas otherwise
+  // describes a frame far larger than the artwork shows, which is what made whole-page phantom
+  // frames appear over real ones.
+  const ink=opaqueBounds(l.canvas)
+  if(!ink)continue
+  const clip=(v:number,max:number)=>Math.max(0,Math.min(max,v))
+  const right=clip(x+ink.x+ink.width,psd.width!),bottom=clip(y+ink.y+ink.height,psd.height!)
+  x=clip(x+ink.x,psd.width!);y=clip(y+ink.y,psd.height!);w=right-x;h=bottom-y
+  if(w<=0||h<=0)continue
   // A page-sized plate, or one named like one, is the paper the design sits on, not a photo slot.
-  if(w*h>=area*0.95||/\bbackground\b|\bbackdrop\b|^bg$/i.test(l.name??'')){backgrounds.push(l.canvas);continue}
+  if(w*h>=area*0.9||/\bbackground\b|\bbackdrop\b|^bg$/i.test(l.name??'')){backgrounds.push(l.canvas);continue}
   // Stray 1px strokes and specks are decoration, not frames.
   if(w*h<area*0.001)continue
   frames.push({id:crypto.randomUUID(),x:x/psd.width!,y:y/psd.height!,width:w/psd.width!,height:h/psd.height!,
-   preferredOrientation:'any',cornerRadiusPx:Math.round(detectCornerRadius(l.canvas)/psd.width!*900)||undefined})
+   preferredOrientation:'any',cornerRadiusPx:Math.round(detectCornerRadius(l.canvas,ink)/psd.width!*900)||undefined})
  }}
  visit(psd.children??[])
  // A full-page plate is a real full-bleed photo slot when the design has nothing else in it.
@@ -144,6 +156,9 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
       <span className="frame-review__badge">{i+1}</span>
      </button>)}
     </div>
+    {/* Which shelf of the library this lands on: the browser only ever offers a template to a
+        spread holding this many photos, so it is the one number worth stating up front. */}
+    <p className="frame-review__filed" role="status">Filed as a <strong>{boxes.length} photo {texts.length?'mixed':'image'} template</strong>{texts.length?` with ${texts.length} text layer${texts.length===1?'':'s'}`:''} — offered on spreads of {boxes.length} photo{boxes.length===1?'':'s'}.</p>
     <p className="frame-review__hint">Click a frame to correct its position or size. A flattened image cannot reveal overlapping or hidden elements.</p>
    </div>
    <aside className="frame-review__side">

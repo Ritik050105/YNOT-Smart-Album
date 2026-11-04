@@ -612,35 +612,43 @@ const fullRightTriple: TemplateDefinition = {
  *  hand-written layout are skipped so `uniqueTemplates` has nothing to drop. New ids are appended
  *  after every existing `rect()` call so saved albums keep their placeholder ids. */
 const FULL_SPREAD_TEMPLATES: TemplateDefinition[] = []
-const HALF = 0.5 - GAP / 2
+/** The full-bleed page runs edge to edge — right up to the gutter, with no gutter inset — while the
+ *  facing page's photos sit inside a quiet margin. That contrast is the whole look, and it also
+ *  keeps this family's geometry distinct from the ordinary two-page layouts it would otherwise
+ *  duplicate at low photo counts. */
+const PAGE_INSET = 0.04
 for (const side of ['left', 'right'] as const) {
   const label = side === 'left' ? 'Left' : 'Right'
-  const fullX = side === 'left' ? 0 : 0.5 + GAP / 2
-  const pageX = side === 'left' ? 0.5 + GAP / 2 : 0
-  /** `count` photos stacked down the facing page, filling `height` from `top`. */
+  const fullX = side === 'left' ? 0 : 0.5
+  const pageX = (side === 'left' ? 0.5 : 0) + PAGE_INSET
+  const pageW = 0.5 - PAGE_INSET * 2
+  /** `count` photos filling `height` from `top` on the facing page — a simple stack while they
+   *  still read at that size, a balanced grid once a stack would be a row of slivers. */
   const stack = (count: number, top: number, height: number) => {
+    if (count > 4) return placeGridInRect(0, count, pageX, top, pageW, height).map(p => ({ ...p, id: `hc${nextHandCraftedId++}` }))
     const cellH = (height - GAP * (count - 1)) / count
-    return Array.from({ length: count }, (_, i) => rect(pageX, top + i * (cellH + GAP), HALF, cellH))
+    return Array.from({ length: count }, (_, i) => rect(pageX, top + i * (cellH + GAP), pageW, cellH))
   }
   const add = (t: Omit<TemplateDefinition, 'isBuiltIn' | 'createdAt' | 'pageSide'>) =>
     FULL_SPREAD_TEMPLATES.push({ ...t, pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString() })
-  for (let count = 1; count <= 4; count++) {
-    // Image-only: facing page is nothing but the stack. 3 is `ref`-classified above already.
-    if (count !== 3) add({
+  // Up to 29 on the facing page, so every album photo count from 2 to 30 has a full-spread option.
+  for (let count = 1; count <= 29; count++) {
+    // Image-only: the facing page is nothing but the photos.
+    add({
       id: `gen-full-${side}-${count}`, name: `Full ${label} + ${count}`, photoCount: count + 1,
-      placeholders: [rect(fullX, 0, HALF, 1), ...stack(count, 0, 1)], thumbnailColor: '#4f8a6b',
+      placeholders: [rect(fullX, 0, 0.5, 1), ...stack(count, PAGE_INSET, 1 - PAGE_INSET * 2)], thumbnailColor: '#4f8a6b',
     })
-    // Caption under the stack on the facing page.
-    if (count !== 1) add({
+    // Caption under the photos on the facing page.
+    add({
       id: `gen-mixed-full-${side}-caption-${count}`, name: `Full ${label} + ${count} + Caption`, photoCount: count + 1,
-      placeholders: [rect(fullX, 0, HALF, 1), ...stack(count, 0, 0.78)],
-      textBoxes: [caption(pageX, 0.8, HALF, 0.18)], thumbnailColor: '#6b4f8a',
+      placeholders: [rect(fullX, 0, 0.5, 1), ...stack(count, PAGE_INSET, 0.74 - PAGE_INSET)],
+      textBoxes: [caption(pageX, 0.78, pageW, 0.18)], thumbnailColor: '#6b4f8a',
     })
-    // Caption overlaid on the full-bleed page, white so it reads against a photo.
-    if (count !== 2) add({
+    // Caption overlaid on the full-bleed page itself, white so it reads against a photo.
+    add({
       id: `gen-mixed-full-${side}-overlay-${count}`, name: `Full ${label} Overlay + ${count}`, photoCount: count + 1,
-      placeholders: [rect(fullX, 0, HALF, 1), ...stack(count, 0, 1)],
-      textBoxes: [caption(fullX + 0.04, 0.78, HALF - 0.08, 0.14, '#ffffff')], thumbnailColor: '#4f5a8a',
+      placeholders: [rect(fullX, 0, 0.5, 1), ...stack(count, PAGE_INSET, 1 - PAGE_INSET * 2)],
+      textBoxes: [caption(fullX + PAGE_INSET, 0.78, 0.5 - PAGE_INSET * 2, 0.14, '#ffffff')], thumbnailColor: '#4f5a8a',
     })
   }
 }
@@ -648,7 +656,7 @@ for (const side of ['left', 'right'] as const) {
 /** Mixed layouts that are not full-spread: a photo grid with a caption band across the top or the
  *  bottom of the whole spread. Gives the mixed browser a built-in option at every common count. */
 for (const edge of ['top', 'bottom'] as const) {
-  for (let count = 1; count <= 6; count++) {
+  for (let count = 1; count <= 30; count++) {
     const bandH = 0.18, photosY = edge === 'top' ? bandH + GAP : 0
     FULL_SPREAD_TEMPLATES.push({
       id: `gen-mixed-band-${edge}-${count}`,
@@ -751,6 +759,13 @@ export function templateSwatchStyle(t: Pick<TemplateDefinition, 'thumbnailColor'
   if (t.thumbnailImage) return { backgroundImage: `url(${t.thumbnailImage})` }
   if (t.thumbnailColor.includes('gradient')) return { backgroundImage: t.thumbnailColor }
   return { backgroundColor: t.thumbnailColor }
+}
+
+/** The full-bleed-page family — one page edge to edge, the facing page carrying the photos and,
+ *  in the mixed variants, the caption. Listed ahead of everything else in the template browser,
+ *  the way a recently used layout is, because it is the look designers reach for most. */
+export function isFullSpreadTemplate(t: TemplateDefinition): boolean {
+  return /^gen-(full|mixed-full)-/.test(t.id)
 }
 
 export type TemplateFrameFilter = 'all' | 'no-square' | 'only-3x2'

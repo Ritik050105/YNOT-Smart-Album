@@ -6,10 +6,10 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const result = await build({
-  stdin: { contents: `export {BUILT_IN_TEMPLATES,importedDesignTemplates,setUserTemplateRegistry} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {supportsUniformGap} from './src/engine/templateLayout';export {cyclingTemplates} from './src/state/templateBrowsing'`, resolveDir: process.cwd() },
+  stdin: { contents: `export {BUILT_IN_TEMPLATES,importedDesignTemplates,setUserTemplateRegistry,templatesForCount} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {isFullSpreadTemplate} from './src/engine/templates';export {cyclingTemplates} from './src/state/templateBrowsing'`, resolveDir: process.cwd() },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { BUILT_IN_TEMPLATES, importedDesignTemplates, setUserTemplateRegistry, templateCategory, supportsUniformGap, cyclingTemplates } =
+const { BUILT_IN_TEMPLATES, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, templateCategory, isFullSpreadTemplate, cyclingTemplates } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const byId = id => BUILT_IN_TEMPLATES.find(t => t.id === id)
@@ -21,9 +21,7 @@ const mixedIds = [
   'gen-mixed-full-left-caption-3', 'gen-mixed-full-right-overlay-3',
   'gen-mixed-band-top-2', 'gen-mixed-band-bottom-6',
 ]
-// The 1- and 2-photo full-bleed variants are dropped by the dedup pass: those layouts already exist
-// in the library under their original names, and the older entry deliberately wins.
-const imageIds = ['gen-full-left-triple', 'gen-full-right-triple', 'gen-full-left-4', 'gen-full-right-4']
+const imageIds = ['gen-full-left-triple', 'gen-full-right-triple', 'gen-full-left-2', 'gen-full-right-4']
 for (const id of [...mixedIds, ...imageIds]) {
   const t = byId(id)
   assert.ok(t, `${id} survives dedup`)
@@ -33,11 +31,25 @@ for (const id of [...mixedIds, ...imageIds]) {
   for (const b of t.textBoxes ?? []) assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.width <= 1.0001 && b.y + b.height <= 1.0001, `${id} keeps its caption inside the spread`)
 }
 for (const id of mixedIds) assert.equal(templateCategory(byId(id)), 'generated', `${id} classifies as generated`)
-// "Smart design" is the reference category, and it additionally requires that the album's own gap
-// can be applied uniformly across the layout — otherwise the browser filters the template back out.
+// "Smart design" is the reference category. It normally also requires that the album's own gap can
+// be applied uniformly across the layout, which a full-bleed page can never satisfy — one page runs
+// to the edge by design — so the browsers exempt this family by id instead of dropping it.
 for (const id of imageIds) {
   assert.equal(templateCategory(byId(id)), 'reference', `${id} classifies as reference (Smart design)`)
-  assert.ok(supportsUniformGap(byId(id).placeholders, 2, 10, 6), `${id} survives the Smart design uniform-gap check`)
+  assert.ok(isFullSpreadTemplate(byId(id)), `${id} is exempt from the uniform-gap check`)
+}
+
+// Every album photo count has somewhere to go: 30+ image layouts, a mixed layout, and a full-bleed
+// variant of each. This is the promise the template browser makes at any spread size.
+for (let n = 1; n <= 30; n++) {
+  const all = templatesForCount(n, null, 'all', 2)
+  const image = all.filter(t => !t.textBoxes?.length), mixed = all.filter(t => t.textBoxes?.length)
+  assert.ok(image.length >= 30, `count ${n} offers 30+ image templates (got ${image.length})`)
+  assert.ok(mixed.length >= 1, `count ${n} offers a mixed template (got ${mixed.length})`)
+  if (n === 1) continue
+  const full = BUILT_IN_TEMPLATES.filter(t => t.photoCount === n && isFullSpreadTemplate(t))
+  assert.ok(full.some(t => !t.textBoxes?.length), `count ${n} offers a full-bleed image template`)
+  assert.ok(full.some(t => t.textBoxes?.length), `count ${n} offers a full-bleed mixed template`)
 }
 
 // A spread with 2 photos and no prior "Random generation" toggle still cycles through the new

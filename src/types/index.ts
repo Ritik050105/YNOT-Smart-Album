@@ -139,6 +139,9 @@ export interface TextBox {
   effects?:Partial<Record<TextEffectName,TextEffect>>
 
   rotationDeg?: number
+  /** Set on the copies a mixed template brings with it, so applying or cycling to another
+   *  template replaces only its own captions and leaves text the designer wrote alone. */
+  fromTemplate?: boolean
   /** New text fits its content until a manual width is chosen. */
   autoWidth?: boolean
   groupId?: string

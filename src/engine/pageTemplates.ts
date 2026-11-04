@@ -49,7 +49,8 @@ export function applyPageTemplate(spread: Spread, templateId: string, photos: Ph
   let cursor=0
   const placements=spread.placements.flatMap(p=>!selectedIds.has(p.placeholderId)?[p]:cursor<replacements.length?[replacements[cursor++]]:[])
   placements.push(...replacements.slice(cursor))
-  const textBoxes=findTemplate(templateId)?.textBoxes ? [...spread.textBoxes.filter(t=>t.locked||t.hidden||(scope!=='spread'&&(scope==='left'?t.x>=.5:t.x+t.width<=.5))),...page.textBoxes.filter(t=>!t.locked&&!t.hidden).map(t=>({...t,x:(scope==='right'?.5:0)+t.x/factor,width:t.width/factor,fontSize:t.fontSize/factor}))] : spread.textBoxes
+  // Only the previous template's own captions are replaced; text the designer wrote stays put.
+  const textBoxes=findTemplate(templateId)?.textBoxes ? [...spread.textBoxes.filter(t=>!t.fromTemplate||(scope!=='spread'&&(scope==='left'?t.x>=.5:t.x+t.width<=.5))),...page.textBoxes.filter(t=>t.fromTemplate).map(t=>({...t,x:(scope==='right'?.5:0)+t.x/factor,width:t.width/factor,fontSize:t.fontSize/factor}))] : spread.textBoxes
   return {...spread,textBoxes,templateId:scope==='spread'?templateId:spread.templateId,flipped:false,customBoxes:[...preserved,...replacement],placements}
 
 }

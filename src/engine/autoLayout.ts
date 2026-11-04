@@ -343,7 +343,7 @@ export function retemplateSpread(spread: Spread, templateId: string, photos?: Ph
     }
   }
   const placements = templateFramesInReadingOrder(template).map((ph, i) => frameAppearance(ph, ordered[i] ? { ...ordered[i], placeholderId: ph.id } : defaultPlacement(ph.id, null)))
-  return { ...spread, templateId: template.id, backgroundColor: template.backgroundColor ?? spread.backgroundColor, customBoxes: template.absoluteFrames?template.placeholders:undefined, placements, textBoxes: template.textBoxes ? [...spread.textBoxes.filter(t=>t.locked||t.hidden),...template.textBoxes.map(t=>({...t,id:uuid()}))] : spread.textBoxes }
+  return { ...spread, templateId: template.id, backgroundColor: template.backgroundColor ?? spread.backgroundColor, customBoxes: template.absoluteFrames?template.placeholders:undefined, placements, textBoxes: template.textBoxes ? [...spread.textBoxes.filter(t=>!t.fromTemplate),...template.textBoxes.map(t=>({...t,id:uuid(),fromTemplate:true}))] : spread.textBoxes }
 }
 
 export function buildSpreadFromPlacements(source: PlacedPhoto[], pageSide: Spread['pageSide'], like: Spread): Spread {
