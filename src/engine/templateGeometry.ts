@@ -28,6 +28,33 @@ export function opaqueBounds(canvas: HTMLCanvasElement): Bounds | null {
   return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 }
 }
 
+/** Corner radii read from a Photoshop vector mask. A shape layer's pixels are a plain rectangle —
+ *  the rounding lives only in the path — so the alpha probe below can never see it. Photoshop puts
+ *  an anchor on each corner it leaves square, and two anchors `r` along the edges of each corner it
+ *  rounds, which is exactly what this measures. Returns null for anything that is not a rectangle,
+ *  since a star or a blob has no corner radius to speak of. Radii are [topLeft, topRight,
+ *  bottomRight, bottomLeft], in the document's own pixels. */
+export function vectorMaskGeometry(knots: { points: number[] }[]): (Bounds & { radii: [number, number, number, number] }) | null {
+  const anchors = knots.map(k => ({ x: k.points[2], y: k.points[3] })).filter(a => Number.isFinite(a.x) && Number.isFinite(a.y))
+  if (anchors.length < 4) return null
+  const xs = anchors.map(a => a.x), ys = anchors.map(a => a.y)
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
+  const width = maxX - minX, height = maxY - minY
+  if (width < 2 || height < 2) return null
+  const tol = Math.max(1.5, Math.min(width, height) * 0.002)
+  const onEdge = (a: { x: number; y: number }) =>
+    Math.abs(a.x - minX) <= tol || Math.abs(a.x - maxX) <= tol || Math.abs(a.y - minY) <= tol || Math.abs(a.y - maxY) <= tol
+  if (!anchors.every(onEdge)) return null
+  const radii = ([[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]] as const).map(([cx, cy]) => {
+    if (anchors.some(a => Math.abs(a.x - cx) <= tol && Math.abs(a.y - cy) <= tol)) return 0
+    const along = Math.min(...anchors.filter(a => Math.abs(a.y - cy) <= tol).map(a => Math.abs(a.x - cx)))
+    const down = Math.min(...anchors.filter(a => Math.abs(a.x - cx) <= tol).map(a => Math.abs(a.y - cy)))
+    const r = Math.min(along, down)
+    return Number.isFinite(r) && r > 1 ? r : 0
+  }) as [number, number, number, number]
+  return { x: minX, y: minY, width, height, radii }
+}
+
 export function detectCornerRadius(canvas: HTMLCanvasElement, bounds?: Bounds | null): number {
   const box = bounds ?? { x: 0, y: 0, width: canvas.width, height: canvas.height }
   const w = box.width, h = box.height, limit = Math.floor(Math.min(w, h) / 2)

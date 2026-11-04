@@ -36,7 +36,7 @@ export function PreviewCell({
         backgroundSize: crop && photo ? `${photo.width / crop.cropWidth * 100}% ${photo.height / crop.cropHeight * 100}%` : undefined,
         backgroundPosition: crop && photo ? `${photo.width > crop.cropWidth ? crop.cropX / (photo.width - crop.cropWidth) * 100 : 50}% ${photo.height > crop.cropHeight ? crop.cropY / (photo.height - crop.cropHeight) * 100 : 50}%` : undefined,
         transform: placement ? `scale(${placement.flipHorizontal ? -1 : 1}, ${placement.flipVertical ? -1 : 1})` : undefined,
-        borderRadius: ph.cornerRadiusPx ? `${ph.cornerRadiusPx / 900 * 100}cqw` : undefined,
+        borderRadius: ph.cornerRadiiPx ? ph.cornerRadiiPx.map(r => `${r / 900 * 100}cqw`).join(' ') : ph.cornerRadiusPx ? `${ph.cornerRadiusPx / 900 * 100}cqw` : undefined,
       }}
     />
   )

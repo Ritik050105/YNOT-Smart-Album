@@ -58,7 +58,7 @@ export default function ImageDesign({ placement, photo, width, height, update }:
       {slider('Opacity', 'opacity', 0, 100, 1, '%', 100)}
       {slider('Border', 'borderWidth', 0, 60, 0, 'px')}
       <label>Border color<ColorField value={placement.borderColor} onChange={borderColor => update({borderColor})}/></label>
-      <div className="image-adjustment"><SliderField label="Radius" value={placement.frameStyle === 'rounded' ? placement.cornerRadiusPx : 0} min={0} max={200} suffix="px" onChange={cornerRadiusPx => update({cornerRadiusPx, frameStyle:'rounded'})}/><button className="adjustment-reset" aria-label="Reset Radius" onClick={() => update({cornerRadiusPx:0, frameStyle:placement.frameStyle === 'rounded' ? 'none' : placement.frameStyle})}>×</button></div>
+      <div className="image-adjustment"><SliderField label="Radius" value={placement.frameStyle === 'rounded' ? placement.cornerRadiusPx : 0} min={0} max={200} suffix="px" onChange={cornerRadiusPx => update({cornerRadiiPx:undefined,cornerRadiusPx, frameStyle:'rounded'})}/><button className="adjustment-reset" aria-label="Reset Radius" onClick={() => update({cornerRadiusPx:0, frameStyle:placement.frameStyle === 'rounded' ? 'none' : placement.frameStyle})}>×</button></div>
       <label>Frame<select value={placement.frameStyle} onChange={e => update({frameStyle:e.target.value as PlacedPhoto['frameStyle']})}><option value="none">None</option><option value="rounded">Rounded</option><option value="polaroid">Polaroid</option><option value="shadow">Drop Shadow</option></select></label>
     </details>
     {photo && <details className="inspector-group" open><summary>Tone Adjustments</summary>

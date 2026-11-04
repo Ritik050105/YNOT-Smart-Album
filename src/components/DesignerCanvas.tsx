@@ -64,6 +64,7 @@ function PlaceholderImage({
   imageRotationDeg,
   relightIntensity,
   cornerRadiusPx,
+  cornerRadiiPx,
   flipHorizontal,
   flipVertical,
   brightness,
@@ -93,6 +94,7 @@ function PlaceholderImage({
   imageRotationDeg?: number
   relightIntensity: number
   cornerRadiusPx: number
+  cornerRadiiPx?: [number, number, number, number]
   flipHorizontal: boolean
   flipVertical: boolean
   brightness: number
@@ -153,7 +155,9 @@ function PlaceholderImage({
       )}
       {frameStyle==='shadow' && <Rect x={localPhotoX} y={localPhotoY} width={photoW} height={photoH} fill="white" shadowColor="black" shadowOpacity={.45} shadowBlur={Math.max(box.width,box.height)*.04} shadowOffsetY={Math.max(box.width,box.height)*.015} listening={false}/>}
       {img && crop && (
-        <Group clipFunc={ctx=>{const x=localPhotoX,y=localPhotoY,w=photoW,h=photoH,r=frameStyle==='rounded'?Math.min(cornerRadiusPx,w/2,h/2):0;ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}}><KonvaImage
+        <Group clipFunc={ctx=>{const x=localPhotoX,y=localPhotoY,w=photoW,h=photoH,cap=(v:number)=>frameStyle==='rounded'?Math.max(0,Math.min(v,w/2,h/2)):0
+          const [tl,tr,br,bl]=(cornerRadiiPx??[cornerRadiusPx,cornerRadiusPx,cornerRadiusPx,cornerRadiusPx]).map(cap)
+          ctx.beginPath();ctx.moveTo(x+tl,y);ctx.arcTo(x+w,y,x+w,y+h,tr);ctx.arcTo(x+w,y+h,x,y+h,br);ctx.arcTo(x,y+h,x,y,bl);ctx.arcTo(x,y,x+w,y,tl);ctx.closePath()}}><KonvaImage
           image={tonedImage}
           x={localPhotoX + photoW/2}
           y={localPhotoY + photoH/2}
@@ -165,7 +169,7 @@ function PlaceholderImage({
           scaleX={(flipHorizontal ? -1 : 1)*rotationCoverScale(photoW,photoH,imageRotationDeg??0)}
           scaleY={(flipVertical ? -1 : 1)*rotationCoverScale(photoW,photoH,imageRotationDeg??0)}
           opacity={opacity}
-          cornerRadius={frameStyle === 'rounded' ? cornerRadiusPx : 0}
+          cornerRadius={frameStyle === 'rounded' ? (cornerRadiiPx ?? cornerRadiusPx) : 0}
           shadowEnabled={false}
           shadowColor="black"
           shadowOpacity={0.45}
@@ -179,7 +183,7 @@ function PlaceholderImage({
       {img && crop && warmth !== 0 && (
         <Rect x={localPhotoX} y={localPhotoY} width={photoW} height={photoH}
           fill={warmth > 0 ? '#ffb347' : '#4aa3ff'} opacity={Math.min(Math.abs(warmth) / 100, 0.35)}
-          cornerRadius={frameStyle === 'rounded' ? cornerRadiusPx : 0}
+          cornerRadius={frameStyle === 'rounded' ? (cornerRadiiPx ?? cornerRadiusPx) : 0}
           globalCompositeOperation="overlay" listening={false} />
       )}
       {borderWidth > 0 && frameStyle !== 'polaroid' && <Rect x={localPhotoX + borderWidth / 2} y={localPhotoY + borderWidth / 2} width={Math.max(0, photoW - borderWidth)} height={Math.max(0, photoH - borderWidth)} stroke={borderColor} strokeWidth={borderWidth} cornerRadius={frameStyle === 'rounded' ? Math.max(0, cornerRadiusPx - borderWidth / 2) : 0} listening={false}/>}
@@ -202,7 +206,7 @@ function PlaceholderImage({
           height={photoH}
           listening={false}
           globalCompositeOperation="soft-light"
-          cornerRadius={frameStyle === 'rounded' ? cornerRadiusPx : 0}
+          cornerRadius={frameStyle === 'rounded' ? (cornerRadiiPx ?? cornerRadiusPx) : 0}
           fillRadialGradientStartPoint={{ x: photoW / 2, y: photoH / 2 }}
           fillRadialGradientEndPoint={{ x: photoW / 2, y: photoH / 2 }}
           fillRadialGradientStartRadius={0}
@@ -1210,6 +1214,7 @@ export default function DesignerCanvas() {
                 rotationDeg={liveFrame?.id===box.placeholderId?(liveFrame.rotationDeg??placement.rotationDeg):placement.rotationDeg} imageRotationDeg={placement.imageRotationDeg}
                 relightIntensity={placement.relightIntensity}
                 cornerRadiusPx={placement.cornerRadiusPx}
+                cornerRadiiPx={placement.cornerRadiiPx}
                 flipHorizontal={placement.flipHorizontal}
                 flipVertical={placement.flipVertical}
                 brightness={placement.brightness}
@@ -1255,7 +1260,10 @@ export default function DesignerCanvas() {
           </>}
           {group && group.members.some(l=>!l.value.hidden) && canvasTool==='select' && <>
             <Rect name="group-transform-box" onContextMenu={e => openTextContextMenu(e)} listening={!isShiftDown} ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke={accent} strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey&&selectedGroupId)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!);else if(selectedTextBoxId){const hit=groupTextAtPointer();if(hit&&hit.id!==selectedTextBoxId)selectTextBox(hit.id)}}} onDblClick={e=>{if(e.evt.shiftKey||!selectedTextBoxId)return;const hit=groupTextAtPointer();if(hit){selectTextBox(hit.id);setEditingTextId(hit.id)}}}/>
-            {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-right','bottom-left','bottom-right']} borderDash={[4,3]} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
+            {/* Edge handles as well as corners, matching the single-image transformer: dragging the
+                middle of a side stretches the selection in that direction alone, while a corner
+                still scales it proportionally. */}
+            {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-center','top-right','middle-left','middle-right','bottom-left','bottom-center','bottom-right']} borderDash={[4,3]} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
           </>}
           {draftFrame && (canvasTool==='line'&&drawStartRef.current&&drawEndRef.current?<Line points={[drawStartRef.current.x,drawStartRef.current.y,drawEndRef.current.x,drawEndRef.current.y]} stroke={accent} strokeWidth={2/stageScale} listening={false}/>:<Rect {...draftFrame} stroke={accent} strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />)}
 

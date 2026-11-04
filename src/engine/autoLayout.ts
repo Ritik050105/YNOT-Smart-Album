@@ -323,8 +323,8 @@ export function autoBuildSpreads(
  *  placement dropped into that frame inherits them. Frames without a radius leave the placement's
  *  own frame style alone. */
 function frameAppearance(frame: PlaceholderRect, placement: PlacedPhoto): PlacedPhoto {
-  if (!frame.cornerRadiusPx) return placement
-  return { ...placement, frameStyle: 'rounded', cornerRadiusPx: frame.cornerRadiusPx }
+  if (!frame.cornerRadiusPx && !frame.cornerRadiiPx) return placement
+  return { ...placement, frameStyle: 'rounded', cornerRadiusPx: frame.cornerRadiusPx ?? Math.max(...frame.cornerRadiiPx!), cornerRadiiPx: frame.cornerRadiiPx }
 }
 
 /** Rebuilds a single spread's placements against a different template, keeping as many existing photos as possible. */

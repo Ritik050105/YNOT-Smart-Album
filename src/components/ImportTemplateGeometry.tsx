@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client'
 import {readPsd,Layer} from 'ag-psd'
 import {TemplateDefinition,PlaceholderRect,TextBox} from '@/types'
 import {imageFileSource,isImageFile} from '@/engine/imageSource'
-import {detectCornerRadius,detectTemplateFrames,opaqueBounds} from '@/engine/templateGeometry'
+import {detectCornerRadius,detectTemplateFrames,opaqueBounds,vectorMaskGeometry} from '@/engine/templateGeometry'
 import Modal from './Modal'
 import Icon from './Icon'
 
@@ -24,15 +24,23 @@ function alignOf(justification:unknown):TextBox['align']{
  return justification==='center'||justification==='justify-center'?'center':justification==='right'||justification==='justify-right'?'right':'left'
 }
 
-/** Average colour of a layer's opaque pixels — used for the page colour behind an imported design. */
+/** The page colour behind an imported design: the most common colour among a layer's opaque pixels,
+ *  not their average — a plate split between two tones averages to a muddy third colour that appears
+ *  nowhere in the artwork. */
 function flatColor(canvas:HTMLCanvasElement):string|undefined{
  const data=canvas.getContext('2d',{willReadFrequently:true})?.getImageData(0,0,canvas.width,canvas.height).data
  if(!data)return undefined
- // Sample at most ~4k pixels; a page plate is flat, so more would only cost time.
- const step=4*Math.max(1,Math.floor(data.length/4/4096))
- let r=0,g=0,b=0,n=0
- for(let i=0;i<data.length;i+=step){if(data[i+3]<128)continue;r+=data[i];g+=data[i+1];b+=data[i+2];n++}
- return n?hex({r:r/n,g:g/n,b:b/n}):undefined
+ // Sample at most ~8k pixels; a page plate is flat, so more would only cost time.
+ const step=4*Math.max(1,Math.floor(data.length/4/8192))
+ const buckets=new Map<number,{n:number;r:number;g:number;b:number}>()
+ for(let i=0;i<data.length;i+=step){
+  if(data[i+3]<128)continue
+  const key=(data[i]>>3<<10)|(data[i+1]>>3<<5)|(data[i+2]>>3)
+  const bucket=buckets.get(key)??{n:0,r:0,g:0,b:0}
+  bucket.n++;bucket.r+=data[i];bucket.g+=data[i+1];bucket.b+=data[i+2];buckets.set(key,bucket)
+ }
+ const top=[...buckets.values()].sort((a,b)=>b.n-a.n)[0]
+ return top?hex({r:top.r/top.n,g:top.g/top.n,b:top.b/top.n}):undefined
 }
 
 /** Reads a PSD's layer tree into photo frames, text boxes and a page colour. Text layers keep their
@@ -49,9 +57,12 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
  const frames:PlaceholderRect[]=[],textBoxes:TextBox[]=[],groupId=crypto.randomUUID()
  const backgrounds:HTMLCanvasElement[]=[]
  const area=psd.width*psd.height
- function visit(layers:Layer[]){for(const l of layers){
+ // "BG left page" inside a "Background" group is how designers mark the paper, and on a two-page
+ // spread each plate covers only half the canvas, so area alone never catches them.
+ const isBackgroundName=(name?:string)=>/\b(background|backdrop|bg)\b/i.test(name??'')
+ function visit(layers:Layer[],inBackgroundGroup=false){for(const l of layers){
   if(l.hidden)continue
-  if(l.children){visit(l.children);continue}
+  if(l.children){visit(l.children,inBackgroundGroup||isBackgroundName(l.name));continue}
   if(!l.canvas)continue
   // A clipped layer is painted through the layer beneath it — a texture or colour wash, never a
   // frame of its own.
@@ -73,21 +84,35 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
     sourceArtwork:{src:l.canvas.toDataURL('image/png'),fontRatio:fontSize/(w/psd.width!*900),text,fontFamily,color,bold,italic}})
    continue
   }
-  // Trim to the pixels the layer actually paints: a masked or oversized layer canvas otherwise
-  // describes a frame far larger than the artwork shows, which is what made whole-page phantom
-  // frames appear over real ones.
-  const ink=opaqueBounds(l.canvas)
-  if(!ink)continue
+  // A shape layer's rounding lives in its vector path, never in its pixels, so read the path when
+  // there is one — that is where a magazine layout's rounded photo corners actually are.
+  const toDesign=(v:number)=>Math.round(v/psd.width!*900)
+  const vector=l.vectorMask?.paths?.length===1&&!l.vectorMask.paths[0].open?vectorMaskGeometry(l.vectorMask.paths[0].knots??[]):null
+  let radii:[number,number,number,number]|undefined
+  if(vector&&vector.radii.some(r=>r>0))radii=vector.radii.map(toDesign) as [number,number,number,number]
   const clip=(v:number,max:number)=>Math.max(0,Math.min(max,v))
-  const right=clip(x+ink.x+ink.width,psd.width!),bottom=clip(y+ink.y+ink.height,psd.height!)
-  x=clip(x+ink.x,psd.width!);y=clip(y+ink.y,psd.height!);w=right-x;h=bottom-y
+  if(vector){
+   const right=clip(vector.x+vector.width,psd.width!),bottom=clip(vector.y+vector.height,psd.height!)
+   x=clip(vector.x,psd.width!);y=clip(vector.y,psd.height!);w=right-x;h=bottom-y
+  }else{
+   // Trim to the pixels the layer actually paints: a masked or oversized layer canvas otherwise
+   // describes a frame far larger than the artwork shows, which is what made whole-page phantom
+   // frames appear over real ones.
+   const ink=opaqueBounds(l.canvas)
+   if(!ink)continue
+   const right=clip(x+ink.x+ink.width,psd.width!),bottom=clip(y+ink.y+ink.height,psd.height!)
+   x=clip(x+ink.x,psd.width!);y=clip(y+ink.y,psd.height!);w=right-x;h=bottom-y
+   const alpha=detectCornerRadius(l.canvas,ink)
+   if(alpha>0){const r=toDesign(alpha);radii=[r,r,r,r]}
+  }
   if(w<=0||h<=0)continue
   // A page-sized plate, or one named like one, is the paper the design sits on, not a photo slot.
-  if(w*h>=area*0.9||/\bbackground\b|\bbackdrop\b|^bg$/i.test(l.name??'')){backgrounds.push(l.canvas);continue}
+  if(w*h>=area*0.9||inBackgroundGroup||isBackgroundName(l.name)){backgrounds.push(l.canvas);continue}
   // Stray 1px strokes and specks are decoration, not frames.
   if(w*h<area*0.001)continue
   frames.push({id:crypto.randomUUID(),x:x/psd.width!,y:y/psd.height!,width:w/psd.width!,height:h/psd.height!,
-   preferredOrientation:'any',cornerRadiusPx:Math.round(detectCornerRadius(l.canvas,ink)/psd.width!*900)||undefined})
+   preferredOrientation:'any',cornerRadiusPx:radii?Math.max(...radii)||undefined:undefined,
+   cornerRadiiPx:radii&&new Set(radii).size>1?radii:undefined})
  }}
  visit(psd.children??[])
  // A full-page plate is a real full-bleed photo slot when the design has nothing else in it.
@@ -95,7 +120,8 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
  return {frames,textBoxes,backgroundColor:backgrounds.length?flatColor(backgrounds[0]):undefined,width:psd.width,height:psd.height}
 }
 
-async function detect(file:File):Promise<Detected>{
+/** Exported so detection can be measured against real PSDs without driving the review dialog. */
+export async function detectTemplate(file:File):Promise<Detected>{
  const isPsd=/\.psd$/i.test(file.name)
  let frames:PlaceholderRect[]=[],textBoxes:TextBox[]=[],backgroundColor:string|undefined
  if(isPsd){const read=readPsdTemplate(await file.arrayBuffer());frames=read.frames;textBoxes=read.textBoxes;backgroundColor=read.backgroundColor}
@@ -117,7 +143,7 @@ async function detect(file:File):Promise<Detected>{
 
 export async function importTemplateGeometry(file:File):Promise<TemplateDefinition|null>{
  if(!isImageFile(file)||file.size>128*1024*1024)throw new Error('Choose an image or PSD up to 128 MB.')
- const found=await detect(file)
+ const found=await detectTemplate(file)
  const name=file.name.replace(/\.[^.]+$/,'')
  return new Promise(resolve=>{
   const host=document.createElement('div');document.body.append(host)
@@ -152,7 +178,7 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
      {texts.map(t=><span key={t.id} className="frame-review__text" style={{left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`}}/>)}
      {boxes.map((b,i)=><button key={b.id} aria-label={`Frame ${i+1}`} aria-pressed={i===selected}
       className={`frame-review__frame${i===selected?' is-selected':''}`} onClick={()=>setSelected(i)}
-      style={{left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,borderRadius:b.cornerRadiusPx?`${b.cornerRadiusPx/900*100}%`:undefined}}>
+      style={{left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,borderRadius:b.cornerRadiiPx?b.cornerRadiiPx.map(r=>`${r/900*100}%`).join(' '):b.cornerRadiusPx?`${b.cornerRadiusPx/900*100}%`:undefined}}>
       <span className="frame-review__badge">{i+1}</span>
      </button>)}
     </div>
@@ -192,8 +218,8 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
         onChange={e=>setBoxes(bs=>bs.map((b,i)=>i===selected?{...b,[key]:Number(e.target.value)/100}:b))}/>
       </label>)}</div>
       <label className="frame-review__radius"><span>Corner radius (px)</span>
-       <input aria-label="Frame corner radius" type="number" min={0} max={200} step={1} value={box.cornerRadiusPx??0}
-        onChange={e=>setBoxes(bs=>bs.map((b,i)=>i===selected?{...b,cornerRadiusPx:Number(e.target.value)||undefined}:b))}/>
+       <input aria-label="Frame corner radius" title={box.cornerRadiiPx?`Corners from the artwork: ${box.cornerRadiiPx.join(' / ')} — typing here rounds all four`:undefined} type="number" min={0} max={200} step={1} value={box.cornerRadiusPx??0}
+        onChange={e=>setBoxes(bs=>bs.map((b,i)=>i===selected?{...b,cornerRadiusPx:Number(e.target.value)||undefined,cornerRadiiPx:undefined}:b))}/>
       </label>
      </>:<p className="frame-review__note">No frames yet. Add one to start.</p>}
      <div className="frame-review__actions">

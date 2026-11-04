@@ -4,7 +4,7 @@
 const {app,BrowserWindow}=require('electron'),{build}=require('esbuild'),fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict');
 const fixture=`
 import'./src/styles/app.css';import'./src/styles/editor.css';
-import{detectTemplateFrames,detectCornerRadius}from'./src/engine/templateGeometry';
+import{detectTemplateFrames,detectCornerRadius,vectorMaskGeometry}from'./src/engine/templateGeometry';
 import{importTemplateGeometry}from'./src/components/ImportTemplateGeometry';
 import{importEditedPsd}from'./src/engine/importEditedPsd';
 import{writePsdUint8Array}from'ag-psd';
@@ -46,6 +46,7 @@ window.thumbCells=async template=>{
  const cells=[...host.querySelectorAll('.gallery-cell')].map(c=>{const r=c.getBoundingClientRect();return {x:(r.left-box.left)/box.width,width:r.width/box.width,radius:parseFloat(getComputedStyle(c).borderRadius),thumbWidth:box.width}})
  host.remove();return cells
 };
+window.vectorMaskGeometry=vectorMaskGeometry;
 window.press=label=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===label);if(!b)throw new Error('No button '+label+' in: '+[...document.querySelectorAll('button')].map(b=>b.textContent.trim()).join(' | '));b.click()};
 `;
 app.disableHardwareAcceleration();app.whenReady().then(async()=>{
@@ -70,6 +71,23 @@ app.disableHardwareAcceleration();app.whenReady().then(async()=>{
  assert.equal(r.layers[1].hidden,true);assert.equal(r.layers[0].width,80);
  assert.equal(r.squareRadius,0,'a square layer reports no corner radius');
  assert.ok(Math.abs(r.roundedRadius-12)<=4,`a 12px rounded layer measures close to 12 (got ${r.roundedRadius})`);
+
+ // Knots copied from a real magazine PSD's shape layer: Photoshop puts an anchor on every square
+ // corner, and two anchors `r` along the edges of a rounded one. The layer's own pixels are a plain
+ // rectangle, so only the path knows the artwork rounds its top-left corner by 150px.
+ const topLeftRounded=await js(`vectorMaskGeometry(${JSON.stringify([
+  {points:[586.157,309.0,669.0,309.0,669.0,309.0]},
+  {points:[2142.0,309.0,2142.0,309.0,2142.0,309.0]},
+  {points:[2142.0,2746.0,2142.0,2746.0,2142.0,2746.0]},
+  {points:[519.0,2746.0,519.0,2746.0,519.0,2746.0]},
+  {points:[519.0,459.0,519.0,459.0,519.0,376.157]},
+ ])})`);
+ assert.deepEqual(topLeftRounded.radii,[150,0,0,0],`only the top-left corner is rounded (got ${JSON.stringify(topLeftRounded.radii)})`);
+ assert.ok(Math.abs(topLeftRounded.x-519)<1&&Math.abs(topLeftRounded.width-1623)<1,'the path bounds give the frame box');
+ // A shape that is not a rectangle has no corner radius to report.
+ assert.equal(await js(`vectorMaskGeometry(${JSON.stringify([
+  {points:[0,0,0,0,0,0]},{points:[100,50,100,50,100,50]},{points:[50,40,50,40,50,40]},{points:[0,100,0,100,0,100]},
+ ])})`),null,'a non-rectangular path reports no radii');
 
  // A layered PSD now gets the same review screen as a flattened image, reporting what it found.
  await js(`start('psd')`);await settle();

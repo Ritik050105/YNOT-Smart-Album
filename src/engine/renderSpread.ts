@@ -125,7 +125,7 @@ export async function drawPlacement(ctx: CanvasRenderingContext2D, ph: Placehold
     ctx.save()
     ctx.beginPath()
     if (frameStyle === 'rounded') {
-      roundedRectPath(ctx, boxX, boxY, boxW, boxH, (placement?.cornerRadiusPx ?? 24) * scale)
+      roundedRectPath(ctx, boxX, boxY, boxW, boxH, scaleRadii(placementRadii(placement), scale))
     } else {
       ctx.rect(photoX, photoY, photoW, photoH)
     }
@@ -195,7 +195,7 @@ export async function drawPlacement(ctx: CanvasRenderingContext2D, ph: Placehold
       ctx.strokeStyle = placement?.borderColor ?? '#ffffff'
       ctx.lineWidth = borderWidth
       ctx.beginPath()
-      if (frameStyle === 'rounded') roundedRectPath(ctx, photoX + borderWidth / 2, photoY + borderWidth / 2, Math.max(0, photoW - borderWidth), Math.max(0, photoH - borderWidth), Math.max(0, (placement?.cornerRadiusPx ?? 24) * scale - borderWidth / 2))
+      if (frameStyle === 'rounded') roundedRectPath(ctx, photoX + borderWidth / 2, photoY + borderWidth / 2, Math.max(0, photoW - borderWidth), Math.max(0, photoH - borderWidth), scaleRadii(placementRadii(placement), scale, borderWidth / 2))
       else ctx.rect(photoX + borderWidth / 2, photoY + borderWidth / 2, photoW - borderWidth, photoH - borderWidth)
       ctx.stroke()
     }
@@ -226,14 +226,26 @@ export function applyRelight(ctx: CanvasRenderingContext2D, x: number, y: number
   ctx.restore()
 }
 
-function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  const radius = Math.min(r, w / 2, h / 2)
-  ctx.moveTo(x + radius, y)
-  ctx.arcTo(x + w, y, x + w, y + h, radius)
-  ctx.arcTo(x + w, y + h, x, y + h, radius)
-  ctx.arcTo(x, y + h, x, y, radius)
-  ctx.arcTo(x, y, x + w, y, radius)
+/** `r` is one radius for every corner, or [topLeft, topRight, bottomRight, bottomLeft]. */
+function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number | number[]) {
+  const cap = (v: number) => Math.max(0, Math.min(v, w / 2, h / 2))
+  const [tl, tr, br, bl] = (Array.isArray(r) ? r : [r, r, r, r]).map(cap)
+  ctx.moveTo(x + tl, y)
+  ctx.arcTo(x + w, y, x + w, y + h, tr)
+  ctx.arcTo(x + w, y + h, x, y + h, br)
+  ctx.arcTo(x, y + h, x, y, bl)
+  ctx.arcTo(x, y, x + w, y, tl)
   ctx.closePath()
+}
+
+/** Scales one radius, or a set of four, into device pixels — optionally insetting for a border. */
+export function scaleRadii(r: number | number[], scale: number, inset = 0): number | number[] {
+  return Array.isArray(r) ? r.map(v => Math.max(0, v * scale - inset)) : Math.max(0, r * scale - inset)
+}
+
+/** The radii a placement draws with: its own per-corner set, else its uniform radius. */
+export function placementRadii(placement?: Pick<PlacedPhoto, 'cornerRadiusPx' | 'cornerRadiiPx'>, fallback = 24): number | number[] {
+  return placement?.cornerRadiiPx ?? placement?.cornerRadiusPx ?? fallback
 }
 
 export async function drawTextBox(ctx:CanvasRenderingContext2D,box:TextBox,widthPx:number,heightPx:number){

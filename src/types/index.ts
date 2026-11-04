@@ -39,6 +39,9 @@ export interface PlaceholderRect {
    *  transparent corners), in the 900px-wide design space. Applied to the placement when the
    *  template is used, so the photo is drawn with the same corners the artwork had. */
   cornerRadiusPx?: number
+  /** [topLeft, topRight, bottomRight, bottomLeft], when the artwork rounds its corners unevenly —
+   *  a magazine layout often rounds one corner only. Falls back to cornerRadiusPx when absent. */
+  cornerRadiiPx?: [number, number, number, number]
 }
 
 export interface TemplateDefinition {
@@ -96,6 +99,9 @@ export interface PlacedPhoto {
   /** Corner radius in px, used when frameStyle is 'rounded' (continuous control rather than a
    *  single fixed radius). */
   cornerRadiusPx: number
+  /** Per-corner override carried over from an imported design: [tl, tr, br, bl]. The Radius slider
+   *  sets cornerRadiusPx and clears this, so a manual edit always wins. */
+  cornerRadiiPx?: [number, number, number, number]
   /** Frame menu's "Flip Image Horizontally/Vertically" — mirrors the photo within its own crop,
    *  independent of the spread-level "Flip Spread Horizontally". */
   flipHorizontal: boolean
