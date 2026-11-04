@@ -6,10 +6,10 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const result = await build({
-  stdin: { contents: `export {BUILT_IN_TEMPLATES,importedDesignTemplates,setUserTemplateRegistry,templatesForCount} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {isFullSpreadTemplate} from './src/engine/templates';export {cyclingTemplates} from './src/state/templateBrowsing'`, resolveDir: process.cwd() },
+  stdin: { contents: `export {BUILT_IN_TEMPLATES,importedDesignTemplates,setUserTemplateRegistry,templatesForCount} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {isFullSpreadTemplate} from './src/engine/templates';export {cyclingTemplates} from './src/state/templateBrowsing';export {resolveTemplateFrames} from './src/engine/templateLayout'`, resolveDir: process.cwd() },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { BUILT_IN_TEMPLATES, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, templateCategory, isFullSpreadTemplate, cyclingTemplates } =
+const { BUILT_IN_TEMPLATES, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, templateCategory, isFullSpreadTemplate, cyclingTemplates, resolveTemplateFrames } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const byId = id => BUILT_IN_TEMPLATES.find(t => t.id === id)
@@ -77,6 +77,43 @@ for (const side of ['left', 'right']) {
   }
   const cascade = byId(`gen-full-${side}-cascade-4`)
   assert.ok(cascade.placeholders.slice(1).every(p => Math.abs(p.y + p.height - 1) < 1e-6), `${cascade.id} sits flush on the bottom edge`)
+}
+
+// The album's own margin and image gap must not put a white border back round this family: its
+// frames are authored full-bleed, so they resolve to exactly the geometry they were drawn with,
+// whatever margin and gap the album carries. Every one of them still reaches all four page edges,
+// and the ones meant to tile still cover the spread exactly. The two that do not tile are
+// deliberate: a cascade leaves the step above each shorter photo open, and a caption variant gives
+// the facing page's lower band over to the text.
+for (const [margin, gap] of [[0, 0], [24, 12], [60, 40]]) {
+  for (const n of [2, 4, 9, 20, 30]) {
+    for (const t of templatesForCount(n, null, 'all', 1.5).filter(isFullSpreadTemplate)) {
+      const frames = resolveTemplateFrames(t.placeholders, 1.5, margin, gap)
+      const at = (margin ? ` at margin ${margin}/gap ${gap}` : '')
+      assert.ok(Math.min(...frames.map(p => p.x)) < 1e-6, `${t.id} reaches the left page edge${at}`)
+      assert.ok(Math.min(...frames.map(p => p.y)) < 1e-6, `${t.id} reaches the top edge${at}`)
+      assert.ok(Math.max(...frames.map(p => p.x + p.width)) > 1 - 1e-6, `${t.id} reaches the right page edge${at}`)
+      assert.ok(Math.max(...frames.map(p => p.y + p.height)) > 1 - 1e-6, `${t.id} reaches the bottom edge${at}`)
+      if (/-cascade|-caption-/.test(t.id)) continue
+      const area = frames.reduce((sum, p) => sum + p.width * p.height, 0)
+      assert.ok(Math.abs(area - 1) < 1e-6, `${t.id} covers the whole spread${at} (covered ${area})`)
+    }
+  }
+}
+
+// Thirty full-spread image layouts per photo count, in Smart design. Two and three photo spreads
+// are the exception: there are only so many ways to lay one or two photos flush on a page.
+for (let n = 4; n <= 30; n++) {
+  const full = templatesForCount(n, null, 'all', 1.5).filter(t => !t.textBoxes?.length && isFullSpreadTemplate(t))
+  assert.ok(full.length >= 30, `count ${n} offers 30 full-spread image templates (got ${full.length})`)
+  for (const t of full) assert.equal(templateCategory(t), 'reference', `${t.id} is in Smart design`)
+}
+
+// Trimming duplicates must not have thinned Smart design itself: it still carries the hundreds of
+// ordinary layouts, not just this family.
+for (const n of [3, 8, 20, 30]) {
+  const smart = templatesForCount(n, null, 'all', 1.5).filter(t => !t.textBoxes?.length && templateCategory(t) === 'reference')
+  assert.ok(smart.length > 200, `count ${n} keeps its Smart design catalogue (got ${smart.length})`)
 }
 
 // Every album photo count has somewhere to go: 30+ image layouts, a mixed layout, and a full-bleed

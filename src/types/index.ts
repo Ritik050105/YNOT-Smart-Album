@@ -42,6 +42,10 @@ export interface PlaceholderRect {
   /** [topLeft, topRight, bottomRight, bottomLeft], when the artwork rounds its corners unevenly —
    *  a magazine layout often rounds one corner only. Falls back to cornerRadiusPx when absent. */
   cornerRadiiPx?: [number, number, number, number]
+  /** This frame is authored full-bleed: its geometry is final, and the album margin and image
+   *  gap do not apply to it. Without this a layout drawn flush to the page edge still ends up
+   *  inset, leaving the white border the design exists to avoid. */
+  bleed?: boolean
 }
 
 export interface TemplateDefinition {

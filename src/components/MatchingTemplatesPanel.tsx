@@ -16,22 +16,6 @@ import { isEditableTarget } from '@/engine/keyboard'
 import TemplateThumb from './TemplatePreview'
 import Icon from './Icon'
 
-/** Each category offers its 30 best-fitting layouts for the spread's photo count, not the few
- *  hundred the library can technically produce — past that the strip is a wall of near-identical
- *  grids nobody scrolls through. Full-spread layouts are the head of the queue and always kept. */
-const PER_CATEGORY_LIMIT = 30
-function capPerCategory<T extends { template: { id: string; isBuiltIn?: boolean } }>(ranked: T[]): T[] {
-  const kept = new Map<string, number>()
-  return ranked.filter(({ template }) => {
-    if (isFullSpreadTemplate(template as never)) return true
-    const category = templateCategory(template as never)
-    const used = kept.get(category) ?? 0
-    if (used >= PER_CATEGORY_LIMIT) return false
-    kept.set(category, used + 1)
-    return true
-  })
-}
-
 /** Template previews leave the album unchanged until applied. */
 export default function MatchingTemplatesPanel() {
   const collections=useTemplateCollections(),[selection,setSelection]=useState<string[]>([]),[menu,setMenu]=useState<{x:number;y:number;id:string}|null>(null)
@@ -74,7 +58,7 @@ export default function MatchingTemplatesPanel() {
     const photos = placements.flatMap(p => { const photo = project.photos.find(photo => photo.id === p.photoId); return photo ? [photo] : [] })
     const candidates = uniqueTemplates([...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)])
       .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (templateCategory(t)!=='reference'||isFullSpreadTemplate(t)||supportsUniformGap(t.placeholders,aspect,spread.marginPx*(target==='spread'?1:2),spread.gapPx*(target==='spread'?1:2))) && (kind!=='mixed'||templateCategory(t)!=='reference') && (categories[templateCategory(t)]||(kind==='mixed'&&templateCategory(t)==='generated')) && matchesCollection(t.id,collection,collections,favorites) && (!favoritesOnly || favorites.includes(t.id)))
-    return (count > 1 ? [false, true] : [true]).map(keepOrder => capPerCategory(rankTemplates(photos, candidates, aspect, !autoRearrange || keepOrder, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
+    return (count > 1 ? [false, true] : [true]).map(keepOrder => (rankTemplates(photos, candidates, aspect, !autoRearrange || keepOrder, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
       .sort((a, b) => Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative','generated'].indexOf(templateCategory(a.template))-['reference','creative','generated'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))))
   }, [kind,collection,collections,userTemplates, categories, open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
   useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [kind,collection, categories, userTemplates, open, spreadId, count, filter, favoritesOnly, favorites, preview, target])

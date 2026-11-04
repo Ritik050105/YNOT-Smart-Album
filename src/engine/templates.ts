@@ -606,81 +606,127 @@ const fullRightTriple: TemplateDefinition = {
   thumbnailColor: '#4f8a76',
 }
 
-/** The six hand-written full-spread layouts above, widened into a family: one page carries a
- *  full-bleed image while the facing page carries a stack of 1-4 smaller photos, optionally with a
- *  caption under the stack or overlaid on the full-bleed page itself. Counts already covered by a
- *  hand-written layout are skipped so `uniqueTemplates` has nothing to drop. New ids are appended
- *  after every existing `rect()` call so saved albums keep their placeholder ids. */
+/** The hand-written full-spread layouts above, widened into a family: one page carries a
+ *  full-bleed image while the facing page carries the rest of the spread's photos in one of the
+ *  ordinary layouts — a stack, a balanced grid at any row count, a feature photo with the others
+ *  beside it, or a cascade. Thirty of them per photo count, so the browser's Smart design row
+ *  opens on a full page of this look at any album size.
+ *
+ *  Every frame is authored flush and marked `bleed`, so the album's margin and image gap are not
+ *  applied to it: this family's whole point is that no white border is left anywhere on the spread,
+ *  and an inset here would put one back at the trim edge. */
 const FULL_SPREAD_TEMPLATES: TemplateDefinition[] = []
+/** Thirty variants per photo count is the target; past that the differences stop reading. */
+const FULL_SPREAD_PER_COUNT = 30
+const bleed = (x: number, y: number, width: number, height: number) =>
+  ({ ...rect(x, y, width, height), bleed: true })
 /** `placeGridInRect` with its gutters taken back out, so the cells meet edge to edge. */
-function flushGrid(count: number, x: number, y: number, w: number, h: number) {
-  return placeGridInRect(0, count, x, y, w, h)
-    .map(p => ({ ...p, id: `hc${nextHandCraftedId++}`, x: p.x - GAP / 2, y: p.y - GAP / 2, width: p.width + GAP, height: p.height + GAP }))
+function flushGrid(count: number, x: number, y: number, w: number, h: number, rows?: number) {
+  return placeGridInRect(0, count, x, y, w, h, rows)
+    .map(p => ({ ...p, id: `hc${nextHandCraftedId++}`, bleed: true,
+      x: p.x - GAP / 2, y: p.y - GAP / 2, width: p.width + GAP, height: p.height + GAP }))
 }
-/** Both pages run edge to edge: the reference designs this family copies leave no white border
- *  anywhere on the spread, so the facing page's photos butt up against each other and against the
- *  page edges exactly as the full-bleed page does. */
-const PAGE_INSET = 0
-for (const side of ['left', 'right'] as const) {
+
+type Side = 'left' | 'right'
+
+/** `count` photos filling `height` from `top` on the facing page — a simple stack while they
+ *  still read at that size, a balanced grid once a stack would be a row of slivers. */
+function facingStack(side: Side, count: number, top: number, height: number) {
+  const pageX = side === 'left' ? 0.5 : 0
+  if (count > 4) return flushGrid(count, pageX, top, 0.5, height)
+  const cellH = height / count
+  return Array.from({ length: count }, (_, i) => bleed(pageX, top + i * cellH, 0.5, cellH))
+}
+/** `count` photos in a row on a common baseline, each one a step shorter as it moves away from
+ *  the full-bleed page, so the two pages read as one descending run. */
+function facingCascade(side: Side, count: number, flip: boolean) {
+  const pageX = side === 'left' ? 0.5 : 0, cellW = 0.5 / count
+  return Array.from({ length: count }, (_, i) => {
+    const step = (side === 'left') !== flip ? i : count - 1 - i
+    const height = 1 - step * (0.5 / count)
+    return bleed(pageX + i * cellW, 1 - height, cellW, height)
+  })
+}
+/** A feature photo taking `share` of the facing page against `edge`, the rest gridded beside it. */
+function facingFeature(side: Side, count: number, edge: 'top' | 'bottom' | 'inner' | 'outer', share: number) {
+  const pageX = side === 'left' ? 0.5 : 0
+  const vertical = edge === 'top' || edge === 'bottom'
+  const first = edge === 'top' || (edge === 'inner') === (side === 'right')
+  if (vertical) {
+    const feature = bleed(pageX, first ? 0 : 1 - share, 0.5, share)
+    const rest = flushGrid(count - 1, pageX, first ? share : 0, 0.5, 1 - share)
+    return first ? [feature, ...rest] : [...rest, feature]
+  }
+  const w = 0.5 * share
+  const feature = bleed(first ? pageX : pageX + 0.5 - w, 0, w, 1)
+  const rest = flushGrid(count - 1, first ? pageX + w : pageX, 0, 0.5 - w, 1)
+  return first ? [feature, ...rest] : [...rest, feature]
+}
+
+/** Every distinct facing-page layout for `count` photos, best first. The first three keys are the
+ *  ones this family has always used, so albums already referencing one keep their geometry. */
+function facingLayouts(side: Side, count: number): { key: string; name: string; frames: PlaceholderRect[] }[] {
   const label = side === 'left' ? 'Left' : 'Right'
-  const fullX = side === 'left' ? 0 : 0.5
-  const pageX = (side === 'left' ? 0.5 : 0) + PAGE_INSET
-  const pageW = 0.5 - PAGE_INSET * 2
-  /** `count` photos filling `height` from `top` on the facing page — a simple stack while they
-   *  still read at that size, a balanced grid once a stack would be a row of slivers. */
-  const stack = (count: number, top: number, height: number) => {
-    if (count > 4) return flushGrid(count, pageX, top, pageW, height)
-    const cellH = height / count
-    return Array.from({ length: count }, (_, i) => rect(pageX, top + i * cellH, pageW, cellH))
+  const pageX = side === 'left' ? 0.5 : 0
+  const out = [{ key: '', name: `Full ${label} + ${count}`, frames: facingStack(side, count, 0, 1) }]
+  if (count >= 2) out.push({ key: 'cascade-', name: `Full ${label} Cascade + ${count}`, frames: facingCascade(side, count, false) })
+  if (count >= 3) out.push({ key: 'hero-', name: `Full ${label} + Feature + ${count - 1}`, frames: facingFeature(side, count, 'top', count <= 3 ? 0.62 : 0.5) })
+  if (count >= 2) out.push({ key: 'cascade-up-', name: `Full ${label} Rising + ${count}`, frames: facingCascade(side, count, true) })
+  // The feature photo against each edge of the facing page, at three sizes.
+  for (const edge of ['top', 'bottom', 'inner', 'outer'] as const) {
+    for (const share of [0.5, 0.62, 0.38]) {
+      if (count < 2) continue
+      out.push({ key: `feature${edge}${Math.round(share * 100)}-`, name: `Full ${label} ${edge[0].toUpperCase()}${edge.slice(1)} Feature + ${count - 1}`, frames: facingFeature(side, count, edge, share) })
+    }
   }
-  /** `count` photos in a row on a common baseline, tallest next to the full-bleed page and each
-   *  one a step shorter as it moves away from it. */
-  const cascade = (count: number) => {
-    const cellW = pageW / count, tallest = 1
-    return Array.from({ length: count }, (_, i) => {
-      const step = side === 'left' ? i : count - 1 - i
-      const height = tallest - step * (tallest * 0.5 / count)
-      return rect(pageX + i * cellW, 1 - height, cellW, height)
-    })
+  // A balanced grid at every row count the photos divide into, which is where most of the variety
+  // at higher photo counts comes from.
+  for (let rows = 1; rows <= count; rows++) {
+    out.push({ key: `rows${rows}-`, name: `Full ${label} + ${count} in ${rows} Row${rows === 1 ? '' : 's'}`, frames: flushGrid(count, pageX, 0, 0.5, 1, rows) })
   }
-  /** The facing page carrying one of the ordinary grid designs — a feature photo with the rest
-   *  beside it — rather than a plain stack, so the family covers the same layouts the image
-   *  template browser offers, just with one page given over to a single photo. */
-  const hero = (count: number) => {
-    const heroH = count <= 3 ? 0.62 : 0.5
-    return [rect(pageX, 0, pageW, heroH), ...flushGrid(count - 1, pageX, heroH, pageW, 1 - heroH)]
+  return out
+}
+
+/** The signature uniqueTemplates dedupes on, so the thirty kept here are thirty that survive it. */
+const frameSignature = (frames: PlaceholderRect[]) =>
+  frames.map(p => [p.x, p.y, p.width, p.height].map(v => Math.round(v * 20)).join(',')).sort().join('|')
+
+// Counts run outermost and the two sides alternate inside them, so each photo count fills its
+// thirty from both sides rather than the left page taking them all.
+for (let count = 1; count <= 29; count++) {
+  const layouts = { left: facingLayouts('left', count), right: facingLayouts('right', count) }
+  const seen = new Set<string>()
+  let kept = 0
+  for (let i = 0; kept < FULL_SPREAD_PER_COUNT && (i < layouts.left.length || i < layouts.right.length); i++) {
+    for (const side of ['left', 'right'] as const) {
+      const layout = layouts[side][i]
+      if (!layout || kept >= FULL_SPREAD_PER_COUNT) continue
+      const placeholders = [bleed(side === 'left' ? 0 : 0.5, 0, 0.5, 1), ...layout.frames]
+      const signature = frameSignature(placeholders)
+      if (seen.has(signature)) continue
+      seen.add(signature)
+      kept++
+      FULL_SPREAD_TEMPLATES.push({ id: `gen-full-${side}-${layout.key}${count}`, name: layout.name, photoCount: count + 1,
+        placeholders, pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString(), thumbnailColor: '#4f8a6b' })
+    }
   }
-  const add = (t: Omit<TemplateDefinition, 'isBuiltIn' | 'createdAt' | 'pageSide'>) =>
-    FULL_SPREAD_TEMPLATES.push({ ...t, pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString() })
-  // Up to 29 on the facing page, so every album photo count from 2 to 30 has a full-spread option.
-  for (let count = 1; count <= 29; count++) {
-    // Image-only: the facing page is nothing but the photos.
-    add({
-      id: `gen-full-${side}-${count}`, name: `Full ${label} + ${count}`, photoCount: count + 1,
-      placeholders: [rect(fullX, 0, 0.5, 1), ...stack(count, PAGE_INSET, 1 - PAGE_INSET * 2)], thumbnailColor: '#4f8a6b',
-    })
-    // The facing photos as a cascade instead: a row sitting on a common baseline, each one shorter
-    // than the last as it steps away from the full-bleed page, so the two pages read as one
-    // descending run rather than a block beside a block. Beyond five the steps become slivers.
-    if (count >= 2 && count <= 5) add({
-      id: `gen-full-${side}-cascade-${count}`, name: `Full ${label} Cascade + ${count}`, photoCount: count + 1,
-      placeholders: [rect(fullX, 0, 0.5, 1), ...cascade(count)], thumbnailColor: '#8a7a4f',
-    })
-    if (count >= 3) add({
-      id: `gen-full-${side}-hero-${count}`, name: `Full ${label} + Feature + ${count - 1}`, photoCount: count + 1,
-      placeholders: [rect(fullX, 0, 0.5, 1), ...hero(count)], thumbnailColor: '#4f7a8a',
-    })
+  for (const side of ['left', 'right'] as const) {
+    const label = side === 'left' ? 'Left' : 'Right'
+    const fullX = side === 'left' ? 0 : 0.5, pageX = side === 'left' ? 0.5 : 0
+    const page = bleed(fullX, 0, 0.5, 1)
     // Caption under the photos on the facing page.
-    add({
+    FULL_SPREAD_TEMPLATES.push({
       id: `gen-mixed-full-${side}-caption-${count}`, name: `Full ${label} + ${count} + Caption`, photoCount: count + 1,
-      placeholders: [rect(fullX, 0, 0.5, 1), ...stack(count, 0, 0.78)],
-      textBoxes: [caption(pageX + 0.02, 0.8, pageW - 0.04, 0.16)], thumbnailColor: '#6b4f8a',
+      placeholders: [page, ...facingStack(side, count, 0, 0.78)],
+      textBoxes: [caption(pageX + 0.02, 0.8, 0.46, 0.16)],
+      pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString(), thumbnailColor: '#6b4f8a',
     })
     // Caption overlaid on the full-bleed page itself, white so it reads against a photo.
-    add({
+    FULL_SPREAD_TEMPLATES.push({
       id: `gen-mixed-full-${side}-overlay-${count}`, name: `Full ${label} Overlay + ${count}`, photoCount: count + 1,
-      placeholders: [rect(fullX, 0, 0.5, 1), ...stack(count, PAGE_INSET, 1 - PAGE_INSET * 2)],
-      textBoxes: [caption(fullX + 0.04, 0.78, 0.5 - 0.08, 0.14, '#ffffff')], thumbnailColor: '#4f5a8a',
+      placeholders: [page, ...facingStack(side, count, 0, 1)],
+      textBoxes: [caption(fullX + 0.04, 0.78, 0.42, 0.14, '#ffffff')],
+      pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString(), thumbnailColor: '#4f5a8a',
     })
   }
 }
@@ -800,7 +846,10 @@ export function templateSwatchStyle(t: Pick<TemplateDefinition, 'thumbnailColor'
  *  in the mixed variants, the caption. Listed ahead of everything else in the template browser,
  *  the way a recently used layout is, because it is the look designers reach for most. */
 export function isFullSpreadTemplate(t: TemplateDefinition): boolean {
-  return /^gen-(full|mixed-full)-/.test(t.id)
+  // The generated family only — its ids always end in the photo count. The six hand-written
+  // originals it grew from carry gutters and an inset, so they are ordinary templates: this
+  // predicate marks the ones authored full-bleed, which is what earns the exemptions above.
+  return /^gen-(full|mixed-full)-(left|right)-[a-z0-9-]*[0-9]+$/.test(t.id)
 }
 
 export type TemplateFrameFilter = 'all' | 'no-square' | 'only-3x2'

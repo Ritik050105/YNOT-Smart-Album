@@ -7,6 +7,10 @@ export function resolveTemplateFrames(frames: PlaceholderRect[], aspect: number,
   // Collapse small authored gutters to shared boundaries before applying the album gap.
   // Wide editorial whitespace and overlapping designs retain their intended geometry.
   frames=frames.map(p=>{
+    // An authored full-bleed frame is final. It also already meets its neighbours exactly, and the
+    // widening below measures the gap to every other frame, not just the adjacent one, so on a
+    // flush grid of small cells it would swallow half a cell in each direction.
+    if(p.bleed)return p
     let left=p.x,right=p.x+p.width,top=p.y,bottom=p.y+p.height
     for(const q of frames){if(q===p)continue
       if(Math.min(p.y+p.height,q.y+q.height)-Math.max(p.y,q.y)>.001){
@@ -27,7 +31,9 @@ export function resolveTemplateFrames(frames: PlaceholderRect[], aspect: number,
   const smallestCell = Math.min(...frames.flatMap(p => [p.width * innerW, p.height * innerH]))
   // Dense layouts retain at least half of every cell instead of letting spacing swallow photos.
   const gap = smallestCell > 0 ? Math.min(gapPx, smallestCell / 2) : gapPx
-  return frames.map(p => ({ ...p,
+  // A frame authored full-bleed keeps the geometry it was drawn with: the album margin and gap
+  // are what put a white border round a design meant to run off the page.
+  return frames.map(p => p.bleed ? { ...p } : ({ ...p,
     x: (marginPx + p.x * innerW + gap / 2) / width,
     y: (marginPx + p.y * innerH + gap / 2) / height,
     width: (p.width * innerW - gap) / width,
