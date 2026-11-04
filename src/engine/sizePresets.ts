@@ -4,7 +4,7 @@ const KEY = 'albumstudio.customSizePresets'
 
 export interface SizePreset extends AlbumSize {
   presetName: string
-  units?: 'in' | 'cm' | 'px'
+  units?: 'in' | 'cm' | 'mm' | 'px'
   layoutStart?: 'spread' | 'single'
   layoutEnd?: 'spread' | 'single'
   includeFullSpreadTemplates?: boolean

@@ -4,7 +4,11 @@ import { DESIGN_WIDTH } from './layoutMath'
 
 /** Match Designer text layout; manual widths remain fixed for wrapping. */
 export function fitTextBoxSize(box: TextBox, size: AlbumSize): TextBox {
-  const node = new Text({ text: box.text || ' ', width: box.autoWidth ? undefined : Math.max(1, box.width * DESIGN_WIDTH), fontFamily: box.fontFamily, fontSize: box.fontSize, fontStyle: `${box.bold ? 'bold' : ''} ${box.italic ? 'italic' : ''}`.trim() || 'normal' })
+  if(box.shape)return box
+  // Preserve PSD glyph bounds while its original artwork is still used by the renderer.
+  const art=box.sourceArtwork
+  if(art&&!box.autoWidth&&Math.abs(box.fontSize/(box.width*900)-art.fontRatio)<.00001&&art.text===box.text&&art.fontFamily===box.fontFamily&&art.bold===box.bold&&art.italic===box.italic&&art.color===box.color&&!box.underline&&!box.strikeThrough&&!box.letterSpacing&&!Object.values(box.effects??{}).some(e=>e?.enabled))return box
+  const node = new Text({ text: box.text || ' ', letterSpacing:box.letterSpacing??0,lineHeight:box.lineHeight??1.2, width: box.autoWidth ? undefined : Math.max(1, box.width * DESIGN_WIDTH), fontFamily: box.fontFamily, fontSize: box.fontSize, fontStyle: `${box.bold ? 'bold' : ''} ${box.italic ? 'italic' : ''}`.trim() || 'normal' })
   const width = box.autoWidth ? Math.min(1, Math.max(12, Math.ceil(node.width()) + 1) / DESIGN_WIDTH) : box.width
   node.width(width * DESIGN_WIDTH)
   const shift = box.align === 'center' ? (box.width - width) / 2 : box.align === 'right' ? box.width - width : 0

@@ -1,4 +1,4 @@
-export type Theme = 'light' | 'dark'
+export type Theme = 'light' | 'dark' | 'classic'
 
 const STORAGE_KEY = 'albumstudio.theme'
 
@@ -6,7 +6,7 @@ const STORAGE_KEY = 'albumstudio.theme'
 export function getStoredTheme(): Theme {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw === 'light' || raw === 'dark') return raw
+    if (raw === 'light' || raw === 'dark' || raw === 'classic') return raw
   } catch {
     // Storage unavailable (e.g. private mode) — default below.
   }

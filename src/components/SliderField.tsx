@@ -7,6 +7,7 @@ export default function SliderField({
   step = 1,
   suffix = '',
   buttons = false,
+  resetValue,
   onChange,
 }: {
   label: string
@@ -16,6 +17,7 @@ export default function SliderField({
   step?: number
   suffix?: string
   buttons?: boolean
+  resetValue?: number
   onChange: (value: number) => void
 }) {
   function clamp(v: number) {
@@ -49,6 +51,8 @@ export default function SliderField({
       {!buttons && <input
         aria-label={`${label} slider`}
         type="range"
+        title="Double-click to reset"
+        onDoubleClick={() => onChange(clamp(resetValue ?? ({Scale:100,Opacity:1,'Fill opacity':1,'Text opacity':1,'Line spacing':1.2,'Stroke width':2,'Focal X':.5,'Focal Y':.5}[label] ?? 0)))}
         min={min}
         max={max}
         step={step}

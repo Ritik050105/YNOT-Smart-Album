@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import SelectionActions from './SelectionActions'
+import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES } from '@/engine/albumSizes'
-import { saveProjectToFile, openProjectFromFile, openProjectFromPath } from '@/engine/projectFile'
+import { serializeProjectFile, saveProjectToFile, openProjectFromFile, openProjectFromPath } from '@/engine/projectFile'
 import { Theme, applyTheme, getStoredTheme } from '@/engine/theme'
 import { DisplayUnit } from '@/engine/units'
 import { recordRecentProject } from '@/engine/recentProjects'
@@ -18,6 +19,8 @@ import ProjectInfoPanel from './ProjectInfoPanel'
 const CUSTOM_SIZE_OPTION = '__custom__'
 
 export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean }) {
+  const settingsRef=useRef<HTMLDetailsElement>(null)
+  useEffect(()=>{const close=(e:Event)=>{if(settingsRef.current&&!settingsRef.current.contains(e.target as Node))settingsRef.current.open=false};const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&settingsRef.current)settingsRef.current.open=false};document.addEventListener('pointerdown',close,true);document.addEventListener('focusin',close);document.addEventListener('keydown',key);return()=>{document.removeEventListener('pointerdown',close,true);document.removeEventListener('focusin',close);document.removeEventListener('keydown',key)}},[])
   const project = useProjectStore((s) => s.project)
   const userTemplates = useProjectStore((s) => s.userTemplates)
   const renameProject = useProjectStore((s) => s.renameProject)
@@ -35,19 +38,17 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
   const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
   const canvasTool = useProjectStore((s) => s.canvasTool)
   const setCanvasTool = useProjectStore((s) => s.setCanvasTool)
-  const [projectBusy, setProjectBusy] = useState<'save' | 'open' | null>(null)
+  const [projectBusy, setProjectBusy] = useState<'save' | 'open' | 'copy' | null>(null)
+  const [copyStatus, setCopyStatus] = useState<{ busy?: boolean; filePath?: string; error?: string } | null>(null)
   const [customSizeOpen, setCustomSizeOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
+  useEffect(() => { const observer = new MutationObserver(() => setTheme(getStoredTheme())); observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); return () => observer.disconnect() }, [])
 
-  function toggleTheme() {
-    const next: Theme = theme === 'light' ? 'dark' : 'light'
-    applyTheme(next)
-    setTheme(next)
-  }
+
 
   const isCustomSize = !ALBUM_SIZES.some((s) => s.id === project.size.id)
 
@@ -63,6 +64,22 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
   function applyCustomSize(size: typeof project.size, units: DisplayUnit) {
     useProjectStore.getState().updateProjectSettings({ size, units })
     setCustomSizeOpen(false)
+  }
+
+  async function handleCopyProject() {
+    if (projectBusy !== null || !window.albumStudio?.copyProjectPackage) return
+    const { project, userTemplates } = useProjectStore.getState()
+    setProjectBusy('copy')
+    setCopyStatus({ busy: true })
+    try {
+      const contents = await serializeProjectFile(project, userTemplates, true)
+      const result = await window.albumStudio.copyProjectPackage({ defaultName: project.name, contents })
+      setCopyStatus(result.saved ? { filePath: result.filePath } : null)
+    } catch (error) {
+      setCopyStatus({ error: `Could not finish the copy. Your original project is unchanged. ${error instanceof Error ? error.message : String(error)}` })
+    } finally {
+      setProjectBusy(null)
+    }
   }
 
   async function handleSaveProject(saveAs = false, closeAfterSave = false) {
@@ -176,6 +193,8 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
       if (projectBusy === null) void handleSaveProject(false, true)
     })
+    const onCopy = () => { void handleCopyProject() }
+    window.addEventListener('album-studio:copy-project', onCopy)
     window.addEventListener('album-studio:save-project', onSave)
     window.addEventListener('album-studio:save-project-as', onSaveAs)
     window.addEventListener('album-studio:open-export', onOpenExport)
@@ -183,6 +202,7 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
     window.addEventListener('album-studio:open-project', onOpenProject)
     return () => {
       unsubscribeClose?.()
+      window.removeEventListener('album-studio:copy-project', onCopy)
       window.removeEventListener('album-studio:save-project', onSave)
       window.removeEventListener('album-studio:save-project-as', onSaveAs)
       window.removeEventListener('album-studio:open-export', onOpenExport)
@@ -197,11 +217,11 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
       <button className="btn btn--icon" title="Back to Home" onClick={() => window.dispatchEvent(new CustomEvent('album-studio:go-home'))}><Icon name="home" /></button>
       <button className={`btn btn--icon ${canvasTool === 'select' ? 'is-active' : ''}`} title="Select tool (V)" onClick={() => setCanvasTool('select')}><Icon name="cursor" /></button>
       <button className={`btn btn--icon ${canvasTool === 'pan' ? 'is-active' : ''}`} title="Pan tool (H)" onClick={() => setCanvasTool('pan')}><Icon name="hand" /></button>
-      <div className="topbar__stats">
+      <SelectionActions/><div className="topbar__stats">
         {project.spreads.filter((s) => !s.isCover).length} spreads ({project.spreads.filter((s) => !s.isCover).reduce((n, s) => n + (s.pageSide === 'spread' ? 2 : 1), 0)} pages), {new Set(project.spreads.flatMap((s) => s.placements.flatMap((p) => p.photoId ? [p.photoId] : []))).size}/{project.photos.length} images used
         <div className="topbar__format" aria-label="Album format and size">{project.size.category} · {project.size.widthIn} × {project.size.heightIn} in</div>
       </div>
-      <details className="topbar__settings"><summary className="btn" title="Album settings">Album <Icon name="chevronDown" size={12} /></summary><div className="topbar__settings-panel">
+      <details ref={settingsRef} className="topbar__settings"><summary className="btn" title="Album settings">Album <Icon name="chevronDown" size={12} /></summary><div className="topbar__settings-panel">
       <input
         className="topbar__title"
         value={project.name}
@@ -232,9 +252,10 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
         <button className="btn" onClick={handleNewProjectClick}>New Album</button>
         <button className="btn" disabled={projectBusy !== null} onClick={() => void handleOpenProject()}>Open Project</button>
         <button className="btn" disabled={projectBusy !== null} onClick={() => void handleSaveProject()}>Save Project</button>
+        {window.albumStudio?.copyProjectPackage && <button className="btn" disabled={projectBusy !== null} onClick={() => void handleCopyProject()}>Copy project…</button>}
         <button className="btn" disabled={history.length === 0} onClick={() => undo()}>Undo</button>
         <button className="btn" disabled={future.length === 0} onClick={() => redo()}>Redo</button>
-        <button className="btn" onClick={toggleTheme}>{theme === 'light' ? 'Dark' : 'Light'} theme</button>
+        <label>Theme preset<select value={theme} onChange={e=>{const value=e.target.value as Theme;setTheme(value);applyTheme(value)}}><option value="light">Sapphire Light</option><option value="dark">Crimson Black</option><option value="classic">Classic Graphite &amp; Gold</option></select></label>
       </div></details>
       <button className={`btn btn--icon ${bottomPanelOpen ? 'is-active' : ''}`} title={bottomPanelOpen ? 'Hide image browser' : 'Show image browser'} aria-label={bottomPanelOpen ? 'Hide image browser' : 'Show image browser'} aria-expanded={bottomPanelOpen} onClick={toggleBottomPanel}><Icon name="panelBottom" /></button>
       <button className={`btn btn--icon ${rightPanelOpen ? 'is-active' : ''}`} title={rightPanelOpen ? 'Hide album sidebar' : 'Show album sidebar'} aria-label={rightPanelOpen ? 'Hide album sidebar' : 'Show album sidebar'} aria-expanded={rightPanelOpen} onClick={toggleRightPanel}><Icon name="panelRight" /></button>
@@ -280,6 +301,14 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
           <p className="muted">Unsaved changes to the current album will be lost. Save first if you want to keep them.</p>
         </Modal>
       )}
+      {copyStatus && <Modal title={copyStatus.busy ? 'Copying your project' : copyStatus.error ? 'Project copy incomplete' : 'Your project copy is ready'} onClose={() => setCopyStatus(null)} footer={<>
+        {copyStatus.filePath && <button className="btn" onClick={() => { void window.albumStudio?.revealExportLocation(copyStatus.filePath!).catch(error => setCopyStatus({ ...copyStatus, error: String(error) })) }}>Show folder</button>}
+        <button className="btn" onClick={() => setCopyStatus(null)}>{copyStatus.busy ? 'Keep working' : 'Done'}</button>
+      </>}>
+        {copyStatus.busy && <div role="status"><progress aria-label="Copying project and original photos" /><p>Choose a destination folder. YNOT will copy your project and its original photos together.</p><p className="muted">Large albums can take a few minutes. Keep YNOT open and the destination drive connected until the copy is ready.</p></div>}
+        {copyStatus.filePath && <><p>Your project and photos are together in a new folder. Open Album.ynot to continue on another computer with YNOT installed.</p><p style={{ overflowWrap: 'anywhere' }}>{copyStatus.filePath}</p><p className="muted">This copy contains the project as it was when copying started. Your current project stays open.</p></>}
+        {copyStatus.error && <p role="alert">{copyStatus.error}</p>}
+      </Modal>}
     </header>
   )
 }

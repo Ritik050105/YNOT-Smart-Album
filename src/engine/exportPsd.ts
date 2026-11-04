@@ -1,3 +1,4 @@
+import {effectPadding} from './blendingEffects'
 import { spreadLayers } from './spreadLayers'
 import { writePsdUint8Array, Layer, Psd } from 'ag-psd'
 import { PhotoAsset, Spread, AlbumSize } from '@/types'
@@ -61,9 +62,9 @@ export async function buildSpreadPsdBytes(
   if (!measureContext) throw new Error('2D canvas context unavailable')
   for (const text of spread.textBoxes) {
     const textHeight = await drawTextBox(measureContext, text, width, height)
-    const layer = await addLayer(text.text.slice(0, 30) || 'Text', text.x * width, text.y * height,
-      (text.x + text.width) * width, Math.max((text.y + text.height) * height, text.y * height + textHeight),
-      async (ctx) => { await drawTextBox(ctx, text, width, height) })
+    const pad=effectPadding(text.effects)*scale,angle=(text.rotationDeg??0)*Math.PI/180,ox=text.x*width,oy=text.y*height,tw=text.width*width,th=Math.max(text.height*height,textHeight)
+    const corners=[[0,0],[tw,0],[0,th],[tw,th]].map(([x,y])=>({x:ox+x*Math.cos(angle)-y*Math.sin(angle),y:oy+x*Math.sin(angle)+y*Math.cos(angle)}))
+    const layer=await addLayer(text.text.slice(0,30)||'Text',Math.min(...corners.map(p=>p.x))-pad,Math.min(...corners.map(p=>p.y))-pad,Math.max(...corners.map(p=>p.x))+pad,Math.max(...corners.map(p=>p.y))+pad,async ctx=>{await drawTextBox(ctx,text,width,height)})
     if (!layer) continue
     layer.hidden = !!text.hidden
     layerRanks.set(layer, ordered.findIndex(l=>l.kind==='text'&&l.id===text.id))
@@ -71,7 +72,7 @@ export async function buildSpreadPsdBytes(
     measureContext.fillRect(0, 0, 1, 1)
     const [r, g, b] = measureContext.getImageData(0, 0, 1, 1).data
     const fontNames: Record<string, string> = { Arial: 'ArialMT', 'Times New Roman': 'TimesNewRomanPSMT', 'Courier New': 'CourierNewPSMT' }
-    layer.text = {
+    if(!text.shape&&!Object.values(text.effects??{}).some(e=>e?.enabled))layer.text = {
       text: text.text,
       transform: [1, 0, 0, 1, text.x * width, text.y * height],
       shapeType: 'box',

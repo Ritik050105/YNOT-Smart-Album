@@ -40,24 +40,35 @@ export async function findCanva(configured = '', roots = [process.env.LOCALAPPDA
 }
 
 export class ExternalEditFiles {
-  private files = new Map<string, {owner:number; revision:string}>()
-  async register(file: string, owner: number) {
+  private files = new Map<string, {owner:number; revision:string; downloads?:string; started:number}>()
+  async register(file: string, owner: number, downloads?:string) {
     const stat = await fs.promises.stat(file)
-    this.files.set(file, {owner, revision:`${stat.mtimeMs}:${stat.size}`})
+    this.files.set(file, {owner, downloads, started:stat.mtimeMs, revision:`${stat.mtimeMs}:${stat.size}`})
   }
   forget(owner:number) { for (const [file,entry] of this.files) if(entry.owner===owner)this.files.delete(file) }
   async read(file: string, owner:number, revision?:string) {
     const entry = this.files.get(file)
     if (!entry || entry.owner !== owner) throw new Error('This file was not opened for editing by this window.')
-    const before = await fs.promises.stat(file).catch(() => null)
+    let sourcePath=file
+    if(entry.downloads){
+      const stem=path.basename(file,'.png')
+      const candidates=await fs.promises.readdir(entry.downloads).catch(()=>[] as string[])
+      let newest=(await fs.promises.stat(file).catch(()=>null))?.mtimeMs??entry.started
+      for(const name of candidates){
+        if(name!==stem+'.png' && !(name.startsWith(stem+' (') && /^ \(\d+\)\.png$/.test(name.slice(stem.length))))continue
+        const candidate=path.join(entry.downloads,name),stat=await fs.promises.lstat(candidate).catch(()=>null)
+        if(stat?.isFile() && !stat.isSymbolicLink() && stat.mtimeMs>newest){sourcePath=candidate;newest=stat.mtimeMs}
+      }
+    }
+    const before = await fs.promises.stat(sourcePath).catch(() => null)
     if (!before) return null
-    const next = `${before.mtimeMs}:${before.size}`
+    const next = `${sourcePath===file?'':sourcePath+':'}${before.mtimeMs}:${before.size}`
     if (next === (revision ?? entry.revision) || Date.now() - before.mtimeMs < 750) return null
     if (before.size > 512 * 1024 * 1024) throw new Error('The edited file exceeds the 512 MB sync limit.')
-    const data = await fs.promises.readFile(file)
-    const after = await fs.promises.stat(file)
+    const data = await fs.promises.readFile(sourcePath)
+    const after = await fs.promises.stat(sourcePath)
     if (after.mtimeMs !== before.mtimeMs || after.size !== before.size) return null
-    return {data:new Uint8Array(data),revision:next}
+    return {data:new Uint8Array(data),revision:next,sourcePath}
   }
 }
 

@@ -1,6 +1,14 @@
 /** A small set of inline, stroke-style icons (no external icon library/font) used throughout
  *  the UI. Keeping them inline avoids a network dependency for core chrome. */
 const PATHS: Record<string, string> = {
+  copy: 'M9 9h12v12H9Z M5 15H3V3h12v2',
+  text: 'M5 5V3h14v2 M12 3v18 M8 21h8',
+  circleFilled: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18Z',
+  triangleFilled: 'M12 3 22 21H2Z',
+  circle: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18Z',
+  triangle: 'M12 3 22 21H2Z',
+  rectangleFilled: 'M4 4h16v16H4Z',
+  line: 'M4 20 20 4',
   home: 'M3 10l9-7 9 7v11h-6v-7H9v7H3V10Z',
   plus: 'M12 5v14M5 12h14',
   edit: 'M15 5l4 4 M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15l-1 6Z',
@@ -46,6 +54,10 @@ const PATHS: Record<string, string> = {
   cursor: 'M4 3l16 8-7 1.5L11 20z',
   hand: 'M9 11.5V6a1.5 1.5 0 0 1 3 0v4.5 M12 10.3V4.5a1.5 1.5 0 0 1 3 0v6 M15 10.8V6.5a1.5 1.5 0 0 1 3 0V13c0 4-2.5 7-6.5 7s-6-2-7.5-5L3 12.5a1.4 1.4 0 0 1 2.2-1.7L7 13V7a1.5 1.5 0 0 1 3 0v4.5',
   fitToView: 'M8 3H5a2 2 0 0 0-2 2v3 M16 3h3a2 2 0 0 1 2 2v3 M21 16v3a2 2 0 0 1-2 2h-3 M3 16v3a2 2 0 0 0 2 2h3',
+  rectangle:'M4 4h16v16H4Z',
+  'align-left':'M4 5h16 M4 10h10 M4 15h16 M4 20h10',
+  'align-center':'M4 5h16 M7 10h10 M4 15h16 M7 20h10',
+  'align-right':'M4 5h16 M10 10h10 M4 15h16 M10 20h10',
   align: 'M12 2v4 M12 18v4 M2 12h4 M18 12h4 M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z',
   play: 'M7 4l13 8-13 8V4Z',
 }
@@ -76,7 +88,7 @@ export default function Icon({
       className={className}
       aria-hidden="true"
     >
-      <path d={d} />
+      <path d={d} fill={name.endsWith('Filled')?'currentColor':undefined} />
     </svg>
   )
 }

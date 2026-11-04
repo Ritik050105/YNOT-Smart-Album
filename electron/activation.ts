@@ -1,7 +1,7 @@
 import { app, clipboard, dialog } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import { deviceId, validateLicense } from './license'
+import { deviceId, validateActiveLicense, validateRevocation } from './license'
 import { licensePublicKey } from './licensePublicKey'
 import { writeFileAtomic } from './files'
 
@@ -15,7 +15,9 @@ export async function requireActivation(): Promise<boolean> {
   const readLicense = (file: string) => {
     if (fs.statSync(file).size > 16384) throw new Error('License file is too large.')
     const raw = fs.readFileSync(file, 'utf8')
-    validateLicense(raw, device, licensePublicKey)
+    const revocationFile=path.join(app.getPath('userData'),'client-revocation.json')
+    if(fs.existsSync(revocationFile)&&fs.statSync(revocationFile).size>16384)throw new Error('Invalid local revocation file.')
+    validateActiveLicense(raw, device, licensePublicKey,fs.existsSync(revocationFile)?fs.readFileSync(revocationFile,'utf8'):undefined)
     return raw
   }
   try { readLicense(destination); return true } catch { /* A missing or invalid license requires activation. */ }
@@ -31,4 +33,22 @@ export async function requireActivation(): Promise<boolean> {
       return true
     } catch (error) { dialog.showErrorBox('License not accepted', String(error)) }
   }
+}
+
+export async function importRevocation():Promise<void> {
+  try {
+    const choice=await dialog.showOpenDialog({title:'Import signed license revocation',properties:['openFile'],filters:[{name:'YNOT signed revocation',extensions:['json']}]})
+    const file=choice.filePaths[0];if(choice.canceled||!file)return
+    if(fs.statSync(file).size>16384)throw new Error('Revocation file is too large.')
+    const raw=fs.readFileSync(file,'utf8'),device=deviceId(),cutoff=validateRevocation(raw,device,licensePublicKey)
+    const destination=path.join(app.getPath('userData'),'client-revocation.json')
+    if(fs.existsSync(destination)){
+      if(fs.statSync(destination).size>16384)throw new Error('Invalid local revocation file.')
+      if(validateRevocation(fs.readFileSync(destination,'utf8'),device,licensePublicKey)>cutoff)throw new Error('A newer revocation is already installed.')
+    }
+    const confirm=await dialog.showMessageBox({type:'warning',message:'Revoke this PC license?',detail:'This blocks licenses issued on or before '+new Date(cutoff).toLocaleString()+'. Projects are preserved. Save your work and close the app after importing; the block is enforced on the next launch.',buttons:['Cancel','Import revocation'],defaultId:0,cancelId:0})
+    if(confirm.response!==1)return
+    writeFileAtomic(destination,Buffer.from(raw))
+    await dialog.showMessageBox({type:'info',message:'Revocation imported',detail:'Save your work and close YNOT Album Studio. This license will be refused on the next launch.'})
+  }catch(e){dialog.showErrorBox('Revocation not imported',String(e))}
 }

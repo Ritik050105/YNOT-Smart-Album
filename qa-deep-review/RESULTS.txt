@@ -1,0 +1,14 @@
+YNOT QA review - 2026-10-31
+
+Confirmed application fixes: normal-view photo insertion early return; floating toolbar covering rotation handle; Modal focus/Tab/Escape restoration; template effect size/distance import range. Added contained scrolling for long gap editor.
+
+TypeScript and production renderer/main build passed (typecheck-delivery.log, build-delivery.log). Build warns about large JS bundle.
+
+Passed: empty-verified.log; layers-debug.log; shape-final.log; keyboard-final.log; timeline-final.log; dense-final.log; import-final.log, plus recovery/save/preferences/Auto Build/cover/blending/external-file/offline-Mac configuration checks recorded in this folder.
+
+RESOLVED: full guide interaction suite passed (guides-followup.log, exit 0), including Restore default presets, preset histories, import/export, snapping, anchors and live preview. Earlier failures were stale fixtures (collapsed preset controls and center-offset coordinates). Follow-up Modal, recovery and TypeScript checks passed too.
+
+Not checked: physical Macs; newly installed Windows build; 300 distinct originals through full gallery UI; actual client Photoshop/Canva save-back; all theme/viewport combinations. Older Node import/render tests need unavailable @napi-rs/canvas; no downloads. No installer or USB update performed.
+
+Full report: C:\Users\ritik\OneDrive\Documents\ChatGPT\YNOT smart album\QA-REVIEW-2026-10-31.md
+

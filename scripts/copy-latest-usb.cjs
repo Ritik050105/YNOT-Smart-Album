@@ -1,0 +1,7 @@
+const fs=require('fs'),path=require('path'),crypto=require('crypto'),assert=require('assert/strict');
+const src='C:/Users/ritik/OneDrive/Documents/ChatGPT/YNOT smart album/YNOT Latest Delivery 2026-10-31',dest='D:/YNOT Latest 0.1.17 - 2026-10-31';
+function list(dir,rel=''){return fs.readdirSync(path.join(dir,rel),{withFileTypes:true}).flatMap(e=>{const r=path.join(rel,e.name);return fs.statSync(path.join(dir,r)).isDirectory()?list(dir,r):[r]})}
+async function hash(p){const h=crypto.createHash('sha256');for await(const b of fs.createReadStream(p))h.update(b);return h.digest('hex')}
+(async()=>{assert(!fs.existsSync(dest),'Destination already exists; do not overwrite it');const items=list(src);for(const k of ['03 Employee Mac - Apple Silicon','02 Owner Only - PRIVATE/Owner Mac']){for(const line of fs.readFileSync(path.join(src,k,'SHA256SUMS.txt'),'utf8').trim().split('\n')){const m=line.match(/^([a-f0-9]{64})  (.+)$/);assert(m);assert.equal(await hash(path.join(src,k,m[2])),m[1],m[2])}}
+fs.cpSync(src,dest,{recursive:true,dereference:true});let bytes=0;for(const r of items){assert.equal(await hash(path.join(src,r)),await hash(path.join(dest,r)),r);bytes+=fs.statSync(path.join(src,r)).size}assert.equal(list(dest).length,items.length);console.log('PASS: both Mac manifests and all '+items.length+' USB files verified; '+Math.round(bytes/1048576)+' MiB. '+dest)
+})().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,3 +1,7 @@
+import SelectionActions from './SelectionActions'
+import ContextMenu from './ContextMenu'
+import QuoteTemplates from './QuoteTemplates'
+import PanelResizer from '@/components/PanelResizer'
 import DesignerLayers from './DesignerLayers'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
@@ -21,7 +25,7 @@ import MatchingTemplatesPanel from './MatchingTemplatesPanel'
 
 const RULER_THICKNESS = 20
 function Ruler({orientation,pxPerIn,zoom,panPx,unit,dpi,pointer}: {
-  orientation:'horizontal'|'vertical';sizeIn:number;pxPerIn:number;zoom:number;panPx:number;unit:'in'|'cm'|'px';dpi:number;pointer:{x:number;y:number}|null
+  orientation:'horizontal'|'vertical';sizeIn:number;pxPerIn:number;zoom:number;panPx:number;unit:'in'|'cm'|'mm'|'px';dpi:number;pointer:{x:number;y:number}|null
 }) {
   const ref=useRef<HTMLDivElement>(null)
   const [geometry,setGeometry]=useState({length:0,offset:0,start:0})
@@ -60,6 +64,8 @@ export default function DesignerViewScreen() {
   const project = useProjectStore((s) => s.project)
   const designerViewSpreadId = useProjectStore((s) => s.designerViewSpreadId)
   const exitDesignerView = useProjectStore((s) => s.exitDesignerView)
+  const drawingShape = useProjectStore(s=>s.drawingShape)
+  const [shapeMenu,setShapeMenu]=useState<{x:number;y:number;tool:'shape'|'shape-outline'}|null>(null)
   const canvasTool = useProjectStore((s) => s.canvasTool)
   const setCanvasTool = useProjectStore((s) => s.setCanvasTool)
   const canvasZoom = useProjectStore((s) => s.canvasZoom)
@@ -72,8 +78,6 @@ export default function DesignerViewScreen() {
   const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
 
   const [rulerPointer,setRulerPointer]=useState<{x:number;y:number}|null>(null)
-  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
-  const [templateName, setTemplateName] = useState('')
   const [saving, setSaving] = useState(false)
   const [emptyCoverWarning, setEmptyCoverWarning] = useState(false)
   useEffect(() => {
@@ -101,13 +105,13 @@ export default function DesignerViewScreen() {
   const stageHeight = STAGE_WIDTH / (size.widthIn / size.heightIn)
   const pxPerInHeight = stageHeight / size.heightIn
 
-  async function handleSaveTemplate() {
-    if (!spread || !templateName.trim()) return
+  async function handleSaveTemplate(kind:'image'|'mixed'='image') {
+    if (!spread || saving) return
     setSaving(true)
     try {
-      await saveSpreadAsTemplate(spread.id, templateName.trim())
-      setSaveTemplateOpen(false)
-      setTemplateName('')
+      await saveSpreadAsTemplate(spread.id, `Creative ${Date.now().toString(36).toUpperCase()}`,kind)
+    } catch(error) {
+      window.alert(error instanceof Error ? error.message : 'Template could not be saved.')
     } finally {
       setSaving(false)
     }
@@ -129,27 +133,29 @@ export default function DesignerViewScreen() {
         <button className="btn btn--icon designer-view__back" title="Back to the album overview" onClick={() => exitDesignerView()}>
           <Icon name="chevronLeft" size={16} />
         </button>
-        <button
-          className="btn"
-          disabled={spread.placements.every((p) => !p.photoId)}
-          onClick={() => setSaveTemplateOpen(true)}
-        >
-          Save as Template
-        </button>
-        {!spread.isCover && <button className="btn" aria-pressed={matchingTemplatesOpen} onClick={() => matchingTemplatesOpen ? useProjectStore.getState().closeMatchingTemplates() : useProjectStore.getState().openMatchingTemplates(spread.id)}><Icon name="grid" size={14} /> Browse matching templates</button>}
-        {spread.isCover && <button className="btn" onClick={() => window.dispatchEvent(new CustomEvent('album-studio:setup-cover'))}>Cover Specifications</button>}
-        <button className="btn" aria-pressed={rightPanelOpen} onClick={toggleRightPanel}>Layers</button>
-        <div className="designer-view__spacer" />
+        <div className="template-toolbar-group"><button className="btn" onClick={()=>useProjectStore.getState().openMatchingTemplates(spread.id,'image')}>Browse Image Templates</button>
+        <QuoteTemplates spreadId={spread.id} saveHost="designer-save-font"/>
+        <button className="btn" onClick={()=>useProjectStore.getState().openMatchingTemplates(spread.id,'mixed')}>Browse Mixed Templates</button></div>
+        {spread.isCover&&<button className="btn" onClick={()=>window.dispatchEvent(new CustomEvent('album-studio:setup-cover',{detail:{mode:'custom'}}))}>Cover Specifications</button>}
+        <button className="btn" aria-pressed={rightPanelOpen} onClick={toggleRightPanel}>Inspector panel</button><button className="btn" aria-pressed={bottomPanelOpen} onClick={()=>useProjectStore.getState().toggleBottomPanel()}>Image gallery</button><SelectionActions/><div className="designer-view__spacer"/>
+        <div className="template-toolbar-group template-toolbar-group--save"><button className="btn" disabled={saving||!spread.placements.length} onClick={()=>void handleSaveTemplate('image')}>Save Image Templates</button>
+        <span id="designer-save-font"/>
+        <button className="btn" disabled={saving||!spread.placements.length||!spread.textBoxes.length} onClick={()=>void handleSaveTemplate('mixed')}>Save Mixed Templates</button></div>
         <span className="muted">
           {project.name} — designing {spreadLabel} @ {Math.round(canvasZoom * 100)}%
         </span>
       </header>
 
+      <div id="designer-font-template-browser" />
       <MatchingTemplatesPanel />
       <div className={`designer-view__body ${matchingTemplatesOpen ? 'is-browsing-templates' : ''}`}>
+        {shapeMenu&&<ContextMenu x={shapeMenu.x} y={shapeMenu.y} onClose={()=>setShapeMenu(null)} items={(['rectangle','circle','triangle'] as const).map(shape=>({label:(shape===drawingShape?'✓ ':'')+shape[0].toUpperCase()+shape.slice(1),onClick:()=>{useProjectStore.setState({drawingShape:shape});setCanvasTool(shapeMenu.tool);setShapeMenu(null)}}))}/>}
         <div className="designer-view__tool-rail">
           {([
             { tool: 'select', icon: 'cursor', title: 'Selection Tool (V)' },
+            { tool: 'shape', icon:'rectangleFilled', title:'Shape with fill and stroke' },
+            { tool: 'shape-outline', icon:'rectangle', title:'Shape with stroke only' },
+            { tool: 'line', icon:'line', title:'Line · draw in any direction' },
             { tool: 'frame', icon: 'frame', title: 'Image Frame Tool (F)' },
             { tool: 'text', icon: 'type', title: 'Text Tool (T)' },
             { tool: 'pan', icon: 'hand', title: 'Hand Tool (H)' },
@@ -158,12 +164,13 @@ export default function DesignerViewScreen() {
             <button
               key={t.tool}
               className={`designer-view__tool ${canvasTool === t.tool ? 'is-active' : ''}`}
-              title={t.title}
+              onContextMenu={e=>{if(t.tool==='shape'||t.tool==='shape-outline'){e.preventDefault();setShapeMenu({x:e.clientX,y:e.clientY,tool:t.tool})}}}
+              title={t.tool==='shape'||t.tool==='shape-outline'?`${drawingShape} · ${t.title} · right-click to change shape`:t.title}
               aria-label={t.title}
               aria-pressed={canvasTool === t.tool}
               onClick={() => setCanvasTool(t.tool)}
             >
-              <Icon name={t.icon} size={16} />
+              <Icon name={(t.tool==='shape'||t.tool==='shape-outline')&&drawingShape!=='rectangle'?drawingShape+(t.tool==='shape'?'Filled':''):t.icon} size={16} />
             </button>
           ))}
         </div>
@@ -217,10 +224,9 @@ export default function DesignerViewScreen() {
           <Icon name={rightPanelOpen ? 'chevronRight' : 'chevronLeft'} size={12} />
         </button>
         {rightPanelOpen && (
-          <aside className="app-sidebar app-sidebar--right">
-            <DesignerLayers spread={spread} />
-            {selectedPlaceholderId || selectedTextBoxId ? <Inspector /> : <AlbumInfoPanel />}
-          </aside>
+          <><PanelResizer axis="x" variable="--inspector-width" label="Resize right panel" initial={320} min={240} max={0.45}/><aside className="app-sidebar app-sidebar--right">
+            {selectedPlaceholderId || selectedTextBoxId ? <Inspector /> : <AlbumInfoPanel />}<DesignerLayers spread={spread} />
+          </aside></>
         )}
       </div>
 
@@ -235,29 +241,7 @@ export default function DesignerViewScreen() {
         {bottomPanelOpen && <PhotoBin />}
       </div>
 
-      {saveTemplateOpen && (
-        <Modal
-          title="Save as Template"
-          onClose={() => setSaveTemplateOpen(false)}
-          width={360}
-          footer={
-            <>
-              <button className="btn" onClick={() => setSaveTemplateOpen(false)}>
-                Cancel
-              </button>
-              <div className="footer-spacer" />
-              <button className="btn btn--primary" disabled={!templateName.trim() || saving} onClick={() => void handleSaveTemplate()}>
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-            </>
-          }
-        >
-          <label className="field">
-            Template name
-            <input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="e.g. Hero Left" />
-          </label>
-        </Modal>
-      )}
+
     </div>
   )
 }

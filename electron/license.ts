@@ -49,3 +49,18 @@ export function macDeviceId(output:string):string {
   if(!uuid||! /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(uuid)||/^[0f-]+$/.test(uuid))throw new Error('macOS could not identify this Mac. Contact your administrator.')
   return createHash('sha256').update('ynot-album-studio:device:mac:v1:'+uuid).digest('hex')
 }
+
+export function validateRevocation(raw:string,device:string,publicKey:string):number {
+  if(typeof raw!=='string'||Buffer.byteLength(raw)>16384)throw new Error('Invalid revocation size.')
+  const envelope=JSON.parse(raw)
+  if(!envelope||typeof envelope.payload!=='string'||typeof envelope.signature!=='string')throw new Error('Invalid revocation file.')
+  const bytes=Buffer.from(envelope.payload,'base64')
+  if(!verify(null,bytes,publicKey,Buffer.from(envelope.signature,'base64')))throw new Error('Revocation signature is invalid.')
+  const data=JSON.parse(bytes.toString('utf8'))
+  if(data.version!==1||data.product!=='com.ynotphotography.albumstudio'||data.action!=='revoke'||data.deviceId!==device||typeof data.revokedThrough!=='string'||!Number.isFinite(Date.parse(data.revokedThrough)))throw new Error('This revocation does not belong to this PC.')
+  return Date.parse(data.revokedThrough)
+}
+export function validateActiveLicense(raw:string,device:string,publicKey:string,revocation?:string):void {
+  validateLicense(raw,device,publicKey)
+  if(revocation){const cutoff=validateRevocation(revocation,device,publicKey);const data=JSON.parse(Buffer.from(JSON.parse(raw).payload,'base64').toString('utf8'));if(typeof data.issuedAt!=='string'||!Number.isFinite(Date.parse(data.issuedAt))||Date.parse(data.issuedAt)<=cutoff)throw new Error('This license was revoked by the studio owner. Contact your administrator.')}
+}

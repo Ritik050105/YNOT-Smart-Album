@@ -7,10 +7,10 @@ function readSigningKey(keyPath, publicKey) {
   if (createPublicKey(key).export({ type: 'spki', format: 'pem' }) !== publicKey) throw new Error('This key does not match Album Studio. Choose the original signing key.');
   return key;
 }
-function issueLicense(deviceId, client, output, keyPath, publicKey) {
+function issueLicense(deviceId, client, output, keyPath, publicKey) { return issueLicenseWithKey(deviceId,client,output,readSigningKey(keyPath,publicKey)); }
+function issueLicenseWithKey(deviceId, client, output, key) {
   if (typeof deviceId !== 'string' || !/^[a-f0-9]{64}$/i.test(deviceId.trim())) throw new Error('Paste the complete 64-character PC ID from Album Studio.');
   if (typeof client !== 'string' || !client.trim() || client.trim().length > 200) throw new Error('Enter a employee name of 1–200 characters.');
-  const key = readSigningKey(keyPath, publicKey);
   // Keep the signed "client" field compatible with existing installed apps; it holds the employee name.
   const bytes = Buffer.from(JSON.stringify({ version: 1, product: 'com.ynotphotography.albumstudio', deviceId: deviceId.trim().toLowerCase(), client: client.trim(), issuedAt: new Date().toISOString() }));
   fs.writeFileSync(output, JSON.stringify({ payload: bytes.toString('base64'), signature: sign(null, bytes, key).toString('base64') }, null, 2), { flag: 'wx' });
@@ -29,4 +29,4 @@ function parseIssuedLicense(raw, publicKey) {
   if (data.version !== 1 || data.product !== 'com.ynotphotography.albumstudio' || !/^[a-f0-9]{64}$/.test(data.deviceId) || typeof data.client !== 'string' || !data.client.trim() || data.client.length > 200 || typeof data.issuedAt !== 'string' || !Number.isFinite(Date.parse(data.issuedAt))) throw new Error('License details are invalid.');
   return { client: data.client, deviceId: data.deviceId, issuedAt: data.issuedAt };
 }
-module.exports = { readSigningKey, issueLicense, readIssuedLicense, parseIssuedLicense };
+module.exports = { issueLicenseWithKey, readSigningKey, issueLicense, readIssuedLicense, parseIssuedLicense };

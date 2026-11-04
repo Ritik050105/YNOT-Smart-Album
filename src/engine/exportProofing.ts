@@ -2,7 +2,7 @@ import { Project } from '@/types'
 import { renderSpreadToCanvas } from './renderSpread'
 import { canvasToBytes } from './exportUtil'
 import { blobUrlToDataUrl } from './projectFile'
-import ynotMarkWhite from '@/assets/ynot-mark-dark.png'
+import ynotBadge from '@/assets/ynot-badge.png'
 
 function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   let binary = ''
@@ -40,7 +40,7 @@ export async function buildProofingGalleryHtml(project: Project): Promise<string
   }
 
   const generatedAt = new Date().toLocaleString()
-  const logoDataUrl = await blobUrlToDataUrl(ynotMarkWhite).catch(() => null)
+  const logoDataUrl = await blobUrlToDataUrl(ynotBadge).catch(() => null)
   const subtitleParts = [project.eventType, project.community, project.size.label].filter(Boolean)
   const clientLine = project.clientName ? escapeHtml(project.clientName) : escapeHtml(project.name)
 

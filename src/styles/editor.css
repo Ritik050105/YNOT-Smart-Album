@@ -668,11 +668,14 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .album-editor:has(.font-template-browser) .spreads-panel {--timeline-height:70px}
 
 .spreads-panel__card {container-type:inline-size}
-@container (max-width:240px) {
- .album-editor .spread-card-controls {grid-template-columns:1fr 1fr}
- .spread-card-controls__center {grid-column:1 / -1;grid-row:2}
+@container (max-width:320px) {
+ /* Two rows within the same overall bar height (the overview layout's --overview-height budget
+    assumes a fixed controls-bar height, so this must not grow it) — each row half as tall. */
+ .album-editor .spread-card-controls {grid-template-columns:1fr 1fr;grid-template-rows:18px 18px}
+ .spread-card-controls__center {grid-column:1 / -1;grid-row:2;flex-wrap:wrap;row-gap:0}
  .spread-card-controls__end {grid-column:2;grid-row:1}
- .spread-card-controls__center button {min-width:0;padding-inline:2px}
+ .spread-card-controls__actions,.spread-card-controls__end,.spread-card-controls__center {height:18px}
+ .spread-card-controls__center button,.spread-card-controls__actions button,.spread-card-controls__end button {min-width:0;height:18px;padding-inline:2px}
 }
 
 /* Keep the work surfaces ordered independently of dialog and toolbar colors. */

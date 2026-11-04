@@ -1,3 +1,5 @@
+import {usePreviewSource} from '@/engine/previewImage'
+import {computeCoverCrop,rotationCoverScale} from '@/engine/cropFit'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PlacedPhoto, PhotoAsset } from '@/types'
@@ -7,11 +9,16 @@ import SliderField from './SliderField'
 import ColorField from './ColorField'
 
 export default function ImageDesign({ placement, photo, width, height, update }: {
-  placement: PlacedPhoto; photo?: PhotoAsset; width: number; height: number; update: (patch: Partial<PlacedPhoto>) => void
+  spreadId?:string; placement: PlacedPhoto; photo?: PhotoAsset; width: number; height: number; update: (patch: Partial<PlacedPhoto>) => void
 }) {
+  const cancelDrag=useRef<(()=>void)|null>(null)
+  useEffect(()=>()=>cancelDrag.current?.(),[])
+  const previewSrc=usePreviewSource(photo?.src??'')
   const canvas = useRef<HTMLCanvasElement>(null)
   const [mixer, setMixer] = useState<{left:number;top:number} | null>(null)
   useEffect(() => { const close = (e: KeyboardEvent) => { if (e.key === 'Escape') setMixer(null) }; window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close) }, [])
+  const [draft,setDraft]=useState<Partial<PlacedPhoto>|null>(null)
+  const rendered=draft?{...placement,...draft}:placement
   const [error, setError] = useState('')
   useEffect(() => {
     let current = true
@@ -20,23 +27,34 @@ export default function ImageDesign({ placement, photo, width, height, update }:
     preview.width = Math.max(1, Math.round(width * scale)); preview.height = Math.max(1, Math.round(height * scale))
     const ctx = preview.getContext('2d')!
     setError('')
-    void drawPlacement(ctx, { placeholderId: placement.placeholderId, x: 0, y: 0, width: preview.width, height: preview.height }, placement, photo, scale).then(() => {
+    void drawPlacement(ctx, { placeholderId: placement.placeholderId, x: 0, y: 0, width: preview.width, height: preview.height }, {...rendered,rotationDeg:0}, photo?{...photo,src:previewSrc}:undefined, scale).then(() => {
       if (!current || !canvas.current) return
       canvas.current.width = preview.width; canvas.current.height = preview.height
       canvas.current.getContext('2d')!.drawImage(preview, 0, 0)
     }).catch(() => { if (current) setError('Image preview unavailable. Locate the original image to reconnect it.') })
     return () => { current = false }
-  }, [placement, photo, width, height])
+  }, [placement, draft, photo, previewSrc, width, height])
+  const cropPreview=photo?computeCoverCrop(photo.width,photo.height,width,height,rendered.focalX,rendered.focalY,rendered.zoom):null
   function slider(label: string, key: keyof PlacedPhoto, min: number, max: number, reset = 0, suffix = '', factor = 1) {
     const value = Number(placement[key] ?? reset) * factor
-    return <div className="image-adjustment" key={key}><SliderField label={label} value={Math.round(value * 100) / 100} min={min} max={max} suffix={suffix} onChange={v => update({ [key]: v / factor })}/><button className="adjustment-reset" aria-label={`Reset ${label}`} title={`Reset ${label}`} disabled={value === reset * factor} onClick={() => update({ [key]: reset })}>×</button></div>
+    return <div className="image-adjustment" key={key}><SliderField label={label} resetValue={reset*factor} value={Math.round(value * 100) / 100} min={min} max={max} suffix={suffix} onChange={v => update({ [key]: v / factor })}/><button className="adjustment-reset" aria-label={`Reset ${label}`} title={`Reset ${label}`} disabled={value === reset * factor} onClick={() => update({ [key]: reset })}>×</button></div>
   }
   const mix = placement.blackWhiteMix
   return <div className="image-design">
     <details className="inspector-group" open><summary>Design</summary>
-      {photo && <div className="image-design__preview" style={{maxWidth:width / height * 240, marginInline:'auto'}}><canvas ref={canvas} aria-label="Selected image live preview"/><div className="image-design__thirds" aria-hidden="true"/>{error && <p role="status">{error}</p>}</div>}
+      {photo && <div className="image-design__preview" style={{maxWidth:width / height * 240, marginInline:'auto',overflow:'visible',isolation:'isolate'}}>{photo&&cropPreview&&<img aria-hidden="true" src={previewSrc} style={{position:'absolute',pointerEvents:'none',zIndex:-1,opacity:.25,maxWidth:'none',width:photo.width/cropPreview.cropWidth*100+'%',height:photo.height/cropPreview.cropHeight*100+'%',left:-cropPreview.cropX/cropPreview.cropWidth*100+'%',top:-cropPreview.cropY/cropPreview.cropHeight*100+'%',transformOrigin:`${(cropPreview.cropX+cropPreview.cropWidth/2)/photo.width*100}% ${(cropPreview.cropY+cropPreview.cropHeight/2)/photo.height*100}%`,transform:`rotate(${rendered.imageRotationDeg??0}deg) scale(${rotationCoverScale(width,height,rendered.imageRotationDeg??0)})`}}/>}<canvas ref={canvas} aria-label="Drag to reposition the image inside its frame" style={{touchAction:'none',cursor:'grab'}} onPointerDown={e=>{
+       if(e.button!==0||placement.locked)return;e.preventDefault();cancelDrag.current?.();const node=e.currentTarget,rect=node.getBoundingClientRect(),startX=e.clientX,startY=e.clientY;let next={focalX:placement.focalX,focalY:placement.focalY};node.setPointerCapture(e.pointerId)
+       const crop=computeCoverCrop(photo.width,photo.height,rect.width,rect.height,placement.focalX,placement.focalY,placement.zoom),angle=(placement.imageRotationDeg??0)*Math.PI/180
+       const clamp=(v:number,half:number)=>Math.max(half,Math.min(1-half,v))
+       const move=(event:PointerEvent)=>{const dx=event.clientX-startX,dy=event.clientY-startY,localX=(dx*Math.cos(angle)+dy*Math.sin(angle))*(placement.flipHorizontal?-1:1),localY=(-dx*Math.sin(angle)+dy*Math.cos(angle))*(placement.flipVertical?-1:1);next={focalX:clamp(placement.focalX-localX/rect.width*crop.cropWidth/photo.width,crop.cropWidth/photo.width/2),focalY:clamp(placement.focalY-localY/rect.height*crop.cropHeight/photo.height,crop.cropHeight/photo.height/2)};setDraft(next)}
+       const cleanup=()=>{cancelDrag.current=null;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',commit);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',escape);setDraft(null)}
+       const commit=()=>{cleanup();if(next.focalX!==placement.focalX||next.focalY!==placement.focalY)update(next)}
+       const cancel=()=>cleanup();const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();cleanup()}}
+       cancelDrag.current=cleanup;window.addEventListener('pointermove',move);window.addEventListener('pointerup',commit);window.addEventListener('pointercancel',cancel);window.addEventListener('keydown',escape)
+      }}/><div className="image-design__thirds" aria-hidden="true"/>{error && <p role="status">{error}</p>}</div>}
       {slider('Scale', 'zoom', 100, 500, 1, '%', 100)}
-      {slider('Angle', 'rotationDeg', -180, 180, 0, '°')}
+      {slider('Frame angle', 'rotationDeg', -180, 180, 0, '°')}
+      {slider('In-frame angle','imageRotationDeg',-180,180,0,'°')}
       {slider('Opacity', 'opacity', 0, 100, 1, '%', 100)}
       {slider('Border', 'borderWidth', 0, 60, 0, 'px')}
       <label>Border color<ColorField value={placement.borderColor} onChange={borderColor => update({borderColor})}/></label>

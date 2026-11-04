@@ -1,5 +1,5 @@
 export type GuideRect = {x:number;y:number;width:number;height:number;keys?:string[]}
-export type SmartGuide = {axis:'x'|'y';position:number;matches?:GuideRect[];segments?:{from:number;to:number;keys?:string[]}[]}
+export type SmartGuide = {axis:'x'|'y';position:number;bands?:GuideRect[];matches?:GuideRect[];segments?:{from:number;to:number;keys?:string[]}[]}
 /** Each shared measurement addresses the selected units together, including whole groups. */
 export function selectedSpacingGuides(units:GuideRect[]):SmartGuide[] {
   if(units.length<2)return []
@@ -27,7 +27,7 @@ function spacingTriples(rect:GuideRect,targets:GuideRect[],axis:'x'|'y') {
   const row=[rect,...targets.filter(t=>t[cross]<rect[cross]+rect[crossSize]&&t[cross]+t[crossSize]>rect[cross])].sort((a,b)=>a[axis]-b[axis])
   return row.slice(0,-2).map((_,i)=>row.slice(i,i+3)).filter(t=>t.includes(rect)&&t[1][axis]>=t[0][axis]+t[0][size]&&t[2][axis]>=t[1][axis]+t[1][size]&&Math.max(...t.map(r=>r[cross]))<Math.min(...t.map(r=>r[cross]+r[crossSize])))
 }
-export function snapRect(rect:GuideRect, targets:GuideRect[], width:number, height:number, threshold:number, anchor?:string, vertical:number[]=[], horizontal:number[]=[]) {
+export function snapRect(rect:GuideRect, targets:GuideRect[], width:number, height:number, threshold:number, anchor?:string, vertical:number[]=[], horizontal:number[]=[],initialGap=0) {
   const xs=[0,width/2,width,...vertical,...targets.flatMap(r=>[r.x,r.x+r.width/2,r.x+r.width])]
   const ys=[0,height/2,height,...horizontal,...targets.flatMap(r=>[r.y,r.y+r.height/2,r.y+r.height])]
   const result={...rect}
@@ -66,6 +66,23 @@ export function snapRect(rect:GuideRect, targets:GuideRect[], width:number, heig
       if(gap<0||Math.abs(gap-(c[axis]-b[axis]-b[size]))>.01)continue
       const position=(Math.max(a[cross],b[cross],c[cross])+Math.min(a[cross]+a[crossSize],b[cross]+b[crossSize],c[cross]+c[crossSize]))/2
       guides.push({axis,position,segments:[{from:a[axis]+a[size],to:b[axis],...(a.keys&&b.keys?{keys:[...a.keys,...b.keys]}:{})},{from:b[axis]+b[size],to:c[axis],...(b.keys&&c.keys?{keys:[...b.keys,...c.keys]}:{})}]})
+    }
+  }
+  // Fill only unobstructed, equal positive gaps involving the manipulated frame.
+  for(const axis of ['x','y'] as const){
+    const size=axis==='x'?'width':'height',cross=axis==='x'?'y':'x',crossSize=axis==='x'?'height':'width'
+    const units=[result,...targets],pairs:{a:GuideRect;b:GuideRect;gap:number;band:GuideRect}[]=[]
+    for(const a of units)for(const b of units){
+      const from=a[axis]+a[size],gap=b[axis]-from,low=Math.max(a[cross],b[cross]),high=Math.min(a[cross]+a[crossSize],b[cross]+b[crossSize])
+      if(gap<=.01||high<=low||units.some(c=>c!==a&&c!==b&&c[axis]<b[axis]&&c[axis]+c[size]>from&&c[cross]<high&&c[cross]+c[crossSize]>low))continue
+      pairs.push({a,b,gap,band:axis==='x'?{x:from,y:low,width:gap,height:high-low}:{x:low,y:from,width:high-low,height:gap}})
+    }
+    const matches=pairs.filter(p=>((p.a===result||p.b===result)&&initialGap>0&&Math.abs(p.gap-initialGap)<.01)||pairs.some(q=>q!==p&&Math.abs(q.gap-p.gap)<.01&&(q.a===result||q.b===result||p.a===result||p.b===result)))
+    for(const p of matches){
+      const from=p.a[axis]+p.a[size],to=p.b[axis],position=p.band[cross]+p.band[crossSize]/2
+      const existing=guides.find(g=>g.axis===axis&&g.segments?.some(s=>Math.abs(s.from-from)<.01&&Math.abs(s.to-to)<.01)&&Math.abs(g.position-position)<.01)
+      if(existing)(existing.bands??=[]).push(p.band)
+      else guides.push({axis,position,bands:[p.band],segments:[{from,to,...(p.a.keys&&p.b.keys?{keys:[...p.a.keys,...p.b.keys]}:{})}]})
     }
   }
   if(anchor)for(const axis of ['x','y'] as const){

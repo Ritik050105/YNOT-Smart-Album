@@ -33,3 +33,14 @@ export function overviewPhotoAt(spread:Spread,x:number,y:number,width:number,hei
     return Math.abs(dx*Math.cos(angle)-dy*Math.sin(angle))<=box.width/2&&Math.abs(dx*Math.sin(angle)+dy*Math.cos(angle))<=box.height/2
   })
 }
+
+/** Use the decoded thumbnail, without the gallery's used-photo dimming. */
+export function setPhotoDragPreview(data: Pick<DataTransfer, 'setDragImage'>, image: HTMLImageElement | null) {
+  if (!image?.complete || !image.naturalWidth) return
+  const scale = Math.min(1, 150 / Math.max(image.naturalWidth, image.naturalHeight))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+  canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height)
+  data.setDragImage(canvas, canvas.width / 2, canvas.height / 2)
+}

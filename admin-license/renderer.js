@@ -13,7 +13,6 @@ form.addEventListener('submit', async event => {
   finally { busy = false; update(); await loadHistory(); }
 });
 reveal.addEventListener('click', () => window.licenseAdmin.reveal());
-window.licenseAdmin.keyStatus().then(applyKey).catch(() => show('Unable to read the signing key.', 'error'));
 
 let historyRows = [];
 const historyList = document.getElementById('history-list'), historyStatus = document.getElementById('history-status'), historySearch = document.getElementById('history-search');
@@ -37,6 +36,7 @@ function renderHistory() {
         await loadHistory();
       }); actions.append(button);
     }
+    const revoke=document.createElement('button');revoke.textContent='Create revocation…';revoke.disabled=busy;revoke.addEventListener('click',async()=>{const r=await window.licenseAdmin.revoke(row.deviceId);if(!r.canceled)show(r.error||r.message,r.error?'error':'success');});actions.append(revoke);
     article.append(name, id, date, file, actions); historyList.append(article);
   }
 }
@@ -54,7 +54,6 @@ document.getElementById('add-existing').addEventListener('click', async () => {
   catch { show('Could not add the existing license.', 'error'); }
   finally { busy = false; update(); }
 });
-loadHistory();
 
 for (const operation of ['backup', 'restore']) {
   document.getElementById(operation).addEventListener('click', async () => {
@@ -142,3 +141,9 @@ document.getElementById('detect-pc').addEventListener('click', async () => {
   } catch { show('Could not detect this PC. Your entered ID was kept.', 'error'); }
   finally { busy = false; update(); }
 });
+
+let authState;
+async function refreshAuth(){authState=await window.licenseAdmin.authStatus();document.getElementById('login').hidden=authState.authenticated;document.getElementById('owner-content').hidden=!authState.authenticated;document.getElementById('login-note').textContent=authState.configured?'Enter your owner credentials.':'First use: create your owner username and password.';if(authState.authenticated){applyKey(await window.licenseAdmin.keyStatus());await loadHistory();}else document.getElementById('username').focus();}
+document.getElementById('login-form').addEventListener('submit',async e=>{e.preventDefault();const result=await window.licenseAdmin.auth({action:authState.configured?'login':'setup',username:document.getElementById('username').value,password:document.getElementById('password').value});document.getElementById('password').value='';document.getElementById('login-error').textContent=result.error||'';await refreshAuth();});
+document.getElementById('logout').addEventListener('click',async()=>{await window.licenseAdmin.auth({action:'lock'});ready=false;historyRows=[];historyList.replaceChildren();await refreshAuth();});
+refreshAuth();

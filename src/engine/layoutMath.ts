@@ -40,9 +40,7 @@ export function computePlaceholderBoxes(
 
 export function boundedFrameRect(rect: { x: number; y: number; width: number; height: number }) {
   if (!Object.values(rect).every(Number.isFinite)) throw new Error('Frame coordinates must be finite numbers.')
-  const x = Math.max(0, Math.min(0.998, rect.x))
-  const y = Math.max(0, Math.min(0.998, rect.y))
-  return { x, y, width: Math.max(0.002, Math.min(1 - x, rect.width)), height: Math.max(0.002, Math.min(1 - y, rect.height)) }
+  return { x: rect.x, y: rect.y, width: Math.max(0.002, rect.width), height: Math.max(0.002, rect.height) }
 }
 
 /** Resolves a per-edge trim/safe-zone inset (inches, already converted to px) into independent

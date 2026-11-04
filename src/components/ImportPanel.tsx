@@ -1,3 +1,4 @@
+import ImportProgress from './ImportProgress'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
@@ -86,12 +87,7 @@ export default function ImportPanel() {
         />
         <Icon name="upload" size={22} />
         {importing ? (
-          <>
-            Importing {progress!.done} of {progress!.total}…
-            <div className="dropzone__progress">
-              <div className="dropzone__progress-bar" style={{ width: `${(progress!.done / Math.max(1, progress!.total)) * 100}%` }} />
-            </div>
-          </>
+          <ImportProgress done={progress?.done??0} total={progress?.total??0}/>
         ) : (
           'Drop photos (or a whole folder) here, or click to browse'
         )}

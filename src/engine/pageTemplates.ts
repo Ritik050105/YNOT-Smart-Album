@@ -1,5 +1,6 @@
 import { PhotoAsset, Spread } from '@/types'
 import { computePlaceholderBoxes, DESIGN_WIDTH } from './layoutMath'
+import { findTemplate } from './templates'
 import { retemplateSpread } from './autoLayout'
 
 export type TemplateScope = 'spread' | 'left' | 'right'
@@ -31,7 +32,7 @@ export function applyPageTemplate(spread: Spread, templateId: string, photos: Ph
   const factor=scope==='spread'?1:2
   const selectedIds = new Set(selected.map(p => p.placeholderId))
   const page = retemplateSpread({...spread, flipped:false, placements:selected, marginPx:spread.marginPx * factor, gapPx:spread.gapPx * factor}, templateId, photos, aspect / factor, keepOrder)
-  if (page.templateId !== templateId || page.customBoxes) return spread
+  if (page.templateId !== templateId) return spread
   const height = DESIGN_WIDTH / aspect
   const original = computePlaceholderBoxes(spread, DESIGN_WIDTH, height)
   const pageBoxes = computePlaceholderBoxes(page, DESIGN_WIDTH, height * factor)
@@ -48,6 +49,7 @@ export function applyPageTemplate(spread: Spread, templateId: string, photos: Ph
   let cursor=0
   const placements=spread.placements.flatMap(p=>!selectedIds.has(p.placeholderId)?[p]:cursor<replacements.length?[replacements[cursor++]]:[])
   placements.push(...replacements.slice(cursor))
-  return {...spread,templateId:scope==='spread'?templateId:spread.templateId,flipped:false,customBoxes:[...preserved,...replacement],placements}
+  const textBoxes=findTemplate(templateId)?.textBoxes ? [...spread.textBoxes.filter(t=>t.locked||t.hidden||(scope!=='spread'&&(scope==='left'?t.x>=.5:t.x+t.width<=.5))),...page.textBoxes.filter(t=>!t.locked&&!t.hidden).map(t=>({...t,x:(scope==='right'?.5:0)+t.x/factor,width:t.width/factor,fontSize:t.fontSize/factor}))] : spread.textBoxes
+  return {...spread,textBoxes,templateId:scope==='spread'?templateId:spread.templateId,flipped:false,customBoxes:[...preserved,...replacement],placements}
 
 }

@@ -4,6 +4,24 @@ export const GAP = 0.02
 
 /** Normalized display geometry shared by crop ranking, previews, editor and export. */
 export function resolveTemplateFrames(frames: PlaceholderRect[], aspect: number, marginPx = 0, gapPx = 0): PlaceholderRect[] {
+  // Collapse small authored gutters to shared boundaries before applying the album gap.
+  // Wide editorial whitespace and overlapping designs retain their intended geometry.
+  frames=frames.map(p=>{
+    let left=p.x,right=p.x+p.width,top=p.y,bottom=p.y+p.height
+    for(const q of frames){if(q===p)continue
+      if(Math.min(p.y+p.height,q.y+q.height)-Math.max(p.y,q.y)>.001){
+        const before=p.x-q.x-q.width,after=q.x-p.x-p.width
+        if(before>=0&&before<=.04)left=Math.min(left,p.x-before/2)
+        if(after>=0&&after<=.04)right=Math.max(right,p.x+p.width+after/2)
+      }
+      if(Math.min(p.x+p.width,q.x+q.width)-Math.max(p.x,q.x)>.001){
+        const before=p.y-q.y-q.height,after=q.y-p.y-p.height
+        if(before>=0&&before<=.04)top=Math.min(top,p.y-before/2)
+        if(after>=0&&after<=.04)bottom=Math.max(bottom,p.y+p.height+after/2)
+      }
+    }
+    return {...p,x:left,y:top,width:right-left,height:bottom-top}
+  })
   const width = 900, height = width / aspect
   const innerW = width - marginPx * 2, innerH = height - marginPx * 2
   const smallestCell = Math.min(...frames.flatMap(p => [p.width * innerW, p.height * innerH]))
@@ -86,4 +104,20 @@ export function geometrySignature(placeholders: PlaceholderRect[]): string {
     .map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)},${p.width.toFixed(3)},${p.height.toFixed(3)}`)
     .sort()
     .join('|')
+}
+
+/** Reference-style suggestions must preserve the chosen gap across neighboring frames. */
+export function supportsUniformGap(frames:PlaceholderRect[],aspect:number,marginPx:number,gapPx:number){
+ const resolved=resolveTemplateFrames(frames,aspect,marginPx,gapPx).map(p=>({x:p.x*900,y:p.y*900/aspect,width:p.width*900,height:p.height*900/aspect}))
+ if(resolved.some(p=>p.width<=0||p.height<=0))return false
+ for(const axis of ['x','y'] as const){
+  const dim=axis==='x'?'width':'height',cross=axis==='x'?'y':'x',crossDim=axis==='x'?'height':'width'
+  for(const a of resolved)for(const b of resolved){
+   const low=Math.max(a[cross],b[cross]),high=Math.min(a[cross]+a[crossDim],b[cross]+b[crossDim]),from=a[axis]+a[dim],gap=b[axis]-from
+   if(a===b||high-low<.1||gap<-.1)continue
+   if(resolved.some(c=>c!==a&&c!==b&&c[axis]<b[axis]-.1&&c[axis]+c[dim]>from+.1&&c[cross]<high-.1&&c[cross]+c[crossDim]>low+.1))continue
+   if(Math.abs(gap-gapPx)>.1)return false
+  }
+ }
+ return true
 }

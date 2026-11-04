@@ -34,8 +34,39 @@ export default function Modal({
   bare?: boolean
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef(typeof document === 'undefined' ? null : document.activeElement)
+  useEffect(() => {
+    const card = cardRef.current
+    if (!card) return
+    const previous = previousFocusRef.current instanceof HTMLElement ? previousFocusRef.current : null
+    const controls = () => Array.from(card.querySelectorAll<HTMLElement>(
+      'button, input, select, textarea, a[href], [tabindex], [contenteditable="true"]',
+    )).filter(el => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden')
+    const topmost = () => {
+      const dialogs = document.querySelectorAll('[role="dialog"]')
+      return dialogs[dialogs.length - 1] === card
+    }
+    const focusFirst = () => (controls()[0] ?? card).focus({ preventScroll: true })
+    if (topmost() && !card.contains(document.activeElement)) focusFirst()
+    function onTab(e: KeyboardEvent) {
+      if (e.key !== 'Tab' || e.defaultPrevented || !topmost()) return
+      const items = controls()
+      const first = items[0], last = items[items.length - 1]
+      if (!first || !card!.contains(document.activeElement) || (e.shiftKey ? document.activeElement === first : document.activeElement === last) || document.activeElement === card) {
+        e.preventDefault()
+        const target = (e.shiftKey ? last : first) ?? card!
+        target.focus({ preventScroll: true })
+      }
+    }
+    window.addEventListener('keydown', onTab)
+    return () => {
+      window.removeEventListener('keydown', onTab)
+      if (previous?.isConnected) previous.focus({ preventScroll: true })
+    }
+  }, [])
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (e.defaultPrevented) return
       const dialogs = document.querySelectorAll('[role="dialog"]')
       if (dialogs[dialogs.length - 1] !== cardRef.current) return
       if (e.key === 'Escape') { e.preventDefault(); onClose() }
@@ -50,6 +81,7 @@ export default function Modal({
       className={`modal-card ${bare ? 'modal-card--bare' : ''} ${className}`}
       style={bare ? undefined : { width }}
       role="dialog"
+      tabIndex={-1}
       aria-modal="true"
       aria-label={title}
     >

@@ -1,0 +1,90 @@
+[
+  {
+    "family": "EB Garamond",
+    "files": [
+      "ebgaramond/EBGaramond-Italic[wght].ttf",
+      "ebgaramond/EBGaramond[wght].ttf"
+    ]
+  },
+  {
+    "family": "Playfair Display",
+    "files": [
+      "playfairdisplay/PlayfairDisplay-Italic[wght].ttf",
+      "playfairdisplay/PlayfairDisplay[wght].ttf"
+    ]
+  },
+  {
+    "family": "Montserrat",
+    "files": [
+      "montserrat/Montserrat-Italic[wght].ttf",
+      "montserrat/Montserrat[wght].ttf"
+    ]
+  },
+  {
+    "family": "Great Vibes",
+    "files": [
+      "greatvibes/GreatVibes-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Cormorant Garamond",
+    "files": [
+      "cormorantgaramond/CormorantGaramond-Italic[wght].ttf",
+      "cormorantgaramond/CormorantGaramond[wght].ttf"
+    ]
+  },
+  {
+    "family": "Pacifico",
+    "files": [
+      "pacifico/Pacifico-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Oswald",
+    "files": [
+      "oswald/Oswald[wght].ttf"
+    ]
+  },
+  {
+    "family": "Dancing Script",
+    "files": [
+      "dancingscript/DancingScript[wght].ttf"
+    ]
+  },
+  {
+    "family": "Marcellus",
+    "files": [
+      "marcellus/Marcellus-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Creepster",
+    "files": [
+      "creepster/Creepster-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Bangers",
+    "files": [
+      "bangers/Bangers-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Rubik Glitch",
+    "files": [
+      "rubikglitch/RubikGlitch-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Caveat",
+    "files": [
+      "caveat/Caveat[wght].ttf"
+    ]
+  },
+  {
+    "family": "Bebas Neue",
+    "files": [
+      "bebasneue/BebasNeue-Regular.ttf"
+    ]
+  }
+]

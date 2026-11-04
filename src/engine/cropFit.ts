@@ -52,3 +52,9 @@ export function effectiveDpi(imgW: number, imgH: number, crop: CoverCrop, boxWIn
   const dpiY = crop.cropHeight / boxHIn
   return Math.min(dpiX, dpiY)
 }
+
+/** Extra scale needed to keep a rotated image covering every frame corner. */
+export function rotationCoverScale(width:number,height:number,degrees:number){
+ const radians=degrees*Math.PI/180,c=Math.abs(Math.cos(radians)),s=Math.abs(Math.sin(radians))
+ return Math.max(c+s*height/width,c+s*width/height)
+}

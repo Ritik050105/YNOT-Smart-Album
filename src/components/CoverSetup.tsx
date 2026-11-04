@@ -28,7 +28,7 @@ function CoverDialog({ projectSize, units: initialUnits, existing, initialMode, 
   onCreate: (size: AlbumSize, details: Omit<NonNullable<Spread['coverDetails']>, 'reviewedPageCount'>) => void
 }) {
   const [step, setStep] = useState(existing || initialMode ? 2 : 1)
-  const [mode, setMode] = useState<'guide' | 'custom'>(initialMode ?? (existing?.coverDetails?.guideSrc ? 'guide' : existing ? 'custom' : 'guide'))
+  const [mode, setMode] = useState<'guide' | 'custom'>(initialMode ?? (existing?.coverDetails?.guideSrc ? 'guide' : 'custom'))
   const [units, setUnits] = useState(initialUnits)
   const [widthIn, setWidth] = useState(existing?.size?.widthIn ?? projectSize.widthIn)
   const [heightIn, setHeight] = useState(existing?.size?.heightIn ?? projectSize.heightIn)
@@ -88,15 +88,15 @@ function CoverDialog({ projectSize, units: initialUnits, existing, initialMode, 
       <section className={`cover-choice ${mode === 'custom' ? 'is-active' : ''}`}>
         <button className="cover-choice__heading" aria-expanded={mode === 'custom'} onClick={()=>{setMode('custom');setError(null)}}>Custom Dimensions<span>Enter the complete cover size supplied by your lab</span></button>
         {mode === 'custom' && <div className="cover-choice__body">
-      <label className="field">Units<select value={units} onChange={(e) => setUnits(e.target.value as DisplayUnit)}><option value="in">Inches</option><option value="cm">Centimeters</option><option value="px">Pixels</option></select></label>
-      <div className="auto-build-range">
+      <label className="field">Units<select value={units} onChange={(e) => setUnits(e.target.value as DisplayUnit)}><option value="in">Inches</option><option value="cm">Centimeters</option><option value="mm">Millimeters</option><option value="px">Pixels</option></select></label>
+      <button className="btn" onClick={()=>{setWidth(projectSize.widthIn);setHeight(projectSize.heightIn)}}>Match spread dimensions</button><div className="auto-build-range">
         <label className="field">Width ({units})<input type="number" min={0} step="any" value={inToDisplay(widthIn, units, dpi)} onChange={(e) => setWidth(displayToIn(Number(e.target.value), units, dpi))} /></label>
         <label className="field">Height ({units})<input type="number" min={0} step="any" value={inToDisplay(heightIn, units, dpi)} onChange={(e) => setHeight(displayToIn(Number(e.target.value), units, dpi))} /></label>
         <label className="field">DPI<input type="number" min={1} value={dpi} onChange={(e) => setDpi(Number(e.target.value))} /></label>
       </div>
         </div>}
       </section>
-      <details className="cover-guide-options"><summary>Wrap & spine guides</summary>
+      <details open className="cover-guide-options"><summary>Wrap & spine guides</summary>
       <div className="auto-build-range">
         <label className="field">Wrap ({units})<input type="number" min={0} step="any" value={inToDisplay(wrapIn, units, dpi)} onChange={(e) => setWrap(displayToIn(Number(e.target.value), units, dpi))} /></label>
         <label className="field">Spine ({units})<input type="number" min={0} step="any" value={inToDisplay(spineIn, units, dpi)} onChange={(e) => setSpine(displayToIn(Number(e.target.value), units, dpi))} /></label>

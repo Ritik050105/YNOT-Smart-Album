@@ -1,3 +1,5 @@
+import {layerEditItems,copyLayers,deleteLayers} from '@/engine/layerClipboard'
+import {layerOrderItems} from './layerOrderItems'
 import { useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
@@ -28,16 +30,14 @@ export default function PhotoContextMenu({ x, y, spreadId, frameId }: { x: numbe
   const run = (action: () => Promise<unknown>) => { void action().catch(e => setError(e instanceof Error ? e.message : String(e))) }
   const locked=frameId ? !!placement?.locked : !!spread.backgroundLocked
   const lockItem: ContextMenuItem={label:locked?'Unlock layer':'Lock layer',onClick:()=>state.setLayerLocked(spread.id,frameId?'image':'background',frameId??'background',!locked)}
-  const items: ContextMenuItem[] = [lockItem,
+  const items: ContextMenuItem[] = [...(frameId?layerEditItems(spreadId,['image:'+frameId]):[]),lockItem,...(frameId?layerOrderItems(spreadId,'image',frameId):[]),
+    ...(!frameId ? [{label:'Delete Background',disabled:!background,onClick:()=>state.updateSpread(spreadId,{backgroundPattern:undefined})}] : []),
     {label:'Auto Enhance',disabled:!photo && background?.mode !== 'cover',onClick:()=>run(()=>state.autoEnhanceImages([{spreadId,frameId}]))},
     ...(background?.mode === 'cover' ? [{label:'Detach Background Image',onClick:()=>state.detachBackground(spreadId)}] : []),
-    { label: 'Cut', shortcut: 'Ctrl+X', disabled: !photo, onClick: () => state.cutPlacement(spreadId, frameId!) },
-    { label: 'Copy', shortcut: 'Ctrl+C', disabled: !photo, onClick: () => state.copyPlacement(spreadId, frameId!) },
+    { label: 'Cut', shortcut: 'Ctrl+X', disabled: !photo, onClick: () => {copyLayers(spreadId,['image:'+frameId!]);deleteLayers(spreadId,['image:'+frameId!])} },
     { label: 'Copy Tone Adjustments', shortcut: 'Ctrl+Shift+C', disabled: !photo, onClick: () => state.copyToneAdjustments(spreadId, frameId!) },
     { label: 'Copy Filename(s)', disabled: !src, onClick: () => run(() => navigator.clipboard.writeText(name)) },
-    { label: 'Paste', shortcut: 'Ctrl+V', disabled: !frameId || !state.photoClipboard, onClick: () => state.pastePlacement(spreadId, [frameId!]) },
     { label: 'Paste Tone Adjustments', shortcut: 'Ctrl+Shift+V', disabled: !placement || !state.toneClipboard, onClick: () => state.pasteToneAdjustments(spreadId, [frameId!]) },
-    { label: 'Delete', shortcut: 'Del', disabled: !src && !placement, onClick: () => frameId ? state.removeImageFrame(spreadId, frameId) : state.updateSpread(spreadId, { backgroundPattern: undefined }) },
     { label: `Convert to ${horizontal ? 'Vertical' : 'Horizontal'} Frame`, separator: true, disabled: !box, onClick: () => {
       if (!box || !frameId) return
       const width = Math.min(box.height, 900), h = Math.min(box.width, height)
