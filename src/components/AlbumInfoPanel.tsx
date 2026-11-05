@@ -4,7 +4,7 @@ import { inToDisplay } from '@/engine/units'
 import Icon from './Icon'
 import ProjectInfoPanel from './ProjectInfoPanel'
 import SpreadGrid from './SpreadGrid'
-import ColorField from './ColorField'
+import PaperColorFields from './PaperColorFields'
 import SliderField from './SliderField'
 
 function Collapsible({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
@@ -85,10 +85,7 @@ export default function AlbumInfoPanel() {
           the photo's — before this the only way to reach a spread's paper colour or image gap was
           to open it in the designer. */}
       {selectedSpread && !selectedSpread.isCover && <Collapsible title={`Spread ${spreadNumber} · Design`}>
-        <label className="field">
-          Background color
-          <ColorField value={selectedSpread.backgroundColor} onChange={(hex) => updateSpread(selectedSpread.id, { backgroundColor: hex })} />
-        </label>
+        <PaperColorFields spread={selectedSpread} onChange={(patch) => updateSpread(selectedSpread.id, patch)} />
         <SliderField buttons label="Gap" value={selectedSpread.gapPx} min={0} max={120} suffix="px"
           onChange={(v) => updateSpread(selectedSpread.id, { gapPx: v })} />
         <SliderField buttons label="Margin" value={selectedSpread.marginPx} min={0} max={240} suffix="px"

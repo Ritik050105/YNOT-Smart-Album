@@ -32,7 +32,7 @@ import GapPresetImportPreview from './GapPresetImportPreview'
 import PhotoContextMenu from './PhotoContextMenu'
 import ContextMenu from './ContextMenu'
 import TextAutoFitStatus from './TextAutoFitStatus'
-import { drawSpreadBackground, plainTextAlign } from '@/engine/renderSpread'
+import { drawSpreadBackground, plainTextAlign, spreadPageColors } from '@/engine/renderSpread'
 import { readDraggedPhotoIds } from '@/engine/photoDrag'
 import { isFontTemplateDrag, dropFontTemplate } from '@/engine/fontTemplateDrag'
 
@@ -1103,7 +1103,10 @@ export default function DesignerCanvas() {
         onMouseLeave={handleStageMouseUp}
       >
         <Layer>
-           <Rect name="page-background" x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fill={spread.backgroundHidden ? '#ffffff' : spread.backgroundColor} />
+           {(() => { const paper = spreadPageColors(spread); return <>
+             <Rect name="page-background" x={0} y={0} width={paper.split ? STAGE_WIDTH / 2 : STAGE_WIDTH} height={stageHeight} fill={paper.left} />
+             {paper.split && <Rect name="page-background-right" x={STAGE_WIDTH / 2} y={0} width={STAGE_WIDTH / 2} height={stageHeight} fill={paper.right} />}
+           </> })()}
            {!spread.backgroundHidden && patternImage && spread.backgroundPattern && (spread.backgroundPattern.mode === 'cover'
              ? <FixedBackground spread={spread} height={stageHeight} onContextMenu={e => { e.evt.preventDefault(); e.evt.stopPropagation(); setPhotoContextMenu({ openedAt: Date.now(), x: e.evt.clientX, y: e.evt.clientY }) }} />
              : <Rect x={0} y={0} width={STAGE_WIDTH} height={stageHeight} fillPatternImage={patternImage} fillPatternScaleX={spread.backgroundPattern.tileSizePx / patternImage.width} fillPatternScaleY={spread.backgroundPattern.tileSizePx / patternImage.width} listening={false} />)}

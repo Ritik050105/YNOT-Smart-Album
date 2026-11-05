@@ -9,7 +9,14 @@ import ContextMenu from './ContextMenu'
 import { deleteLayers } from '@/engine/layerClipboard'
 
 export default function DesignerLayers({spread}:{spread:Spread}) {
- const state=useProjectStore()
+ // Always mounted in the designer right panel, so a whole-store subscription re-rendered the
+ // layer list on every pointer move of a canvas drag. Wake only for what the list actually shows;
+ // the snapshot below is read during that render, and actions on it are stable.
+ useProjectStore(s=>s.project.photos);useProjectStore(s=>s.project.size);useProjectStore(s=>s.project.units)
+ useProjectStore(s=>s.selectedPlaceholderId);useProjectStore(s=>s.selectedTextBoxId)
+ useProjectStore(s=>s.selectedLayerKeys);useProjectStore(s=>s.multiSelectedPlaceholderIds)
+ useProjectStore(s=>s.pickingGapAnchor);useProjectStore(s=>s.gapAnchor)
+ const state=useProjectStore.getState()
  const [dragOver,setDragOver]=useState<string|null>(null)
  const [menu,setMenu]=useState<{x:number;y:number;row:{id:string;kind:string;keys:string[];label:string;locked:boolean;hidden:boolean}}|null>(null)
  const all=spreadLayers(spread).filter(l=>l.kind!=='image'||l.value.photoId).reverse()

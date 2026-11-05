@@ -197,6 +197,10 @@ export interface Spread {
   placements: PlacedPhoto[]
   textBoxes: TextBox[]
   backgroundColor: string
+  /** Paper colour for one page only, when the two pages of a spread are coloured differently.
+   *  Unset means that page takes `backgroundColor` like the rest of the sheet. */
+  backgroundColorLeft?: string
+  backgroundColorRight?: string
   gapPx: number
   marginPx: number
   /** Mirrors the template horizontally (x' = 1 - x - width) without needing a second copy of

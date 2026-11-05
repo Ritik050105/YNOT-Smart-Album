@@ -42,40 +42,81 @@ export default function SpreadGrid() {
   const enterDesignerView = useProjectStore(s => s.enterDesignerView)
   const reorderSpreads = useProjectStore(s => s.reorderSpreads)
   const [dragging, setDragging] = useState<number | null>(null)
-  const [over, setOver] = useState<number | null>(null)
+  /** Where the drop would land: an index and which side of it, so the insertion line sits in the
+   *  gap the spread will move into rather than outlining a card it is only passing over. */
+  const [over, setOver] = useState<{ index: number; after: boolean } | null>(null)
 
   const spreads = project.spreads.filter(s => !s.isCover).sort((a, b) => a.order - b.order)
   const photosById = useMemo(() => new Map(project.photos.map(p => [p.id, p])), [project.photos])
   if (!spreads.length) return <p className="muted">No spreads yet. Drop photos onto the timeline to make one.</p>
 
-  const drop = (to: number) => {
-    if (dragging !== null && dragging !== to) reorderSpreads(dragging, to)
+  // First page number of each spread, so a card is labelled by the pages it prints as rather than
+  // by its position in a list. A single-sided spread takes one page, a full spread two.
+  let page = 1
+  const firstPage = spreads.map(s => { const start = page; page += s.pageSide === 'spread' ? 2 : 1; return start })
+
+  const drop = (index: number, after: boolean) => {
+    const to = after ? index + 1 : index
+    if (dragging !== null) {
+      // Removing the dragged card first shifts everything after it down by one.
+      const target = Math.max(0, Math.min(spreads.length - 1, dragging < to ? to - 1 : to))
+      if (target !== dragging) reorderSpreads(dragging, target)
+    }
     setDragging(null); setOver(null)
   }
 
-  return <ol className="spread-grid" aria-label="Spread grid">
-    {spreads.map((spread, index) => (
-      <li
-        key={spread.id}
-        className={`spread-grid__item ${spread.id === selectedSpreadId ? 'is-selected' : ''} ${over === index && dragging !== null && dragging !== index ? 'is-drop-target' : ''} ${dragging === index ? 'is-dragging' : ''}`}
-        draggable
-        onDragStart={e => { setDragging(index); e.dataTransfer.effectAllowed = 'move' }}
-        onDragOver={e => { if (dragging === null) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(index) }}
-        onDragLeave={() => setOver(current => (current === index ? null : current))}
-        onDrop={e => { e.preventDefault(); drop(index) }}
-        onDragEnd={() => { setDragging(null); setOver(null) }}
-      >
-        <button
-          className="spread-grid__button"
-          aria-current={spread.id === selectedSpreadId}
-          title={`Spread ${index + 1} — click to select, double-click to open in the designer, drag to reorder`}
-          onClick={() => selectSpread(spread.id)}
-          onDoubleClick={() => enterDesignerView(spread.id)}
+  const move = (index: number, delta: number) => {
+    const to = index + delta
+    if (to < 0 || to >= spreads.length) return
+    reorderSpreads(index, to)
+    selectSpread(spreads[index].id)
+  }
+
+  return <>
+    <ol className="spread-grid" aria-label="Spread grid">
+      {spreads.map((spread, index) => {
+        const photos = spread.placements.filter(p => p.photoId).length
+        const pages = spread.pageSide === 'spread' ? `${firstPage[index]}–${firstPage[index] + 1}` : `${firstPage[index]}`
+        return <li
+          key={spread.id}
+          className={`spread-grid__item ${spread.id === selectedSpreadId ? 'is-selected' : ''} ${dragging === index ? 'is-dragging' : ''} ${over && dragging !== null && over.index === index ? (over.after ? 'is-drop-after' : 'is-drop-before') : ''}`}
+          draggable
+          onDragStart={e => { setDragging(index); e.dataTransfer.effectAllowed = 'move' }}
+          onDragOver={e => {
+            if (dragging === null) return
+            e.preventDefault(); e.dataTransfer.dropEffect = 'move'
+            const r = e.currentTarget.getBoundingClientRect()
+            const after = e.clientX > r.left + r.width / 2
+            setOver(current => (current?.index === index && current.after === after ? current : { index, after }))
+          }}
+          onDragLeave={() => setOver(current => (current?.index === index ? null : current))}
+          onDrop={e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); drop(index, e.clientX > r.left + r.width / 2) }}
+          onDragEnd={() => { setDragging(null); setOver(null) }}
         >
-          <LazyCell><SpreadThumbnail spread={spread} photosById={photosById} size={project.size} width={150} /></LazyCell>
-          <span className="spread-grid__number">{index + 1}</span>
-        </button>
-      </li>
-    ))}
-  </ol>
+          <button
+            className="spread-grid__button"
+            aria-current={spread.id === selectedSpreadId}
+            aria-label={`Spread ${index + 1}, page${spread.pageSide === 'spread' ? 's' : ''} ${pages}, ${photos} photo${photos === 1 ? '' : 's'}`}
+            title={`Spread ${index + 1} — click to select, double-click to open, drag or Alt+arrow to reorder`}
+            onClick={() => selectSpread(spread.id)}
+            onDoubleClick={() => enterDesignerView(spread.id)}
+            // Reorder is otherwise drag-only, which no keyboard reaches.
+            onKeyDown={e => {
+              if (!e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
+              e.preventDefault()
+              move(index, e.key === 'ArrowLeft' ? -1 : 1)
+            }}
+          >
+            <LazyCell><SpreadThumbnail spread={spread} photosById={photosById} size={project.size} width={150} /></LazyCell>
+            <span className="spread-grid__caption">
+              <span className="spread-grid__number">{index + 1}</span>
+              <span className="spread-grid__pages">p. {pages}</span>
+              <span className="spread-grid__count">{photos}</span>
+            </span>
+          </button>
+        </li>
+      })}
+    </ol>
+    <p className="muted spread-grid__hint">Drag a spread to reorder, or hold Alt and press ← →.</p>
+  </>
 }

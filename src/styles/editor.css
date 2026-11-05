@@ -231,7 +231,9 @@
 /* Responsive editing surfaces and album details. */
 .album-editor .editor-workspace > .app-sidebar--right { width: clamp(250px, 26vw, 340px); flex-shrink: 0; overflow: auto; }
 .album-editor .album-info-panel { color: var(--text);  }
-.album-editor .album-info-panel__header { min-height: 76px; padding: 18px; align-items: center; }
+/* 16px inline matches the collapsibles below, so the title, its button and every section
+   heading share one left and one right edge. */
+.album-editor .album-info-panel__header { min-height: 76px; padding: 18px 16px; align-items: center; }
 .album-editor .album-info-panel__header > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .album-editor .album-info-panel__header strong { font-size: 16px; font-weight: 650; color: var(--accent); }
 .album-editor .album-info-panel__header .muted { margin-left: 0; font-size: 12px; }
@@ -712,10 +714,15 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .stroke-style-options button {flex:1;min-width:0;padding:6px}
 .stroke-style-options button[aria-pressed="true"] {outline:2px solid var(--accent);outline-offset:1px}
 
-/* Keep the live spread visible while browsing quotes on shorter windows. */
-.album-editor:has(.font-template-browser) .bottom-panel:has(.photo-dock):not([hidden]) {flex:0 0 18vh!important;height:18vh;min-height:100px}
-.album-editor:has(.font-template-browser) .spreads-panel__timeline {flex-basis:70px}
-.album-editor:has(.font-template-browser) .spreads-panel {--timeline-height:70px}
+/* Keep the live spread visible while a template browser is open on shorter windows. Both browsers
+   get the same treatment: when only one of them shrank the panels below, switching between them
+   made the whole editor jump. */
+.album-editor:has(.font-template-browser) .bottom-panel:has(.photo-dock):not([hidden]),
+.album-editor:has(.matching-templates) .bottom-panel:has(.photo-dock):not([hidden]) {flex:0 0 18vh!important;height:18vh;min-height:100px}
+.album-editor:has(.font-template-browser) .spreads-panel__timeline,
+.album-editor:has(.matching-templates) .spreads-panel__timeline {flex-basis:70px}
+.album-editor:has(.font-template-browser) .spreads-panel,
+.album-editor:has(.matching-templates) .spreads-panel {--timeline-height:70px}
 
 .spreads-panel__card {container-type:inline-size}
 @container (max-width:320px) {
@@ -765,7 +772,10 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 
 .floating-text-tools { position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:35; display:flex; align-items:center; gap:6px; padding:8px; max-width:calc(100% - 32px); border:1px solid var(--border); border-radius:12px; background:var(--panel, #353535); box-shadow:0 8px 24px #0003; }
 .floating-text-tools fieldset { border:0; padding:0; margin:0; display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; }
-.floating-text-tools .font-picker { max-width:190px; }
+/* In the float bar the picker is one control in a row of controls, so it drops the stacked-form
+   spacing and the larger type that made it sit off the line its neighbours share. */
+.floating-text-tools .font-picker { max-width:190px; margin-bottom:0; align-self:center; }
+.floating-text-tools .font-picker__current { font-size:inherit; }
 .floating-text-tools .font-picker > .btn { display:none; }
 .floating-text-tools input[type=number] { width:64px; }
 .floating-text-tools__spacing { position:absolute; top:100%; right:0; width:280px; padding:18px; border:1px solid var(--border); background:var(--panel, #353535); border-radius:12px; box-shadow:0 8px 24px #0003; }
@@ -867,10 +877,10 @@ button:disabled { cursor:not-allowed; }
 
 /* Both template browsers are the same height, in the overview and in the designer: they sit in
    the same slot and swapping between them should not move everything below. */
-:root { --template-browser-height: 34vh; }
-.matching-templates, .font-template-browser { max-height: var(--template-browser-height); overflow-y: auto; }
+:root { --template-browser-height: 30vh; }
+.matching-templates, .font-template-browser { height: var(--template-browser-height); max-height: var(--template-browser-height); overflow-y: auto; }
 .designer-view .matching-templates, .designer-view .font-template-browser,
-.album-editor .matching-templates, .album-editor .font-template-browser { max-height: var(--template-browser-height); }
+.album-editor .matching-templates, .album-editor .font-template-browser { height: var(--template-browser-height); max-height: var(--template-browser-height); }
 
 /* Text toolbar: related controls in one group each, so the bar reads as a few clusters rather
    than one long row of buttons. */
@@ -884,16 +894,29 @@ button:disabled { cursor:not-allowed; }
 .font-picker__name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .font-picker__list button.font-picker__style { padding-left: 34px; font-size: 13px; }
 
-/* Spread grid: pages in order, dragged to reorder. */
-.spread-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
-.spread-grid__item { position: relative; }
-.spread-grid__button { display: block; width: 100%; padding: 2px; border: 1px solid var(--border-soft); border-radius: 6px; background: var(--panel-raised); cursor: grab; }
-.spread-grid__item.is-selected .spread-grid__button { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.spread-grid__item.is-dragging { opacity: .45; }
-.spread-grid__item.is-drop-target .spread-grid__button { border-color: var(--accent); border-style: dashed; }
+/* Spread grid: pages in order, dragged to reorder. Each card is a thumbnail with a caption bar
+   naming the pages it prints as and how many photos it holds; the drop target is an insertion
+   line in the gap the spread will move into, not an outline on the card it is passing over. */
+.spread-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 12px 10px; margin: 10px 0 0; padding: 0; list-style: none; }
+.spread-grid__item { position: relative; min-width: 0; }
+.spread-grid__button { display: grid; width: 100%; padding: 0; overflow: hidden; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--panel-raised); color: inherit; cursor: grab; text-align: left; transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
+.spread-grid__button:hover { border-color: var(--accent); }
+.spread-grid__item.is-selected .spread-grid__button { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.spread-grid__item.is-dragging { opacity: .4; }
+.spread-grid__caption { display: flex; align-items: center; gap: 6px; padding: 5px 7px; border-top: 1px solid var(--border-soft); background: var(--panel); font-size: 11px; color: var(--text-muted); }
+.spread-grid__number { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.spread-grid__item.is-selected .spread-grid__number { background: var(--accent); color: var(--on-accent); }
+.spread-grid__pages { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The photo count is the one number a designer scans the grid for, so it keeps its own column. */
+.spread-grid__count { flex: none; font-variant-numeric: tabular-nums; }
+.spread-grid__count::after { content: " img"; color: var(--text-faint); }
+/* The insertion line sits in the gutter, which is why it is drawn outside the card. */
+.spread-grid__item.is-drop-before::before, .spread-grid__item.is-drop-after::after { content: ""; position: absolute; top: 0; bottom: 0; width: 3px; border-radius: 2px; background: var(--accent); }
+.spread-grid__item.is-drop-before::before { left: -6px; }
+.spread-grid__item.is-drop-after::after { right: -6px; }
+.spread-grid__hint { margin: 10px 0 0; font-size: 11px; }
 /* Holds the cell open before its thumbnail has been drawn, so the grid does not reflow. */
 .spread-grid__cell { aspect-ratio: var(--spread-aspect, 2); background: var(--panel); }
-.spread-grid__number { position: absolute; right: 4px; bottom: 3px; padding: 0 5px; border-radius: 7px; background: #0009; color: #fff; font-size: 10px; }
 .spread-grid__button .spread-thumb { pointer-events: none; }
 
 /* Auto Build: the rows were a wall of checkboxes with no breathing room. Each section gets a rule

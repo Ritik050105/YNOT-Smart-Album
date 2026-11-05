@@ -384,6 +384,9 @@ interface ProjectState {
    *  own dedicated screen. */
   createSimpleProject: (kind: 'gallery' | 'slideshow', name: string, clientName: string) => void
   addPhotosToBin: (photoIds: string[], bin: string) => void
+  /** Removes a bin. The photos in it stay in the gallery and simply lose the tag — a bin is a
+   *  label on a photo, never a container that owns it. */
+  deleteBin: (bin: string) => void
   setPhotoBins: (photoId: string, bins: string[]) => void
   setPhotoFavorite: (photoId: string, favorite: boolean) => void
   /** Slideshow-only: reorders the flat `photos` array itself (there's no separate "slide" list —
@@ -1655,6 +1658,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const ids=new Set(photoIds)
     withHistory(set,p=>({...p,photos:p.photos.map(photo=>ids.has(photo.id)?{...photo,bins:[...new Set([...photo.bins,bin])]}:photo)}))
   },
+  deleteBin: (bin) =>
+    withHistory(set, (p) => ({
+      ...p,
+      photos: p.photos.map((photo) => photo.bins.includes(bin) ? { ...photo, bins: photo.bins.filter((b) => b !== bin) } : photo),
+    })),
+
   setPhotoBins: (photoId, bins) =>
     withHistory(set, (p) => ({
       ...p,

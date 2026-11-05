@@ -16,6 +16,7 @@ import FontPicker from './FontPicker'
 import Icon from './Icon'
 import SliderField from './SliderField'
 import ColorField from './ColorField'
+import PaperColorFields from './PaperColorFields'
 import ImageDesign from './ImageDesign'
 import { inToDisplay, displayToIn } from '@/engine/units'
 
@@ -120,10 +121,7 @@ export default function Inspector() {
           <Icon name="layers" size={13} />
           Spread Settings
         </h4>
-        <label>
-          Background
-          <ColorField value={spread.backgroundColor} onChange={(hex) => updateSpread(spread.id, { backgroundColor: hex })} />
-        </label>
+        <PaperColorFields spread={spread} onChange={(patch) => updateSpread(spread.id, patch)} />
         <SliderField buttons
           label="Gap"
           value={spread.gapPx}

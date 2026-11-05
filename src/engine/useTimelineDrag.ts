@@ -35,10 +35,23 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
   const commit = useRef(onDrop)
   commit.current = onDrop
   const gesture = useRef<{ source: TimelineSource; x: number; y: number; startX: number; startY: number; active: boolean; src: string; pointerId: number } | null>(null)
-  const [drag, setDrag] = useState<{ x: number; y: number; src: string } | null>(null)
+  // The ghost follows the pointer every frame. It used to be React state, so the whole timeline —
+  // every spread card and every dock thumbnail — re-rendered 60 times a second just to move one
+  // 64px image. It is now a plain DOM node this hook owns; React only learns that a drag is on.
+  const [drag, setDrag] = useState(false)
+  const ghost = useRef<HTMLImageElement | null>(null)
   const [target, setTarget] = useState<TimelineTarget | null>(null)
 
   useEffect(() => {
+    const hideGhost = () => { ghost.current?.remove(); ghost.current = null }
+    const showGhost = (src: string, x: number, y: number) => {
+      if (!ghost.current) {
+        const node = document.createElement('img')
+        node.className = 'timeline-drag-preview'; node.alt = ''; node.src = src
+        document.body.appendChild(node); ghost.current = node
+      }
+      ghost.current.style.left = x + 'px'; ghost.current.style.top = y + 'px'
+    }
     let scrollFrame = 0
     let pointerFrame = 0
     let suppressClickUntil = 0
@@ -76,7 +89,8 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
       cancelAnimationFrame(scrollFrame)
       cancelAnimationFrame(pointerFrame)
       scrollFrame = pointerFrame = 0
-      setDrag(null)
+      hideGhost()
+      setDrag(false)
       setTarget(null)
       clearBinHighlight()
     }
@@ -124,7 +138,8 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
         pointerFrame = 0
         const latest = gesture.current
         if (!latest?.active) return
-        setDrag({ x: latest.x, y: latest.y, src: latest.src })
+        showGhost(latest.src, latest.x, latest.y)
+        setDrag(true)
         updateTarget()
       })
     }
@@ -159,6 +174,7 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
     window.addEventListener('click', click, true)
     window.addEventListener('keydown', key, true)
     return () => {
+      hideGhost()
       cancelAnimationFrame(scrollFrame)
       cancelAnimationFrame(pointerFrame)
       window.removeEventListener('pointerdown', down, true)

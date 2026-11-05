@@ -69,10 +69,21 @@ export async function renderSpreadToCanvas(
   return canvas
 }
 
+/** The paper colour of each half of a spread: the sheet's own colour unless that page has been
+ *  given one of its own. A single page has no halves, so both answers are the same. */
+export function spreadPageColors(spread: Pick<Spread, 'backgroundColor' | 'backgroundColorLeft' | 'backgroundColorRight' | 'backgroundHidden' | 'pageSide'>) {
+  const base = spread.backgroundHidden ? '#ffffff' : spread.backgroundColor
+  if (spread.backgroundHidden || spread.pageSide !== 'spread') return { left: base, right: base, split: false }
+  const left = spread.backgroundColorLeft ?? base, right = spread.backgroundColorRight ?? base
+  return { left, right, split: left !== right }
+}
+
 export async function drawSpreadBackground(ctx: CanvasRenderingContext2D, spread: Spread, width: number, height: number) {
   ctx.imageSmoothingQuality = 'high'
-  ctx.fillStyle = spread.backgroundHidden ? '#ffffff' : spread.backgroundColor
-  ctx.fillRect(0, 0, width, height)
+  const paper = spreadPageColors(spread)
+  ctx.fillStyle = paper.left
+  ctx.fillRect(0, 0, paper.split ? width / 2 : width, height)
+  if (paper.split) { ctx.fillStyle = paper.right; ctx.fillRect(width / 2, 0, width - width / 2, height) }
   if (spread.backgroundHidden || !spread.backgroundPattern) return
   if (spread.backgroundPattern.mode === 'cover') {
     await drawPlacement(ctx, { placeholderId: 'background', x: 0, y: 0, width, height }, spread.backgroundPattern.edits, { src: spread.backgroundPattern.src }, width / DESIGN_WIDTH)

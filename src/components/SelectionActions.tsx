@@ -7,8 +7,15 @@ import ContextMenu from './ContextMenu'
 import Icon from './Icon'
 
 export default function SelectionActions({floating=false,transform}:{floating?:boolean;transform?:{x:number;y:number;scale:number;width:number;height:number}}){
- const state=useProjectStore(),keys=selectedKeys(),spread=state.project.spreads.find(s=>s.id===state.selectedSpreadId)
- const geometry=spread?selectionGeometry(spread,keys,state.project.size):null
+ // This bar is mounted in the overview and on the designer canvas, so a whole-store subscription
+ // re-rendered it on every pointer move of a drag. It only needs the selection and the one spread.
+ const spread=useProjectStore(s=>s.project.spreads.find(p=>p.id===s.selectedSpreadId))
+ const size=useProjectStore(s=>s.project.size)
+ // selectedKeys() reads the store without subscribing, so wake on each field it looks at.
+ useProjectStore(s=>s.selectedLayerKeys);useProjectStore(s=>s.multiSelectedPlaceholderIds)
+ useProjectStore(s=>s.selectedTextBoxId);useProjectStore(s=>s.selectedPlaceholderId)
+ const keys=selectedKeys()
+ const geometry=spread?selectionGeometry(spread,keys,size):null
  const [point,setPoint]=useState<{x:number;y:number}|null>(null),[more,setMore]=useState<{x:number;y:number}|null>(null)
  // Where the user has dragged the bar away from the spot it picks for itself. Kept until the
  // selection changes, so it does not drift back under the pointer mid-edit.
@@ -45,11 +52,11 @@ export default function SelectionActions({floating=false,transform}:{floating?:b
  },[floating,spread,keys.join('|'),transform?.x,transform?.y,transform?.scale,transform?.width,transform?.height])
  if(!spread||!geometry)return null
  const members=geometry.members,groups=[...new Set(members.map(m=>m.value.groupId).filter((id):id is string=>!!id))],locked=members.every(m=>m.value.locked),hasLocked=members.some(m=>m.value.locked),selected=new Set(members.map(m=>m.kind+':'+m.id))
- const ungroup=()=>{state.updateSpread(spread.id,{placements:spread.placements.map(m=>m.groupId&&groups.includes(m.groupId)?{...m,groupId:undefined}:m),textBoxes:spread.textBoxes.map(m=>m.groupId&&groups.includes(m.groupId)?{...m,groupId:undefined}:m)});state.setLayerSelection([...selected])}
- const lock=()=>state.setLayersLocked(spread.id,[...selected],!locked)
+ const ungroup=()=>{useProjectStore.getState().updateSpread(spread.id,{placements:spread.placements.map(m=>m.groupId&&groups.includes(m.groupId)?{...m,groupId:undefined}:m),textBoxes:spread.textBoxes.map(m=>m.groupId&&groups.includes(m.groupId)?{...m,groupId:undefined}:m)});useProjectStore.getState().setLayerSelection([...selected])}
+ const lock=()=>useProjectStore.getState().setLayersLocked(spread.id,[...selected],!locked)
  const content=<div className={floating?'selection-actions selection-actions--floating':'selection-actions'} role="toolbar" aria-label={floating?'Selected element actions':'Selection actions'} style={floating?{position:'fixed',left:Math.max(90,Math.min(window.innerWidth-90,(point?.x??0)+(offset?.x??0))),top:Math.max(4,Math.min(window.innerHeight-48,(point?.y??0)+(offset?.y??0))),visibility:point?'visible':'hidden'}:undefined} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
  {floating&&<span className="selection-actions__grip" role="button" tabIndex={0} aria-label="Drag to move this toolbar" title="Drag to move this toolbar" onPointerDown={drag}><Icon name="grip" size={14}/></span>}
- <button className="btn" disabled={members.length<2||hasLocked} title="Group selected elements (Ctrl+G)" onClick={()=>state.groupLayers(spread.id,keys)}>Group</button>
+ <button className="btn" disabled={members.length<2||hasLocked} title="Group selected elements (Ctrl+G)" onClick={()=>useProjectStore.getState().groupLayers(spread.id,keys)}>Group</button>
  <button className="btn" disabled={!groups.length||hasLocked} title="Ungroup (Ctrl+Shift+G)" onClick={ungroup}>Ungroup</button>
  <button className="btn" aria-pressed={locked} onClick={lock}>{locked?'Unlock':'Lock'}</button>
  {floating&&<><span className="selection-actions__divider"/><button className="btn" aria-label="Duplicate selected elements" title="Duplicate" onClick={()=>duplicateLayers(spread.id,keys)}><Icon name="copy" size={17}/></button><button className="btn" aria-label="Delete selected elements" disabled={locked} title="Delete" onClick={()=>deleteLayers(spread.id,keys)}><Icon name="trash" size={17}/></button><button className="btn" aria-label="More selected element actions" onClick={e=>setMore({x:e.clientX,y:e.clientY})}>⋯</button></>}

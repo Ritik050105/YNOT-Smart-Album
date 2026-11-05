@@ -1,6 +1,5 @@
 import SelectionActions from './SelectionActions'
 import {cyclingTemplates,useTemplateBrowsing} from '@/state/templateBrowsing'
-import { createPortal } from 'react-dom'
 import {PreviewImage} from '@/engine/previewImage'
 import PanelResizer from './PanelResizer'
 import { usePreferences, getPreferences } from '@/state/preferences'
@@ -420,7 +419,6 @@ export default function SpreadsPanel() {
         <div className={`timeline-new-spread ${newSpreadDragOver || (drag && target?.spreadId === null && !target.cover) ? 'is-drag-over' : ''}`} data-new-spread onDragOver={(e) => { e.preventDefault(); setNewSpreadDragOver(true) }} onDragLeave={() => setNewSpreadDragOver(false)} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const ids = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id)); const frame=readTimelineFrame(e.dataTransfer); if(frame)moveTimelinePhoto(frame.spreadId,frame.frameId,null); else if (ids.length) insertTimelinePhotos(ids, null); else void handleNewSpreadDrop(e.dataTransfer.files) }}>Drop images to add a spread</div>
       </div>}
 
-      {drag && createPortal(<img className="timeline-drag-preview" src={drag.src} alt="" style={{ left: drag.x, top: drag.y }} />,document.body)}
       {drag && <span className="sr-only" role="status">{target ? 'Release to place image' : 'Move over the timeline to place image'}</span>}
 
       {photoMenu && <PhotoContextMenu key={JSON.stringify(photoMenu)} {...photoMenu} />}

@@ -64,13 +64,20 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
             const original={focalX:placement.focalX,focalY:placement.focalY};let next=original;node.setPointerCapture(e.pointerId)
             const crop=computeCoverCrop(photo.width,photo.height,rect.width,rect.height,placement.focalX,placement.focalY,placement.zoom),angle=(placement.imageRotationDeg??0)*Math.PI/180
             const clamp=(v:number,half:number)=>Math.max(half,Math.min(1-half,v))
+            // A mouse reports moves far faster than the screen refreshes, and every live() write
+            // re-renders this whole panel plus the canvas. One write per frame is all the screen
+            // can show, and it is what keeps the preview under the pointer instead of behind it.
+            let frame=0
             const move=(event:PointerEvent)=>{
               const dx=event.clientX-startX,dy=event.clientY-startY
               const localX=(dx*Math.cos(angle)+dy*Math.sin(angle))*(placement.flipHorizontal?-1:1),localY=(-dx*Math.sin(angle)+dy*Math.cos(angle))*(placement.flipVertical?-1:1)
-              next={focalX:clamp(placement.focalX-localX/rect.width*crop.cropWidth/photo.width,crop.cropWidth/photo.width/2),focalY:clamp(placement.focalY-localY/rect.height*crop.cropHeight/photo.height,crop.cropHeight/photo.height/2)}
-              live(next)
+              // The preview shows the whole photo with the frame's crop drawn on it, so the thing
+              // under the cursor is the crop box and it moves with the cursor. (It used to show
+              // only what the frame holds, where dragging moved the photo the other way.)
+              next={focalX:clamp(placement.focalX+localX/rect.width*crop.cropWidth/photo.width,crop.cropWidth/photo.width/2),focalY:clamp(placement.focalY+localY/rect.height*crop.cropHeight/photo.height,crop.cropHeight/photo.height/2)}
+              if(!frame)frame=requestAnimationFrame(()=>{frame=0;live(next)})
             }
-            const cleanup=()=>{cancelDrag.current=null;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',commit);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',escape)}
+            const cleanup=()=>{if(frame)cancelAnimationFrame(frame);frame=0;cancelDrag.current=null;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',commit);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',escape)}
             // The drag has been writing straight into the project so the spread moves with it; put
             // the original back before committing, so undo gets one entry for the whole drag.
             const commit=()=>{cleanup();live(original);if(next.focalX!==original.focalX||next.focalY!==original.focalY)update(next)}
@@ -89,7 +96,7 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
       {slider('Opacity', 'opacity', 0, 100, 1, '%', 100)}
       {slider('Border', 'borderWidth', 0, 60, 0, 'px')}
       <label>Border color<ColorField value={placement.borderColor} onChange={borderColor => update({borderColor})}/></label>
-      <div className="image-adjustment"><SliderField label="Radius" value={placement.frameStyle === 'rounded' ? placement.cornerRadiusPx : 0} min={0} max={200} suffix="px" onChange={cornerRadiusPx => update({cornerRadiiPx:undefined,cornerRadiusPx, frameStyle:'rounded'})}/><button className="adjustment-reset" aria-label="Reset Radius" onClick={() => update({cornerRadiusPx:0, frameStyle:placement.frameStyle === 'rounded' ? 'none' : placement.frameStyle})}>×</button></div>
+      <div className="image-adjustment"><SliderField label="Radius" value={placement.frameStyle === 'rounded' ? placement.cornerRadiusPx : 0} min={0} max={200} suffix="px" onChange={cornerRadiusPx => update({cornerRadiiPx:undefined,cornerRadiusPx, frameStyle:'rounded'})}/><button className="adjustment-reset" aria-label="Reset Radius" title="Reset Radius" disabled={placement.frameStyle!=='rounded'||!placement.cornerRadiusPx} onClick={() => update({cornerRadiusPx:0, frameStyle:placement.frameStyle === 'rounded' ? 'none' : placement.frameStyle})}>×</button></div>
       <label>Frame<select value={placement.frameStyle} onChange={e => update({frameStyle:e.target.value as PlacedPhoto['frameStyle']})}><option value="none">None</option><option value="rounded">Rounded</option><option value="polaroid">Polaroid</option><option value="shadow">Drop Shadow</option></select></label>
     </details>
     {photo && <details className="inspector-group" open><summary>Tone Adjustments</summary>

@@ -246,9 +246,23 @@ export default function PhotoBin() {
             All ({photos.length})
           </button>
           {allBins.map((b) => (
-            <button key={b} data-bin={b} onDragOver={e=>{if(Array.from(e.dataTransfer.types).includes('application/x-photo-ids')){e.preventDefault();e.currentTarget.classList.add('is-drop-target');e.dataTransfer.dropEffect='copy'}}} onDragLeave={e=>e.currentTarget.classList.remove('is-drop-target')} onDrop={e=>{e.preventDefault();e.stopPropagation();e.currentTarget.classList.remove('is-drop-target');try{const ids=JSON.parse(e.dataTransfer.getData('application/x-photo-ids'));if(Array.isArray(ids)&&ids.every(id=>typeof id==='string'))useProjectStore.getState().addPhotosToBin(ids,b)}catch{}}} className={binFilter === b ? 'is-active' : ''} onClick={() => setBinFilter(b)}>
-              {b} ({photos.filter((p) => p.bins.includes(b)).length})
-            </button>
+            <span className={`photo-dock__bin ${binFilter === b ? 'is-active' : ''}`} key={b}>
+              <button data-bin={b} onDragOver={e=>{if(Array.from(e.dataTransfer.types).includes('application/x-photo-ids')){e.preventDefault();e.currentTarget.classList.add('is-drop-target');e.dataTransfer.dropEffect='copy'}}} onDragLeave={e=>e.currentTarget.classList.remove('is-drop-target')} onDrop={e=>{e.preventDefault();e.stopPropagation();e.currentTarget.classList.remove('is-drop-target');try{const ids=JSON.parse(e.dataTransfer.getData('application/x-photo-ids'));if(Array.isArray(ids)&&ids.every(id=>typeof id==='string'))useProjectStore.getState().addPhotosToBin(ids,b)}catch{}}} className="photo-dock__bin-name" onClick={() => setBinFilter(b)}>
+                {b} ({photos.filter((p) => p.bins.includes(b)).length})
+              </button>
+              <button
+                className="photo-dock__bin-delete"
+                aria-label={`Delete the bin ${b}`}
+                title={`Delete the bin "${b}". The photos stay in the gallery.`}
+                onClick={() => {
+                  useProjectStore.getState().deleteBin(b)
+                  setExtraBins((bins) => bins.filter((name) => name !== b))
+                  setBinFilter((current) => (current === b ? '' : current))
+                }}
+              >
+                <Icon name="trash" size={11} />
+              </button>
+            </span>
           ))}
           {addingBin ? (
             <input
