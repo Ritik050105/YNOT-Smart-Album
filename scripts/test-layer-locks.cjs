@@ -85,7 +85,9 @@ app.whenReady().then(async()=>{
  // Canvas marquee and Shift-click share the Layers selection and grouping shortcuts.
  await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'G',ctrlKey:true,shiftKey:true,bubbles:true}))`);await wait();assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes[0].groupId`),undefined,'Ctrl+Shift+G ungroups selected group');
  await evaluate(`store.getState().setLayerLocked(sid,'image',baseId,true);store.getState().updateTextBox(sid,'text',{x:.6,y:.1,width:.3});store.getState().addTextBox(sid,{id:'hidden-text',x:.1,y:.1,width:.2,height:.1,text:'Hidden',fontFamily:'Arial',fontSize:20,color:'#000',align:'left',bold:false,italic:false,hidden:true});store.getState().selectTextBox(null)`);await wait();
- const area=await evaluate(`(()=>{const stage=Konva.stages[0],r=stage.container().getBoundingClientRect();return {x:Math.round(r.x+stage.x()-15*stage.scaleX()),y:Math.round(r.y+stage.y()-15*stage.scaleY()),endX:Math.round(r.x+stage.x()+650*stage.scaleX()),endY:Math.round(r.y+stage.y()+350*stage.scaleY())}})()`);
+ // Start the marquee just off the page but still inside the canvas: the rulers sit outside it, and
+ // a press that lands on one never reaches the stage.
+ const area=await evaluate(`(()=>{const stage=Konva.stages[0],r=stage.container().getBoundingClientRect();const inside=(edge,offset)=>Math.round(Math.max(edge+2,edge+offset));return {x:inside(r.x,stage.x()-15*stage.scaleX()),y:inside(r.y,stage.y()-15*stage.scaleY()),endX:Math.round(r.x+stage.x()+650*stage.scaleX()),endY:Math.round(r.y+stage.y()+350*stage.scaleY())}})()`);
  win.webContents.sendInputEvent({type:'mouseMove',x:area.x,y:area.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:area.x,y:area.y});await wait();
  for(let i=1;i<=6;i++){win.webContents.sendInputEvent({type:'mouseMove',x:Math.round(area.x+(area.endX-area.x)*i/6),y:Math.round(area.y+(area.endY-area.y)*i/6)});await wait()}
  assert.equal(await evaluate(`Konva.stages[0].findOne('.selection-marquee').find('Rect').length`),1,'Marquee appears while dragging');

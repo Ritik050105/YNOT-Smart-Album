@@ -25,12 +25,14 @@ app.whenReady().then(async()=>{
  await click('[aria-label="Browse text templates"]');
  assert.equal(await evaluate(`!!document.querySelector('#overview-font-template-browser .font-template-browser')`),true);
  assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes.length`),0);
- await click('.quote-template-grid .quote-template-card');
- assert.ok(await evaluate(`store.getState().templatePreview.textBoxes.length`)>0);
- assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes.length`),0);
+ // Hovering a composition previews it on the spread; the click is what places it.
+ await evaluate(`document.querySelector('.quote-template-grid .quote-template-card').dispatchEvent(new MouseEvent('mouseover',{bubbles:true}))`);await wait();
+ assert.ok(await evaluate(`store.getState().templatePreview.textBoxes.length`)>0,'Hover previews the composition');
+ assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes.length`),0,'Preview does not place it');
  await fs.writeFile(path.join(out,'quote-live-preview.png'),(await win.webContents.capturePage()).toPNG());
+ await click('.quote-template-grid .quote-template-card');
+ assert.ok(await evaluate(`store.getState().project.spreads[0].textBoxes.length`)>0,'Click places the composition');
  await click('.font-template-browser .btn-primary');
- assert.ok(await evaluate(`store.getState().project.spreads[0].textBoxes.length`)>0);
  await click('[aria-label="Browse text templates"]');
  await evaluate(`Array.from(document.querySelectorAll('.quote-browser-tools button')).find(b=>b.textContent==='Save font template').click()`);await wait();
  assert.equal(await evaluate(`!!Array.from(document.querySelectorAll('select option')).find(o=>o.textContent==='Maternity')`),true);
@@ -53,7 +55,9 @@ app.whenReady().then(async()=>{
  await evaluate('store.getState().undo()');await wait();
  assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes.length`),0);
  await click('[aria-label="Next text template preview"]');
- assert.equal(await evaluate(`!!document.querySelector('.quote-template-grid .quote-template-card[aria-pressed="true"]')`),true);
+ // Undo took the composition off the spread, so no card may still read as placed: a card's state
+ // comes from the spread itself, not from a list the browser keeps on the side.
+ assert.equal(await evaluate(`!!document.querySelector('.quote-template-grid .quote-template-card[aria-pressed="true"]')`),false,'Undo clears the placed marks');
  await click('.font-template-browser header button');
  assert.equal(await evaluate(`store.getState().templatePreview`),null);
  await click('[aria-label="Delete spread 1"]');

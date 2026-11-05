@@ -30,10 +30,12 @@ app.whenReady().then(async()=>{
  await evaluate(`document.querySelector('[aria-label="Image browser"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Delete',bubbles:true}))`);await wait();
  assert.equal(await evaluate(`store.getState().project.photos.length`),3,'Cancel keeps photos');assert.match(await evaluate(`messages.join(' ')`),/2 of 2 selected photos are used in spreads/);
  await evaluate(`window.confirm=()=>true;const s=store.getState();s.addTextBox(id,{id:'text-test',text:'Wedding title',x:.1,y:.1,width:.5,height:.1,fontSize:25,fontFamily:'Arial',color:'#111111',align:'center',bold:false,italic:false});s.selectTextBox('text-test')`);await wait();
+ // The overview no longer carries a text toolbar — text is written and styled in the designer.
+ assert.equal(await evaluate(`!!document.querySelector('[aria-label="Text formatting"]')`),false,'No text toolbar in the overview');
+ await evaluate(`store.getState().enterDesignerView(id);store.getState().selectTextBox('text-test')`);await wait();
  assert.equal(await evaluate(`!!document.querySelector('[aria-label="Text formatting"]')`),true);
  await evaluate(`document.querySelector('[aria-label="Text formatting"] [aria-label="bold"]').click()`);await wait();
  assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes[0].bold`),true);await evaluate(`store.getState().undo()`);assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes[0].bold`),false);
- await evaluate(`store.getState().enterDesignerView(id)`);await wait();
  for(const label of ['Browse Image Templates','Browse Font Templates','Browse Mixed Templates','Save Image Templates','Save Font Templates','Save Mixed Templates'])assert.equal(await evaluate(`Array.from(document.querySelectorAll('.designer-view__topbar button')).some(b=>b.textContent===${JSON.stringify(label)})`),true,label);
  assert.equal(await evaluate(`Array.from(document.querySelectorAll('.designer-view__topbar button')).some(b=>b.textContent==='Layers')`),false);
  await evaluate(`void store.getState().saveSpreadAsTemplate(id,'Mixed QA','mixed')`);await wait();
