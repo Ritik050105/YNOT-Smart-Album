@@ -750,7 +750,8 @@ export default function DesignerCanvas() {
   function alignTransform(old: {x:number;y:number;width:number;height:number;rotation:number}, next: typeof old) {
     if(next.width<4*stageScale||next.height<4*stageScale)return old
     if(Math.abs(next.rotation)>.0001)return next
-    const rect=alignRect({x:(next.x-stagePos.x)/stageScale,y:(next.y-stagePos.y)/stageScale,width:next.width/stageScale,height:next.height/stageScale},selectedPlaceholderId??selectedTextBoxId??undefined,(selectedPlaceholderId ? transformerRef.current : textTransformerRef.current)?.getActiveAnchor()??undefined)
+    const anchor=[groupTransformerRef,transformerRef,textTransformerRef].map(ref=>ref.current?.getActiveAnchor()??undefined).find(Boolean)
+    const rect=alignRect({x:(next.x-stagePos.x)/stageScale,y:(next.y-stagePos.y)/stageScale,width:next.width/stageScale,height:next.height/stageScale},selectedPlaceholderId??selectedTextBoxId??undefined,anchor)
     return {...next,x:rect.x*stageScale+stagePos.x,y:rect.y*stageScale+stagePos.y,width:rect.width*stageScale,height:rect.height*stageScale}
   }
 
@@ -1293,7 +1294,7 @@ export default function DesignerCanvas() {
             {/* Edge handles as well as corners, matching the single-image transformer: dragging the
                 middle of a side stretches the selection in that direction alone, while a corner
                 still scales it proportionally. */}
-            {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-center','top-right','middle-left','middle-right','bottom-left','bottom-center','bottom-right']} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} boundBoxFunc={(old,next)=>next.width<10||next.height<10?old:next}/>}
+            {groupEditable&&<Transformer ref={groupTransformerRef} rotateEnabled={false} flipEnabled={false} keepRatio enabledAnchors={['top-left','top-center','top-right','middle-left','middle-right','bottom-left','bottom-center','bottom-right']} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} boundBoxFunc={alignTransform}/>}
           </>}
           {draftFrame && (canvasTool==='line'&&drawStartRef.current&&drawEndRef.current?<Line points={[drawStartRef.current.x,drawStartRef.current.y,drawEndRef.current.x,drawEndRef.current.y]} stroke={accent} strokeWidth={2/stageScale} listening={false}/>:<Rect {...draftFrame} stroke={accent} strokeWidth={1 / stageScale} dash={[4, 4]} listening={false} />)}
 
