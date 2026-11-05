@@ -6,7 +6,7 @@ import PanelResizer from './PanelResizer'
 import { usePreferences, getPreferences } from '@/state/preferences'
 import { openInEditor } from './ExternalEditor'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
-import { CSSProperties, Fragment, useEffect, useRef, useState } from 'react'
+import { CSSProperties, Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { useImportPhotos } from '@/engine/useImportPhotos'
 import { exportSingleSpreadToPdf } from '@/engine/exportAlbum'
@@ -99,7 +99,7 @@ export default function SpreadsPanel() {
     else insertTimelinePhotos(source.photoIds, destination.spreadId, destination.beforeFrameId)
   })
 
-  const photosById = new Map(project.photos.map((p) => [p.id, p]))
+  const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
   const cover = project.spreads.find((s) => s.isCover)
   const spreads = project.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order).map(s => templatePreview?.id === s.id ? templatePreview : s)
   useEffect(() => {

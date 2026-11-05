@@ -4,6 +4,8 @@ import { inToDisplay } from '@/engine/units'
 import Icon from './Icon'
 import ProjectInfoPanel from './ProjectInfoPanel'
 import SpreadGrid from './SpreadGrid'
+import ColorField from './ColorField'
+import SliderField from './SliderField'
 
 function Collapsible({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -29,6 +31,20 @@ export default function AlbumInfoPanel() {
   const updateSpread = useProjectStore(s => s.updateSpread)
   const selectedSpread = project.spreads.find(s => s.id === selectedSpreadId)
   const [infoOpen, setInfoOpen] = useState(false)
+  const spreadNumber = project.spreads.filter(s => !s.isCover).sort((a, b) => a.order - b.order).findIndex(s => s.id === selectedSpreadId) + 1
+  const spreadUsage = useMemo(() => {
+    const placed = (selectedSpread?.placements ?? []).flatMap(pl => {
+      const photo = project.photos.find(candidate => candidate.id === pl.photoId)
+      return photo ? [photo] : []
+    })
+    return {
+      count: placed.length,
+      landscape: placed.filter(p => p.orientation === 'landscape').length,
+      portrait: placed.filter(p => p.orientation === 'portrait').length,
+      square: placed.filter(p => p.orientation === 'square').length,
+      templateUses: selectedSpread ? project.spreads.filter(s => s.templateId === selectedSpread.templateId).length : 0,
+    }
+  }, [selectedSpread, project.spreads, project.photos])
 
   const stats = useMemo(() => {
     const interiorSpreads = project.spreads.filter((s) => !s.isCover)
@@ -65,6 +81,25 @@ export default function AlbumInfoPanel() {
         </button>
       </div>
 
+      {/* Selecting a spread in the overview gives its own settings, the way selecting a photo gives
+          the photo's — before this the only way to reach a spread's paper colour or image gap was
+          to open it in the designer. */}
+      {selectedSpread && !selectedSpread.isCover && <Collapsible title={`Spread ${spreadNumber} · Design`}>
+        <label className="field">
+          Background color
+          <ColorField value={selectedSpread.backgroundColor} onChange={(hex) => updateSpread(selectedSpread.id, { backgroundColor: hex })} />
+        </label>
+        <SliderField buttons label="Gap" value={selectedSpread.gapPx} min={0} max={120} suffix="px"
+          onChange={(v) => updateSpread(selectedSpread.id, { gapPx: v })} />
+        <SliderField buttons label="Margin" value={selectedSpread.marginPx} min={0} max={240} suffix="px"
+          onChange={(v) => updateSpread(selectedSpread.id, { marginPx: v })} />
+        <p className="muted">
+          {spreadUsage.count} image{spreadUsage.count === 1 ? '' : 's'}
+          {spreadUsage.count > 0 && `: ${spreadUsage.landscape} horizontal, ${spreadUsage.portrait} vertical`}
+          {spreadUsage.square > 0 && `, ${spreadUsage.square} square`}
+        </p>
+        <p className="muted">Template used {spreadUsage.templateUses} time{spreadUsage.templateUses === 1 ? '' : 's'} in the project</p>
+      </Collapsible>}
       {selectedSpread?.backgroundPattern?.mode === 'cover' && <Collapsible title="Fixed background">
         <p>{selectedSpread.backgroundPattern.name}</p>
         <button className="btn btn--tiny" onClick={() => useProjectStore.getState().detachBackground(selectedSpread.id)}>Detach background</button>

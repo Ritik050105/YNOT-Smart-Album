@@ -30,13 +30,16 @@ export const DEFAULT_AUTO_LAYOUT_OPTIONS: AutoLayoutOptions = {
 export function defaultPlacement(
   placeholderId: string,
   photoId: string | null,
-  border: { width: number; color: string } = { width: 0, color: '#ffffff' }
+  border: { width: number; color: string } = { width: 0, color: '#ffffff' },
+  /** The photo this frame is being filled with, when the caller has it. Its measured subject
+   *  focus becomes the frame's starting crop, so a group shot is not cropped through the heads. */
+  photo?: { focusX?: number; focusY?: number }
 ): PlacedPhoto {
   return {
     placeholderId,
     photoId,
-    focalX: 0.5,
-    focalY: 0.5,
+    focalX: photo?.focusX ?? 0.5,
+    focalY: photo?.focusY ?? 0.5,
     zoom: 1,
     borderWidth: border.width,
     borderColor: border.color,
@@ -252,7 +255,7 @@ export function buildSpreadsFromGroups(
   layout: AutoBuildLayoutOptions = DEFAULT_AUTO_BUILD_LAYOUT,
   matchTimelineOrder = true,
   allowTemplateRepeats = false,
-  templateReuse: 'low' | 'medium' | 'high' = allowTemplateRepeats ? 'high' : 'medium',
+  templateReuse: 'never' | 'low' | 'medium' | 'high' = allowTemplateRepeats ? 'high' : 'medium',
   groupDesigns?: {templateIds:string[];textBoxes?:TextBox[]}[]
 ): Spread[] {
   const border = { width: appearance.borderWidth, color: appearance.borderColor }
@@ -262,9 +265,16 @@ export function buildSpreadsFromGroups(
     const forceSingle = (index === 0 && layout.start === 'single') || (index === groups.length - 1 && layout.end === 'single')
     let candidates = autoBuildTemplates(group.length, groupDesigns?.[index]?.templateIds ?? enabledTemplateIds, layout, forceSingle)
     if (!candidates.length) throw new Error(`No enabled template matches ${group.length} images with the current frame and layout filters. Change the filters or images per spread.`)
-    if (templateReuse === 'low' && candidates.length) {
-      const leastUsed = Math.min(...candidates.map((t) => uses.get(t.id) ?? 0))
-      candidates = candidates.filter((t) => (uses.get(t.id) ?? 0) === leastUsed)
+    if ((templateReuse === 'never' || templateReuse === 'low') && candidates.length) {
+      // "Never" drops every template already used. If that leaves nothing — more spreads at this
+      // photo count than there are templates for it — fall back to the least-used, because
+      // refusing to build the album would be a worse answer than repeating a layout.
+      const unused = templateReuse === 'never' ? candidates.filter((t) => !uses.has(t.id)) : []
+      if (unused.length) candidates = unused
+      else {
+        const leastUsed = Math.min(...candidates.map((t) => uses.get(t.id) ?? 0))
+        candidates = candidates.filter((t) => (uses.get(t.id) ?? 0) === leastUsed)
+      }
     }
     const ranked = rankTemplates(group, candidates, layout.aspect ?? 1, matchTimelineOrder, appearance.marginPx, appearance.gapPx)
     if (templateReuse === 'medium') ranked.sort((a, b) => (a.score + (a.template.id === lastTemplateId ? 0.02 : 0)) - (b.score + (b.template.id === lastTemplateId ? 0.02 : 0)))
@@ -273,7 +283,7 @@ export function buildSpreadsFromGroups(
     uses.set(template.id, (uses.get(template.id) ?? 0) + 1)
     lastTemplateId = template.id
     const placements: PlacedPhoto[] = template.placeholders.map((ph, i) =>
-      frameAppearance(ph, defaultPlacement(ph.id, assigned[i]?.id ?? null, border))
+      frameAppearance(ph, defaultPlacement(ph.id, assigned[i]?.id ?? null, border, assigned[i]))
     )
     const readingOrder = templateFramesInReadingOrder(template)
     placements.sort((a, b) => readingOrder.findIndex(frame => frame.id === a.placeholderId) - readingOrder.findIndex(frame => frame.id === b.placeholderId))

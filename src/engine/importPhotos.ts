@@ -6,6 +6,7 @@ import { v4 as uuid } from 'uuid'
 import { PhotoAsset } from '@/types'
 import { imageFileSource, isImageFile } from './imageSource'
 import { hasColorProfile } from './colorProfile'
+import { subjectFocus } from './subjectFocus'
 
 const CONCURRENCY = 3
 
@@ -87,6 +88,7 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
   const prepared = fast ?? (legacy || null)
   const { width, height } = prepared ?? await loadImageDimensions(src)
   const isBlackAndWhite = prepared ? prepared.isBlackAndWhite : await detectBlackAndWhite(await previewSource(src))
+  const focus = await subjectFocus(await previewSource(src))
 
   return {
     id: uuid(),
@@ -102,6 +104,8 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
     orientation: orientationFor(width, height),
     megapixels: Math.round((width * height) / 1_000_000),
     mimeType: /\.(psd|tiff?)$/i.test(file.name) ? 'image/png' : isRaw ? 'image/jpeg' : file.type || 'image/jpeg',
+    focusX: focus?.focusX,
+    focusY: focus?.focusY,
     bins: getPreferences().autoBins && (file.webkitRelativePath ?? '').includes('/') ? [file.webkitRelativePath.split('/').slice(-2,-1)[0]] : [],
     favorite: false,
   }

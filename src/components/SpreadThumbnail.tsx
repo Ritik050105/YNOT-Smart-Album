@@ -1,7 +1,7 @@
 import OverviewTextControls from './OverviewTextControls'
 import {previewSource} from '@/engine/previewImage'
 import { usePreferences } from '@/state/preferences'
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { Spread, PhotoAsset, AlbumSize } from '@/types'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { renderSpreadToCanvas } from '@/engine/renderSpread'
@@ -17,7 +17,10 @@ interface Props {
 }
 
 /** Use the export renderer so crops, text, flips and adjustments survive leaving Designer View. */
-export default function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, selectedPlaceholderId, dropPlaceholderId }: Props) {
+/** Memoised: rendering a spread means drawing it to a canvas, which is far too expensive to redo
+ *  because something elsewhere in the panel changed. The props are all stable values or memoised
+ *  maps, so an unchanged spread costs nothing. */
+function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, selectedPlaceholderId, dropPlaceholderId }: Props) {
   const animations=usePreferences(s=>s.values.animations)
   const previousGeometry=useRef<string>()
   const previousSpread=useRef<Spread>()
@@ -85,3 +88,5 @@ export default function SpreadThumbnail({ spread, photosById, size, width = 420,
     </div>
   )
 }
+
+export default memo(SpreadThumbnail)

@@ -727,13 +727,24 @@ export default function DesignerCanvas() {
     const keys=transformKeys.length?transformKeys:id?spreadLayers(spread!).filter(l=>l.id===id).map(l=>l.kind+':'+l.id):[]
     const result=snapRect({...rect,keys},guideTargets(keys),STAGE_WIDTH,stageHeight,threshold,anchor,[...(showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH)??[] : []),...guideTargets(keys).flatMap(t=>[t.x-(spread?.gapPx??0),t.x+t.width+(spread?.gapPx??0)])],[...(showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight)??[] : []),...guideTargets(keys).flatMap(t=>[t.y-(spread?.gapPx??0),t.y+t.height+(spread?.gapPx??0)])],spread?.gapPx??0)
     setSmartGuides(result.guides)
-    // Nothing leaves the spread: a drag that would carry an element past an edge stops dead against
-    // it instead of following the cursor off the page. Every frame, photo and text drag and every
-    // unrotated transform comes through here, so this is the one wall they all hit.
+    // Nothing leaves the spread. Every frame, photo and text drag and every unrotated transform
+    // comes through here, so this is the one wall they all hit — but a move and a resize have to
+    // hit it differently. A move keeps its size and stops against the edge; a resize is the user
+    // dragging one edge, so that edge stops at the page and the element simply gets no bigger.
+    // `anchor` is set only by the transformer, which is what tells the two apart.
+    const { x, y, width, height } = result.rect
+    if (!anchor) return {
+      ...result.rect,
+      x: Math.max(0, Math.min(STAGE_WIDTH - width, x)),
+      y: Math.max(0, Math.min(stageHeight - height, y)),
+    }
+    const left = Math.max(0, Math.min(STAGE_WIDTH, x)), top = Math.max(0, Math.min(stageHeight, y))
     return {
       ...result.rect,
-      x: Math.max(0, Math.min(STAGE_WIDTH - result.rect.width, result.rect.x)),
-      y: Math.max(0, Math.min(stageHeight - result.rect.height, result.rect.y)),
+      x: left,
+      y: top,
+      width: Math.max(0, Math.min(STAGE_WIDTH, x + width) - left),
+      height: Math.max(0, Math.min(stageHeight, y + height) - top),
     }
   }
   function alignTransform(old: {x:number;y:number;width:number;height:number;rotation:number}, next: typeof old) {
@@ -1275,7 +1286,7 @@ export default function DesignerCanvas() {
               onClick={e=>{if(e.evt.shiftKey){toggleCanvasLayer('image',selectedBox.placeholderId);return}const hit=textAbovePlaceholder(selectedBox.placeholderId);if(hit)selectTextBox(hit.id)}}
               
               onContextMenu={(e) => handlePlaceholderContextMenu(selectedBox.placeholderId, e.evt)} />
-            <Transformer ref={transformerRef} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} rotateEnabled={true} flipEnabled={false} boundBoxFunc={alignTransform} />
+            <Transformer ref={transformerRef} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} rotateEnabled={true} flipEnabled={false} keepRatio={false} enabledAnchors={['top-left','top-center','top-right','middle-left','middle-right','bottom-left','bottom-center','bottom-right']} boundBoxFunc={alignTransform} />
           </>}
           {group && group.members.some(l=>!l.value.hidden) && canvasTool==='select' && <>
             <Rect name="group-transform-box" onContextMenu={e => openTextContextMenu(e)} listening={!isShiftDown} ref={groupNodeRef} x={group.x*STAGE_WIDTH} y={group.y*stageHeight} width={group.width*STAGE_WIDTH} height={group.height*stageHeight} stroke={accent} strokeWidth={1/stageScale} fill="rgba(0,0,0,0)" draggable={!!groupEditable&&!isSpaceDown} onDragMove={updateGroupPreview} onTransform={updateGroupPreview} onDragEnd={commitGroup} onTransformEnd={commitGroup} onClick={e=>{if(e.evt.shiftKey&&selectedGroupId)toggleCanvasLayer(selectedPlaceholderId?'image':'text',(selectedPlaceholderId??selectedTextBoxId)!);else if(selectedTextBoxId){const hit=groupTextAtPointer();if(hit&&hit.id!==selectedTextBoxId)selectTextBox(hit.id)}}} onDblClick={e=>{if(e.evt.shiftKey||!selectedTextBoxId)return;const hit=groupTextAtPointer();if(hit){selectTextBox(hit.id);setEditingTextId(hit.id)}}}/>

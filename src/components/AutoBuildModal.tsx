@@ -10,7 +10,7 @@ import Modal from './Modal'
 import Icon from './Icon'
 
 type GroupingMode = 'smart' | 'range'
-type TemplateReuse = 'low' | 'medium' | 'high'
+type TemplateReuse = 'never' | 'low' | 'medium' | 'high'
 
 /** The reference app's "Auto Build" dialog — shown before building new spreads from a set of
  *  photos (the dock's current selection, or every unplaced photo if fewer than 2 are selected),
@@ -147,6 +147,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
 
   return (
     <Modal
+      className="auto-build-modal"
       title={`Auto Build - ${targetPhotos.length} image${targetPhotos.length === 1 ? '' : 's'}`}
       onClose={onClose}
       width={735}
@@ -248,11 +249,12 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
       </div>
 
       <section className="field-section"><h4>Bins</h4><label><input type="checkbox" checked={binMode} onChange={e=>setBinMode(e.target.checked)}/> Build selected bins</label>{binMode&&<><label><input type="checkbox" checked={followBins} onChange={e=>setFollowBins(e.target.checked)}/> Follow numerical bin order</label>{bins.map(bin=><div className="auto-build-bin" key={bin}><label><input type="checkbox" checked={chosenBins.includes(bin)} onChange={e=>setChosenBins(e.target.checked?bins.filter(b=>b===bin||chosenBins.includes(b)):chosenBins.filter(b=>b!==bin))}/>{bin}</label>{chosenBins.includes(bin)&&<div className="auto-build-bin__choices"><label>Template type<select value={binRule(bin).kind} onChange={e=>setBinRules({...binRules,[bin]:{kind:e.target.value,category:'',subcategory:''}})}><option value="image">Image templates</option><option value="font">Font templates with image layout</option><option value="mixed">Mixed templates</option></select></label><label>Category<select value={binRule(bin).category} onChange={e=>setBinRules({...binRules,[bin]:{...binRule(bin),category:e.target.value,subcategory:''}})}><option value="">All categories</option>{[...new Set(records(binRule(bin).kind).map(categoryOf).filter(Boolean))].map(c=><option key={c}>{c}</option>)}</select></label><label>Subcategory<select value={binRule(bin).subcategory} onChange={e=>setBinRules({...binRules,[bin]:{...binRule(bin),subcategory:e.target.value}})}><option value="">All subcategories</option>{[...new Set(records(binRule(bin).kind).filter(t=>!binRule(bin).category||categoryOf(t)===binRule(bin).category).map(subcategoryOf).filter(Boolean))].map(c=><option key={c}>{c}</option>)}</select></label></div>}</div>)}</>}</section>
-      <section className="field-section"><h4>Template designs</h4>{(['reference','creative','generated'] as const).map(key=><label key={key}><input type="checkbox" checked={designs[key]} onChange={e=>setDesigns({...designs,[key]:e.target.checked})}/>{{reference:'Smart design',creative:'Creative design',generated:'Random generation'}[key]}</label>)}
+      <section className="field-section field-section--inline"><h4>Template designs</h4>{(['reference','creative','generated'] as const).map(key=><label key={key}><input type="checkbox" checked={designs[key]} onChange={e=>setDesigns({...designs,[key]:e.target.checked})}/>{{reference:'Smart design',creative:'Creative design',generated:'Random generation'}[key]}</label>)}
       <label>Template category<select value={collection} onChange={e=>setCollection(e.target.value)}><option value="">All categories</option>{['Favorites','Frequently used',...Object.keys(collections.categories)].map(c=><option key={c}>{c}</option>)}</select></label>
       <label className="field auto-build-reuse">
         Template reuse
         <select value={templateReuse} onChange={(e) => setTemplateReuse(e.target.value as TemplateReuse)}>
+          <option value="never">Never</option>
           <option value="low">Low</option>
           <option value="medium">Medium</option>
           <option value="high">High</option>

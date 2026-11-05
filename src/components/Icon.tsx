@@ -1,6 +1,8 @@
 /** A small set of inline, stroke-style icons (no external icon library/font) used throughout
  *  the UI. Keeping them inline avoids a network dependency for core chrome. */
 const PATHS: Record<string, string> = {
+  // Six dots: the usual handle for "drag me".
+  grip: 'M9 5h.01 M15 5h.01 M9 12h.01 M15 12h.01 M9 19h.01 M15 19h.01',
   copy: 'M9 9h12v12H9Z M5 15H3V3h12v2',
   // Paragraph alignment: four rules, the short one placed to show where the ragged edge falls.
   alignLeft: 'M3 5h18 M3 10h12 M3 15h18 M3 20h12',

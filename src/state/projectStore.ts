@@ -263,7 +263,7 @@ interface ProjectState {
   /** The Auto Build dialog's "Auto Build" button — appends new spreads built from `groups`
    *  (each a photo-id array, one per new spread) to the END of the existing album, leaving any
    *  spreads already there untouched. Unlike `runAutoBuild`, which replaces the whole album. */
-  runAutoBuildFromGroups: (groups: string[][], opts?: { groupDesigns?: {templateIds:string[];textBoxes?:TextBox[]}[]; enabledTemplateIds?: string[]; allowTemplateRepeats?: boolean; matchTimelineOrder?: boolean; templateReuse?: 'low' | 'medium' | 'high' }) => void
+  runAutoBuildFromGroups: (groups: string[][], opts?: { groupDesigns?: {templateIds:string[];textBoxes?:TextBox[]}[]; enabledTemplateIds?: string[]; allowTemplateRepeats?: boolean; matchTimelineOrder?: boolean; templateReuse?: 'never' | 'low' | 'medium' | 'high' }) => void
   selectSpread: (id: string | null) => void
   selectPlaceholder: (id: string | null) => void
   selectTextBox: (id: string | null) => void
@@ -863,7 +863,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if(targetSpreadId===null&&!p.spreads.some(s=>!s.isCover)&&p.layoutStart==='single')target.pageSide='right'
     const placements = target.placements.filter((pl) => pl.photoId)
     const at = beforeFrameId ? placements.findIndex((pl) => pl.placeholderId === beforeFrameId) : placements.length
-    placements.splice(at < 0 ? placements.length : at, 0, ...validIds.map((id) => defaultPlacement(uuid(), id, { width: p.defaultBorderWidth, color: p.defaultBorderColor })))
+    placements.splice(at < 0 ? placements.length : at, 0, ...validIds.map((id) => defaultPlacement(uuid(), id, { width: p.defaultBorderWidth, color: p.defaultBorderColor }, p.photos.find(photo => photo.id === id))))
     const candidates=cyclingTemplates({...p,spreads:[]},{...target,placements},get().templateFrameFilter,get().favoriteTemplateIds)
     const height=DESIGN_WIDTH/(target.size??p.size).widthIn*(target.size??p.size).heightIn
     const oldBoxes=computePlaceholderBoxes(target,DESIGN_WIDTH,height)
@@ -1255,7 +1255,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           ? s
           : {
               ...s,
-              placements: s.placements.map((pl) => (pl.placeholderId === placeholderId ? { ...pl, photoId } : pl)),
+              // A new photo in this frame starts at its own subject focus; the crop the previous
+              // photo was given says nothing about where this one's people are.
+              placements: s.placements.map((pl) => {
+                if (pl.placeholderId !== placeholderId) return pl
+                if (pl.photoId === photoId) return { ...pl, photoId }
+                const photo = p.photos.find((candidate) => candidate.id === photoId)
+                return { ...pl, photoId, focalX: photo?.focusX ?? 0.5, focalY: photo?.focusY ?? 0.5 }
+              }),
             }
       ),
     }))

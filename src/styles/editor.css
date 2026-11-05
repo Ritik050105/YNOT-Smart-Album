@@ -893,3 +893,28 @@ button:disabled { cursor:not-allowed; }
 .spread-grid__item.is-drop-target .spread-grid__button { border-color: var(--accent); border-style: dashed; }
 .spread-grid__number { position: absolute; right: 4px; bottom: 3px; padding: 0 5px; border-radius: 7px; background: #0009; color: #fff; font-size: 10px; }
 .spread-grid__button .spread-thumb { pointer-events: none; }
+
+/* Auto Build: the rows were a wall of checkboxes with no breathing room. Each section gets a rule
+   and consistent spacing, and the controls inside a section line up on one grid. */
+.auto-build-modal .field-section { margin: 0; padding: 20px 28px; border-top: 1px solid var(--border-soft); }
+.auto-build-modal .field-section:first-of-type { border-top: 0; }
+.auto-build-modal .field-section > h4 { margin: 0 0 12px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.auto-build-modal .field-section > label { display: flex; align-items: center; gap: 8px; min-height: 30px; margin: 0; }
+/* The checkbox rows read as a row of options, not a run-on sentence. */
+.auto-build-modal .field-section--inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
+.auto-build-modal .field-section--inline > h4 { flex-basis: 100%; margin-bottom: 4px; }
+.auto-build-modal .field-section--inline > label.field { flex-direction: row; align-items: center; gap: 10px; margin-left: auto; }
+.auto-build-modal .field-section--inline select { width: 180px; }
+.auto-build-modal .auto-build-reuse { margin: 14px 0 0; gap: 14px; }
+.auto-build-modal .auto-build-count { margin: 0 28px 24px; }
+.auto-build-modal .auto-build-stats { margin-bottom: 22px; }
+
+/* Save-template buttons: one group, evenly spaced, not crowded against the window edge. */
+.album-editor .template-toolbar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.album-editor .template-toolbar-group--save { margin-left: auto; justify-content: flex-end; gap: 8px; padding-left: 12px; border-left: 1px solid var(--border-soft); }
+.album-editor .template-toolbar-group--save .btn { white-space: nowrap; }
+
+/* The six-dot handle that moves the floating selection bar. */
+.selection-actions__grip { display: inline-flex; align-items: center; padding: 0 2px; margin-right: 2px; color: var(--text-muted); cursor: grab; touch-action: none; }
+.selection-actions__grip:active { cursor: grabbing; }
+.selection-actions__grip:focus-visible { outline: 2px solid var(--accent); border-radius: 4px; }

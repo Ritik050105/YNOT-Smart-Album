@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import SpreadThumbnail from './SpreadThumbnail'
 
@@ -15,7 +15,7 @@ export default function SpreadGrid() {
   const [over, setOver] = useState<number | null>(null)
 
   const spreads = project.spreads.filter(s => !s.isCover).sort((a, b) => a.order - b.order)
-  const photosById = new Map(project.photos.map(p => [p.id, p]))
+  const photosById = useMemo(() => new Map(project.photos.map(p => [p.id, p])), [project.photos])
   if (!spreads.length) return <p className="muted">No spreads yet. Drop photos onto the timeline to make one.</p>
 
   const drop = (to: number) => {

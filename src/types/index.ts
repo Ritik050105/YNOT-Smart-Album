@@ -24,6 +24,10 @@ export interface PhotoAsset {
   bins: string[]
   /** "Mark as Favorite" — the Photo Dock's heart-icon quick filter. */
   favorite: boolean
+  /** Where the subject sits, 0-1, measured once at import. Frames start their crop here instead
+   *  of dead centre, which is what used to cut the top off a group shot. */
+  focusX?: number
+  focusY?: number
 }
 
 export interface PlaceholderRect {

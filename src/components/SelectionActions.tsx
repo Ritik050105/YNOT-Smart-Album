@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react'
+import React,{useEffect,useState} from 'react'
 import {createPortal} from 'react-dom'
 import {useProjectStore} from '@/state/projectStore'
 import {selectedKeys,duplicateLayers,deleteLayers,layerEditItems} from '@/engine/layerClipboard'
@@ -10,6 +10,18 @@ export default function SelectionActions({floating=false,transform}:{floating?:b
  const state=useProjectStore(),keys=selectedKeys(),spread=state.project.spreads.find(s=>s.id===state.selectedSpreadId)
  const geometry=spread?selectionGeometry(spread,keys,state.project.size):null
  const [point,setPoint]=useState<{x:number;y:number}|null>(null),[more,setMore]=useState<{x:number;y:number}|null>(null)
+ // Where the user has dragged the bar away from the spot it picks for itself. Kept until the
+ // selection changes, so it does not drift back under the pointer mid-edit.
+ const [offset,setOffset]=useState<{x:number;y:number}|null>(null)
+ useEffect(()=>setOffset(null),[keys.join('|')])
+ const drag=(event:React.PointerEvent)=>{
+  if(event.button!==0)return
+  event.preventDefault();event.stopPropagation()
+  const start={x:event.clientX,y:event.clientY},from=offset??{x:0,y:0}
+  const move=(e:PointerEvent)=>setOffset({x:from.x+e.clientX-start.x,y:from.y+e.clientY-start.y})
+  const stop=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop)}
+  window.addEventListener('pointermove',move);window.addEventListener('pointerup',stop)
+ }
  useEffect(()=>{
   if(!floating||!geometry||!spread)return
   const measure=()=>{
@@ -29,7 +41,8 @@ export default function SelectionActions({floating=false,transform}:{floating?:b
  const members=geometry.members,groups=[...new Set(members.map(m=>m.value.groupId).filter((id):id is string=>!!id))],locked=members.every(m=>m.value.locked),hasLocked=members.some(m=>m.value.locked),selected=new Set(members.map(m=>m.kind+':'+m.id))
  const ungroup=()=>{state.updateSpread(spread.id,{placements:spread.placements.map(m=>m.groupId&&groups.includes(m.groupId)?{...m,groupId:undefined}:m),textBoxes:spread.textBoxes.map(m=>m.groupId&&groups.includes(m.groupId)?{...m,groupId:undefined}:m)});state.setLayerSelection([...selected])}
  const lock=()=>state.setLayersLocked(spread.id,[...selected],!locked)
- const content=<div className={floating?'selection-actions selection-actions--floating':'selection-actions'} role="toolbar" aria-label={floating?'Selected element actions':'Selection actions'} style={floating?{position:'fixed',left:point?.x,top:point?.y,visibility:point?'visible':'hidden'}:undefined} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
+ const content=<div className={floating?'selection-actions selection-actions--floating':'selection-actions'} role="toolbar" aria-label={floating?'Selected element actions':'Selection actions'} style={floating?{position:'fixed',left:(point?.x??0)+(offset?.x??0),top:(point?.y??0)+(offset?.y??0),visibility:point?'visible':'hidden'}:undefined} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
+ {floating&&<span className="selection-actions__grip" role="button" tabIndex={0} aria-label="Drag to move this toolbar" title="Drag to move this toolbar" onPointerDown={drag}><Icon name="grip" size={14}/></span>}
  <button className="btn" disabled={members.length<2||hasLocked} title="Group selected elements (Ctrl+G)" onClick={()=>state.groupLayers(spread.id,keys)}>Group</button>
  <button className="btn" disabled={!groups.length||hasLocked} title="Ungroup (Ctrl+Shift+G)" onClick={ungroup}>Ungroup</button>
  <button className="btn" aria-pressed={locked} onClick={lock}>{locked?'Unlock':'Lock'}</button>
