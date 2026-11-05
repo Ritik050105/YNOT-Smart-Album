@@ -2,7 +2,25 @@ import { useEffect, useRef, useState } from 'react'
 import { isBundledFont, LOCAL_FONTS, CLOUD_FONTS, getLocalFonts, ensureFontLoaded, loadUploadedFont, registerDiscoveredFonts, discoveredFontData } from '@/engine/fonts'
 import { useProjectStore } from '@/state/projectStore'
 
-export default function FontPicker({value,onChange,scanEnabled=true}:{value:string;onChange:(family:string)=>void;scanEnabled?:boolean}) {
+/** The styles a family is offered in. Every family can be set in all four — the renderer and the
+ *  canvas synthesise bold and italic where the font has no real face for them — so this mirrors
+ *  the type panel in Illustrator or Photoshop rather than claiming to list installed faces. */
+export const FONT_STYLES = [
+  { label: 'Regular', bold: false, italic: false },
+  { label: 'Italic', bold: false, italic: true },
+  { label: 'Bold', bold: true, italic: false },
+  { label: 'Bold Italic', bold: true, italic: true },
+] as const
+
+export type FontStyleChoice = { bold: boolean; italic: boolean }
+
+/** " Bold Italic" etc., or nothing at all for Regular — the family name alone reads better. */
+const styleLabel = (bold: boolean, italic: boolean) =>
+  bold || italic ? ' ' + FONT_STYLES.find(s => s.bold === bold && s.italic === italic)!.label : ''
+
+export default function FontPicker({value,onChange,scanEnabled=true,bold=false,italic=false}:{value:string;onChange:(family:string,style?:FontStyleChoice)=>void;scanEnabled?:boolean;bold?:boolean;italic?:boolean}) {
+  // Which family's styles are expanded in the list; one at a time, like the Adobe panel.
+  const [expanded,setExpanded]=useState<string|null>(null)
   const [fonts,setFonts]=useState(LOCAL_FONTS),[open,setOpen]=useState(false),[search,setSearch]=useState(''),[error,setError]=useState('')
   const [scan,setScan]=useState<{running:boolean;visited:number;skipped:number;fonts:{family:string;path:string}[]}|null>(null)
   const refreshScan=async(action:'start'|'cancel'|'status')=>{
@@ -10,12 +28,12 @@ export default function FontPicker({value,onChange,scanEnabled=true}:{value:stri
   }
   useEffect(()=>{if(scanEnabled)void refreshScan('status')},[scanEnabled])
   useEffect(()=>{if(!scanEnabled||!scan?.running)return;const timer=setInterval(()=>void refreshScan('status'),1000);return()=>clearInterval(timer)},[scanEnabled,scan?.running])
-  const choose=async(family:string)=>{
+  const choose=async(family:string,style?:FontStyleChoice)=>{
     try{
       const dataUrl=await discoveredFontData(family)
       if(dataUrl){await loadUploadedFont(family,dataUrl);const state=useProjectStore.getState(),merged=new Map((state.project.customFonts??[]).map(f=>[f.family,f]));merged.set(family,{family,dataUrl});state.updateProjectSettings({customFonts:[...merged.values()]})}
       else await ensureFontLoaded(family)
-      onChange(family);setOpen(false);trigger.current?.focus()
+      onChange(family,style)
     }catch(e){setError(String(e))}
   }
   const custom=useProjectStore(s=>s.project.customFonts)
@@ -70,14 +88,28 @@ export default function FontPicker({value,onChange,scanEnabled=true}:{value:stri
     }
   }}>
     <div className="font-picker__anchor">
-    <button ref={trigger} aria-expanded={open} aria-label="Choose a font" className="btn font-picker__current" onClick={()=>{setSearch('');setOpen(!open)}} style={{fontFamily:value}}> {value || 'Choose a font'} <span>⌄</span></button>
+    <button ref={trigger} aria-expanded={open} aria-label="Choose a font" className="btn font-picker__current" onClick={()=>{setSearch('');setOpen(!open)}} style={{fontFamily:value,fontWeight:bold?700:400,fontStyle:italic?'italic':'normal'}}> {value ? `${value}${styleLabel(bold,italic)}` : 'Choose a font'} <span>⌄</span></button>
     {open&&<div className="font-picker__dropdown">
       <input aria-label="Search fonts" placeholder="Search fonts…" value={search} onChange={e=>setSearch(e.target.value)} autoFocus />
       <div className="font-picker__list" onPointerMove={e=>{pointer.current={x:e.clientX,y:e.clientY}}} onMouseLeave={()=>{pointer.current=null;useProjectStore.setState({fontPreview:null})}} onScroll={()=>{
         const point=pointer.current
         const button=point&&document.elementFromPoint(point.x,point.y)?.closest<HTMLButtonElement>('button[data-font]')
         if(button?.dataset.font)previewFont(button.dataset.font)
-      }}>{options.filter(f=>f.toLowerCase().includes(search.toLowerCase())).map(f=><button key={f} data-font={f} className={f===value?'is-selected':''} style={{fontFamily:f}} onMouseEnter={()=>previewFont(f)} onFocus={()=>previewFont(f)} onClick={()=>void choose(f)}>{f}<small>{custom?.some(x=>x.family===f)?'Local · uploaded':CLOUD_FONTS.some(x=>x.family===f)?(isBundledFont(f)?'Google Fonts · offline':'Google Fonts · download on use'):'Local'}</small></button>)}</div>
+      }}>{options.filter(f=>f.toLowerCase().includes(search.toLowerCase())).flatMap(f=>[
+        // Picking a family both applies it and opens its styles underneath, the way the Adobe type
+        // panel does. A nested expander button inside this one only ever stole the click.
+        <button key={f} data-font={f} className={f===value?'is-selected':''} style={{fontFamily:f}} onMouseEnter={()=>previewFont(f)} onFocus={()=>previewFont(f)}
+          aria-expanded={expanded===f} onClick={()=>{setExpanded(expanded===f?null:f);void choose(f,{bold,italic})}}>
+          <span className="font-picker__expand" aria-hidden="true">{expanded===f?'⌄':'›'}</span>
+          <span className="font-picker__name">{f}</span>
+          <small>{custom?.some(x=>x.family===f)?'Local · uploaded':CLOUD_FONTS.some(x=>x.family===f)?(isBundledFont(f)?'Google Fonts · offline':'Google Fonts · download on use'):'Local'}</small>
+        </button>,
+        ...(expanded===f?FONT_STYLES.map(style=>
+          <button key={f+':'+style.label} data-font={f} className={`font-picker__style ${f===value&&bold===style.bold&&italic===style.italic?'is-selected':''}`}
+            style={{fontFamily:f,fontWeight:style.bold?700:400,fontStyle:style.italic?'italic':'normal'}}
+            onMouseEnter={()=>previewFont(f)} onFocus={()=>previewFont(f)}
+            onClick={()=>void choose(f,{bold:style.bold,italic:style.italic})}>{style.label}<small>Sample</small></button>):[]),
+      ])}</div>
     </div>}
     </div>
     <button className="btn" onClick={()=>void getLocalFonts(true).then(setFonts)}>Refresh local fonts</button><button className="btn" onClick={()=>input.current?.click()}>Upload fonts…</button>

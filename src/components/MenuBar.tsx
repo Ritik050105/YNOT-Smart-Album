@@ -11,6 +11,7 @@ import ExternalEditor from './ExternalEditor'
 import Icon from './Icon'
 import Modal from './Modal'
 import { loadRecentProjects } from '@/engine/recentProjects'
+import { spreadLayers } from '@/engine/spreadLayers'
 
 interface MenuItem {
   label: string
@@ -48,6 +49,8 @@ export default function MenuBar() {
   const selectedSpreadId = useProjectStore((s) => s.selectedSpreadId)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
   const selectedTextBoxId = useProjectStore((s) => s.selectedTextBoxId)
+  const selectedLayerKeys = useProjectStore((s) => s.selectedLayerKeys)
+  const updateSpread = useProjectStore((s) => s.updateSpread)
   const multiSelectedPlaceholderIds = useProjectStore((s) => s.multiSelectedPlaceholderIds)
   const toneClipboard = useProjectStore((s) => s.toneClipboard)
   const photoClipboard = useProjectStore((s) => s.photoClipboard)
@@ -116,6 +119,13 @@ export default function MenuBar() {
   const hasCover = project.spreads.some((s) => s.isCover)
   const spread = project.spreads.find((s) => s.id === selectedSpreadId)
   const hasSpread = !!spread
+  // The group the current selection belongs to, when every selected layer shares one.
+  const selectedGroup = (() => {
+    if (!spread || !selectedLayerKeys.length) return undefined
+    const members = spreadLayers(spread).filter(l => selectedLayerKeys.includes(l.kind + ':' + l.id))
+    const group = members[0]?.value.groupId
+    return group && members.every(l => l.value.groupId === group) ? group : undefined
+  })()
   const framePlaceholderIds = multiSelectedPlaceholderIds.length > 0
     ? multiSelectedPlaceholderIds
     : selectedPlaceholderId
@@ -237,6 +247,9 @@ export default function MenuBar() {
           danger: true,
           onClick: deleteSelection,
         },
+        { label: 'Group Selected', separator: true, disabled: selectedLayerKeys.length < 2, onClick: () => spread && useProjectStore.getState().groupLayers(spread.id, selectedLayerKeys) },
+        { label: 'Ungroup Selected', disabled: !selectedGroup, onClick: () => spread && selectedGroup && useProjectStore.getState().ungroupLayers(spread.id, selectedGroup) },
+        { label: 'Select All on Spread', shortcut: 'Ctrl+A', disabled: !hasSpread, onClick: () => spread && useProjectStore.getState().setLayerSelection(spreadLayers(spread).filter(l => !l.value.hidden).map(l => l.kind + ':' + l.id)) },
         { label: 'Deselect All', separator: true, disabled: !hasFrameSelection && !selectedTextBoxId && useProjectStore.getState().selectedPhotoIds.length === 0, shortcut: 'Ctrl+D', onClick: deselectAll },
       ],
     },
@@ -300,14 +313,26 @@ export default function MenuBar() {
         },
         { label: 'Edit in Designer View', disabled: !hasSpread, onClick: () => spread && enterDesignerView(spread.id) },
         { label: 'Add Blank Spread', onClick: addBlankSpread },
+        { label: 'Shuffle Photos in Spread', separator: true, disabled: !hasSpread, onClick: () => spread && useProjectStore.getState().cycleSpreadPhotos(spread.id, 1) },
+        { label: `${spread?.templateLocked ? '✓ ' : ''}Lock Spread Template`, disabled: !hasSpread, onClick: () => spread && updateSpread(spread.id, { templateLocked: !spread.templateLocked }) },
+        { label: 'Split Spread Here', disabled: !hasSpread, onClick: () => spread && useProjectStore.getState().splitSpread(spread.id) },
+        { label: 'Delete Spread', separator: true, disabled: !hasSpread, danger: true, onClick: () => spread && deleteSpread(spread.id) },
       ],
     },
     {
       label: 'Templates',
-      items: FRAME_FILTERS.map((f) => ({
-        label: `${templateFrameFilter === f.value ? '✓ ' : ''}${f.label}`,
-        onClick: () => setTemplateFrameFilter(f.value),
-      })),
+      items: [
+        { label: 'Browse Image Templates…', disabled: !hasSpread, onClick: () => spread && useProjectStore.getState().openMatchingTemplates(spread.id, 'image') },
+        { label: 'Browse Mixed Templates…', disabled: !hasSpread, onClick: () => spread && useProjectStore.getState().openMatchingTemplates(spread.id, 'mixed') },
+        { label: 'Save This Spread as a Template', separator: true, disabled: !hasSpread || !spread?.placements.length, onClick: () => { if (!spread) return
+          void useProjectStore.getState().saveSpreadAsTemplate(spread.id, `Creative ${Date.now().toString(36).toUpperCase()}`, spread.textBoxes.length ? 'mixed' : 'image')
+            .catch((error: unknown) => window.alert(error instanceof Error ? error.message : 'Template could not be saved.')) } },
+        ...FRAME_FILTERS.map((f, i) => ({
+          label: `${templateFrameFilter === f.value ? '✓ ' : ''}${f.label}`,
+          separator: i === 0,
+          onClick: () => setTemplateFrameFilter(f.value),
+        })),
+      ],
     },
     {
       label: 'Tools',
@@ -321,6 +346,11 @@ export default function MenuBar() {
             if (!rightPanelOpen) toggleRightPanel()
             if (!bottomPanelOpen) toggleBottomPanel()
           },
+        },
+        {
+          label: 'Clear Image Cache',
+          disabled: !window.albumStudio?.preferencesSystem,
+          onClick: () => void window.albumStudio?.preferencesSystem('clearCache'),
         },
         {
           label: 'Clear Undo History',

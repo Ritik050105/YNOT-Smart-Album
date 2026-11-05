@@ -414,8 +414,14 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .image-design__heading { display:flex; align-items:center; gap:12px; padding:0 0 18px; font-size:17px; }
 .image-design__heading strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
 .image-design__heading span { color:var(--warn); }
-.image-design__preview { position:relative; margin:4px 0 22px; border:2px solid var(--accent); border-radius:5px; overflow:hidden; background:repeating-conic-gradient(var(--panel-raised) 0 25%,var(--panel) 0 50%) 0/16px 16px; }
-.image-design__preview canvas { display:block; width:100%; max-height:240px; object-fit:contain; }
+/* The box is the whole photo. The dimmed image fills it and sets its size, so the part of the
+   photo that falls outside the frame has room of its own instead of spilling over the panel. */
+.image-design__preview { position:relative; margin:4px auto 22px; max-width:100%; max-height:min(42vh,320px); border-radius:5px; overflow:hidden; background:var(--panel-raised); }
+/* Dimmed rather than hidden: what falls outside the frame is the context that makes the crop
+   readable, so it stays visible — the crop itself is the part drawn at full strength. */
+.image-design__full { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; opacity:.4; pointer-events:none; }
+.image-design__crop { position:absolute; border:2px solid var(--accent); box-sizing:border-box; }
+.image-design__preview canvas { display:block; width:100%; height:100%; }
 .image-design__thirds { position:absolute; inset:0; pointer-events:none; background:linear-gradient(to right,transparent 33.15%,#ffffff70 33.15%,#ffffff70 33.45%,transparent 33.45%,transparent 66.5%,#ffffff70 66.5%,#ffffff70 66.8%,transparent 66.8%),linear-gradient(to bottom,transparent 33.15%,#ffffff70 33.15%,#ffffff70 33.45%,transparent 33.45%,transparent 66.5%,#ffffff70 66.5%,#ffffff70 66.8%,transparent 66.8%); }
 .image-adjustment { display:grid; grid-template-columns:minmax(0,1fr) 22px; gap:6px; align-items:center; margin:10px 0; }
 .image-adjustment .slider-field { margin:0; }
@@ -740,7 +746,7 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .layer-effect-panel{position:fixed;right:min(420px,30vw);top:110px;bottom:24px;width:320px;max-width:calc(100vw - 32px);z-index:1200;background:var(--panel,#333);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:20px;overflow:auto;box-shadow:0 12px 36px #0004;animation:effect-slide .18s ease-out}
 .layer-effect-panel header,.layer-effect-panel footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}.layer-effect-panel>label{display:flex;justify-content:space-between;align-items:center;margin:16px 0}.layer-effect-panel footer{margin-top:20px}@keyframes effect-slide{from{transform:translateX(24px);opacity:0}to{transform:translateX(0);opacity:1}}
 
-.image-design>details:first-child{overflow:hidden;padding-inline:18px}.image-design__preview{margin-block:40px!important}.layer-effect-panel{right:calc(var(--inspector-width,320px) + 12px)}
+.image-design>details:first-child{padding-inline:18px}.layer-effect-panel{right:calc(var(--inspector-width,320px) + 12px)}
 
 .canvas-gap-editor {width:280px;box-sizing:border-box;padding:18px;border-radius:16px;box-shadow:0 16px 48px #0005;max-height:calc(100% - 24px);overflow-y:auto;overscroll-behavior:contain;}
 .canvas-gap-editor > label {margin-bottom:12px;gap:12px;}
@@ -858,3 +864,32 @@ button:disabled { cursor:not-allowed; }
   .matching-templates, .font-template-browser, .bottom-panel .photo-dock,
   .album-editor .app-sidebar--right, .floating-text-tools, .floating-text-tools__spacing { animation: none; }
 }
+
+/* Both template browsers are the same height, in the overview and in the designer: they sit in
+   the same slot and swapping between them should not move everything below. */
+:root { --template-browser-height: 34vh; }
+.matching-templates, .font-template-browser { max-height: var(--template-browser-height); overflow-y: auto; }
+.designer-view .matching-templates, .designer-view .font-template-browser,
+.album-editor .matching-templates, .album-editor .font-template-browser { max-height: var(--template-browser-height); }
+
+/* Text toolbar: related controls in one group each, so the bar reads as a few clusters rather
+   than one long row of buttons. */
+.floating-text-tools__group { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border-soft); border-radius: 9px; }
+.floating-text-tools__group .btn { min-width: 30px; padding-inline: 6px; }
+.floating-text-tools .btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.floating-text-tools fieldset { gap: 8px; }
+
+/* Font list: a family, with its styles indented beneath it when expanded. */
+.font-picker__expand { display: inline-flex; width: 14px; flex: none; justify-content: center; color: var(--text-muted); cursor: pointer; }
+.font-picker__name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.font-picker__list button.font-picker__style { padding-left: 34px; font-size: 13px; }
+
+/* Spread grid: pages in order, dragged to reorder. */
+.spread-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.spread-grid__item { position: relative; }
+.spread-grid__button { display: block; width: 100%; padding: 2px; border: 1px solid var(--border-soft); border-radius: 6px; background: var(--panel-raised); cursor: grab; }
+.spread-grid__item.is-selected .spread-grid__button { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.spread-grid__item.is-dragging { opacity: .45; }
+.spread-grid__item.is-drop-target .spread-grid__button { border-color: var(--accent); border-style: dashed; }
+.spread-grid__number { position: absolute; right: 4px; bottom: 3px; padding: 0 5px; border-radius: 7px; background: #0009; color: #fff; font-size: 10px; }
+.spread-grid__button .spread-thumb { pointer-events: none; }

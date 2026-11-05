@@ -2,6 +2,14 @@
  *  the UI. Keeping them inline avoids a network dependency for core chrome. */
 const PATHS: Record<string, string> = {
   copy: 'M9 9h12v12H9Z M5 15H3V3h12v2',
+  // Paragraph alignment: four rules, the short one placed to show where the ragged edge falls.
+  alignLeft: 'M3 5h18 M3 10h12 M3 15h18 M3 20h12',
+  alignCenter: 'M3 5h18 M6 10h12 M3 15h18 M6 20h12',
+  alignRight: 'M3 5h18 M9 10h12 M3 15h18 M9 20h12',
+  alignJustify: 'M3 5h18 M3 10h18 M3 15h18 M3 20h18',
+  alignJustifyLeft: 'M3 5h18 M3 10h18 M3 15h18 M3 20h12',
+  alignJustifyCenter: 'M3 5h18 M3 10h18 M3 15h18 M6 20h12',
+  alignJustifyRight: 'M3 5h18 M3 10h18 M3 15h18 M9 20h12',
   text: 'M5 5V3h14v2 M12 3v18 M8 21h8',
   circleFilled: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18Z',
   triangleFilled: 'M12 3 22 21H2Z',

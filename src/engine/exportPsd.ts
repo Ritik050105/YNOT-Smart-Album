@@ -82,7 +82,8 @@ export async function buildSpreadPsdBytes(
         fontSize: text.fontSize * scale, fillColor: { r, g, b }, fauxBold: text.bold, fauxItalic: text.italic,
         autoLeading: false, leading: text.fontSize * scale,
       },
-      paragraphStyle: { justification: text.align },
+      // ag-psd calls the set-every-line variant 'justify-all'; the other three match ours.
+      paragraphStyle: { justification: text.align === 'justify' ? 'justify-all' : text.align },
     }
   }
   layers.sort((a,b)=>(layerRanks.get(a)??-1)-(layerRanks.get(b)??-1))

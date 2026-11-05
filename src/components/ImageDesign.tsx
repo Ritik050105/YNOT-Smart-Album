@@ -5,10 +5,11 @@ import { createPortal } from 'react-dom'
 import { PlacedPhoto, PhotoAsset } from '@/types'
 import { drawPlacement } from '@/engine/renderSpread'
 import { defaultBlackWhiteMix } from '@/engine/imageTone'
+import { useProjectStore } from '@/state/projectStore'
 import SliderField from './SliderField'
 import ColorField from './ColorField'
 
-export default function ImageDesign({ placement, photo, width, height, update }: {
+export default function ImageDesign({ spreadId, placement, photo, width, height, update }: {
   spreadId?:string; placement: PlacedPhoto; photo?: PhotoAsset; width: number; height: number; update: (patch: Partial<PlacedPhoto>) => void
 }) {
   const cancelDrag=useRef<(()=>void)|null>(null)
@@ -17,9 +18,15 @@ export default function ImageDesign({ placement, photo, width, height, update }:
   const canvas = useRef<HTMLCanvasElement>(null)
   const [mixer, setMixer] = useState<{left:number;top:number} | null>(null)
   useEffect(() => { const close = (e: KeyboardEvent) => { if (e.key === 'Escape') setMixer(null) }; window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close) }, [])
-  const [draft,setDraft]=useState<Partial<PlacedPhoto>|null>(null)
-  const rendered=draft?{...placement,...draft}:placement
   const [error, setError] = useState('')
+  /** Writes the drag straight into the project, with no history entry, so the spread on the canvas
+   *  and in the timeline moves under the pointer. The commit below restores and re-applies it once
+   *  through `update`, which is what undo sees. */
+  const live=(patch:Partial<PlacedPhoto>)=>{
+    if(!spreadId)return
+    useProjectStore.setState(state=>({project:{...state.project,spreads:state.project.spreads.map(s=>s.id!==spreadId?s:
+      {...s,placements:s.placements.map(p=>p.placeholderId===placement.placeholderId?{...p,...patch}:p)})}}))
+  }
   // A drag fires a pointermove per frame, and redrawing the preview on each one leaves several
   // full re-renders in flight at once, so it lags a frame or two behind the pointer. Coalescing
   // them onto animation frames keeps the preview live under the cursor.
@@ -31,15 +38,15 @@ export default function ImageDesign({ placement, photo, width, height, update }:
       preview.width = Math.max(1, Math.round(width * scale)); preview.height = Math.max(1, Math.round(height * scale))
       const ctx = preview.getContext('2d')!
       setError('')
-      void drawPlacement(ctx, { placeholderId: placement.placeholderId, x: 0, y: 0, width: preview.width, height: preview.height }, {...rendered,rotationDeg:0}, photo?{...photo,src:previewSrc}:undefined, scale).then(() => {
+      void drawPlacement(ctx, { placeholderId: placement.placeholderId, x: 0, y: 0, width: preview.width, height: preview.height }, {...placement,rotationDeg:0}, photo?{...photo,src:previewSrc}:undefined, scale).then(() => {
         if (!current || !canvas.current) return
         canvas.current.width = preview.width; canvas.current.height = preview.height
         canvas.current.getContext('2d')!.drawImage(preview, 0, 0)
       }).catch(() => { if (current) setError('Image preview unavailable. Locate the original image to reconnect it.') })
     })
     return () => { current = false; cancelAnimationFrame(frame) }
-  }, [placement, draft, photo, previewSrc, width, height])
-  const cropPreview=photo?computeCoverCrop(photo.width,photo.height,width,height,rendered.focalX,rendered.focalY,rendered.zoom):null
+  }, [placement, photo, previewSrc, width, height])
+  const cropPreview=photo?computeCoverCrop(photo.width,photo.height,width,height,placement.focalX,placement.focalY,placement.zoom):null
   function slider(label: string, key: keyof PlacedPhoto, min: number, max: number, reset = 0, suffix = '', factor = 1) {
     const value = Number(placement[key] ?? reset) * factor
     return <div className="image-adjustment" key={key}><SliderField label={label} resetValue={reset*factor} value={Math.round(value * 100) / 100} min={min} max={max} suffix={suffix} onChange={v => update({ [key]: v / factor })}/><button className="adjustment-reset" aria-label={`Reset ${label}`} title={`Reset ${label}`} disabled={value === reset * factor} onClick={() => update({ [key]: reset })}>×</button></div>
@@ -47,16 +54,35 @@ export default function ImageDesign({ placement, photo, width, height, update }:
   const mix = placement.blackWhiteMix
   return <div className="image-design">
     <details className="inspector-group" open><summary>Design</summary>
-      {photo && <div className="image-design__preview" style={{maxWidth:width / height * 240, marginInline:'auto',overflow:'visible',isolation:'isolate'}}>{photo&&cropPreview&&<img aria-hidden="true" src={previewSrc} style={{position:'absolute',pointerEvents:'none',zIndex:-1,opacity:.25,maxWidth:'none',width:photo.width/cropPreview.cropWidth*100+'%',height:photo.height/cropPreview.cropHeight*100+'%',left:-cropPreview.cropX/cropPreview.cropWidth*100+'%',top:-cropPreview.cropY/cropPreview.cropHeight*100+'%',transformOrigin:`${(cropPreview.cropX+cropPreview.cropWidth/2)/photo.width*100}% ${(cropPreview.cropY+cropPreview.cropHeight/2)/photo.height*100}%`,transform:`rotate(${rendered.imageRotationDeg??0}deg) scale(${rotationCoverScale(width,height,rendered.imageRotationDeg??0)})`}}/>}<canvas ref={canvas} aria-label="Drag to reposition the image inside its frame" style={{touchAction:'none',cursor:'grab'}} onPointerDown={e=>{
-       if(e.button!==0||placement.locked)return;e.preventDefault();cancelDrag.current?.();const node=e.currentTarget,rect=node.getBoundingClientRect(),startX=e.clientX,startY=e.clientY;let next={focalX:placement.focalX,focalY:placement.focalY};node.setPointerCapture(e.pointerId)
-       const crop=computeCoverCrop(photo.width,photo.height,rect.width,rect.height,placement.focalX,placement.focalY,placement.zoom),angle=(placement.imageRotationDeg??0)*Math.PI/180
-       const clamp=(v:number,half:number)=>Math.max(half,Math.min(1-half,v))
-       const move=(event:PointerEvent)=>{const dx=event.clientX-startX,dy=event.clientY-startY,localX=(dx*Math.cos(angle)+dy*Math.sin(angle))*(placement.flipHorizontal?-1:1),localY=(-dx*Math.sin(angle)+dy*Math.cos(angle))*(placement.flipVertical?-1:1);next={focalX:clamp(placement.focalX-localX/rect.width*crop.cropWidth/photo.width,crop.cropWidth/photo.width/2),focalY:clamp(placement.focalY-localY/rect.height*crop.cropHeight/photo.height,crop.cropHeight/photo.height/2)};setDraft(next)}
-       const cleanup=()=>{cancelDrag.current=null;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',commit);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',escape);setDraft(null)}
-       const commit=()=>{cleanup();if(next.focalX!==placement.focalX||next.focalY!==placement.focalY)update(next)}
-       const cancel=()=>cleanup();const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();cleanup()}}
-       cancelDrag.current=cleanup;window.addEventListener('pointermove',move);window.addEventListener('pointerup',commit);window.addEventListener('pointercancel',cancel);window.addEventListener('keydown',escape)
-      }}/><div className="image-design__thirds" aria-hidden="true"/>{error && <p role="status">{error}</p>}</div>}
+      {photo && cropPreview && <div className="image-design__preview" style={{aspectRatio:`${photo.width} / ${photo.height}`}}>
+        {/* The whole photo, dimmed, sets the size of the box — so the part of it that falls outside
+            the frame has room of its own instead of spilling over the panel above. */}
+        <img className="image-design__full" aria-hidden="true" src={previewSrc} style={{transformOrigin:`${(cropPreview.cropX+cropPreview.cropWidth/2)/photo.width*100}% ${(cropPreview.cropY+cropPreview.cropHeight/2)/photo.height*100}%`,transform:`rotate(${placement.imageRotationDeg??0}deg) scale(${rotationCoverScale(width,height,placement.imageRotationDeg??0)})`}}/>
+        <div className="image-design__crop" style={{left:cropPreview.cropX/photo.width*100+'%',top:cropPreview.cropY/photo.height*100+'%',width:cropPreview.cropWidth/photo.width*100+'%',height:cropPreview.cropHeight/photo.height*100+'%'}}>
+          <canvas ref={canvas} aria-label="Drag to reposition the image inside its frame" style={{touchAction:'none',cursor:placement.locked?'default':'grab'}} onPointerDown={e=>{
+            if(e.button!==0||placement.locked)return;e.preventDefault();cancelDrag.current?.();const node=e.currentTarget,rect=node.getBoundingClientRect(),startX=e.clientX,startY=e.clientY
+            const original={focalX:placement.focalX,focalY:placement.focalY};let next=original;node.setPointerCapture(e.pointerId)
+            const crop=computeCoverCrop(photo.width,photo.height,rect.width,rect.height,placement.focalX,placement.focalY,placement.zoom),angle=(placement.imageRotationDeg??0)*Math.PI/180
+            const clamp=(v:number,half:number)=>Math.max(half,Math.min(1-half,v))
+            const move=(event:PointerEvent)=>{
+              const dx=event.clientX-startX,dy=event.clientY-startY
+              const localX=(dx*Math.cos(angle)+dy*Math.sin(angle))*(placement.flipHorizontal?-1:1),localY=(-dx*Math.sin(angle)+dy*Math.cos(angle))*(placement.flipVertical?-1:1)
+              next={focalX:clamp(placement.focalX-localX/rect.width*crop.cropWidth/photo.width,crop.cropWidth/photo.width/2),focalY:clamp(placement.focalY-localY/rect.height*crop.cropHeight/photo.height,crop.cropHeight/photo.height/2)}
+              live(next)
+            }
+            const cleanup=()=>{cancelDrag.current=null;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',commit);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',escape)}
+            // The drag has been writing straight into the project so the spread moves with it; put
+            // the original back before committing, so undo gets one entry for the whole drag.
+            const commit=()=>{cleanup();live(original);if(next.focalX!==original.focalX||next.focalY!==original.focalY)update(next)}
+            const cancel=()=>{cleanup();live(original)}
+            const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();cancel()}}
+            cancelDrag.current=cancel;window.addEventListener('pointermove',move);window.addEventListener('pointerup',commit);window.addEventListener('pointercancel',cancel);window.addEventListener('keydown',escape)
+          }}/>
+          <div className="image-design__thirds" aria-hidden="true"/>
+        </div>
+      </div>}
+      {error && <p role="status">{error}</p>}
+
       {slider('Scale', 'zoom', 100, 500, 1, '%', 100)}
       {slider('Frame angle', 'rotationDeg', -180, 180, 0, '°')}
       {slider('In-frame angle','imageRotationDeg',-180,180,0,'°')}

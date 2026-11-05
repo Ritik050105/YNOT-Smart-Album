@@ -3,6 +3,7 @@ import { useProjectStore } from '@/state/projectStore'
 import { inToDisplay } from '@/engine/units'
 import Icon from './Icon'
 import ProjectInfoPanel from './ProjectInfoPanel'
+import SpreadGrid from './SpreadGrid'
 
 function Collapsible({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -111,6 +112,7 @@ export default function AlbumInfoPanel() {
           {stats.pageCount === 1 ? '' : 's'})
           {project.spreads.some((s) => s.isCover) && ' · cover'}
         </p>
+        <SpreadGrid />
       </Collapsible>
 
       {infoOpen && <ProjectInfoPanel onClose={() => setInfoOpen(false)} />}

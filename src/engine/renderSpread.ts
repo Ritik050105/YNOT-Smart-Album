@@ -8,6 +8,15 @@ import { DESIGN_WIDTH, PlaceholderBox, computePlaceholderBoxes } from './layoutM
 import { ensureFontLoaded } from './fonts'
 import { imageToneFilter, applyBlackWhiteMix } from './imageTone'
 
+/** The edge a text box is set against, with the four justify values reduced to the alignment
+  * their last line falls back to. Anything that cannot justify — a single-word line, a Konva
+  * node, a PSD paragraph — uses this. */
+export function plainTextAlign(align: TextBox['align']): CanvasTextAlign {
+  return align === 'center' || align === 'justify-center' ? 'center'
+    : align === 'right' || align === 'justify-right' ? 'right'
+    : 'left'
+}
+
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -274,19 +283,58 @@ export async function drawTextBox(ctx:CanvasRenderingContext2D,box:TextBox,width
  // Previews never wait on a download: use the font if it is ready, a fallback otherwise.
  if(box.previewOnly)await Promise.race([ensureFontLoaded(box.fontFamily).catch(()=>{}),new Promise<void>(r=>setTimeout(r,30))]);else await ensureFontLoaded(box.fontFamily)
  const pad=Math.ceil(Math.max(box.fontSize*3,effectPadding(box.effects))*scale),mask=document.createElement('canvas');mask.width=Math.ceil(w+2*pad);mask.height=Math.ceil(h+2*pad);const m=mask.getContext('2d')!
- m.font=`${box.italic?'italic ':''}${box.bold?'bold ':''}${box.fontSize*scale}px ${box.fontFamily}`;m.textBaseline='top';m.textAlign=box.align;m.fillStyle=box.color;m.letterSpacing=`${(box.letterSpacing??0)*scale}px`
- const tx=pad+(box.align==='center'?w/2:box.align==='right'?w:0),lineStep=box.fontSize*scale*(box.lineHeight??1.2);let cy=pad
- const line=(text:string)=>{m.fillText(text,tx,cy);if(box.underline){const width=m.measureText(text).width;m.fillRect(tx-(box.align==='center'?width/2:box.align==='right'?width:0),cy+box.fontSize*scale,width,Math.max(1,scale))}if(box.strikeThrough){const width=m.measureText(text).width;m.fillRect(tx-(box.align==='center'?width/2:box.align==='right'?width:0),cy+box.fontSize*scale*.55,width,Math.max(1,scale))}cy+=lineStep}
+ // A justified line is drawn word by word, so it is always laid out from the left edge; the
+ // fallback below is what the last line of each paragraph falls back to.
+ const justified=box.align.startsWith('justify')
+ const base=plainTextAlign(box.align)
+ const lastLine:CanvasTextAlign|'justify'=box.align==='justify'?'justify':base
+ m.font=`${box.italic?'italic ':''}${box.bold?'bold ':''}${box.fontSize*scale}px ${box.fontFamily}`;m.textBaseline='top';m.fillStyle=box.color;m.letterSpacing=`${(box.letterSpacing??0)*scale}px`
+ m.textAlign=justified?'left':base
+ const lineStep=box.fontSize*scale*(box.lineHeight??1.2);let cy=pad
+ const originFor=(align:CanvasTextAlign)=>pad+(align==='center'?w/2:align==='right'?w:0)
+ const decorate=(startX:number,width:number)=>{
+  if(box.underline)m.fillRect(startX,cy+box.fontSize*scale,width,Math.max(1,scale))
+  if(box.strikeThrough)m.fillRect(startX,cy+box.fontSize*scale*.55,width,Math.max(1,scale))
+ }
+ /** One laid-out line. `last` marks the final line of its paragraph, which is the only one the
+  *  justify variants treat differently. */
+ const line=(text:string,last=false)=>{
+  const align:CanvasTextAlign|'justify'=justified?(last?lastLine:'justify'):base
+  if(align==='justify'){
+   // Spread the leftover width evenly between the words. A single word has nowhere to put it,
+   // so it stays flush left rather than being stretched letter by letter.
+   const words=text.split(' ').filter(Boolean)
+   if(words.length>1){
+    const total=words.reduce((sum,word)=>sum+m.measureText(word).width,0)
+    const gap=(w-total)/(words.length-1)
+    let x=pad
+    for(const word of words){m.fillText(word,x,cy);x+=m.measureText(word).width+gap}
+    decorate(pad,w)
+    cy+=lineStep
+    return
+   }
+  }
+  const plain:CanvasTextAlign=align==='justify'?'left':align
+  m.textAlign=plain
+  const tx=originFor(plain)
+  m.fillText(text,tx,cy)
+  if(box.underline||box.strikeThrough){const width=m.measureText(text).width;decorate(tx-(plain==='center'?width/2:plain==='right'?width:0),width)}
+  m.textAlign=justified?'left':base
+  cy+=lineStep
+ }
  for(const paragraph of box.text.split(/\r?\n/)){
+   const lines:string[]=[]
    let text=''
    for(const word of paragraph.split(/\s+/)){
      const next=text?text+' '+word:word
      if(m.measureText(next).width<=w){text=next;continue}
-     if(text){line(text);text=''}
-     for(const char of Array.from(word)){if(text&&m.measureText(text+char).width>w){line(text);text=''}text+=char}
+     if(text){lines.push(text);text=''}
+     for(const char of Array.from(word)){if(text&&m.measureText(text+char).width>w){lines.push(text);text=''}text+=char}
    }
-   line(text)
+   lines.push(text)
+   lines.forEach((value,i)=>line(value,i===lines.length-1))
  }
  await drawBlendingEffects(ctx,mask,box,pad,w,h,scale)
  ctx.restore();return cy-pad
 }
+

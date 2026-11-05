@@ -32,7 +32,7 @@ import GapPresetImportPreview from './GapPresetImportPreview'
 import PhotoContextMenu from './PhotoContextMenu'
 import ContextMenu from './ContextMenu'
 import TextAutoFitStatus from './TextAutoFitStatus'
-import { drawSpreadBackground } from '@/engine/renderSpread'
+import { drawSpreadBackground, plainTextAlign } from '@/engine/renderSpread'
 import { readDraggedPhotoIds } from '@/engine/photoDrag'
 import { isFontTemplateDrag, dropFontTemplate } from '@/engine/fontTemplateDrag'
 
@@ -449,6 +449,19 @@ export default function DesignerCanvas() {
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
   // The group box sits above its text and swallows clicks, so route select/double-click-to-edit to the text under the pointer.
   const groupTextAtPointer=()=>{const p=stageRef.current?.getRelativePointerPosition();if(!p||!spread||!selectedGroupId)return undefined;const h=STAGE_WIDTH*size.heightIn/size.widthIn;return [...spread.textBoxes].reverse().find(t=>t.groupId===selectedGroupId&&!t.shape&&!t.locked&&!t.hidden&&p.x>=t.x*STAGE_WIDTH&&p.x<=(t.x+t.width)*STAGE_WIDTH&&p.y>=t.y*h&&p.y<=(t.y+t.height)*h)}
+  /** The topmost text under the pointer that sits above `placeholderId` in the layer order. The
+   *  selected image's drag rectangle covers its whole frame, so without this a caption drawn on
+   *  top of a selected photo could never be clicked — the rectangle swallowed the click. */
+  const textAbovePlaceholder=(placeholderId:string)=>{
+    const point=stageRef.current?.getRelativePointerPosition()
+    if(!point||!spread)return undefined
+    const layers=spreadLayers(spread)
+    const image=layers.find(l=>l.kind==='image'&&l.id===placeholderId)
+    if(!image)return undefined
+    const h=STAGE_WIDTH*size.heightIn/size.widthIn
+    return layers.flatMap(l=>l.kind==='text'&&l.rank>image.rank?[l.value]:[]).reverse()
+      .find(t=>!t.hidden&&!t.locked&&point.x>=t.x*STAGE_WIDTH&&point.x<=(t.x+t.width)*STAGE_WIDTH&&point.y>=t.y*h&&point.y<=(t.y+t.height)*h)
+  }
   useEffect(()=>{if(selectedLayerKeys.length||(editingTextId&&selectedTextBoxId!==editingTextId))setEditingTextId(null)},[selectedLayerKeys,selectedTextBoxId,editingTextId])
   const [textContextMenu, setTextContextMenu] = useState<{ x: number; y: number; textIds: string[]; spreadId: string } | null>(null)
   const [photoContextMenu, setPhotoContextMenu] = useState<{ x: number; y: number; placeholderId?: string; openedAt: number } | null>(null)
@@ -1104,7 +1117,7 @@ export default function DesignerCanvas() {
                 fontSize={box.fontSize}
                 fontStyle={`${box.bold ? 'bold' : ''} ${box.italic ? 'italic' : ''}`.trim() || 'normal'}
                 fill={box.color}
-                align={box.align}
+                align={box.align.startsWith('justify') ? 'justify' : box.align}
                 draggable={!box.locked && canvasTool === 'select' && !isSpaceDown}
                 onClick={(e:Konva.KonvaEventObject<MouseEvent>)=>{if(e.evt.shiftKey||e.evt.ctrlKey||e.evt.metaKey)toggleCanvasLayer('text',box.id);else selectTextBox(box.id)}}
                 onTap={() => selectTextBox(box.id)}
@@ -1247,6 +1260,7 @@ export default function DesignerCanvas() {
           {!selectedGroupId && selectedBox && !spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)?.locked && canvasTool === 'select' && <>
             <Rect ref={frameNodeRef} x={selectedBox.x+selectedBox.width/2} y={selectedBox.y+selectedBox.height/2} offsetX={selectedBox.width/2} offsetY={selectedBox.height/2} rotation={spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)?.rotationDeg??0} width={selectedBox.width} height={selectedBox.height}
               fill="rgba(0,0,0,0)" draggable
+              onDblClick={()=>{const hit=textAbovePlaceholder(selectedBox.placeholderId);if(hit&&!hit.shape){selectTextBox(hit.id);setEditingTextId(hit.id)}}}
               onDragMove={e=>{const rect=alignRect({x:e.target.x()-selectedBox.width/2,y:e.target.y()-selectedBox.height/2,width:selectedBox.width,height:selectedBox.height},selectedBox.placeholderId);e.target.position({x:rect.x+selectedBox.width/2,y:rect.y+selectedBox.height/2});setLiveFrame({...rect,id:selectedBox.placeholderId})}}
               onTransform={()=>{const node=frameNodeRef.current;if(node)setLiveFrame({id:selectedBox.placeholderId,x:node.x()-node.offsetX()*node.scaleX(),y:node.y()-node.offsetY()*node.scaleY(),width:node.width()*node.scaleX(),height:node.height()*node.scaleY(),rotationDeg:node.rotation()})}}
               onDragEnd={(e) => {updateImageFrame(spread.id, selectedBox.placeholderId, { x: (e.target.x()-selectedBox.width/2) / STAGE_WIDTH, y: (e.target.y()-selectedBox.height/2) / stageHeight, width: selectedBox.width / STAGE_WIDTH, height: selectedBox.height / stageHeight });setSmartGuides([]);setLiveFrame(null)}}
@@ -1258,7 +1272,7 @@ export default function DesignerCanvas() {
                 if(transformerRef.current?.getActiveAnchor()==='rotater')updatePlacement(spread.id,selectedBox.placeholderId,{rotationDeg:node.rotation()});else updateImageFrame(spread.id, selectedBox.placeholderId, rect)
                 setSmartGuides([]);setLiveFrame(null)
               }}
-              onClick={e=>{if(e.evt.shiftKey)toggleCanvasLayer('image',selectedBox.placeholderId)}}
+              onClick={e=>{if(e.evt.shiftKey){toggleCanvasLayer('image',selectedBox.placeholderId);return}const hit=textAbovePlaceholder(selectedBox.placeholderId);if(hit)selectTextBox(hit.id)}}
               
               onContextMenu={(e) => handlePlaceholderContextMenu(selectedBox.placeholderId, e.evt)} />
             <Transformer ref={transformerRef} borderStroke={accent} anchorStroke={accent} anchorFill={accent} anchorCornerRadius={8} anchorSize={9} rotateEnabled={true} flipEnabled={false} boundBoxFunc={alignTransform} />
@@ -1470,7 +1484,7 @@ export default function DesignerCanvas() {
                 color: box.color,
                 fontWeight: box.bold ? 'bold' : 'normal',
                 fontStyle: box.italic ? 'italic' : 'normal',
-                textAlign: box.align,
+                textAlign: box.align.startsWith('justify') ? 'justify' : plainTextAlign(box.align),
               }}
               ref={element => { if (element) { element.style.height = '0px'; element.style.height = `${element.scrollHeight - 6}px` } }}
               onInput={e => { const fitted = fitTextBoxSize({ ...box, text: e.currentTarget.value }, size); e.currentTarget.style.width = `${fitted.width * STAGE_WIDTH * stageScale}px`; e.currentTarget.style.left = `${stagePos.x + fitted.x * STAGE_WIDTH * stageScale}px`; e.currentTarget.style.height = '0px'; e.currentTarget.style.height = `${e.currentTarget.scrollHeight - 6}px` }}

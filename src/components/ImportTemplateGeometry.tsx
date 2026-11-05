@@ -54,7 +54,10 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
  if(!header.width||!header.height||header.width*header.height>MAX_ARTWORK_PIXELS)throw new Error('PSD dimensions are too large.')
  const psd=readPsd(bytes,{skipCompositeImageData:true,skipThumbnail:true})
  if(!psd.width||!psd.height)throw new Error('PSD dimensions are too large.')
- const frames:PlaceholderRect[]=[],textBoxes:TextBox[]=[],groupId=crypto.randomUUID()
+ // Each text layer comes in as its own layer. They used to share one groupId, which made the
+ // whole caption block move and resize as a single object — fine for a font template, wrong for a
+ // page design, where the headline and the body copy are placed independently.
+ const frames:PlaceholderRect[]=[],textBoxes:TextBox[]=[]
  const backgrounds:HTMLCanvasElement[]=[]
  const area=psd.width*psd.height
  // "BG left page" inside a "Background" group is how designers mark the paper, and on a two-page
@@ -82,7 +85,7 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
    const fontFamily=style?.font?.name??'Arial'
    const bold=!!style?.fauxBold||/bold|black|heavy/i.test(fontFamily)
    const italic=!!style?.fauxItalic||/italic|oblique/i.test(fontFamily)
-   textBoxes.push({id:crypto.randomUUID(),groupId,text,fontFamily,fontSize,color,bold,italic,
+   textBoxes.push({id:crypto.randomUUID(),text,fontFamily,fontSize,color,bold,italic,
     align:alignOf(t.paragraphStyle?.justification??(style as {justification?:unknown}|undefined)?.justification),
     autoWidth:false,x:x/psd.width!,y:y/psd.height!,width:w/psd.width!,height:h/psd.height!,
     sourceArtwork:{src:l.canvas.toDataURL('image/png'),fontRatio:fontSize/(w/psd.width!*900),text,fontFamily,color,bold,italic}})

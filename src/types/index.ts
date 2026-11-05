@@ -167,7 +167,9 @@ export interface TextBox {
   fontFamily: string
   fontSize: number
   color: string
-  align: 'left' | 'center' | 'right'
+  /** The four justify values set every line flush to both edges; the suffix is how the last
+   *  line of each paragraph is set, the way InDesign's four justify buttons work. */
+  align: 'left' | 'center' | 'right' | 'justify' | 'justify-left' | 'justify-center' | 'justify-right'
   bold: boolean
   italic: boolean
 }
