@@ -918,3 +918,20 @@ button:disabled { cursor:not-allowed; }
 .selection-actions__grip { display: inline-flex; align-items: center; padding: 0 2px; margin-right: 2px; color: var(--text-muted); cursor: grab; touch-action: none; }
 .selection-actions__grip:active { cursor: grabbing; }
 .selection-actions__grip:focus-visible { outline: 2px solid var(--accent); border-radius: 4px; }
+
+/* The two save dialogs. Their fields were bare labels, so the control sat next to its own label
+   and the next field ran on beside it; these stack each field and give the groups room. */
+.save-template-dialog .modal-card__body { display: grid; gap: 16px; padding: 20px; }
+.save-template-dialog .modal-card__body > p { margin: 0; font-size: 12.5px; line-height: 1.45; }
+.save-template-dialog .field { gap: 6px; }
+.save-template-dialog .field > input, .save-template-dialog .field > select { min-height: 32px; }
+.save-template-dialog__hint { font-weight: 400; color: var(--text-faint); }
+.save-template-dialog__kinds > div { display: flex; align-items: center; gap: 20px; }
+.save-template-dialog__kinds label { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text); cursor: pointer; }
+/* .field stretches its inputs to full width, which would blow up a checkbox. */
+.save-template-dialog__kinds input { width: auto; margin: 0; }
+.save-template-dialog__kinds small { color: var(--text-faint); }
+.save-template-dialog__notice { font-size: 12.5px; color: var(--accent); }
+.save-template-dialog__preview { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--panel-raised); }
+.save-template-dialog__preview > span { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.save-template-dialog__preview .template-thumb { width: 100%; }
