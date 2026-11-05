@@ -315,8 +315,8 @@ export default function MenuBar() {
         { label: 'Add Blank Spread', onClick: addBlankSpread },
         { label: 'Shuffle Photos in Spread', separator: true, disabled: !hasSpread, onClick: () => spread && useProjectStore.getState().cycleSpreadPhotos(spread.id, 1) },
         { label: `${spread?.templateLocked ? '✓ ' : ''}Lock Spread Template`, disabled: !hasSpread, onClick: () => spread && updateSpread(spread.id, { templateLocked: !spread.templateLocked }) },
-        { label: 'Split Spread Here', disabled: !hasSpread, onClick: () => spread && useProjectStore.getState().splitSpread(spread.id) },
-        { label: 'Delete Spread', separator: true, disabled: !hasSpread, danger: true, onClick: () => spread && deleteSpread(spread.id) },
+        { label: 'Split Spread', disabled: !spread || spread.isCover || spread.pageSide !== 'spread', onClick: () => spread && useProjectStore.getState().splitSpread(spread.id) },
+        { label: 'Delete Spread', separator: true, disabled: !spread || spread.isCover, danger: true, onClick: () => spread && deleteSpread(spread.id) },
       ],
     },
     {

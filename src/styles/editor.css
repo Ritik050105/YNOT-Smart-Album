@@ -891,6 +891,8 @@ button:disabled { cursor:not-allowed; }
 .spread-grid__item.is-selected .spread-grid__button { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .spread-grid__item.is-dragging { opacity: .45; }
 .spread-grid__item.is-drop-target .spread-grid__button { border-color: var(--accent); border-style: dashed; }
+/* Holds the cell open before its thumbnail has been drawn, so the grid does not reflow. */
+.spread-grid__cell { aspect-ratio: var(--spread-aspect, 2); background: var(--panel); }
 .spread-grid__number { position: absolute; right: 4px; bottom: 3px; padding: 0 5px; border-radius: 7px; background: #0009; color: #fff; font-size: 10px; }
 .spread-grid__button .spread-thumb { pointer-events: none; }
 

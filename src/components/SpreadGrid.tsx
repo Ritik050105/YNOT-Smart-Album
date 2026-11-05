@@ -1,6 +1,36 @@
-import { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import SpreadThumbnail from './SpreadThumbnail'
+
+/** Drawing a spread means rendering it to a canvas, so a sixty-spread album would draw sixty of
+ *  them the moment this panel opened — for the six that fit on screen. Each cell draws once it is
+ *  near the viewport, and never undraws.
+ *
+ *  Measured rather than observed: an IntersectionObserver reports nothing until it has run its
+ *  first callback, so anything that stops it firing leaves the visible cells blank. Reading the
+ *  rectangle answers the same question now, and a scroll listener answers it again later. */
+const MARGIN = 220
+function LazyCell({ children }: { children: React.ReactNode }) {
+  const host = useRef<HTMLDivElement>(null)
+  const [near, setNear] = useState(false)
+  useEffect(() => {
+    const el = host.current
+    if (!el) return
+    const check = () => {
+      const box = el.getBoundingClientRect()
+      if (box.bottom < -MARGIN || box.top > window.innerHeight + MARGIN) return false
+      setNear(true)
+      return true
+    }
+    if (check()) return
+    const recheck = () => { if (check()) stop() }
+    const stop = () => { document.removeEventListener('scroll', recheck, true); window.removeEventListener('resize', recheck) }
+    document.addEventListener('scroll', recheck, true)
+    window.addEventListener('resize', recheck)
+    return stop
+  }, [])
+  return <div ref={host} className="spread-grid__cell">{near ? children : null}</div>
+}
 
 /** The sidebar's spread grid: every interior spread as a small page, in order, draggable to
  *  reorder. The timeline along the bottom of the editor reorders photos within and between
@@ -42,7 +72,7 @@ export default function SpreadGrid() {
           onClick={() => selectSpread(spread.id)}
           onDoubleClick={() => enterDesignerView(spread.id)}
         >
-          <SpreadThumbnail spread={spread} photosById={photosById} size={project.size} width={150} />
+          <LazyCell><SpreadThumbnail spread={spread} photosById={photosById} size={project.size} width={150} /></LazyCell>
           <span className="spread-grid__number">{index + 1}</span>
         </button>
       </li>
