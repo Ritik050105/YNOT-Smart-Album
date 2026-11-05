@@ -6,29 +6,32 @@ import { v4 as uuid } from 'uuid'
 import { PhotoAsset } from '@/types'
 import { imageFileSource, isImageFile } from './imageSource'
 import { hasColorProfile } from './colorProfile'
-import { subjectFocus } from './subjectFocus'
+import { SubjectFocus, samplePixels, subjectFocusFromPixels } from './subjectFocus'
 
 const CONCURRENCY = 3
 
-async function detectBlackAndWhite(src: string): Promise<boolean | undefined> {
+function blackAndWhiteFromPixels(data: Uint8ClampedArray): boolean | undefined {
+  let colored = 0, visible = 0
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 128) continue
+    visible++
+    if (Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]) > 12) colored++
+  }
+  return visible > 0 ? colored / visible < 0.015 : undefined
+}
+
+/** Both of the things the importer measures from the pixels, from a single decode of the cached
+ *  512px thumbnail rather than of the 1600px preview. Neither answer is worth failing an
+ *  import over, so an unreadable preview gives nothing back instead of throwing. */
+async function analysePreview(src: string): Promise<{ blackAndWhite?: boolean; focus?: SubjectFocus }> {
   try {
-    const img = new Image()
-    await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = reject; img.src = src })
-    const canvas = document.createElement('canvas')
-    canvas.width = canvas.height = 48
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) return undefined
-    ctx.drawImage(img, 0, 0, 48, 48)
-    const { data } = ctx.getImageData(0, 0, 48, 48)
-    let colored = 0
-    let visible = 0
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] < 128) continue
-      visible++
-      if (Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]) > 12) colored++
-    }
-    return visible > 0 ? colored / visible < 0.015 : undefined
-  } catch { return undefined }
+    const thumbnail = await previewSource(src, 512)
+    const image = new Image()
+    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = reject; image.src = thumbnail })
+    const pixels = samplePixels(image)
+    if (!pixels) return {}
+    return { blackAndWhite: blackAndWhiteFromPixels(pixels), focus: subjectFocusFromPixels(pixels) ?? undefined }
+  } catch { return {} }
 }
 
 export interface ImportFailure {
@@ -87,8 +90,11 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
   if (legacy) seedPreview(src,legacy.src,legacy.thumb,sourcePath)
   const prepared = fast ?? (legacy || null)
   const { width, height } = prepared ?? await loadImageDimensions(src)
-  const isBlackAndWhite = prepared ? prepared.isBlackAndWhite : await detectBlackAndWhite(await previewSource(src))
-  const focus = await subjectFocus(await previewSource(src))
+  // The desktop path already worked the black-and-white flag out in the main process; the focal
+  // point is only measured here, so one small decode covers whatever is still missing.
+  const analysed = await analysePreview(src)
+  const isBlackAndWhite = prepared ? prepared.isBlackAndWhite : analysed.blackAndWhite
+  const focus = analysed.focus
 
   return {
     id: uuid(),

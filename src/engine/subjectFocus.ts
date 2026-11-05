@@ -4,8 +4,8 @@
  *  crop is the safe default and the wrong one for the albums this app makes: a wedding photo is
  *  people, usually not dead centre, and a centred crop cuts heads off. This picks the point to keep
  *  by weighting skin tones and local detail — the two things that mark where the people are — and
- *  taking the centroid. It is deliberately cheap: one 64px pass over the preview the importer has
- *  already decoded, no model, no network. */
+ *  taking the centroid. It is deliberately cheap: a 64px pass over the one small thumbnail the
+ *  importer decodes, shared with its black-and-white check. No model, no network. */
 
 const SAMPLE = 64
 
@@ -25,15 +25,10 @@ function skinLikelihood(r: number, g: number, b: number): number {
 
 export interface SubjectFocus { focusX: number; focusY: number }
 
-/** The focal point for an already-decoded image, or null when nothing stands out. */
-export function subjectFocusFromImage(image: CanvasImageSource): SubjectFocus | null {
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = SAMPLE
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })
-  if (!ctx) return null
-  ctx.drawImage(image, 0, 0, SAMPLE, SAMPLE)
-  const { data } = ctx.getImageData(0, 0, SAMPLE, SAMPLE)
-
+/** The focal point from a SAMPLE x SAMPLE block of RGBA pixels, or null when nothing stands out.
+ *  Takes pixels rather than an image so the caller can answer other questions from the same
+ *  sample — the importer reads black-and-white off it too, and decodes the photo once. */
+export function subjectFocusFromPixels(data: Uint8ClampedArray): SubjectFocus | null {
   const at = (x: number, y: number) => (y * SAMPLE + x) * 4
   let totalWeight = 0, sumX = 0, sumY = 0
   for (let y = 1; y < SAMPLE - 1; y++) {
@@ -63,12 +58,18 @@ export function subjectFocusFromImage(image: CanvasImageSource): SubjectFocus | 
   return { focusX: clamp(sumX / totalWeight), focusY: clamp(sumY / totalWeight) }
 }
 
-/** Same, from a URL. Resolves to null rather than throwing: a focal point is an improvement on
- *  centring, never a reason to fail an import. */
-export async function subjectFocus(src: string): Promise<SubjectFocus | null> {
-  try {
-    const image = new Image()
-    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = reject; image.src = src })
-    return subjectFocusFromImage(image)
-  } catch { return null }
+/** The focal point for an already-decoded image. */
+export function subjectFocusFromImage(image: CanvasImageSource): SubjectFocus | null {
+  const pixels = samplePixels(image)
+  return pixels && subjectFocusFromPixels(pixels)
+}
+
+/** The SAMPLE x SAMPLE RGBA block every measurement here works from. */
+export function samplePixels(image: CanvasImageSource): Uint8ClampedArray | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = SAMPLE
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return null
+  ctx.drawImage(image, 0, 0, SAMPLE, SAMPLE)
+  return ctx.getImageData(0, 0, SAMPLE, SAMPLE).data
 }
