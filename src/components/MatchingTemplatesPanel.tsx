@@ -65,7 +65,7 @@ export default function MatchingTemplatesPanel() {
     const shapesFit = photos.length === count ? candidates.filter(t => templateShapesFit(photos, t, aspect, marginPx, gapPx)) : []
     const offered = shapesFit.length ? shapesFit : candidates
     return (count > 1 ? [false, true] : [true]).map(keepOrder => (rankTemplates(photos, offered, aspect, !autoRearrange || keepOrder, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
-      .sort((a, b) => Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))))
+      .sort((a, b) => Number(b.template.id.startsWith('ref-signature-')) - Number(a.template.id.startsWith('ref-signature-')) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))))
   }, [kind,collection,collections,userTemplates, categories, open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
   useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [kind,collection, categories, userTemplates, open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
   useEffect(() => {

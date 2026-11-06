@@ -3,6 +3,7 @@ import { GAP, distributeEvenly, placeGridInRect, geometrySignature } from './tem
 import { GENERATED_TEMPLATES } from './templateGenerator'
 import { expandTemplateLibrary } from './referenceTemplates'
 import { EDITORIAL_TEMPLATES } from './editorialTemplates'
+import { SIGNATURE_TEMPLATES } from './signatureTemplates'
 
 // A plain incrementing counter (not crypto.randomUUID()) — module evaluation order is the same
 // on every app launch, so this produces the exact same placeholder ids every time. That stability
@@ -806,7 +807,10 @@ const editorialAdditions = EDITORIAL_TEMPLATES.filter(t => {
 // Full-spread first: now that this family runs edge to edge it collides with the classic
 // two-page layouts that carry a gutter gap, and the edge-to-edge version is the one designers
 // asked for, so it is the one `uniqueTemplates` should keep.
-const legacyTemplates = [...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions]
+// The signature set leads: it is the short list of hand-written layouts a designer reaches for
+// first, and being ahead of everything else means it also wins the dedup pass when a generated
+// grid happens to land on the same geometry.
+const legacyTemplates = [...SIGNATURE_TEMPLATES, ...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions]
 
 export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefinition[] {
   const seen = new Set<string>()
@@ -993,6 +997,7 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
  *  browser into tabs (Classic / Seamless / Grid / Hero / Split / Mosaic / Collage / Filmstrip /
  *  Custom / My Templates), since the generated library doesn't carry a separate "family" field. */
 export function templateFamilyLabel(t: TemplateDefinition): string {
+  if (t.id.startsWith('ref-signature-')) return 'Signature'
   if (t.id.startsWith('ref-editorial-')) return 'Editorial'
   if (t.id.startsWith('ref-paired-')) return 'Paired Pages'
   if (t.id.startsWith('ref-storyboard-')) return 'Storyboard'
