@@ -32,7 +32,7 @@ import GapPresetImportPreview from './GapPresetImportPreview'
 import PhotoContextMenu from './PhotoContextMenu'
 import ContextMenu from './ContextMenu'
 import TextAutoFitStatus from './TextAutoFitStatus'
-import { drawSpreadBackground, plainTextAlign, spreadPageColors } from '@/engine/renderSpread'
+import { drawSpreadBackground, plainTextAlign, spreadPageBand, spreadPageColors } from '@/engine/renderSpread'
 import { readDraggedPhotoIds } from '@/engine/photoDrag'
 import { isFontTemplateDrag, dropFontTemplate } from '@/engine/fontTemplateDrag'
 
@@ -383,6 +383,10 @@ export default function DesignerCanvas() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const stageHeight = STAGE_WIDTH / (size.widthIn / size.heightIn)
+  // A start-RHS or end-LHS album leaves one page of its first or last sheet out of the design.
+  // That page is greyed below and walled off in alignRect, so nothing can be dragged onto it.
+  const band = spread ? spreadPageBand(spread) : { start: 0, end: 1 }
+  const pageLeft = band.start * STAGE_WIDTH, pageRight = band.end * STAGE_WIDTH
   useEffect(()=>setGapEditor(null),[selectedPlaceholderId,selectedTextBoxId,selectedLayerKeys,spread?.id,project.units,canvasTool])
   useEffect(()=>setGapEditor(null),[baseSpread])
   useEffect(()=>{
@@ -735,15 +739,15 @@ export default function DesignerCanvas() {
     const { x, y, width, height } = result.rect
     if (!anchor) return {
       ...result.rect,
-      x: Math.max(0, Math.min(STAGE_WIDTH - width, x)),
+      x: Math.max(pageLeft, Math.min(pageRight - width, x)),
       y: Math.max(0, Math.min(stageHeight - height, y)),
     }
-    const left = Math.max(0, Math.min(STAGE_WIDTH, x)), top = Math.max(0, Math.min(stageHeight, y))
+    const left = Math.max(pageLeft, Math.min(pageRight, x)), top = Math.max(0, Math.min(stageHeight, y))
     return {
       ...result.rect,
       x: left,
       y: top,
-      width: Math.max(0, Math.min(STAGE_WIDTH, x + width) - left),
+      width: Math.max(0, Math.min(pageRight, x + width) - left),
       height: Math.max(0, Math.min(stageHeight, y + height) - top),
     }
   }
@@ -1351,6 +1355,7 @@ export default function DesignerCanvas() {
               )
             })()}
 
+          {(band.start > 0 || band.end < 1) && <Rect name="unused-page" listening={false} x={band.start > 0 ? 0 : pageRight} y={0} width={STAGE_WIDTH - (pageRight - pageLeft)} height={stageHeight} fill="#8a8a8e" opacity={0.55} />}
           {hasVisibleContent && !spread.isCover && spread.pageSide === 'spread' && <Line name="center-fold" points={[STAGE_WIDTH / 2, 0, STAGE_WIDTH / 2, stageHeight]} stroke="#dedede" strokeWidth={1} strokeScaleEnabled={false} listening={false} />}
 
           {showGuides &&

@@ -58,7 +58,7 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
           await new Promise(requestAnimationFrame)
         }
       }
-      return renderSpreadToCanvas(spread,new Map(entries),size,dpi)
+      return renderSpreadToCanvas(spread,new Map(entries),size,dpi,true)
     }).then((rendered) => {
       const canvas = canvasRef.current
       if (cancelled || !canvas) return

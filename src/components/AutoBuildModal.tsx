@@ -1,16 +1,28 @@
-import {useSavedQuotes} from '@/engine/savedQuotes'
-import {useTemplateCollections,matchesCollection} from '@/engine/templateCollections'
-import {templatesForCount} from '@/engine/templates'
+import {templateFamilyLabel,templatesForCount} from '@/engine/templates'
 import {templateCategory} from '@/engine/templateTransfer'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { suggestAutoBuildSpreadCount, groupPhotosForCount, spreadCountRange, buildSpreadsFromGroups, autoBuildGroupFilter, autoBuildSpreadCounts, sortPhotosByCapturedAt } from '@/engine/autoLayout'
-import { PhotoAsset } from '@/types'
+import { PhotoAsset, TemplateDefinition } from '@/types'
 import Modal from './Modal'
 import Icon from './Icon'
 
 type GroupingMode = 'smart' | 'range'
-type TemplateReuse = 'never' | 'low' | 'medium' | 'high'
+
+/** What a bin builds from. The first three are image layouts, split by the design family they
+ *  come from; 'creative-mixed' is the same creative family but the layouts that carry text. */
+type BinKind = 'reference' | 'creative' | 'creative-mixed' | 'generated'
+const BIN_KINDS: { value: BinKind; label: string }[] = [
+  { value: 'reference', label: 'Smart design' },
+  { value: 'creative', label: 'Creative design' },
+  { value: 'creative-mixed', label: 'Creative design mixed' },
+  { value: 'generated', label: 'Random generation' },
+]
+interface BinRule { kind: BinKind; category: string; subcategory: string; favorites: boolean }
+
+/** Spreads avoid repeating the layout of the one before unless nothing else fits. This used to be
+ *  a dropdown; it is the setting almost everyone wants, so it is no longer asked. */
+const TEMPLATE_REUSE = 'medium' as const
 
 /** The reference app's "Auto Build" dialog — shown before building new spreads from a set of
  *  photos (the dock's current selection, or every unplaced photo if fewer than 2 are selected),
@@ -18,7 +30,7 @@ type TemplateReuse = 'never' | 'low' | 'medium' | 'high'
  *  spreads are untouched (see `runAutoBuildFromGroups`). */
 export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string[]; onClose: () => void }) {
   const project = useProjectStore((s) => s.project)
-  const collections=useTemplateCollections(),[collection,setCollection]=useState(''),favorites=useProjectStore(s=>s.favoriteTemplateIds)
+  const favorites=useProjectStore(s=>s.favoriteTemplateIds)
   const allPhotos = project.photos
   const frameFilter = useProjectStore((s) => s.templateFrameFilter)
   const autoLayoutOptions = useProjectStore((s) => s.autoLayoutOptions)
@@ -26,21 +38,23 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
 
   const bins=[...new Set(allPhotos.flatMap(p=>p.bins))]
   const [binMode,setBinMode]=useState(false),[chosenBins,setChosenBins]=useState(bins),[followBins,setFollowBins]=useState(true)
-  const quotes=useSavedQuotes()
-  const [binRules,setBinRules]=useState<Record<string,{kind:string;category:string;subcategory:string}>>({})
-  const [designs,setDesigns]=useState({reference:true,creative:true,generated:false})
-  // The "Template designs" checkboxes (reference/creative/generated) narrow the FULL library when
-  // browsing it — but when the project wizard already restricted the library to a specific set of
-  // template ids, that's an explicit per-project choice regardless of which generation family those
-  // templates came from, so it shouldn't get silently re-filtered down to nothing by these checkboxes.
-  const enabledIds=useMemo(()=>Array.from({length:30},(_,i)=>templatesForCount(i+1,project.enabledTemplateIds,frameFilter,project.size.widthIn/project.size.heightIn)).flat().filter(t=>(!!project.enabledTemplateIds||designs[templateCategory(t)])&&matchesCollection(t.id,collection,collections,favorites)).map(t=>t.id),[designs,project.enabledTemplateIds,frameFilter,project.size,collection,collections,favorites])
-  const library=Array.from({length:30},(_,i)=>templatesForCount(i+1,project.enabledTemplateIds,frameFilter,project.size.widthIn/project.size.heightIn)).flat()
-  const binRule=(bin:string)=>binRules[bin]??{kind:'image',category:'',subcategory:''}
-  const records=(kind:string)=>kind==='font'?quotes:library.filter(t=>kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length)
-  const categoryOf=(item:{category?:string})=>(item.category??'').split(' / ')[0]
-  const subcategoryOf=(item:{category?:string;subcategory?:string})=>item.subcategory??item.category?.split(' / ').slice(1).join(' / ')??''
-  const matching=(bin:string)=>{const rule=binRule(bin);return records(rule.kind).filter(t=>(!rule.category||categoryOf(t)===rule.category)&&(!rule.subcategory||subcategoryOf(t)===rule.subcategory))}
-  const designForBin=(bin:string)=>{const rule=binRule(bin),matches=matching(bin);return {templateIds:rule.kind==='font'?enabledIds.filter(id=>library.some(t=>t.id===id&&!t.textBoxes?.length)):matches.filter(t=>enabledIds.includes(t.id)).map(t=>t.id),textBoxes:rule.kind==='font'?quotes.find(q=>q.id===matches[0]?.id)?.boxes:undefined}}
+  const [binRules,setBinRules]=useState<Record<string,BinRule>>({})
+  // Every template the project allows, in one pass over the 1-30 photo counts. A bin narrows it
+  // further by design family, by category and, with the heart, to the ones marked as favourites.
+  const library=useMemo(()=>Array.from({length:30},(_,i)=>templatesForCount(i+1,project.enabledTemplateIds,frameFilter,project.size.widthIn/project.size.heightIn)).flat(),[project.enabledTemplateIds,frameFilter,project.size.widthIn,project.size.heightIn])
+  const enabledIds=useMemo(()=>library.map(t=>t.id),[library])
+  const binRule=(bin:string):BinRule=>binRules[bin]??{kind:'reference',category:'',subcategory:'',favorites:false}
+  const records=useCallback((rule:BinRule):TemplateDefinition[]=>{
+    const family=rule.kind==='creative-mixed'?'creative':rule.kind
+    const wantsText=rule.kind==='creative-mixed'
+    return library.filter(t=>templateCategory(t)===family&&!!t.textBoxes?.length===wantsText&&(!rule.favorites||favorites.includes(t.id)))
+  },[library,favorites])
+  // A saved template carries its own category. A built-in has none, so it is filed under the
+  // family it belongs to — otherwise these two dropdowns would be empty for every built-in design.
+  const categoryOf=(item:TemplateDefinition)=>(item.category??'').split(' / ')[0]||templateFamilyLabel(item)
+  const subcategoryOf=(item:TemplateDefinition)=>item.subcategory??item.category?.split(' / ').slice(1).join(' / ')??''
+  const matching=(bin:string)=>{const rule=binRule(bin);return records(rule).filter(t=>(!rule.category||categoryOf(t)===rule.category)&&(!rule.subcategory||subcategoryOf(t)===rule.subcategory))}
+  const designForBin=(bin:string)=>({templateIds:matching(bin).map(t=>t.id)})
   const targetPhotos = useMemo<PhotoAsset[]>(() => {
     const ids = new Set(photoIds)
     const photos=allPhotos.filter(p=>ids.has(p.id)&&(!binMode||p.bins.some(b=>chosenBins.includes(b))));return binMode&&followBins?photos.sort((a,b)=>Math.min(...a.bins.map(b=>chosenBins.indexOf(b)).filter(i=>i>=0))-Math.min(...b.bins.map(b=>chosenBins.indexOf(b)).filter(i=>i>=0))||a.fileName.localeCompare(b.fileName,undefined,{numeric:true})):sortPhotosByCapturedAt(photos)
@@ -49,9 +63,15 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
   const [buildError, setBuildError] = useState('')
   const [mode, setMode] = useState<GroupingMode>('smart')
   const [blocksOfTime, setBlocksOfTime] = useState(true)
+  // The album may open on a right-hand page and close on a left-hand one. Only the first and last
+  // spread of the album can do that, so appending to an album that already has spreads cannot.
+  const appending = project.spreads.some((spread) => !spread.isCover)
+  const [startRight, setStartRight] = useState(project.layoutStart === 'single')
+  const [endLeft, setEndLeft] = useState(project.layoutEnd === 'single')
+  // Builds at exactly the chosen number of spreads instead of the nearest number that works.
+  const [restrictCount, setRestrictCount] = useState(false)
   const [blackAndWhite, setBlackAndWhite] = useState(true)
   const [metadata, setMetadata] = useState(true)
-  const [templateReuse, setTemplateReuse] = useState<TemplateReuse>('medium')
   const [rangeSize, setRangeSize] = useState(Math.max(1, Math.min(30, autoLayoutOptions.maxPhotosPerSpread)))
   const [rangeMin, setRangeMin] = useState(Math.max(1, Math.min(3, autoLayoutOptions.maxPhotosPerSpread)))
   const noGroupingCriteria = mode === 'smart' && !blocksOfTime && !blackAndWhite && !metadata
@@ -78,8 +98,8 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
   const requestedCount = Math.max(countRange.min, Math.min(countRange.max, touchedSlider ? spreadCount : suggestedCount))
 
   const grouping = useMemo(() => {
-    const layout = { start: project.spreads.some((spread) => !spread.isCover) ? 'spread' as const : project.layoutStart,
-      end: project.layoutEnd, includeFullSpreadTemplates: project.includeFullSpreadTemplates,
+    const layout = { start: (!appending && startRight ? 'single' : 'spread') as 'single' | 'spread',
+      end: (endLeft ? 'single' : 'spread') as 'single' | 'spread', includeFullSpreadTemplates: project.includeFullSpreadTemplates,
       aspect: project.size.widthIn / project.size.heightIn, frameFilter }
     const min = mode === 'range' ? rangeMin : 1, max = mode === 'range' ? rangeSize : 30
     try {
@@ -90,7 +110,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
           const photos=targetPhotos.filter(p=>p.bins.includes(bin)&&!assigned.has(p.id));if(!photos.length)continue
           photos.forEach(p=>assigned.add(p.id))
           const design=designForBin(bin)
-          if(!design.templateIds.length||(binRule(bin).kind==='font'&&!design.textBoxes?.length))throw new Error('No matching templates for bin '+bin+'. Choose another category.')
+          if(!design.templateIds.length)throw new Error('No matching templates for bin '+bin+'. Choose another category.')
           let built:PhotoAsset[][]|undefined
           for(const count of autoBuildSpreadCounts(photos.length,touchedSlider?Math.max(1,Math.round(requestedCount*photos.length/targetPhotos.length)):Math.ceil(photos.length/Math.max(1,rangeSize)),design.templateIds,{...layout,start:'spread',end:'spread'},min,max)){
             try{built=groupPhotosForCount(photos,count,autoLayoutOptions,min,max,autoBuildGroupFilter(count,design.templateIds,{...layout,start:'spread',end:'spread'}),true);break}catch{}
@@ -100,7 +120,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
         }
         return {groups,count:groups.length,error:''}
       }
-      const counts = touchedSlider ? [requestedCount] : autoBuildSpreadCounts(targetPhotos.length, requestedCount, enabledIds, layout, min, max)
+      const counts = touchedSlider || restrictCount ? [requestedCount] : autoBuildSpreadCounts(targetPhotos.length, requestedCount, enabledIds, layout, min, max)
       let lastError: unknown
       for (const count of counts) {
         try { return { groups: groupPhotosForCount(targetPhotos, count, {
@@ -116,7 +136,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
       }
       throw lastError
     } catch (error) { return { groups: [], count: requestedCount, error: error instanceof Error ? error.message : String(error) } }
-  }, [binRules, quotes, chosenBins, enabledIds, binMode, followBins, requestedCount, touchedSlider, targetPhotos, autoLayoutOptions, mode, blocksOfTime, blackAndWhite, metadata, rangeMin, rangeSize, project.enabledTemplateIds, project.spreads, project.layoutStart, project.layoutEnd, project.includeFullSpreadTemplates, project.size, frameFilter])
+  }, [binRules, chosenBins, enabledIds, binMode, followBins, requestedCount, touchedSlider, targetPhotos, autoLayoutOptions, mode, blocksOfTime, blackAndWhite, metadata, rangeMin, rangeSize, project.enabledTemplateIds, appending, startRight, endLeft, restrictCount, project.includeFullSpreadTemplates, project.size, frameFilter])
   const effectiveCount = grouping.count
   const effectiveGroups = grouping.groups
   const groupDesigns=binMode?effectiveGroups.map(group=>designForBin((followBins?[...chosenBins].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})):chosenBins).find(bin=>group[0]?.bins.includes(bin))??'')):undefined
@@ -130,17 +150,17 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
       const spreads = buildSpreadsFromGroups(effectiveGroups, {
         backgroundColor: project.defaultBackgroundColor, gapPx: project.defaultGapPx, marginPx: project.defaultMarginPx,
         borderWidth: project.defaultBorderWidth, borderColor: project.defaultBorderColor,
-      }, enabledIds, { start: project.spreads.some((spread) => !spread.isCover) ? 'spread' : project.layoutStart,
-        end: project.layoutEnd, includeFullSpreadTemplates: project.includeFullSpreadTemplates,
-        aspect: project.size.widthIn / project.size.heightIn, frameFilter }, autoLayoutOptions.matchTimelineOrder, false, templateReuse,groupDesigns)
+      }, enabledIds, { start: !appending && startRight ? 'single' : 'spread',
+        end: endLeft ? 'single' : 'spread', includeFullSpreadTemplates: project.includeFullSpreadTemplates,
+        aspect: project.size.widthIn / project.size.heightIn, frameFilter }, autoLayoutOptions.matchTimelineOrder, false, TEMPLATE_REUSE,groupDesigns)
       return { pages: spreads.reduce((sum, spread) => sum + (spread.pageSide === 'spread' ? 2 : 1), 0), error: '' }
     } catch (error) { return { pages: 0, error: error instanceof Error ? error.message : String(error) } }
-  }, [binRules, quotes, enabledIds, effectiveGroups, grouping.error, project, frameFilter, autoLayoutOptions.matchTimelineOrder, templateReuse])
+  }, [binRules, enabledIds, effectiveGroups, grouping.error, project, frameFilter, autoLayoutOptions.matchTimelineOrder])
 
   function handleBuild() {
     if (noGroupingCriteria) return
     try {
-      runAutoBuildFromGroups(effectiveGroups.map((group) => group.map((photo) => photo.id)), { groupDesigns,templateReuse,enabledTemplateIds:enabledIds,matchTimelineOrder:followBins&&binMode?true:autoLayoutOptions.matchTimelineOrder })
+      runAutoBuildFromGroups(effectiveGroups.map((group) => group.map((photo) => photo.id)), { groupDesigns,templateReuse:TEMPLATE_REUSE,enabledTemplateIds:enabledIds,layout:{start:!appending&&startRight?'single':'spread',end:endLeft?'single':'spread'},matchTimelineOrder:followBins&&binMode?true:autoLayoutOptions.matchTimelineOrder })
       onClose()
     } catch (error) { setBuildError(error instanceof Error ? error.message : String(error)) }
   }
@@ -185,6 +205,21 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
           onChange={(event) => { setTouchedSlider(true); setSpreadCount(Number(event.target.value)) }} />
         <input id="auto-build-count" type="number" aria-label="Number of spreads" min={countRange.min} max={countRange.max} value={effectiveCount}
           onChange={(event) => { setTouchedSlider(true); setSpreadCount(Number(event.target.value)) }} />
+      </div>
+
+      <div className="auto-build-pages">
+        <label className="checkbox-row" title={appending ? 'Only the first spread of an album can start on a right-hand page, and this build is adding to an album that already has spreads.' : 'Leave the left page of the first spread out of the design.'}>
+          <input type="checkbox" checked={startRight && !appending} disabled={appending} onChange={e=>{setStartRight(e.target.checked);setTouchedSlider(false)}} />
+          Start RHS
+        </label>
+        <label className="checkbox-row" title="Leave the right page of the last spread out of the design.">
+          <input type="checkbox" checked={endLeft} onChange={e=>{setEndLeft(e.target.checked);setTouchedSlider(false)}} />
+          End LHS
+        </label>
+        <label className="checkbox-row" title="Build exactly this many spreads instead of the nearest number the templates can fill.">
+          <input type="checkbox" checked={restrictCount} onChange={e=>{setRestrictCount(e.target.checked);if(e.target.checked)setTouchedSlider(true)}} />
+          Restrict spread count
+        </label>
       </div>
 
       <div className="field-section" style={{ marginTop: 14 }}>
@@ -248,18 +283,27 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
         )}
       </div>
 
-      <section className="field-section"><h4>Bins</h4><label><input type="checkbox" checked={binMode} onChange={e=>setBinMode(e.target.checked)}/> Build selected bins</label>{binMode&&<><label><input type="checkbox" checked={followBins} onChange={e=>setFollowBins(e.target.checked)}/> Follow numerical bin order</label>{bins.map(bin=><div className="auto-build-bin" key={bin}><label><input type="checkbox" checked={chosenBins.includes(bin)} onChange={e=>setChosenBins(e.target.checked?bins.filter(b=>b===bin||chosenBins.includes(b)):chosenBins.filter(b=>b!==bin))}/>{bin}</label>{chosenBins.includes(bin)&&<div className="auto-build-bin__choices"><label>Template type<select value={binRule(bin).kind} onChange={e=>setBinRules({...binRules,[bin]:{kind:e.target.value,category:'',subcategory:''}})}><option value="image">Image templates</option><option value="font">Font templates with image layout</option><option value="mixed">Mixed templates</option></select></label><label>Category<select value={binRule(bin).category} onChange={e=>setBinRules({...binRules,[bin]:{...binRule(bin),category:e.target.value,subcategory:''}})}><option value="">All categories</option>{[...new Set(records(binRule(bin).kind).map(categoryOf).filter(Boolean))].map(c=><option key={c}>{c}</option>)}</select></label><label>Subcategory<select value={binRule(bin).subcategory} onChange={e=>setBinRules({...binRules,[bin]:{...binRule(bin),subcategory:e.target.value}})}><option value="">All subcategories</option>{[...new Set(records(binRule(bin).kind).filter(t=>!binRule(bin).category||categoryOf(t)===binRule(bin).category).map(subcategoryOf).filter(Boolean))].map(c=><option key={c}>{c}</option>)}</select></label></div>}</div>)}</>}</section>
-      <section className="field-section field-section--inline"><h4>Template designs</h4>{(['reference','creative','generated'] as const).map(key=><label key={key}><input type="checkbox" checked={designs[key]} onChange={e=>setDesigns({...designs,[key]:e.target.checked})}/>{{reference:'Smart design',creative:'Creative design',generated:'Random generation'}[key]}</label>)}
-      <label>Template category<select value={collection} onChange={e=>setCollection(e.target.value)}><option value="">All categories</option>{['Favorites','Frequently used',...Object.keys(collections.categories)].map(c=><option key={c}>{c}</option>)}</select></label>
-      <label className="field auto-build-reuse">
-        Template reuse
-        <select value={templateReuse} onChange={(e) => setTemplateReuse(e.target.value as TemplateReuse)}>
-          <option value="never">Never</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
-      </label></section>
+      <section className="field-section"><h4>Bins</h4>
+        <label><input type="checkbox" checked={binMode} onChange={e=>setBinMode(e.target.checked)}/> Build selected bins</label>
+        {binMode&&<><label><input type="checkbox" checked={followBins} onChange={e=>setFollowBins(e.target.checked)}/> Follow numerical bin order</label>
+        {bins.map(bin=>{
+          const rule=binRule(bin)
+          const pool=records(rule)
+          const update=(patch:Partial<BinRule>)=>setBinRules({...binRules,[bin]:{...rule,...patch}})
+          return <div className="auto-build-bin" key={bin}>
+            <label><input type="checkbox" checked={chosenBins.includes(bin)} onChange={e=>setChosenBins(e.target.checked?bins.filter(b=>b===bin||chosenBins.includes(b)):chosenBins.filter(b=>b!==bin))}/>{bin}</label>
+            {chosenBins.includes(bin)&&<div className="auto-build-bin__choices">
+              <label>Template type<div className="auto-build-bin__type">
+                <select value={rule.kind} onChange={e=>update({kind:e.target.value as BinKind,category:'',subcategory:''})}>{BIN_KINDS.map(k=><option key={k.value} value={k.value}>{k.label}</option>)}</select>
+                <button type="button" className={`auto-build-bin__fav${rule.favorites?' is-on':''}`} aria-pressed={rule.favorites} aria-label={`Only favourite templates for bin ${bin}`} title="Build this bin from the templates you have marked as favourites" onClick={()=>update({favorites:!rule.favorites,category:'',subcategory:''})}><Icon name="heart" size={14}/></button>
+              </div></label>
+              <label>Category<select value={rule.category} onChange={e=>update({category:e.target.value,subcategory:''})}><option value="">All categories</option>{[...new Set(pool.map(categoryOf).filter(Boolean))].sort().map(c=><option key={c}>{c}</option>)}</select></label>
+              <label>Subcategory<select value={rule.subcategory} onChange={e=>update({subcategory:e.target.value})}><option value="">All subcategories</option>{[...new Set(pool.filter(t=>!rule.category||categoryOf(t)===rule.category).map(subcategoryOf).filter(Boolean))].sort().map(c=><option key={c}>{c}</option>)}</select></label>
+              <p className="muted auto-build-bin__count">{matching(bin).length} template{matching(bin).length===1?'':'s'} match</p>
+            </div>}
+          </div>
+        })}</>}
+      </section>
     </Modal>
   )
 }

@@ -46,6 +46,10 @@ export interface PlaceholderRect {
   /** [topLeft, topRight, bottomRight, bottomLeft], when the artwork rounds its corners unevenly —
    *  a magazine layout often rounds one corner only. Falls back to cornerRadiusPx when absent. */
   cornerRadiiPx?: [number, number, number, number]
+  /** A frame the artwork drew at an angle, in degrees clockwise. The x/y/width/height above stay
+   *  the unrotated box; this is the rotation applied about its centre, so a slanted frame keeps its
+   *  real proportions instead of being read as the larger upright box that encloses it. */
+  rotationDeg?: number
   /** This frame is authored full-bleed: its geometry is final, and the album margin and image
    *  gap do not apply to it. Without this a layout drawn flush to the page edge still ends up
    *  inset, leaving the white border the design exists to avoid. */

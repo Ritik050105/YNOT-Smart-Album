@@ -263,7 +263,7 @@ interface ProjectState {
   /** The Auto Build dialog's "Auto Build" button — appends new spreads built from `groups`
    *  (each a photo-id array, one per new spread) to the END of the existing album, leaving any
    *  spreads already there untouched. Unlike `runAutoBuild`, which replaces the whole album. */
-  runAutoBuildFromGroups: (groups: string[][], opts?: { groupDesigns?: {templateIds:string[];textBoxes?:TextBox[]}[]; enabledTemplateIds?: string[]; allowTemplateRepeats?: boolean; matchTimelineOrder?: boolean; templateReuse?: 'never' | 'low' | 'medium' | 'high' }) => void
+  runAutoBuildFromGroups: (groups: string[][], opts?: { groupDesigns?: {templateIds:string[];textBoxes?:TextBox[]}[]; enabledTemplateIds?: string[]; allowTemplateRepeats?: boolean; matchTimelineOrder?: boolean; templateReuse?: 'never' | 'low' | 'medium' | 'high'; /** Whether the album opens on a right-hand page and closes on a left-hand one. Auto Build asks this per build, so its own answer wins over the project default it was seeded from. */ layout?: { start: 'spread' | 'single'; end: 'spread' | 'single' } }) => void
   selectSpread: (id: string | null) => void
   selectPlaceholder: (id: string | null) => void
   selectTextBox: (id: string | null) => void
@@ -554,8 +554,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       borderColor: project.defaultBorderColor,
     }
     const layout = {
-      start: project.spreads.some((spread) => !spread.isCover) ? 'spread' : project.layoutStart,
-      end: project.layoutEnd,
+      start: opts?.layout?.start ?? (project.spreads.some((spread) => !spread.isCover) ? 'spread' : project.layoutStart),
+      end: opts?.layout?.end ?? project.layoutEnd,
       includeFullSpreadTemplates: project.includeFullSpreadTemplates,
       aspect: project.size.widthIn / project.size.heightIn,
       frameFilter: get().templateFrameFilter,

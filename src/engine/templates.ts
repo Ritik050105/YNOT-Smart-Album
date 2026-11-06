@@ -872,6 +872,14 @@ export function matchesFrameFilter(t: TemplateDefinition, filter: TemplateFrameF
 }
 
 /** Returns every built-in template that fits a given photo count, for the "smart grid suggestions" picker. */
+/** Answers for one state of the library, thrown away whenever the user template registry changes.
+ *  Auto Build asks this question for all thirty photo counts, several times over, for every
+ *  checkbox the user touches — and the answer only ever changes when that registry does. The outer
+ *  key is the caller's own `enabledTemplateIds` array, so a caller that keeps a stable array (every
+ *  caller on a hot path does) gets a stable cache entry without hashing a long id list. */
+let forCountCache = new WeakMap<object, Map<string, TemplateDefinition[]>>()
+const ALL_TEMPLATES = {}
+
 export function templatesForCount(
   count: number,
   enabledTemplateIds: string[] | null = null,
@@ -879,6 +887,23 @@ export function templatesForCount(
   aspect = 1
 ): TemplateDefinition[] {
   if (count <= 0) return []
+  const bucketKey = enabledTemplateIds ?? ALL_TEMPLATES
+  let bucket = forCountCache.get(bucketKey)
+  if (!bucket) forCountCache.set(bucketKey, bucket = new Map())
+  const key = `${count}|${frameFilter}|${aspect}`
+  const hit = bucket.get(key)
+  if (hit) return hit
+  const answer = computeTemplatesForCount(count, enabledTemplateIds, frameFilter, aspect)
+  bucket.set(key, answer)
+  return answer
+}
+
+function computeTemplatesForCount(
+  count: number,
+  enabledTemplateIds: string[] | null,
+  frameFilter: TemplateFrameFilter,
+  aspect: number
+): TemplateDefinition[] {
   let builtins = [...legacyTemplates, ...userTemplateRegistry].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
   if (enabledTemplateIds !== null) builtins = builtins.filter((t) => enabledTemplateIds.includes(t.id))
   if (frameFilter !== 'all') builtins = builtins.filter((t) => matchesFrameFilter(t, frameFilter, aspect))
@@ -904,6 +929,8 @@ let userTemplateRegistry: TemplateDefinition[] = []
 
 export function setUserTemplateRegistry(templates: TemplateDefinition[]) {
   userTemplateRegistry = templates
+  // Every cached answer was computed from the old registry.
+  forCountCache = new WeakMap()
 }
 
 /** Imported PSD/artwork templates carry absolute frames — a finished design, not a layout that

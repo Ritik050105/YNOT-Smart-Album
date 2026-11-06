@@ -16,15 +16,30 @@ export function opaqueBounds(canvas: HTMLCanvasElement): Bounds | null {
   if (!w || !h) return null
   const data = canvas.getContext('2d', { willReadFrequently: true })?.getImageData(0, 0, w, h).data
   if (!data) return null
+  // A layer canvas is the size of the document, and a busy PSD has dozens of them, so reading
+  // every pixel of every layer is what made importing a large design crawl. The box is found on a
+  // coarse grid and then grown by one grid step, which can only ever overstate it — and a step is
+  // well under a pixel once the document is scaled into the 900px design space.
+  const step = Math.max(1, Math.floor(Math.max(w, h) / 1500))
+  const alpha = new Uint32Array(data.buffer, data.byteOffset, w * h)
+  // Little-endian RGBA: alpha is the top byte.
+  const opaque = (i: number) => (alpha[i] & 0xff000000) >>> 24 > 16
   let left = w, right = -1, top = h, bottom = -1
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (data[(y * w + x) * 4 + 3] <= 16) continue
-    if (x < left) left = x
-    if (x > right) right = x
-    if (y < top) top = y
-    if (y > bottom) bottom = y
+  for (let y = 0; y < h; y += step) {
+    const row = y * w
+    for (let x = 0; x < w; x += step) {
+      if (!opaque(row + x)) continue
+      if (x < left) left = x
+      if (x > right) right = x
+      if (y < top) top = y
+      if (y > bottom) bottom = y
+    }
   }
   if (right < 0) return null
+  if (step > 1) {
+    left = Math.max(0, left - step); top = Math.max(0, top - step)
+    right = Math.min(w - 1, right + step); bottom = Math.min(h - 1, bottom + step)
+  }
   return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 }
 }
 
@@ -34,9 +49,32 @@ export function opaqueBounds(canvas: HTMLCanvasElement): Bounds | null {
  *  rounds, which is exactly what this measures. Returns null for anything that is not a rectangle,
  *  since a star or a blob has no corner radius to speak of. Radii are [topLeft, topRight,
  *  bottomRight, bottomLeft], in the document's own pixels. */
-export function vectorMaskGeometry(knots: { points: number[] }[]): (Bounds & { radii: [number, number, number, number] }) | null {
+/** A path whose four anchors form a rectangle turned off the horizontal: the angle of its first
+ *  edge, with the box measured along that edge rather than along the page. Returns null unless the
+ *  four points really are a rectangle — opposite sides equal and corners square — so an arbitrary
+ *  quadrilateral is left to the upright reading below. */
+function rotatedRectangle(anchors: { x: number; y: number }[]): (Bounds & { rotationDeg: number }) | null {
+  if (anchors.length !== 4) return null
+  const side = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(b.x - a.x, b.y - a.y)
+  const w = side(anchors[0], anchors[1]), h = side(anchors[1], anchors[2])
+  if (w < 2 || h < 2) return null
+  const tol = Math.max(1.5, Math.min(w, h) * 0.02)
+  if (Math.abs(side(anchors[2], anchors[3]) - w) > tol || Math.abs(side(anchors[3], anchors[0]) - h) > tol) return null
+  // Square corners: the diagonals of a rectangle are equal.
+  if (Math.abs(side(anchors[0], anchors[2]) - side(anchors[1], anchors[3])) > tol) return null
+  const angle = Math.atan2(anchors[1].y - anchors[0].y, anchors[1].x - anchors[0].x) * 180 / Math.PI
+  // Already upright (or a quarter turn, which is the same rectangle): let the upright reading have it.
+  const normalized = ((angle % 180) + 180) % 180
+  if (Math.min(normalized, Math.abs(normalized - 90), Math.abs(normalized - 180)) < 0.75) return null
+  const cx = anchors.reduce((sum, a) => sum + a.x, 0) / 4, cy = anchors.reduce((sum, a) => sum + a.y, 0) / 4
+  return { x: cx - w / 2, y: cy - h / 2, width: w, height: h, rotationDeg: angle }
+}
+
+export function vectorMaskGeometry(knots: { points: number[] }[]): (Bounds & { radii: [number, number, number, number]; rotationDeg?: number }) | null {
   const anchors = knots.map(k => ({ x: k.points[2], y: k.points[3] })).filter(a => Number.isFinite(a.x) && Number.isFinite(a.y))
   if (anchors.length < 4) return null
+  const turned = rotatedRectangle(anchors)
+  if (turned) return { ...turned, radii: [0, 0, 0, 0] }
   const xs = anchors.map(a => a.x), ys = anchors.map(a => a.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
   const width = maxX - minX, height = maxY - minY
@@ -63,8 +101,10 @@ export function maskVisibleBounds(canvas: HTMLCanvasElement, threshold = 128): B
   if (!w || !h) return null
   const data = canvas.getContext('2d', { willReadFrequently: true })?.getImageData(0, 0, w, h).data
   if (!data) return null
+  // Same coarse grid as opaqueBounds, for the same reason: one mask per layer, full document size.
+  const step = Math.max(1, Math.floor(Math.max(w, h) / 1500))
   let left = w, right = -1, top = h, bottom = -1
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+  for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
     const i = (y * w + x) * 4
     // A mask carries its value in the colour channels; some encoders also leave it in alpha.
     if (data[i] <= threshold || data[i + 3] <= threshold) continue
@@ -74,6 +114,10 @@ export function maskVisibleBounds(canvas: HTMLCanvasElement, threshold = 128): B
     if (y > bottom) bottom = y
   }
   if (right < 0) return null
+  if (step > 1) {
+    left = Math.max(0, left - step); top = Math.max(0, top - step)
+    right = Math.min(w - 1, right + step); bottom = Math.min(h - 1, bottom + step)
+  }
   return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 }
 }
 

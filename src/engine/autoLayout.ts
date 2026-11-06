@@ -217,23 +217,46 @@ export function groupPhotosForCount(photos: PhotoAsset[], count: number, options
   return result
 }
 
-export function autoBuildTemplates(count: number, enabledTemplateIds: string[] | null, layout: AutoBuildLayoutOptions, single = false) {
+/** The half of the sheet a template lives on, or null when it straddles the fold. */
+function templateHalf(template: { placeholders: PlaceholderRect[] }): 'left' | 'right' | null {
+  if (template.placeholders.every((frame) => frame.x + frame.width <= 0.50001)) return 'left'
+  if (template.placeholders.every((frame) => frame.x >= 0.49999)) return 'right'
+  return null
+}
+
+/** `single` is the page a start-RHS or end-LHS spread designs on. Only a template that already
+ *  fits one half can go there; one that fits the other half is mirrored into place by `flipped`,
+ *  which moves frames but not words — so a template carrying text has to be on the right side
+ *  to begin with. */
+export function autoBuildTemplates(count: number, enabledTemplateIds: string[] | null, layout: AutoBuildLayoutOptions, single: 'left' | 'right' | false = false) {
   const candidates = templatesForCount(count, enabledTemplateIds, layout.frameFilter, layout.aspect)
-  return single || layout.includeFullSpreadTemplates ? candidates : candidates.filter((template) => template.placeholders.every((frame) => frame.x + frame.width <= 0.50001 || frame.x >= 0.49999))
+  if (single) return candidates.filter((template) => {
+    const half = templateHalf(template)
+    return half === single || (!!half && !template.textBoxes?.length)
+  })
+  return layout.includeFullSpreadTemplates ? candidates : candidates.filter((template) => template.placeholders.every((frame) => frame.x + frame.width <= 0.50001 || frame.x >= 0.49999))
+}
+
+/** Which page a spread designs on when the album starts on a right-hand page or ends on a
+ *  left-hand one, or null for an ordinary two-page spread. */
+export function singlePageSide(index: number, total: number, layout: AutoBuildLayoutOptions): 'left' | 'right' | null {
+  if (index === 0 && layout.start === 'single') return 'right'
+  if (index === total - 1 && layout.end === 'single') return 'left'
+  return null
 }
 
 export function autoBuildGroupFilter(spreadCount: number, enabledTemplateIds: string[] | null, layout: AutoBuildLayoutOptions) {
   const available = new Map<string, boolean>()
   return (count: number, index: number) => {
-    const single = (index === 0 && layout.start === 'single') || (index === spreadCount - 1 && layout.end === 'single')
+    const single = singlePageSide(index, spreadCount, layout)
     const key = `${count}:${single}`
-    if (!available.has(key)) available.set(key, autoBuildTemplates(count, enabledTemplateIds, layout, single).length > 0)
+    if (!available.has(key)) available.set(key, autoBuildTemplates(count, enabledTemplateIds, layout, single ?? false).length > 0)
     return available.get(key)!
   }
 }
 
 export function autoBuildSpreadCounts(photoCount: number, preferred: number, enabledTemplateIds: string[] | null, layout: AutoBuildLayoutOptions, min = 1, max = 30) {
-  const sizes = Array.from({ length: 30 }, (_, i) => i + 1).filter((size) => size >= min && size <= max && (autoBuildTemplates(size, enabledTemplateIds, layout).length || ((layout.start === 'single' || layout.end === 'single') && autoBuildTemplates(size, enabledTemplateIds, layout, true).length)))
+  const sizes = Array.from({ length: 30 }, (_, i) => i + 1).filter((size) => size >= min && size <= max && (autoBuildTemplates(size, enabledTemplateIds, layout).length || (layout.start === 'single' && autoBuildTemplates(size, enabledTemplateIds, layout, 'right').length) || (layout.end === 'single' && autoBuildTemplates(size, enabledTemplateIds, layout, 'left').length)))
   if (!sizes.length) throw new Error('No enabled template matches the current image range, frame and layout filters.')
   const divisor = sizes.reduce((a, b) => { while (b) { const remainder = a % b; a = b; b = remainder } return a })
   if (photoCount % divisor) throw new Error('The enabled templates cannot group these images. Change the template filters or image selection.')
@@ -262,8 +285,8 @@ export function buildSpreadsFromGroups(
   let lastTemplateId: string | undefined
   const uses = new Map<string, number>()
   return groups.map((group, index) => {
-    const forceSingle = (index === 0 && layout.start === 'single') || (index === groups.length - 1 && layout.end === 'single')
-    let candidates = autoBuildTemplates(group.length, groupDesigns?.[index]?.templateIds ?? enabledTemplateIds, layout, forceSingle)
+    const side = singlePageSide(index, groups.length, layout)
+    let candidates = autoBuildTemplates(group.length, groupDesigns?.[index]?.templateIds ?? enabledTemplateIds, layout, side ?? false)
     if (!candidates.length) throw new Error(`No enabled template matches ${group.length} images with the current frame and layout filters. Change the filters or images per spread.`)
     if ((templateReuse === 'never' || templateReuse === 'low') && candidates.length) {
       // "Never" drops every template already used. If that leaves nothing — more spreads at this
@@ -292,7 +315,7 @@ export function buildSpreadsFromGroups(
     return {
       id: uuid(),
       order: index,
-      pageSide: forceSingle ? (index === 0 ? 'right' : 'left') : template.pageSide,
+      pageSide: side ?? template.pageSide,
       templateId: template.id,
       customBoxes: template.absoluteFrames?structuredClone(template.placeholders):undefined,
       placements,
@@ -300,7 +323,8 @@ export function buildSpreadsFromGroups(
       backgroundColor: appearance.backgroundColor,
       gapPx: appearance.gapPx,
       marginPx: appearance.marginPx,
-      flipped: false,
+      // A template that fits the other half is mirrored onto this page.
+      flipped: !!side && templateHalf(template) !== side,
       isCover: false,
       guides: { horizontal: [], vertical: [] },
     }
@@ -333,6 +357,7 @@ export function autoBuildSpreads(
  *  placement dropped into that frame inherits them. Frames without a radius leave the placement's
  *  own frame style alone. */
 function frameAppearance(frame: PlaceholderRect, placement: PlacedPhoto): PlacedPhoto {
+  if (frame.rotationDeg) placement = { ...placement, rotationDeg: frame.rotationDeg }
   if (!frame.cornerRadiusPx && !frame.cornerRadiiPx) return placement
   return { ...placement, frameStyle: 'rounded', cornerRadiusPx: frame.cornerRadiusPx ?? Math.max(...frame.cornerRadiiPx!), cornerRadiiPx: frame.cornerRadiiPx }
 }

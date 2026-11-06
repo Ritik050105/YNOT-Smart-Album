@@ -960,3 +960,26 @@ button:disabled { cursor:not-allowed; }
 .save-template-dialog__preview { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--panel-raised); }
 .save-template-dialog__preview > span { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
 .save-template-dialog__preview .template-thumb { width: 100%; }
+
+/* A bin's template type and its favourites toggle read as one control. */
+.auto-build-bin__type { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.auto-build-bin__type select { flex: 1; min-width: 0; }
+.auto-build-bin__fav { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 34px; padding: 0; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-alt); color: var(--text-faint); cursor: pointer; transition: color .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease); }
+.auto-build-bin__fav:hover { border-color: var(--accent); color: var(--text-muted); }
+.auto-build-bin__fav.is-on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.auto-build-bin__fav.is-on svg { fill: currentColor; }
+/* Says what the three dropdowns above it add up to, so an empty result is obvious before building. */
+.auto-build-bin__count { grid-column: 1 / -1; margin: 0; font-size: 11px; }
+.auto-build-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 10px; }
+.auto-build-pages .checkbox-row { margin: 0; }
+
+/* Frames on the imported artwork are dragged and resized directly; the number fields beside them
+   stay for exact values. A turned frame is rotated about its own centre, like the artwork drew it. */
+.frame-review__frame { touch-action: none; transform-origin: center; }
+.frame-review__frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.frame-review__frame.is-selected { cursor: move; }
+.frame-review__handle { position: absolute; width: 13px; height: 13px; border: 2px solid var(--accent); border-radius: 3px; background: var(--panel); touch-action: none; }
+.frame-review__handle--nw { top: -7px; left: -7px; cursor: nwse-resize; }
+.frame-review__handle--ne { top: -7px; right: -7px; cursor: nesw-resize; }
+.frame-review__handle--se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+.frame-review__handle--sw { bottom: -7px; left: -7px; cursor: nesw-resize; }

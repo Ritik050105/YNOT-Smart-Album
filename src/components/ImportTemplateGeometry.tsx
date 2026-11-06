@@ -1,4 +1,4 @@
-import {CSSProperties,useState} from 'react'
+import {CSSProperties,PointerEvent as ReactPointerEvent,useRef,useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {readPsd,Layer} from 'ag-psd'
 import {TemplateDefinition,PlaceholderRect,TextBox} from '@/types'
@@ -15,6 +15,8 @@ type Detected = {
  preview:string
  aspect:number
  isPsd:boolean
+ /** Frames left out because the artwork had more than the hundred a template can hold. */
+ dropped:number
 }
 
 const hex=(c:{r:number;g:number;b:number})=>'#'+[c.r,c.g,c.b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('')
@@ -47,7 +49,7 @@ function flatColor(canvas:HTMLCanvasElement):string|undefined{
  *  Photoshop fill colour, size and alignment; photo layers keep any rounded corners their own alpha
  *  channel shows; and a layer that covers the page (or is named like one) becomes the background
  *  instead of a frame. */
-function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'isPsd'>&{width:number;height:number}{
+function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'isPsd'|'dropped'>&{width:number;height:number}{
  // Read the header alone first: decoding every layer of an oversized PSD would exhaust memory
  // before the dimension check below ever ran.
  const header=readPsd(bytes,{skipThumbnail:true,skipLayerImageData:true,skipCompositeImageData:true})
@@ -96,9 +98,15 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
   const toDesign=(v:number)=>Math.round(v/psd.width!*900)
   const vector=l.vectorMask?.paths?.length===1&&!l.vectorMask.paths[0].open?vectorMaskGeometry(l.vectorMask.paths[0].knots??[]):null
   let radii:[number,number,number,number]|undefined
+  const rotationDeg=vector?.rotationDeg
   if(vector&&vector.radii.some(r=>r>0))radii=vector.radii.map(toDesign) as [number,number,number,number]
   const clip=(v:number,max:number)=>Math.max(0,Math.min(max,v))
-  if(vector){
+  if(vector&&rotationDeg){
+   // A turned frame is kept whole: clipping it to the page edges would square off the very
+   // corners that make it slanted. It is only rejected if it lies outside the page altogether.
+   x=vector.x;y=vector.y;w=vector.width;h=vector.height
+   if(x+w<=0||y+h<=0||x>=psd.width!||y>=psd.height!)continue
+  }else if(vector){
    const right=clip(vector.x+vector.width,psd.width!),bottom=clip(vector.y+vector.height,psd.height!)
    x=clip(vector.x,psd.width!);y=clip(vector.y,psd.height!);w=right-x;h=bottom-y
   }else{
@@ -115,7 +123,7 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
   // A raster mask crops the layer without touching its pixels, so the frame has to be cut down to
   // what the mask leaves showing. Covers lean on this: a cover photo is usually one oversized image
   // masked back to its panel, and read without the mask it claims most of the spread.
-  const mask=l.mask&&!l.mask.disabled&&l.mask.canvas&&(l.mask.defaultColor??0)<128?l.mask:null
+  const mask=!rotationDeg&&l.mask&&!l.mask.disabled&&l.mask.canvas&&(l.mask.defaultColor??0)<128?l.mask:null
   if(mask){
    const visible=maskVisibleBounds(mask.canvas!)
    if(!visible)continue
@@ -134,7 +142,7 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
   // Stray 1px strokes and specks are decoration, not frames.
   if(w*h<area*0.001)continue
   frames.push({id:crypto.randomUUID(),x:x/psd.width!,y:y/psd.height!,width:w/psd.width!,height:h/psd.height!,
-   preferredOrientation:'any',cornerRadiusPx:radii?Math.max(...radii)||undefined:undefined,
+   preferredOrientation:'any',rotationDeg,cornerRadiusPx:radii?Math.max(...radii)||undefined:undefined,
    cornerRadiiPx:radii&&new Set(radii).size>1?radii:undefined})
  }}
  visit(psd.children??[])
@@ -160,8 +168,11 @@ export async function detectTemplate(file:File):Promise<Detected>{
   if(!frames.length&&!isPsd)frames=detectTemplateFrames(ctx.getImageData(0,0,c.width,c.height).data,c.width,c.height)
  }finally{if(source.startsWith('blob:'))URL.revokeObjectURL(source)}
  if(isPsd&&!frames.length&&!textBoxes.length)throw new Error('This PSD has no visible photo or text layers. Import a PNG export to detect frames from its flattened artwork.')
- if(frames.length>100)throw new Error('This template has more than 100 layers. Simplify it before importing.')
- return {frames,textBoxes,backgroundColor,preview,aspect,isPsd}
+ // A busy design is not a broken one. Rather than refuse it, keep the hundred largest frames —
+ // the ones a layout is actually built from — and say so, so the rest can be added back by hand.
+ let dropped=0
+ if(frames.length>100){const keep=new Set([...frames].sort((a,b)=>b.width*b.height-a.width*a.height).slice(0,100).map(f=>f.id));dropped=frames.length-keep.size;frames=frames.filter(f=>keep.has(f.id))}
+ return {frames,textBoxes,backgroundColor,preview,aspect,isPsd,dropped}
 }
 
 export async function importTemplateGeometry(file:File):Promise<TemplateDefinition|null>{
@@ -178,13 +189,47 @@ export async function importTemplateGeometry(file:File):Promise<TemplateDefiniti
 
 function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:TemplateDefinition|null)=>void}){
  const [boxes,setBoxes]=useState(found.frames)
+ const stage=useRef<HTMLDivElement>(null)
+ // Frames are dragged and resized on the artwork itself. The number fields stay for exact values,
+ // but nobody positions a frame over a photograph by typing percentages at it.
+ const endDrag=useRef<(()=>void)|null>(null)
+ function grab(event:ReactPointerEvent,index:number,corner?:'nw'|'ne'|'se'|'sw'){
+  if(event.button!==0)return
+  event.preventDefault();event.stopPropagation()
+  endDrag.current?.()
+  setSelected(index)
+  const art=stage.current?.getBoundingClientRect()
+  if(!art||!art.width||!art.height)return
+  const start=boxes[index],startX=event.clientX,startY=event.clientY
+  const move=(e:globalThis.PointerEvent)=>{
+   const dx=(e.clientX-startX)/art.width,dy=(e.clientY-startY)/art.height
+   setBoxes(bs=>bs.map((b,i)=>{
+    if(i!==index)return b
+    if(!corner)return {...b,x:start.x+dx,y:start.y+dy}
+    // The dragged corner moves and the opposite one stays put, so a resize never shifts the frame.
+    const left=corner==='nw'||corner==='sw',top=corner==='nw'||corner==='ne'
+    const x1=left?start.x+dx:start.x,x2=left?start.x+start.width:start.x+start.width+dx
+    const y1=top?start.y+dy:start.y,y2=top?start.y+start.height:start.y+start.height+dy
+    return {...b,x:Math.min(x1,x2),y:Math.min(y1,y2),width:Math.max(0.01,Math.abs(x2-x1)),height:Math.max(0.01,Math.abs(y2-y1))}
+   }))
+  }
+  const stop=()=>{endDrag.current=null;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop);window.removeEventListener('pointercancel',stop)}
+  endDrag.current=stop
+  window.addEventListener('pointermove',move);window.addEventListener('pointerup',stop);window.addEventListener('pointercancel',stop)
+ }
  const [textIds,setTextIds]=useState(found.textBoxes.map(t=>t.id))
  const [useBackground,setUseBackground]=useState(!!found.backgroundColor)
  const [selected,setSelected]=useState(0)
  const box=boxes[selected]
  const texts=found.textBoxes.filter(t=>textIds.includes(t.id))
- const valid=boxes.length>0&&boxes.every(b=>[b.x,b.y,b.width,b.height].every(Number.isFinite)&&b.x>=0&&b.y>=0&&b.width>0&&b.height>0&&b.x+b.width<=1.00001&&b.y+b.height<=1.00001)
+ // A frame drawn at an angle is measured unrotated, so its upright box can poke past the artwork
+ // while the frame itself sits inside it. Those are judged on their centre instead.
+ const inside=(b:PlaceholderRect)=>b.rotationDeg
+  ?b.x+b.width/2>=0&&b.y+b.height/2>=0&&b.x+b.width/2<=1&&b.y+b.height/2<=1
+  :b.x>=-0.00001&&b.y>=-0.00001&&b.x+b.width<=1.00001&&b.y+b.height<=1.00001
+ const valid=boxes.length>0&&boxes.every(b=>[b.x,b.y,b.width,b.height].every(Number.isFinite)&&b.width>0&&b.height>0&&inside(b))
  const rounded=boxes.filter(b=>b.cornerRadiusPx).length
+ const turned=boxes.filter(b=>b.rotationDeg).length
  function save(){
   onFinish({id:crypto.randomUUID(),name,kind:texts.length?'mixed':'image',photoCount:boxes.length,pageSide:'spread',
    placeholders:boxes,textBoxes:texts.length?texts:undefined,backgroundColor:useBackground?found.backgroundColor:undefined,
@@ -196,19 +241,24 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
    <button className="btn btn--primary" disabled={!valid} onClick={save}>Add {texts.length?'mixed':'image'} template</button></>}>
   <div className="frame-review__layout">
    <div className="frame-review__stage">
-    <div className="frame-review__canvas" style={{'--art-aspect':found.aspect,background:useBackground&&found.backgroundColor?found.backgroundColor:undefined} as CSSProperties}>
+    <div ref={stage} className="frame-review__canvas" style={{'--art-aspect':found.aspect,background:useBackground&&found.backgroundColor?found.backgroundColor:undefined} as CSSProperties}>
      <img src={found.preview} alt="Imported artwork"/>
      {texts.map(t=><span key={t.id} className="frame-review__text" style={{left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`}}/>)}
-     {boxes.map((b,i)=><button key={b.id} aria-label={`Frame ${i+1}`} aria-pressed={i===selected}
-      className={`frame-review__frame${i===selected?' is-selected':''}`} onClick={()=>setSelected(i)}
-      style={{left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,borderRadius:b.cornerRadiiPx?b.cornerRadiiPx.map(r=>`${r/900*100}%`).join(' '):b.cornerRadiusPx?`${b.cornerRadiusPx/900*100}%`:undefined}}>
+     {boxes.map((b,i)=><div key={b.id} role="button" tabIndex={0} aria-label={`Frame ${i+1}${b.rotationDeg?`, turned ${Math.round(b.rotationDeg)} degrees`:''}`} aria-pressed={i===selected}
+      className={`frame-review__frame${i===selected?' is-selected':''}`} onPointerDown={e=>grab(e,i)}
+      onKeyDown={e=>{const step=e.shiftKey?0.05:0.005;const by=(dx:number,dy:number)=>{e.preventDefault();setSelected(i);setBoxes(bs=>bs.map((v,j)=>j===i?{...v,x:v.x+dx,y:v.y+dy}:v))};
+       if(e.key==='ArrowLeft')by(-step,0);else if(e.key==='ArrowRight')by(step,0);else if(e.key==='ArrowUp')by(0,-step);else if(e.key==='ArrowDown')by(0,step)}}
+      style={{left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,transform:b.rotationDeg?`rotate(${b.rotationDeg}deg)`:undefined,
+       borderRadius:b.cornerRadiiPx?b.cornerRadiiPx.map(r=>`${r/900*100}%`).join(' '):b.cornerRadiusPx?`${b.cornerRadiusPx/900*100}%`:undefined}}>
       <span className="frame-review__badge">{i+1}</span>
-     </button>)}
+      {i===selected&&(['nw','ne','se','sw'] as const).map(corner=><span key={corner} role="button" tabIndex={-1} aria-label={`Resize frame ${i+1} from its ${corner==="nw"?"top left":corner==="ne"?"top right":corner==="se"?"bottom right":"bottom left"} corner`}
+       className={`frame-review__handle frame-review__handle--${corner}`} onPointerDown={e=>grab(e,i,corner)}/>)}
+     </div>)}
     </div>
     {/* Which shelf of the library this lands on: the browser only ever offers a template to a
         spread holding this many photos, so it is the one number worth stating up front. */}
     <p className="frame-review__filed" role="status">Filed as a <strong>{boxes.length} photo {texts.length?'mixed':'image'} template</strong>{texts.length?` with ${texts.length} text layer${texts.length===1?'':'s'}`:''} — offered on spreads of {boxes.length} photo{boxes.length===1?'':'s'}.</p>
-    <p className="frame-review__hint">Click a frame to correct its position or size. A flattened image cannot reveal overlapping or hidden elements.</p>
+    <p className="frame-review__hint">Drag a frame to move it, or drag a corner to resize it. A flattened image cannot reveal overlapping or hidden elements.</p>
    </div>
    <aside className="frame-review__side">
     <section className="frame-review__group">
@@ -216,11 +266,12 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
      <ul className="frame-review__summary">
       <li><Icon name="image" size={13}/><span>{boxes.length} photo {boxes.length===1?'frame':'frames'}</span></li>
       <li><Icon name="type" size={13}/><span>{found.textBoxes.length} text {found.textBoxes.length===1?'layer':'layers'}</span></li>
-      <li><Icon name="rectangle" size={13}/><span>{rounded?`${rounded} rounded`:'Square corners'}</span></li>
+      <li><Icon name="rectangle" size={13}/><span>{[rounded?`${rounded} rounded`:'Square corners',turned?`${turned} turned`:''].filter(Boolean).join(' · ')}</span></li>
       <li><Icon name="droplet" size={13}/><span>{found.backgroundColor?`Background ${found.backgroundColor}`:'No background layer'}</span></li>
      </ul>
      {found.backgroundColor&&<label className="frame-review__toggle"><input type="checkbox" checked={useBackground} onChange={e=>setUseBackground(e.target.checked)}/>
       <span className="frame-review__swatch" style={{background:found.backgroundColor}}/>Use this page colour</label>}
+     {found.dropped>0&&<p className="frame-review__note" role="status">This artwork had {found.dropped+boxes.length} shapes — the {boxes.length} largest were kept, since a template holds at most 100. Add any that are missing below.</p>}
      {!found.isPsd&&<p className="frame-review__note">Frames were traced from the flattened artwork. Import the layered PSD to carry text, rounded corners and the background across too.</p>}
     </section>
     {!!found.textBoxes.length&&<section className="frame-review__group">
@@ -243,6 +294,10 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
       <label className="frame-review__radius"><span>Corner radius (px)</span>
        <input aria-label="Frame corner radius" title={box.cornerRadiiPx?`Corners from the artwork: ${box.cornerRadiiPx.join(' / ')} — typing here rounds all four`:undefined} type="number" min={0} max={200} step={1} value={box.cornerRadiusPx??0}
         onChange={e=>setBoxes(bs=>bs.map((b,i)=>i===selected?{...b,cornerRadiusPx:Number(e.target.value)||undefined,cornerRadiiPx:undefined}:b))}/>
+      </label>
+      <label className="frame-review__radius"><span>Rotation (°)</span>
+       <input aria-label="Frame rotation" title="Read from the artwork when the layer was drawn at an angle." type="number" min={-180} max={180} step={1} value={Math.round(box.rotationDeg??0)}
+        onChange={e=>setBoxes(bs=>bs.map((b,i)=>i===selected?{...b,rotationDeg:Number(e.target.value)||undefined}:b))}/>
       </label>
      </>:<p className="frame-review__note">No frames yet. Add one to start.</p>}
      <div className="frame-review__actions">

@@ -33,7 +33,10 @@ export async function renderSpreadToCanvas(
   spread: Spread,
   photosById: Map<string, PhotoAsset>,
   size: AlbumSize,
-  pixelsPerInch: number
+  pixelsPerInch: number,
+  /** On screen the page a single-sided spread does not use is greyed out. On paper that page is
+   *  simply blank, so an export never passes this. */
+  preview = false
 ): Promise<HTMLCanvasElement> {
   size = spread.size ?? size
   const widthPx = Math.round(size.widthIn * pixelsPerInch)
@@ -66,7 +69,31 @@ export async function renderSpreadToCanvas(
     for(let y=1;y<heightPx-1;y++)for(let x=1;x<widthPx-1;x++){const i=(y*widthPx+x)*4;for(let k=0;k<3;k++)image.data[i+k]=source[i+k]*(1+4*amount)-amount*(source[i-4+k]+source[i+4+k]+source[i-widthPx*4+k]+source[i+widthPx*4+k])}
     ctx.putImageData(image,0,0)
   }
+  if (preview) drawUnusedPage(ctx, spread, widthPx, heightPx)
   return canvas
+}
+
+/** The part of the sheet a spread actually designs on, as 0-1 fractions of its width.
+ *
+ *  An album that starts on a right-hand page, or ends on a left-hand one, still prints a whole
+ *  sheet there — the other page is simply not part of the design. So the spread keeps its full
+ *  size and that page is held back instead: greyed on screen and in every thumbnail, and out of
+ *  reach of every drag and resize. */
+export function spreadPageBand(spread: Pick<Spread, 'pageSide' | 'isCover'>): { start: number; end: number } {
+  if (spread.isCover || spread.pageSide === 'spread' || spread.pageSide === 'single') return { start: 0, end: 1 }
+  return spread.pageSide === 'right' ? { start: 0.5, end: 1 } : { start: 0, end: 0.5 }
+}
+
+/** Paints the page a single-sided spread does not use, so it reads as unavailable rather than
+ *  blank. Drawn last, over the artwork, because nothing may be placed there in the first place. */
+export function drawUnusedPage(ctx: CanvasRenderingContext2D, spread: Pick<Spread, 'pageSide' | 'isCover'>, width: number, height: number) {
+  const band = spreadPageBand(spread)
+  if (band.start === 0 && band.end === 1) return
+  ctx.save()
+  ctx.fillStyle = '#8a8a8e'
+  ctx.globalAlpha = 0.55
+  ctx.fillRect(band.start === 0 ? width * band.end : 0, 0, width * (1 - (band.end - band.start)), height)
+  ctx.restore()
 }
 
 /** The paper colour of each half of a spread: the sheet's own colour unless that page has been
