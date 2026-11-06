@@ -65,7 +65,10 @@ export default function SpreadsPanel() {
   const timelineRef = useRef<HTMLDivElement>(null)
   const spreadsRef = useRef<HTMLDivElement>(null)
   useEffect(()=>{
-    const track=spreadsRef.current,first=track?.querySelector<HTMLElement>('[data-overview-spread]');if(!track||!first)return
+    // The timeline lines its groups up under the spreads they belong to, so its leading space is
+    // the distance to the FIRST SPREAD — not to the cover, which carries data-overview-spread too
+    // and, being first in the row, was what this measured. The groups then sat under the cover.
+    const track=spreadsRef.current,first=track?.querySelector<HTMLElement>('.spreads-panel__column[data-overview-spread]');if(!track||!first)return
     const measure=()=>{const left=first.getBoundingClientRect().left-track.getBoundingClientRect().left+track.scrollLeft;timelineRef.current?.style.setProperty('--timeline-start',`${Math.max(24,left)}px`)}
     const observer=new ResizeObserver(measure);observer.observe(track);observer.observe(first);measure();return()=>observer.disconnect()
   },[project.spreads.length])

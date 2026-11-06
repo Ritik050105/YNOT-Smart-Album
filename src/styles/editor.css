@@ -48,7 +48,7 @@
 .album-editor .spreads-panel__empty-timeline { display: grid; place-items: center; margin: 8px 16px; border: 2px dashed var(--border); border-radius: 8px; color: var(--text-muted); font-size: 12px; cursor: pointer; }
 .album-editor .photo-dock { flex: 1; padding: 0; gap: 0; background: var(--panel); border: 0; box-shadow: none; max-height: none; overflow-y: auto; }
 .album-editor .photo-dock__item { content-visibility: auto; contain-intrinsic-size: auto var(--photo-size, 84px); }
-.photo-dock__bins button.is-drop-target { outline: 2px solid var(--accent); background: var(--accent-soft); }
+.photo-dock__bins .is-drop-target { outline: 2px solid var(--accent); outline-offset: 1px; background: var(--accent-soft); }
 .album-editor .photo-dock__toolbar { min-height: 52px; padding: 0 12px 0 0; gap: 12px; background: var(--panel-alt); flex-wrap: nowrap; overflow-x: auto; flex-shrink: 0; }
 .album-editor .photo-dock__toolbar > * { flex-shrink: 0; }
 .album-editor .photo-dock__import-actions { gap: 12px; }
