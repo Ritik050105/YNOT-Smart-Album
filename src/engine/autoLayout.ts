@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TextBox } from '@/types'
 import { suggestTemplate, findTemplate, templatesForCount, TemplateFrameFilter } from './templates'
-import { rankTemplates, templateFramesInReadingOrder } from './templateMatching'
+import { rankTemplates, templateFramesInReadingOrder, templateShapesFit } from './templateMatching'
 
 export interface AutoLayoutOptions {
   groupBlackAndWhite?: boolean
@@ -299,6 +299,10 @@ export function buildSpreadsFromGroups(
         candidates = candidates.filter((t) => (uses.get(t.id) ?? 0) === leastUsed)
       }
     }
+    // Only layouts that can give every photo a frame of its own shape. Without this a portrait
+    // photo lands in a landscape frame and loses its top and bottom, which no crop can recover.
+    const shapesFit = candidates.filter((t) => templateShapesFit(group, t, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx))
+    if (shapesFit.length) candidates = shapesFit
     const ranked = rankTemplates(group, candidates, layout.aspect ?? 1, matchTimelineOrder, appearance.marginPx, appearance.gapPx)
     if (templateReuse === 'medium') ranked.sort((a, b) => (a.score + (a.template.id === lastTemplateId ? 0.02 : 0)) - (b.score + (b.template.id === lastTemplateId ? 0.02 : 0)))
     const { template, photos: assigned, score } = ranked[0]

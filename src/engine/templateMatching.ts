@@ -1,5 +1,6 @@
 import { PhotoAsset, TemplateDefinition } from '@/types'
 import { resolveTemplateFrames } from './templateLayout'
+import { shapeOf } from './layoutMath'
 
 export function templateFramesInReadingOrder(template: TemplateDefinition) {
   return [...template.placeholders].sort((a, b) => a.x - b.x || a.y - b.y)
@@ -41,6 +42,33 @@ export function matchTemplatePhotos(photos: PhotoAsset[], template: TemplateDefi
     for (let j = 1; j <= n; j++) assignment[p[j] - 1] = j - 1
   }
   return { photos: assignment.map((index) => photos[index]), score: assignment.reduce((sum, index, frame) => sum + costs[frame][index], 0) / Math.max(1, photos.length) }
+}
+
+/** The shape of each photo, using its real pixels and falling back to the orientation recorded at
+ *  import when a photo has not been measured. */
+function photoShapes(photos: PhotoAsset[]): ('landscape' | 'portrait' | 'square')[] {
+  return photos.map((photo) => {
+    const ratio = photo.width > 0 && photo.height > 0 ? photo.width / photo.height
+      : photo.orientation === 'portrait' ? 2 / 3 : photo.orientation === 'landscape' ? 1.5 : 1
+    return shapeOf(ratio, 1)
+  })
+}
+
+/** Whether every photo can have a frame of its own shape.
+ *
+ *  A portrait photo in a landscape frame loses the top and bottom of the picture — the subject's
+ *  head, usually — and no amount of cropping gets it back, so a layout that would force that is not
+ *  offered for this set of photos at all. Square frames are the give in the system: they take any
+ *  photo, so they soak up whichever shape the layout is short of. */
+export function templateShapesFit(photos: PhotoAsset[], template: TemplateDefinition, aspect = 1, marginPx = 0, gapPx = 0): boolean {
+  const frames = resolveTemplateFrames(template.placeholders, aspect, marginPx, gapPx)
+  if (frames.length !== photos.length) return false
+  const shapes = photoShapes(photos)
+  const frameShapes = frames.map((frame) => shapeOf(frame.width * aspect, frame.height))
+  const count = (list: string[], shape: string) => list.filter((value) => value === shape).length
+  const portraitShort = Math.max(0, count(shapes, 'portrait') - count(frameShapes, 'portrait'))
+  const landscapeShort = Math.max(0, count(shapes, 'landscape') - count(frameShapes, 'landscape'))
+  return portraitShort + landscapeShort <= count(frameShapes, 'square')
 }
 
 export function rankTemplates(photos: PhotoAsset[], templates: TemplateDefinition[], aspect = 1, keepOrder = true, marginPx = 0, gapPx = 0) {
