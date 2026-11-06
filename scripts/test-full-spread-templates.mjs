@@ -1,5 +1,5 @@
 // Built-in full-spread templates (one side full-bleed, the other side photos/caption) survive dedup
-// and land in the right browser: the mixed ones classify as 'generated' so the mixed browser shows
+// and land in the right browser: the mixed ones classify as 'reference' so the mixed browser shows
 // them with no checkbox to tick, while the image-only ones classify as 'reference' so they appear
 // under "Smart design", which is on by default (categories.generated starts false). Imported designs
 // are offered at any photo count, not only the one they were drawn for.
@@ -34,7 +34,7 @@ for (const id of [...mixedIds, ...imageIds]) {
   for (const p of t.placeholders) assert.ok(p.x >= 0 && p.y >= 0 && p.x + p.width <= 1.0001 && p.y + p.height <= 1.0001, `${id} keeps ${p.id} inside the spread`)
   for (const b of t.textBoxes ?? []) assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.width <= 1.0001 && b.y + b.height <= 1.0001, `${id} keeps its caption inside the spread`)
 }
-for (const id of mixedIds) assert.equal(templateCategory(byId(id)), 'generated', `${id} classifies as generated`)
+for (const id of mixedIds) assert.equal(templateCategory(byId(id)), 'reference', `${id} classifies as a built-in Smart design`)
 // "Smart design" is the reference category. It normally also requires that the album's own gap can
 // be applied uniformly across the layout, which a full-bleed page can never satisfy — one page runs
 // to the edge by design — so the browsers exempt this family by id instead of dropping it.
@@ -101,19 +101,27 @@ for (const [margin, gap] of [[0, 0], [24, 12], [60, 40]]) {
   }
 }
 
-// Thirty full-spread image layouts per photo count, in Smart design. Two and three photo spreads
-// are the exception: there are only so many ways to lay one or two photos flush on a page.
+// A full-bleed page always has companions to choose from, and the page facing it is made of
+// photo-shaped frames — never the row of letterbox bands a flush grid produces at these counts.
+// There is no fixed number of them: how many survive depends on the album's own proportions,
+// since the same grid is tidy squares on one shape and bands on another.
 for (let n = 4; n <= 30; n++) {
   const full = templatesForCount(n, null, 'all', 1.5).filter(t => !t.textBoxes?.length && isFullSpreadTemplate(t))
-  assert.ok(full.length >= 30, `count ${n} offers 30 full-spread image templates (got ${full.length})`)
+  assert.ok(full.length >= 4, `count ${n} offers full-spread image templates (got ${full.length})`)
+  for (const t of full) for (const ph of t.placeholders) {
+    const ratio = ph.width / ph.height * 1.5
+    assert.ok(ratio <= 3.2 && ratio >= 1 / 3.2,
+      `count ${n}: ${t.id} has a band-shaped frame (${ratio.toFixed(2)}:1)`)
+  }
   for (const t of full) assert.equal(templateCategory(t), 'reference', `${t.id} is in Smart design`)
 }
 
-// Trimming duplicates must not have thinned Smart design itself: it still carries the hundreds of
-// ordinary layouts, not just this family.
+// Trimming must not thin Smart design itself: it still carries a hundred-plus ordinary layouts per
+// count, not just this family. The floor was 200 before band-shaped frames were dropped; roughly a
+// sixth of the catalogue went with them, which is the point rather than a regression.
 for (const n of [3, 8, 20, 30]) {
   const smart = templatesForCount(n, null, 'all', 1.5).filter(t => !t.textBoxes?.length && templateCategory(t) === 'reference')
-  assert.ok(smart.length > 200, `count ${n} keeps its Smart design catalogue (got ${smart.length})`)
+  assert.ok(smart.length > 120, `count ${n} keeps its Smart design catalogue (got ${smart.length})`)
 }
 
 // Every album photo count has somewhere to go: 30+ image layouts, a mixed layout, and a full-bleed

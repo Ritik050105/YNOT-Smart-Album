@@ -55,7 +55,14 @@ function deleteGalleryPhotos(photoIds:string[]){
  const eligible=ids.filter(id=>!locked.includes(id))
  if(!eligible.length){if(locked.length)window.alert('Unlock these photos in all spreads before deleting them.');return}
  const used=eligible.filter(id=>state.project.spreads.some(s=>s.placements.some(p=>p.photoId===id)||s.backgroundPattern?.edits?.photoId===id))
- if(used.length&&!window.confirm(`${used.length} of ${eligible.length} selected photos are used in spreads. Delete them from the gallery and those spreads?${locked.length?` ${locked.length} locked photos will be kept.`:''} You can Undo this change.`))return
+ // Every delete is confirmed, whether or not the photos are on a page: removing an unused photo
+ // still loses it from the gallery, and that is just as easy to do by accident.
+ const kept=locked.length?` ${locked.length} locked photo${locked.length===1?'':'s'} will be kept.`:''
+ const count=`${eligible.length} photo${eligible.length===1?'':'s'}`
+ const question=used.length
+  ? `Delete ${count} from the gallery? ${used.length} of them ${used.length===1?'is':'are'} used in spreads and will be removed from those spreads too.${kept} You can Undo this change.`
+  : `Delete ${count} from the gallery? ${eligible.length===1?'It is':'They are'} not used in any spread.${kept} You can Undo this change.`
+ if(!window.confirm(question))return
  state.removePoolPhotos(eligible)
 }
 export default function PhotoBin() {

@@ -17,14 +17,60 @@ export function plainTextAlign(align: TextBox['align']): CanvasTextAlign {
     : 'left'
 }
 
+/** Decoded images, kept so the same photo is not decoded again for every redraw.
+ *
+ *  Nothing here used to be cached, so re-rendering a spread — changing its template, redrawing a
+ *  thumbnail, moving a crop — decoded every photo on it from scratch. On a real shoot that is
+ *  several 24-megapixel JPEGs per redraw, which is where the app felt slow despite doing no I/O.
+ *
+ *  Bounded by pixels rather than by entry count, because that is what actually costs memory: one
+ *  24MP photo is worth two hundred thumbnails. Least recently used goes first. A src is safe as a
+ *  key — blob URLs are unique per object and data URLs carry their own content. */
+const PIXEL_BUDGET = 80_000_000
+const imageCache = new Map<string, Promise<HTMLImageElement>>()
+const imagePixels = new Map<string, number>()
+let cachedPixels = 0
+
+function rememberImage(src: string, img: HTMLImageElement) {
+  const pixels = Math.max(1, img.naturalWidth * img.naturalHeight)
+  // One image larger than the whole budget would evict everything and then itself; keep the
+  // promise for callers already waiting on it, but do not hold it.
+  if (pixels > PIXEL_BUDGET) { imageCache.delete(src); return }
+  imagePixels.set(src, pixels)
+  cachedPixels += pixels
+  for (const [key] of imageCache) {
+    if (cachedPixels <= PIXEL_BUDGET) break
+    if (key === src) continue
+    cachedPixels -= imagePixels.get(key) ?? 0
+    imagePixels.delete(key)
+    imageCache.delete(key)
+  }
+}
+
 export function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
+  const hit = imageCache.get(src)
+  if (hit) {
+    // Re-inserting moves it to the end, which is what makes the eviction order above "oldest first".
+    imageCache.delete(src)
+    imageCache.set(src, hit)
+    return hit
+  }
+  const pending = new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
-    img.onload = () => resolve(img)
-    img.onerror = reject
+    img.onload = () => { rememberImage(src, img); resolve(img) }
+    img.onerror = (error) => { imageCache.delete(src); reject(error) }
     img.src = src
   })
+  imageCache.set(src, pending)
+  return pending
+}
+
+/** Drops every decoded image — used when a project closes, so its photos do not outlive it. */
+export function clearImageCache() {
+  imageCache.clear()
+  imagePixels.clear()
+  cachedPixels = 0
 }
 
 /** Renders a spread onto a canvas at the given pixel size (pixelsPerInch * album size), for

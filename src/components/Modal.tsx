@@ -46,7 +46,15 @@ export default function Modal({
       const dialogs = document.querySelectorAll('[role="dialog"]')
       return dialogs[dialogs.length - 1] === card
     }
-    const focusFirst = () => (controls()[0] ?? card).focus({ preventScroll: true })
+    // Opening a dialog puts focus on the dialog itself, not on its first control: focusing a
+    // button or a tab paints a focus ring on it, which reads as "this one is already chosen"
+    // before anything has been chosen. A field you are meant to type into is the exception,
+    // since landing in it is the whole point of a rename or search dialog.
+    const typeable = 'input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), textarea'
+    const focusFirst = () => {
+      const first = controls()[0]
+      ;(first?.matches(typeable) ? first : card).focus({ preventScroll: true })
+    }
     if (topmost() && !card.contains(document.activeElement)) focusFirst()
     function onTab(e: KeyboardEvent) {
       if (e.key !== 'Tab' || e.defaultPrevented || !topmost()) return

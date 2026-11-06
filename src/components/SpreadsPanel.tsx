@@ -18,7 +18,7 @@ import ContextMenu, { ContextMenuItem } from './ContextMenu'
 import Icon from './Icon'
 import QuoteTemplates from './QuoteTemplates'
 import PhotoContextMenu from './PhotoContextMenu'
-import { computePlaceholderBoxes } from '@/engine/layoutMath'
+import { computePlaceholderBoxes, orientationFits, shapeOf } from '@/engine/layoutMath'
 
 /** The album's main view — the reference app's own "all spreads" screen: a row of real,
  *  proportioned spread cards (not a zoomed single-spread canvas, no ruler or tool rail here),
@@ -90,7 +90,10 @@ export default function SpreadsPanel() {
   }, [project.size.widthIn, project.size.heightIn])
   const { drag, target } = useTimelineDrag((source, destination) => {
     if (destination.bin) { if (source.photoIds.length) useProjectStore.getState().addPhotosToBin(source.photoIds, destination.bin); return }
-    if(destination.replace && destination.spreadId && destination.beforeFrameId && source.photoIds[0]){if(source.spreadId===destination.spreadId&&source.frameId)useProjectStore.getState().swapPlacements(source.spreadId,source.frameId,destination.beforeFrameId);else useProjectStore.getState().setPlacementPhoto(destination.spreadId,destination.beforeFrameId,source.photoIds[0]);return}
+    if(destination.replace && destination.spreadId && destination.beforeFrameId && source.photoIds[0]){
+      if(source.spreadId===destination.spreadId&&source.frameId)useProjectStore.getState().swapPlacements(source.spreadId,source.frameId,destination.beforeFrameId)
+      else if(frameAcceptsPhoto(destination.spreadId,destination.beforeFrameId,source.photoIds[0],destination.override))useProjectStore.getState().setPlacementPhoto(destination.spreadId,destination.beforeFrameId,source.photoIds[0])
+      return}
     if (source.spreadId && !source.frameId) {
       if (destination.cover) return
       const interiors = useProjectStore.getState().project.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
@@ -132,6 +135,20 @@ export default function SpreadsPanel() {
     placeCoverPhotos(matched.map((p) => p.id))
   }
 
+  /** A photo only goes into a frame of its own shape, unless Ctrl says otherwise. */
+  function frameAcceptsPhoto(spreadId: string, placeholderId: string, photoId: string, override?: boolean) {
+    if (override) return true
+    const state = useProjectStore.getState()
+    const spread = state.project.spreads.find((s) => s.id === spreadId)
+    const photo = state.project.photos.find((p) => p.id === photoId)
+    if (!spread || !photo) return true
+    const size = spread.size ?? state.project.size
+    const box = computePlaceholderBoxes(spread, 900, 900 * size.heightIn / size.widthIn).find((b) => b.placeholderId === placeholderId)
+    if (!box || orientationFits(photo, box)) return true
+    window.dispatchEvent(new CustomEvent('album-studio:preference-notice', { detail: `This frame is ${shapeOf(box.width, box.height)} and the photo is ${shapeOf(photo.width, photo.height)}. Hold Ctrl while dropping to use it anyway — it will be cropped to the frame.` }))
+    return false
+  }
+
   function placeCoverPhotos(newIds: string[]) {
     if (newIds.length === 0) return
     window.dispatchEvent(new CustomEvent('album-studio:setup-cover', { detail: { photoIds: newIds } }))
@@ -171,7 +188,7 @@ export default function SpreadsPanel() {
     if (pattern) { updateSpread(spreadId, { backgroundPattern: pattern }); return }
     const frame = readTimelineFrame(e.dataTransfer)
     const photoIds = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id))
-    if(e.altKey && getPreferences().altDrop==='replace' && beforeFrameId && photoIds[0])useProjectStore.getState().setPlacementPhoto(spreadId,beforeFrameId,photoIds[0])
+    if(e.altKey && getPreferences().altDrop==='replace' && beforeFrameId && photoIds[0]){if(frameAcceptsPhoto(spreadId,beforeFrameId,photoIds[0],e.ctrlKey||e.metaKey))useProjectStore.getState().setPlacementPhoto(spreadId,beforeFrameId,photoIds[0])}
     else if (frame) moveTimelinePhoto(frame.spreadId, frame.frameId, spreadId, beforeFrameId)
     else if (photoIds.length) insertTimelinePhotos(photoIds, spreadId, beforeFrameId)
     else if (e.dataTransfer.files.length) void handleTimelineFiles(e.dataTransfer.files, spreadId, beforeFrameId)
@@ -252,7 +269,15 @@ export default function SpreadsPanel() {
             onDoubleClick={() => enterDesignerView(cover.id)}
             onContextMenu={(e) => openContextMenu(e, cover.id)}
             onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { const pattern = readDraggedPattern(e.dataTransfer); if (pattern) { e.preventDefault(); e.stopPropagation(); updateSpread(cover.id, { backgroundPattern: pattern }) } }}
+            // Anything dropped on the cover is handled here. A file drop used to fall through to
+            // the window-level importer, which added the photos to the pool and forgot the cover.
+            onDrop={(e) => {
+              const pattern = readDraggedPattern(e.dataTransfer)
+              if (pattern) { e.preventDefault(); e.stopPropagation(); updateSpread(cover.id, { backgroundPattern: pattern }); return }
+              const ids = readDraggedPhotoIds(e.dataTransfer, project.photos.map((p) => p.id))
+              if (ids.length) { e.preventDefault(); e.stopPropagation(); placeCoverPhotos(ids); return }
+              if (e.dataTransfer.files.length) { e.preventDefault(); e.stopPropagation(); void handleCoverDrop(e.dataTransfer.files) }
+            }}
             title="Front / Spine / Back — double-click to design, right-click for more options"
           >
             <SpreadThumbnail selectedPlaceholderId={selectedSpreadId === cover.id ? selectedPlaceholderId : null} spread={cover} photosById={photosById} size={project.size} responsive />

@@ -1,4 +1,5 @@
-import {templateFamilyLabel,templatesForCount} from '@/engine/templates'
+import {templatesForCount} from '@/engine/templates'
+import {useTemplateCollections,matchesCollection} from '@/engine/templateCollections'
 import {templateCategory} from '@/engine/templateTransfer'
 import { useCallback, useMemo, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
@@ -11,12 +12,11 @@ type GroupingMode = 'smart' | 'range'
 
 /** What a bin builds from. The first three are image layouts, split by the design family they
  *  come from; 'creative-mixed' is the same creative family but the layouts that carry text. */
-type BinKind = 'reference' | 'creative' | 'creative-mixed' | 'generated'
+type BinKind = 'reference' | 'creative' | 'creative-mixed'
 const BIN_KINDS: { value: BinKind; label: string }[] = [
   { value: 'reference', label: 'Smart design' },
   { value: 'creative', label: 'Creative design' },
   { value: 'creative-mixed', label: 'Creative design mixed' },
-  { value: 'generated', label: 'Random generation' },
 ]
 interface BinRule { kind: BinKind; category: string; subcategory: string; favorites: boolean }
 
@@ -31,6 +31,7 @@ const TEMPLATE_REUSE = 'medium' as const
 export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string[]; onClose: () => void }) {
   const project = useProjectStore((s) => s.project)
   const favorites=useProjectStore(s=>s.favoriteTemplateIds)
+  const collections=useTemplateCollections()
   const allPhotos = project.photos
   const frameFilter = useProjectStore((s) => s.templateFrameFilter)
   const autoLayoutOptions = useProjectStore((s) => s.autoLayoutOptions)
@@ -51,9 +52,20 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
   },[library,favorites])
   // A saved template carries its own category. A built-in has none, so it is filed under the
   // family it belongs to — otherwise these two dropdowns would be empty for every built-in design.
-  const categoryOf=(item:TemplateDefinition)=>(item.category??'').split(' / ')[0]||templateFamilyLabel(item)
+  // The categories a designer has actually filed templates under: the category a saved template
+  // carries, and the collections they have sorted templates into by hand. Built-in layouts have
+  // no category of their own, and labelling them by the family they came from only filled this
+  // dropdown with names nobody chose.
+  const categoryOf=(item:TemplateDefinition)=>(item.category??'').split(' / ')[0]
+  const savedCategories=(pool:TemplateDefinition[])=>[...new Set([
+    ...pool.map(categoryOf).filter(Boolean),
+    ...Object.keys(collections.categories).filter(name=>pool.some(t=>matchesCollection(t.id,name,collections,favorites))),
+  ])].sort()
   const subcategoryOf=(item:TemplateDefinition)=>item.subcategory??item.category?.split(' / ').slice(1).join(' / ')??''
-  const matching=(bin:string)=>{const rule=binRule(bin);return records(rule).filter(t=>(!rule.category||categoryOf(t)===rule.category)&&(!rule.subcategory||subcategoryOf(t)===rule.subcategory))}
+  // A chosen category matches either way: a template saved under that name, or one filed into a
+  // collection of that name.
+  const inCategory=(t:TemplateDefinition,category:string)=>!category||categoryOf(t)===category||matchesCollection(t.id,category,collections,favorites)
+  const matching=(bin:string)=>{const rule=binRule(bin);return records(rule).filter(t=>inCategory(t,rule.category)&&(!rule.subcategory||subcategoryOf(t)===rule.subcategory))}
   const designForBin=(bin:string)=>({templateIds:matching(bin).map(t=>t.id)})
   const targetPhotos = useMemo<PhotoAsset[]>(() => {
     const ids = new Set(photoIds)
@@ -305,8 +317,8 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
                 <select value={rule.kind} onChange={e=>update({kind:e.target.value as BinKind,category:'',subcategory:''})}>{BIN_KINDS.map(k=><option key={k.value} value={k.value}>{k.label}</option>)}</select>
                 <button type="button" className={`auto-build-bin__fav${rule.favorites?' is-on':''}`} aria-pressed={rule.favorites} aria-label={`Only favourite templates for bin ${bin}`} title="Build this bin from the templates you have marked as favourites" onClick={()=>update({favorites:!rule.favorites,category:'',subcategory:''})}><Icon name="heart" size={14}/></button>
               </div></label>
-              <label>Category<select value={rule.category} onChange={e=>update({category:e.target.value,subcategory:''})}><option value="">All categories</option>{[...new Set(pool.map(categoryOf).filter(Boolean))].sort().map(c=><option key={c}>{c}</option>)}</select></label>
-              <label>Subcategory<select value={rule.subcategory} onChange={e=>update({subcategory:e.target.value})}><option value="">All subcategories</option>{[...new Set(pool.filter(t=>!rule.category||categoryOf(t)===rule.category).map(subcategoryOf).filter(Boolean))].sort().map(c=><option key={c}>{c}</option>)}</select></label>
+              <label>Category<select value={rule.category} onChange={e=>update({category:e.target.value,subcategory:''})}><option value="">All categories</option>{savedCategories(pool).map(c=><option key={c}>{c}</option>)}</select></label>
+              <label>Subcategory<select value={rule.subcategory} onChange={e=>update({subcategory:e.target.value})}><option value="">All subcategories</option>{[...new Set(pool.filter(t=>inCategory(t,rule.category)).map(subcategoryOf).filter(Boolean))].sort().map(c=><option key={c}>{c}</option>)}</select></label>
               <p className="muted auto-build-bin__count">{matching(bin).length} template{matching(bin).length===1?'':'s'} match</p>
             </div>}
           </div>

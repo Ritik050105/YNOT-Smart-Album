@@ -7,7 +7,7 @@ const state={project:{photos:[{id:'b',capturedAt:'2020-01-02'},{id:'c',capturedA
 globalThis.__photoBrowserState=state
 const result=await build({entryPoints:['src/components/PhotoBin.tsx'],bundle:true,loader:{'.ttf':'dataurl'},platform:'node',format:'esm',write:false,plugins:[{name:'shallow-render',setup(build){
   build.onResolve({filter:/^react$/},()=>({path:'react',namespace:'test'}))
-  build.onLoad({filter:/.*/,namespace:'test'},()=>({contents:`export const useState=(value)=>{const index=globalThis.__hookIndex++;return [index in globalThis.__hooks?globalThis.__hooks[index]:(value==='all' && globalThis.__browserFilter ? globalThis.__browserFilter : value),(next)=>{globalThis.__hooks[index]=next}];};export const useEffect=()=>{};export const useRef=(current)=>({current});export const useMemo=(fn)=>fn();export default {};`}))
+  build.onLoad({filter:/.*/,namespace:'test'},()=>({contents:`export const useState=(value)=>{const index=globalThis.__hookIndex++;return [index in globalThis.__hooks?globalThis.__hooks[index]:(value==='all' && globalThis.__browserFilter ? globalThis.__browserFilter : value),(next)=>{globalThis.__hooks[index]=next}];};export const useEffect=()=>{};export const useRef=(current)=>({current});export const useMemo=(fn)=>fn();export const useCallback=(fn)=>fn;export default {};`}))
   build.onResolve({filter:/^react-dom$/},()=>({path:'react-dom',namespace:'portal'}))
   build.onLoad({filter:/.*/,namespace:'portal'},()=>({contents:'export const createPortal=()=>null;'}))
   build.onResolve({filter:/^react\/jsx-runtime$/},()=>({path:'jsx',namespace:'jsx'}))

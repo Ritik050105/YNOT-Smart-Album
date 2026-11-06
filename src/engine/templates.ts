@@ -898,6 +898,21 @@ export function templatesForCount(
   return answer
 }
 
+/** How long and thin a frame may be before it stops reading as a photo and starts reading as a
+ *  band. 3.2:1 keeps panoramas and ordinary wide rectangles; it drops the letterbox strips a grid
+ *  of one column by many rows produces, which no designer picks on purpose. */
+const MAX_FRAME_RATIO = 3.2
+
+/** A layout built from photo-shaped frames: squares and rectangles, nothing stretched into a strip.
+ *  Measured in real proportions, so the album's own shape is taken into account — the same frame is
+ *  a square on a 12x12 and a letterbox on a 36x12. */
+export function hasPhotoShapedFrames(t: TemplateDefinition, aspect: number): boolean {
+  return t.placeholders.every((ph) => {
+    const ratio = ph.width / ph.height * aspect
+    return ratio <= MAX_FRAME_RATIO && ratio >= 1 / MAX_FRAME_RATIO
+  })
+}
+
 function computeTemplatesForCount(
   count: number,
   enabledTemplateIds: string[] | null,
@@ -907,6 +922,11 @@ function computeTemplatesForCount(
   let builtins = [...legacyTemplates, ...userTemplateRegistry].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
   if (enabledTemplateIds !== null) builtins = builtins.filter((t) => enabledTemplateIds.includes(t.id))
   if (frameFilter !== 'all') builtins = builtins.filter((t) => matchesFrameFilter(t, frameFilter, aspect))
+  // Smart design is the curated shelf: only layouts whose frames are photo-shaped belong on it.
+  // Anything stretched into a band is dropped — unless that leaves nothing at all for this photo
+  // count, in which case a strip beats refusing to build the album.
+  const photoShaped = builtins.filter((t) => hasPhotoShapedFrames(t, aspect))
+  if (photoShaped.length > 0) builtins = photoShaped
   builtins = uniqueTemplates(builtins)
   if (!enabledTemplateIds) {
     // Default suggestions favor clean, non-overlapping rectangular layouts — matching the

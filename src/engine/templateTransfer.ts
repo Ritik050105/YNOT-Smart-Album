@@ -21,8 +21,8 @@ export function parseTemplateTransfer(contents:string):TemplateDefinition[]{
   return {...t,id:crypto.randomUUID(),isBuiltIn:false,createdAt:new Date().toISOString(),thumbnailImage:undefined,thumbnailColor:'#3157c8'}
  })
 }
-// `gen-full-` are the full-bleed-plus-stack image layouts. They are hand-written, not grid
-// permutations, so they belong under "Smart design" rather than behind "Random generation",
-// which is off by default. Their mixed siblings keep the `gen-mixed-` prefix: the mixed browser
-// hides "Smart design" entirely and lets the generated category through unconditionally.
-export function templateCategory(t:TemplateDefinition):'reference'|'creative'|'generated'{return !t.isBuiltIn?'creative':/^gen-full-/.test(t.id)?'reference':/^(gen-|auto-|custom-grid-)/.test(t.id)?'generated':'reference'}
+// Two families, and only two: what ships with the app is a Smart design, and what a designer saves
+// or imports is a Creative design. There used to be a third, "Random generation", for the grid
+// permutations — but a generated grid is simply one of the layouts the app offers, and splitting
+// them out left a category that named a mechanism rather than anything a designer would look for.
+export function templateCategory(t:TemplateDefinition):'reference'|'creative'{return t.isBuiltIn?'reference':'creative'}

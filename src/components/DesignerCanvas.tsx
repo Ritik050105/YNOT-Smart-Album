@@ -18,7 +18,7 @@ import { Stage, Layer, Rect, Circle, Group, Image as KonvaImage, Text as KonvaTe
 import Konva from 'konva'
 import useImage from 'use-image'
 import { skippedTextViewKey, useProjectStore } from '@/state/projectStore'
-import { DESIGN_WIDTH, computePlaceholderBoxes, resolvePageInsetsPx, edgeInsetToPx } from '@/engine/layoutMath'
+import { DESIGN_WIDTH, computePlaceholderBoxes, orientationFits, resolvePageInsetsPx, shapeOf, edgeInsetToPx } from '@/engine/layoutMath'
 import { computeCoverCrop, rotationCoverScale } from '@/engine/cropFit'
 import { ensureFontLoaded } from '@/engine/fonts'
 import { quotesForEventType } from '@/engine/textSuggestions'
@@ -680,7 +680,7 @@ export default function DesignerCanvas() {
   const selectedGapUnits=guideTargets([]).filter(t=>t.keys?.length&&t.keys.every(k=>activeGuideKeys.includes(k)))
   const sharedGapGuides=selectedSpacingGuides(selectedGapUnits)
   const guideInteraction=Konva.isDragging()||transformerRef.current?.isTransforming()||textTransformerRef.current?.isTransforming()||groupTransformerRef.current?.isTransforming()
-  const displayedGuides=gapDrag?[...(sharedGapGuides.length?sharedGapGuides:[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>{const delta=gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)-(s.to-s.from),factor=gapDrag.anchor.includes(':')&&pickedAnchor?(pickedAnchor.rect[gapDrag.axis]*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)>=s.to-.01?1:0):gapDrag.anchor==='first'?0:gapDrag.anchor==='last'?1:.5;return {...s,from:s.from-delta*factor,to:s.to+delta*(1-factor)}})}]),...(gapDrag.match?[gapDrag.match]:[])]:guideInteraction||smartGuides.length?smartGuides:sharedGapGuides.length?sharedGapGuides:restingGuides
+  const displayedGuides=gapDrag?[...(sharedGapGuides.length?sharedGapGuides:[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>{const delta=gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)-(s.to-s.from),factor=gapDrag.anchor.includes(':')&&pickedAnchor?(pickedAnchor.rect[gapDrag.axis]*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)>=s.to-.01?1:0):gapDrag.anchor==='first'?0:gapDrag.anchor==='last'?1:.5;return {...s,from:s.from-delta*factor,to:s.to+delta*(1-factor)}})}]),...(gapDrag.match?[gapDrag.match]:[])]:guideInteraction||smartGuides.length?(smartGuides.length?smartGuides:sharedGapGuides.length?sharedGapGuides:restingGuides):[]
   function beginGapDrag(e:Konva.KonvaEventObject<MouseEvent>,g:SmartGuide,segment:NonNullable<SmartGuide['segments']>[number]) {
     e.cancelBubble=true
     if(e.evt.button!==0||!segment.keys||!baseSpread||!spread)return
@@ -957,7 +957,15 @@ export default function DesignerCanvas() {
     const dropRect = spread.isCover && boxes.length === 0 ? { x: 0, y: 0, width: 1, height: 1 } : { x: Math.max(0, Math.min(0.7, x / STAGE_WIDTH)), y: Math.max(0, Math.min(0.7, y / stageHeight)), width: 0.3, height: 0.3 }
     // A dragged multi-selection fills a frame with the first photo and stacks the rest as overlapping frames (one undo step).
     function placeAll(ids: string[]) {
-      if (target && ids.length === 1) setPlacementPhoto(spread!.id, target.placeholderId, ids[0])
+      // A photo only drops into a frame of its own shape; Ctrl overrides it and crops to the frame.
+      if (target && ids.length === 1) {
+        const photo = useProjectStore.getState().project.photos.find(p => p.id === ids[0])
+        if (photo && !(e.ctrlKey || e.metaKey) && !orientationFits(photo, target)) {
+          window.dispatchEvent(new CustomEvent('album-studio:preference-notice', { detail: `This frame is ${shapeOf(target.width, target.height)} and the photo is ${shapeOf(photo.width, photo.height)}. Hold Ctrl while dropping to use it anyway — it will be cropped to the frame.` }))
+          return
+        }
+        setPlacementPhoto(spread!.id, target.placeholderId, ids[0])
+      }
       else if (target) addImageFrames(spread!.id, dropRect, ids, target.placeholderId)
       else addImageFrames(spread!.id, dropRect, ids)
     }

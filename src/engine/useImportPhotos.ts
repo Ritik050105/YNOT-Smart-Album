@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { PhotoAsset } from '@/types'
 import { useProjectStore } from '@/state/projectStore'
 import { importAndDedupe, ImportSummary } from './importWorkflow'
 import { isMissingColorProfileDialogHidden } from './colorProfile'
@@ -8,6 +9,15 @@ import { isMissingColorProfileDialogHidden } from './colorProfile'
  *  buttons — the reference app exposes import from both places, not just a collapsible side
  *  panel). `markFavorite` is "Import Favorites": the same import, with every newly added photo
  *  starred on the way in. */
+/** Imports run one at a time, across every entry point in the app.
+ *
+ *  Deduping compares the incoming files against the photos the project holds AT THE MOMENT THE
+ *  IMPORT STARTS. Two imports that overlap — a drop that reaches two handlers, or a second drop
+ *  before the first has finished decoding — therefore both measure against the same photo list,
+ *  neither sees the other's additions, and the same file is added twice. Queuing them means the
+ *  second one dedupes against a list that already has the first one's photos in it. */
+let importQueue: Promise<unknown> = Promise.resolve()
+
 export function useImportPhotos() {
   const addPhotos = useProjectStore((s) => s.addPhotos)
   const setPhotoFavorite = useProjectStore((s) => s.setPhotoFavorite)
@@ -19,9 +29,15 @@ export function useImportPhotos() {
     return () => window.clearTimeout(timer)
   }, [lastSummary])
 
-  async function handleFiles(fileList: FileList | File[] | null, opts?: { markFavorite?: boolean }) {
+  function handleFiles(fileList: FileList | File[] | null, opts?: { markFavorite?: boolean }) {
     const files = fileList ? Array.from(fileList) : []
-    if (files.length === 0) return []
+    if (files.length === 0) return Promise.resolve([] as PhotoAsset[])
+    const queued = importQueue.then(() => runImport(files, opts), () => runImport(files, opts))
+    importQueue = queued.catch(() => {})
+    return queued
+  }
+
+  async function runImport(files: File[], opts?: { markFavorite?: boolean }) {
     setLastSummary(null)
     setProgress({ done: 0, total: files.length })
     const projectId = useProjectStore.getState().project.id

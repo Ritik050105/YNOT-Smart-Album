@@ -4,7 +4,7 @@ import { useProjectStore } from '@/state/projectStore'
 import { draggedPhotoIds, overviewPhotoAt } from './photoDrag'
 
 export interface TimelineSource { spreadId?: string; frameId?: string; photoIds: string[] }
-export interface TimelineTarget { spreadId: string | null; beforeFrameId?: string; cover?: boolean; replace?: boolean; /** A bin pill in the photo dock. */ bin?: string }
+export interface TimelineTarget { spreadId: string | null; beforeFrameId?: string; cover?: boolean; replace?: boolean; /** A bin pill in the photo dock. */ bin?: string; /** Ctrl was held: put the photo in this frame whatever its shape. */ override?: boolean }
 
 const clearBinHighlight = () => document.querySelectorAll('[data-bin].is-drop-target').forEach(el => el.classList?.remove("is-drop-target"))
 
@@ -150,6 +150,7 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
         suppressClickUntil = performance.now() + 250
         const destination = targetAt(event.clientX, event.clientY)
         if (destination) {
+          if (event.ctrlKey || event.metaKey) destination.override = true
           if(event.altKey){const frame=document.elementFromPoint(event.clientX,event.clientY)?.closest<HTMLElement>('[data-timeline-frame]');destination.replace=getPreferences().altDrop==='replace';if(frame)destination.beforeFrameId=frame.dataset.timelineFrame}
           commit.current(current.source, destination)
         }

@@ -38,6 +38,23 @@ export function computePlaceholderBoxes(
   })
 }
 
+/** Landscape, portrait, or square — with a deadband, so a frame or photo that is only slightly
+ *  off square counts as square and fits anywhere. */
+export function shapeOf(width: number, height: number): 'landscape' | 'portrait' | 'square' {
+  if (!(width > 0) || !(height > 0)) return 'square'
+  const ratio = width / height
+  return ratio > 1.15 ? 'landscape' : ratio < 1 / 1.15 ? 'portrait' : 'square'
+}
+
+/** Whether a photo belongs in a frame of this shape. A portrait photo in a landscape frame — or a
+ *  landscape photo in a portrait one — throws away most of the subject to fill the frame, so both
+ *  are refused by default and the designer has to ask for them. A square frame, or a roughly
+ *  square photo, takes anything. */
+export function orientationFits(photo: { width: number; height: number }, frame: { width: number; height: number }) {
+  const p = shapeOf(photo.width, photo.height), target = shapeOf(frame.width, frame.height)
+  return p === target || p === 'square' || target === 'square'
+}
+
 export function boundedFrameRect(rect: { x: number; y: number; width: number; height: number }) {
   if (!Object.values(rect).every(Number.isFinite)) throw new Error('Frame coordinates must be finite numbers.')
   return { x: rect.x, y: rect.y, width: Math.max(0.002, rect.width), height: Math.max(0.002, rect.height) }
