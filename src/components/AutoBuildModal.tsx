@@ -217,9 +217,17 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
           End LHS
         </label>
         <label className="checkbox-row" title="Build exactly this many spreads instead of the nearest number the templates can fill.">
-          <input type="checkbox" checked={restrictCount} onChange={e=>{setRestrictCount(e.target.checked);if(e.target.checked)setTouchedSlider(true)}} />
+          <input type="checkbox" checked={restrictCount} onChange={e=>{setRestrictCount(e.target.checked);if(e.target.checked){setSpreadCount(effectiveCount);setTouchedSlider(true)}}} />
           Restrict spread count
         </label>
+        {/* Asking for the number is the point of the option: without it the build is pinned to
+            wherever the slider happened to be left. */}
+        {restrictCount && <label className="auto-build-pages__count">
+          to
+          <input type="number" aria-label="Exact number of spreads" min={countRange.min} max={countRange.max} value={effectiveCount}
+            onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n)){setTouchedSlider(true);setSpreadCount(Math.max(countRange.min,Math.min(countRange.max,Math.round(n))))}}} />
+          spread{effectiveCount===1?'':'s'}
+        </label>}
       </div>
 
       <div className="field-section" style={{ marginTop: 14 }}>

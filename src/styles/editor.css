@@ -983,3 +983,7 @@ button:disabled { cursor:not-allowed; }
 .frame-review__handle--ne { top: -7px; right: -7px; cursor: nesw-resize; }
 .frame-review__handle--se { bottom: -7px; right: -7px; cursor: nwse-resize; }
 .frame-review__handle--sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+
+/* The exact count the Restrict spread count option asks for, beside its checkbox. */
+.auto-build-pages__count { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.auto-build-pages__count input { width: 64px; }
