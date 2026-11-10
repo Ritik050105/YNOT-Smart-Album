@@ -1,5 +1,5 @@
 import { getPreferences } from '@/state/preferences'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { draggedPhotoIds, overviewPhotoAt } from './photoDrag'
 
@@ -38,12 +38,31 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
   // The ghost follows the pointer every frame. It used to be React state, so the whole timeline —
   // every spread card and every dock thumbnail — re-rendered 60 times a second just to move one
   // 64px image. It is now a plain DOM node this hook owns; React only learns that a drag is on.
-  const [drag, setDrag] = useState(false)
+  const [drag, setDrag] = useState<string | null>(null)
   const ghost = useRef<HTMLImageElement | null>(null)
+  // A line of text that follows the cursor, for saying why a drop will be refused while there is
+  // still time to do something about it. Set by the consumer, which is what knows about photos.
+  const hintNode = useRef<HTMLDivElement | null>(null)
+  const hintText = useRef<string | null>(null)
   const [target, setTarget] = useState<TimelineTarget | null>(null)
 
   useEffect(() => {
-    const hideGhost = () => { ghost.current?.remove(); ghost.current = null }
+    const hideGhost = () => {
+      ghost.current?.remove(); ghost.current = null
+      hintNode.current?.remove(); hintNode.current = null
+      hintText.current = null
+    }
+    const showHint = (x: number, y: number) => {
+      const text = hintText.current
+      if (!text) { hintNode.current?.remove(); hintNode.current = null; return }
+      if (!hintNode.current) {
+        const node = document.createElement('div')
+        node.className = 'timeline-drag-hint'; node.setAttribute('role', 'status')
+        document.body.appendChild(node); hintNode.current = node
+      }
+      if (hintNode.current.textContent !== text) hintNode.current.textContent = text
+      hintNode.current.style.left = x + 'px'; hintNode.current.style.top = (y + 44) + 'px'
+    }
     const showGhost = (src: string, x: number, y: number) => {
       if (!ghost.current) {
         const node = document.createElement('img')
@@ -51,6 +70,7 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
         document.body.appendChild(node); ghost.current = node
       }
       ghost.current.style.left = x + 'px'; ghost.current.style.top = y + 'px'
+      showHint(x, y)
     }
     let scrollFrame = 0
     let pointerFrame = 0
@@ -90,7 +110,7 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
       cancelAnimationFrame(pointerFrame)
       scrollFrame = pointerFrame = 0
       hideGhost()
-      setDrag(false)
+      setDrag(null)
       setTarget(null)
       clearBinHighlight()
     }
@@ -139,7 +159,7 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
         const latest = gesture.current
         if (!latest?.active) return
         showGhost(latest.src, latest.x, latest.y)
-        setDrag(true)
+        setDrag(latest.source.photoIds[0] ?? 'spread')
         updateTarget()
       })
     }
@@ -187,5 +207,11 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
       window.removeEventListener('keydown', key, true)
     }
   }, [])
-  return { drag, target }
+  /** Says what the drop under the cursor would do, shown beside the ghost. Null clears it. */
+  const setDragHint = useCallback((text: string | null) => {
+    hintText.current = text
+    if (!text) { hintNode.current?.remove(); hintNode.current = null; return }
+    if (hintNode.current && hintNode.current.textContent !== text) hintNode.current.textContent = text
+  }, [])
+  return { drag, target, setDragHint }
 }

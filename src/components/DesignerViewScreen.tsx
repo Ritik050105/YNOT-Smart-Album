@@ -155,6 +155,9 @@ export default function DesignerViewScreen() {
 
       <div id="designer-font-template-browser" />
       <MatchingTemplatesPanel />
+      {/* The browse panel is a fixed slice of the window by default, which is not enough to see a
+          grid of templates at once. Dragging this gives it as much of the window as wanted. */}
+      {matchingTemplatesOpen && <PanelResizer axis="y" variable="--template-browser-height" label="Resize template browser" initial={0.3} min={140} max={0.7}/>}
       <div className={`designer-view__body ${matchingTemplatesOpen ? 'is-browsing-templates' : ''}`}>
         {shapeMenu&&<ContextMenu x={shapeMenu.x} y={shapeMenu.y} onClose={()=>setShapeMenu(null)} items={(['rectangle','circle','triangle'] as const).map(shape=>({label:(shape===drawingShape?'✓ ':'')+shape[0].toUpperCase()+shape.slice(1),onClick:()=>{useProjectStore.setState({drawingShape:shape});setCanvasTool(shapeMenu.tool);setShapeMenu(null)}}))}/>}
         <div className="designer-view__tool-rail">

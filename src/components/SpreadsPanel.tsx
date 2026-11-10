@@ -88,7 +88,7 @@ export default function SpreadsPanel() {
     measure()
     return () => { observer.disconnect(); cancelAnimationFrame(frame) }
   }, [project.size.widthIn, project.size.heightIn])
-  const { drag, target } = useTimelineDrag((source, destination) => {
+  const { drag, target, setDragHint } = useTimelineDrag((source, destination) => {
     if (destination.bin) { if (source.photoIds.length) useProjectStore.getState().addPhotosToBin(source.photoIds, destination.bin); return }
     if(destination.replace && destination.spreadId && destination.beforeFrameId && source.photoIds[0]){
       if(source.spreadId===destination.spreadId&&source.frameId)useProjectStore.getState().swapPlacements(source.spreadId,source.frameId,destination.beforeFrameId)
@@ -104,15 +104,42 @@ export default function SpreadsPanel() {
     else insertTimelinePhotos(source.photoIds, destination.spreadId, destination.beforeFrameId)
   })
 
+  const matchingTemplatesOpen = useProjectStore((s) => s.matchingTemplatesOpen)
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
+
+  /** The frame the cursor is over, when dropping there would be refused for its shape. The frame
+   *  is drawn red and the reason follows the cursor, so the answer arrives before the drop rather
+   *  than as a notice afterwards. */
+  const refusedFrame = useMemo(() => {
+    if (!drag || !target?.replace || !target.spreadId || !target.beforeFrameId) return null
+    const photoId = drag && drag !== 'spread' ? drag : null
+    const photo = photoId ? photosById.get(photoId) : undefined
+    const spread = project.spreads.find((s) => s.id === target.spreadId)
+    if (!photo || !spread) return null
+    const size = spread.size ?? project.size
+    const box = computePlaceholderBoxes(spread, 900, 900 * size.heightIn / size.widthIn)
+      .find((b) => b.placeholderId === target.beforeFrameId)
+    if (!box || orientationFits(photo, box)) return null
+    return { spreadId: target.spreadId, placeholderId: target.beforeFrameId, frame: shapeOf(box.width, box.height), photo: shapeOf(photo.width, photo.height) }
+  }, [drag, target, photosById, project.spreads, project.size])
+
+  useEffect(() => {
+    setDragHint(refusedFrame
+      ? `${refusedFrame.photo} photo in a ${refusedFrame.frame} frame — hold Ctrl and drop to use it anyway`
+      : null)
+  }, [refusedFrame, setDragHint])
   const cover = project.spreads.find((s) => s.isCover)
   const spreads = project.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order).map(s => templatePreview?.id === s.id ? templatePreview : s)
   useEffect(() => {
+    // Opening a template browser selects the spread it was opened from, which used to scroll the
+    // overview to it — so pressing Browse moved the page out from under the designer, when they
+    // were already looking at the spread they pressed it on. A browser opening never scrolls.
+    if (matchingTemplatesOpen) return
     const group = Array.from(timelineRef.current?.children ?? []).find((el) => (el as HTMLElement).dataset.timelineSpread === selectedSpreadId)
     group?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     const card = Array.from(spreadsRef.current?.children ?? []).find((el) => (el as HTMLElement).dataset.overviewSpread === selectedSpreadId)
     card?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [selectedSpreadId])
+  }, [selectedSpreadId, matchingTemplatesOpen])
 
   // With no cover yet there was nothing to select, so the button looked dead: open cover setup instead.
   function goToCover() {
@@ -351,7 +378,7 @@ export default function SpreadsPanel() {
               e.preventDefault(); e.stopPropagation(); selectSpread(spread.id)
               setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: box?.placeholderId })
             }}>
-            <SpreadThumbnail dropPlaceholderId={target?.replace && target.spreadId === spread.id ? target.beforeFrameId : null} selectedPlaceholderId={selectedSpreadId === spread.id ? selectedPlaceholderId : null} spread={spread} photosById={photosById} size={project.size} responsive />
+            <SpreadThumbnail dropPlaceholderId={target?.replace && target.spreadId === spread.id ? target.beforeFrameId : null} dropRefused={refusedFrame?.spreadId === spread.id && refusedFrame?.placeholderId === target?.beforeFrameId} selectedPlaceholderId={selectedSpreadId === spread.id ? selectedPlaceholderId : null} spread={spread} photosById={photosById} size={project.size} responsive />
             <div className="spread-card-controls" onDoubleClick={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
               <div className="spread-card-controls__actions">
                 <button title="Flip spread horizontally" aria-label="Flip spread horizontally" onClick={() => flipSpread(spread.id)}><Icon name="flipSpread" size={16} /></button>

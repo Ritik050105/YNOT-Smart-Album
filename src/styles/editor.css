@@ -714,13 +714,10 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .stroke-style-options button {flex:1;min-width:0;padding:6px}
 .stroke-style-options button[aria-pressed="true"] {outline:2px solid var(--accent);outline-offset:1px}
 
-/* Keep the live spread visible while a template browser is open on shorter windows. Both browsers
-   get the same treatment: when only one of them shrank the panels below, switching between them
-   made the whole editor jump. */
-.album-editor:has(.font-template-browser) .bottom-panel:has(.photo-dock):not([hidden]),
-.album-editor:has(.matching-templates) .bottom-panel:has(.photo-dock):not([hidden]) {flex:0 0 18vh!important;height:18vh;min-height:100px}
-.album-editor:has(.font-template-browser) .spreads-panel__timeline,
-.album-editor:has(.matching-templates) .spreads-panel__timeline {flex-basis:70px}
+/* Opening a template browser does not resize anything else. It used to force the image gallery
+   down to 18vh, which read as the gallery collapsing on its own — and because that override was
+   !important it also beat --dock-height, so the gallery could not be dragged back. The browser
+   has a height of its own; the panels below keep whatever height the designer gave them. */
 .album-editor:has(.font-template-browser) .spreads-panel,
 .album-editor:has(.matching-templates) .spreads-panel {--timeline-height:70px}
 
@@ -877,7 +874,15 @@ button:disabled { cursor:not-allowed; }
 
 /* Both template browsers are the same height, in the overview and in the designer: they sit in
    the same slot and swapping between them should not move everything below. */
+/* The height of either template browser, dragged by the resizer beneath it. Both share it so
+   switching between them never moves anything. */
 :root { --template-browser-height: 30vh; }
+/* The rows of templates share whatever height the panel is given, so dragging it taller shows
+   more templates instead of leaving them in a fixed strip. */
+.matching-templates { display: flex; flex-direction: column; }
+.matching-templates__row { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.matching-templates__row .matching-templates__strip { flex: 1; min-height: 0; align-items: stretch; }
+.matching-templates__strip > * { height: 100%; }
 .matching-templates, .font-template-browser { height: var(--template-browser-height); max-height: var(--template-browser-height); overflow-y: auto; }
 .designer-view .matching-templates, .designer-view .font-template-browser,
 .album-editor .matching-templates, .album-editor .font-template-browser { height: var(--template-browser-height); max-height: var(--template-browser-height); }
@@ -987,3 +992,8 @@ button:disabled { cursor:not-allowed; }
 /* The exact count the Restrict spread count option asks for, beside its checkbox. */
 .auto-build-pages__count { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
 .auto-build-pages__count input { width: 64px; }
+
+/* A drop the frame will refuse: the frame goes red under the cursor and the reason rides with the
+   ghost, so the answer arrives while the photo can still be taken somewhere else. */
+.spread-drop-replace.is-refused { box-shadow: 0 0 0 1px #fff6, inset 0 0 18px #d4452f66; }
+.timeline-drag-hint { position: fixed; z-index: 10001; pointer-events: none; transform: translate(-50%, 0); max-width: 280px; padding: 5px 9px; border-radius: 7px; background: #d4452f; color: #fff; font: 600 11.5px/1.35 'Segoe UI', sans-serif; text-align: center; box-shadow: 0 6px 18px #0005; }

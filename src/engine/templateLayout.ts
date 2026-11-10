@@ -31,9 +31,19 @@ export function resolveTemplateFrames(frames: PlaceholderRect[], aspect: number,
   const smallestCell = Math.min(...frames.flatMap(p => [p.width * innerW, p.height * innerH]))
   // Dense layouts retain at least half of every cell instead of letting spacing swallow photos.
   const gap = smallestCell > 0 ? Math.min(gapPx, smallestCell / 2) : gapPx
-  // A frame authored full-bleed keeps the geometry it was drawn with: the album margin and gap
-  // are what put a white border round a design meant to run off the page.
-  return frames.map(p => p.bleed ? { ...p } : ({ ...p,
+  // A frame authored full-bleed keeps its outer edges: the album margin is what would put a white
+  // border round a design meant to run off the page. The gap still applies where it meets another
+  // frame, though — a photo running to the edge of the sheet and a photo beside it are two
+  // photographs, and the space the designer asked for between photographs belongs there.
+  const gx = gap / 2 / width, gy = gap / 2 / height
+  const bleedFrame = (p: PlaceholderRect) => {
+    const left = p.x > 0.001 ? p.x + gx : p.x
+    const top = p.y > 0.001 ? p.y + gy : p.y
+    const right = p.x + p.width < 0.999 ? p.x + p.width - gx : p.x + p.width
+    const bottom = p.y + p.height < 0.999 ? p.y + p.height - gy : p.y + p.height
+    return { ...p, x: left, y: top, width: Math.max(0.002, right - left), height: Math.max(0.002, bottom - top) }
+  }
+  return frames.map(p => p.bleed ? bleedFrame(p) : ({ ...p,
     x: (marginPx + p.x * innerW + gap / 2) / width,
     y: (marginPx + p.y * innerH + gap / 2) / height,
     width: (p.width * innerW - gap) / width,

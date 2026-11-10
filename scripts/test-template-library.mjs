@@ -28,6 +28,11 @@ for (let count = 1; count <= 30; count++) {
       assert.ok(p.width > 0 && p.height > 0 && p.x >= -1e-6 && p.y >= -1e-6 && p.x + p.width <= 1.000001 && p.y + p.height <= 1.000001, t.id)
     }
     if (!t.id.startsWith('ref-') && !t.id.startsWith('editorial-')) continue
+    // The edge-to-edge family deliberately restates arrangements the library already has, as
+    // full-bleed: the same boxes, but flush to the trim instead of inset by the album margin.
+    // uniqueTemplates keeps the bleed version because it comes first, so this is a replacement
+    // rather than a duplicate — only the geometry matches, not what it renders as.
+    if (t.id.startsWith('ref-edge-')) { assert.ok(t.placeholders.every(p => p.bleed), `${t.id} is full-bleed`); continue }
     const signature = geometrySignature(t.placeholders)
     assert.ok(!newSignatures.has(signature), `Duplicate ${t.id}`)
     assert.ok(!legacy.some(old => old.photoCount === count && geometrySignature(old.placeholders) === signature), `Duplicate legacy ${t.id}`)

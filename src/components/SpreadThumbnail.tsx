@@ -13,6 +13,8 @@ interface Props {
   width?: number
   responsive?: boolean
   dropPlaceholderId?: string | null
+  /** The hovered frame will refuse this photo for its shape, so it is drawn as a warning. */
+  dropRefused?: boolean
   selectedPlaceholderId?: string | null
 }
 
@@ -20,7 +22,7 @@ interface Props {
 /** Memoised: rendering a spread means drawing it to a canvas, which is far too expensive to redo
  *  because something elsewhere in the panel changed. The props are all stable values or memoised
  *  maps, so an unchanged spread costs nothing. */
-function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, selectedPlaceholderId, dropPlaceholderId }: Props) {
+function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, selectedPlaceholderId, dropPlaceholderId, dropRefused }: Props) {
   const animations=usePreferences(s=>s.values.animations)
   const previousGeometry=useRef<string>()
   const previousSpread=useRef<Spread>()
@@ -82,7 +84,7 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
       <canvas ref={canvasRef} role="img" aria-label="Spread preview" style={{ width: '100%', height: '100%', display: 'block' }} />
       {!spread.isCover && spread.pageSide === 'spread' && <span className="spread-thumb__fold" aria-hidden="true" />}
       {selectedBox && !selectedPlacement?.hidden && <span className="spread-thumb__selection" aria-hidden="true" style={{ left: `${selectedBox.x}%`, top: `${selectedBox.y / previewHeight * 100}%`, width: `${selectedBox.width}%`, height: `${selectedBox.height / previewHeight * 100}%`, transform: `rotate(${selectedPlacement?.rotationDeg ?? 0}deg)` }} />}
-      {dropBox&&<span className="spread-drop-replace" style={{position:'absolute',pointerEvents:'none',background:'#7779',outline:'3px solid var(--accent)',left:dropBox.x+'%',top:dropBox.y/previewHeight*100+'%',width:dropBox.width+'%',height:dropBox.height/previewHeight*100+'%'}}/>}
+      {dropBox&&<span className={`spread-drop-replace${dropRefused?' is-refused':''}`} style={{position:'absolute',pointerEvents:'none',background:dropRefused?'#d4452f55':'#7779',outline:`3px solid ${dropRefused?'#d4452f':'var(--accent)'}`,left:dropBox.x+'%',top:dropBox.y/previewHeight*100+'%',width:dropBox.width+'%',height:dropBox.height/previewHeight*100+'%'}}/>}
       {responsive&&<OverviewTextControls spread={spread}/>}
       {failed && <span role="status">Preview unavailable</span>}
     </div>

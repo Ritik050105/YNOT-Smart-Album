@@ -96,7 +96,16 @@ for (const [margin, gap] of [[0, 0], [24, 12], [60, 40]]) {
       assert.ok(Math.max(...frames.map(p => p.y + p.height)) > 1 - 1e-6, `${t.id} reaches the bottom edge${at}`)
       if (/-cascade|-caption-/.test(t.id)) continue
       const area = frames.reduce((sum, p) => sum + p.width * p.height, 0)
-      assert.ok(Math.abs(area - 1) < 1e-6, `${t.id} covers the whole spread${at} (covered ${area})`)
+      // With no gap the frames tile the sheet exactly. A gap is space the designer asked for
+      // BETWEEN photographs, so it comes out of the frames — including the full-bleed page, which
+      // used to ignore it and butt straight against its neighbours. How much depends on the gap
+      // and on how many seams the layout has, so this is measured against the same layout at
+      // gap 0 rather than against a fixed number.
+      const tiled = resolveTemplateFrames(t.placeholders, 1.5, margin, 0)
+        .reduce((sum, p) => sum + p.width * p.height, 0)
+      assert.ok(Math.abs(tiled - 1) < 1e-6, `${t.id} tiles the whole spread with no gap (covered ${tiled})`)
+      assert.ok(area <= tiled + 1e-6, `${t.id} gives up area to the gap${at} (covered ${area})`)
+      if (gap) assert.ok(area < tiled - 1e-6, `${t.id} actually opens a gap${at} (covered ${area})`)
     }
   }
 }

@@ -5,6 +5,7 @@ import { expandTemplateLibrary } from './referenceTemplates'
 import { EDITORIAL_TEMPLATES } from './editorialTemplates'
 import { SIGNATURE_TEMPLATES } from './signatureTemplates'
 import { ALBUM_TEMPLATES } from './albumTemplates'
+import { EDGE_TEMPLATES } from './edgeTemplates'
 
 // A plain incrementing counter (not crypto.randomUUID()) — module evaluation order is the same
 // on every app launch, so this produces the exact same placeholder ids every time. That stability
@@ -811,7 +812,7 @@ const editorialAdditions = EDITORIAL_TEMPLATES.filter(t => {
 // The signature set leads: it is the short list of hand-written layouts a designer reaches for
 // first, and being ahead of everything else means it also wins the dedup pass when a generated
 // grid happens to land on the same geometry.
-const legacyTemplates = [...ALBUM_TEMPLATES, ...SIGNATURE_TEMPLATES, ...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions]
+const legacyTemplates = [...ALBUM_TEMPLATES, ...EDGE_TEMPLATES, ...SIGNATURE_TEMPLATES, ...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions]
 
 export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefinition[] {
   const seen = new Set<string>()
@@ -911,6 +912,19 @@ const MAX_FRAME_RATIO = 3.2
 /** A layout built from photo-shaped frames: squares and rectangles, nothing stretched into a strip.
  *  Measured in real proportions, so the album's own shape is taken into account — the same frame is
  *  a square on a 12x12 and a letterbox on a 36x12. */
+/** A layout where no photo sits on top of another. One photo overlapping the next is a staged
+ *  collage, not a page layout: the frame underneath is partly hidden, so whatever is dropped into
+ *  it is partly thrown away. A shared edge is fine — that is how a flush grid is built. */
+export function hasSeparateFrames(t: TemplateDefinition): boolean {
+  const f = t.placeholders
+  for (let i = 0; i < f.length; i++) for (let j = i + 1; j < f.length; j++) {
+    const a = f[i], b = f[j]
+    if (a.x < b.x + b.width - 0.004 && b.x < a.x + a.width - 0.004 &&
+        a.y < b.y + b.height - 0.004 && b.y < a.y + a.height - 0.004) return false
+  }
+  return true
+}
+
 export function hasPhotoShapedFrames(t: TemplateDefinition, aspect: number): boolean {
   return t.placeholders.every((ph) => {
     const ratio = ph.width / ph.height * aspect
@@ -930,7 +944,7 @@ function computeTemplatesForCount(
   // Smart design is the curated shelf: only layouts whose frames are photo-shaped belong on it.
   // Anything stretched into a band is dropped — unless that leaves nothing at all for this photo
   // count, in which case a strip beats refusing to build the album.
-  const photoShaped = builtins.filter((t) => hasPhotoShapedFrames(t, aspect))
+  const photoShaped = builtins.filter((t) => hasPhotoShapedFrames(t, aspect) && hasSeparateFrames(t))
   if (photoShaped.length > 0) builtins = photoShaped
   builtins = uniqueTemplates(builtins)
   if (!enabledTemplateIds) {
@@ -998,6 +1012,7 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
  *  browser into tabs (Classic / Seamless / Grid / Hero / Split / Mosaic / Collage / Filmstrip /
  *  Custom / My Templates), since the generated library doesn't carry a separate "family" field. */
 export function templateFamilyLabel(t: TemplateDefinition): string {
+  if (t.id.startsWith('ref-edge-')) return 'Edge to Edge'
   if (t.id.startsWith('ref-album-')) return 'Album Study'
   if (t.id.startsWith('ref-signature-')) return 'Signature'
   if (t.id.startsWith('ref-editorial-')) return 'Editorial'
