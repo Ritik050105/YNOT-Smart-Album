@@ -42,7 +42,8 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
   const [binRules,setBinRules]=useState<Record<string,BinRule>>({})
   // Every template the project allows, in one pass over the 1-30 photo counts. A bin narrows it
   // further by design family, by category and, with the heart, to the ones marked as favourites.
-  const library=useMemo(()=>Array.from({length:30},(_,i)=>templatesForCount(i+1,project.enabledTemplateIds,frameFilter,project.size.widthIn/project.size.heightIn)).flat(),[project.enabledTemplateIds,frameFilter,project.size.widthIn,project.size.heightIn])
+  const userTemplates=useProjectStore(s=>s.userTemplates)
+  const library=useMemo(()=>Array.from({length:30},(_,i)=>templatesForCount(i+1,project.enabledTemplateIds,frameFilter,project.size.widthIn/project.size.heightIn)).flat(),[project.enabledTemplateIds,frameFilter,project.size.widthIn,project.size.heightIn,userTemplates])
   const enabledIds=useMemo(()=>library.map(t=>t.id),[library])
   const binRule=(bin:string):BinRule=>binRules[bin]??{kind:'reference',category:'',subcategory:'',favorites:false}
   const records=useCallback((rule:BinRule):TemplateDefinition[]=>{
