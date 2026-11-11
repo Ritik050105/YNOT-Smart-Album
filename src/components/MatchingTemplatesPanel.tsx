@@ -48,10 +48,27 @@ export default function MatchingTemplatesPanel() {
   const aspect = size.widthIn / size.heightIn / (target === 'spread' ? 1 : 2)
   useEffect(() => { setScope('spread') }, [spreadId, open])
   useEffect(() => {
-    function resize() { const width = window.innerWidth <= 800 ? 150 : Math.max(160, Math.min(window.innerHeight <= 700 ? 240 : 360, window.innerWidth * (window.innerHeight <= 700 ? 0.2 : 0.24))); setTileWidth(Math.min(width, Math.max(42, Math.min(designer ? 64 : 120, window.innerHeight * (designer ? 0.08 : 0.14))) * aspect)) }
-    resize(); window.addEventListener('resize', resize)
-    return () => window.removeEventListener('resize', resize)
-  }, [aspect,designer])
+    // A template tile is as tall as the panel can give it, not a fixed slice of the window. The
+    // two strips share the panel height, so dragging the browser taller makes the templates
+    // bigger — which is the point of being able to drag it. The previous cap was 8% of the window
+    // height in the designer, about 60px, which made the previews too small to tell apart.
+    function resize() {
+      // Measured off the panel itself rather than read from the CSS variable: that variable is
+      // '42vh' until the resizer has been dragged, and parseFloat of '42vh' is 42, which collapsed
+      // the tiles to their minimum.
+      const panel = document.querySelector('.matching-templates')?.clientHeight || window.innerHeight * 0.42
+      // Room taken by the two labels, the header and the padding between the strips.
+      const perRow = Math.max(44, (panel - 86) / 2)
+      const widest = window.innerWidth <= 800 ? 150 : Math.max(160, Math.min(420, window.innerWidth * 0.24))
+      setTileWidth(Math.max(42, Math.min(widest, perRow * aspect)))
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    // The resizer writes the panel height onto the document element, so watch it for drags.
+    const observer = new MutationObserver(resize)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
+    return () => { window.removeEventListener('resize', resize); observer.disconnect() }
+  }, [aspect,designer,open])
   const {categories,setCategories,collection,setCollection,favoritesOnly,setFavoritesOnly}=useTemplateBrowsing()
   const rows = useMemo(() => {
     if (!open || !spread || !count) return [[], []]
