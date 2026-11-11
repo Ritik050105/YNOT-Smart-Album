@@ -22,6 +22,10 @@ import path from 'node:path'
 
 const ELECTRON = path.join('node_modules', 'electron', 'dist', 'electron.exe')
 const WINDOW_TEST = /whenReady|new BrowserWindow/
+// Some tests start under node, make a temp directory, and relaunch themselves under Electron with
+// arguments. Handing one of those straight to Electron skips the half that sets it up, and it dies
+// on an argument that was never passed. They say so by checking process.versions.electron.
+const SELF_LAUNCHING = /process\.versions\.electron/
 
 // A window test builds a bundle with esbuild and drives a real browser window, so it is slow and
 // deserves room; a plain one that takes this long has hung.
@@ -43,7 +47,8 @@ const tests = readdirSync('scripts')
   .map((file) => {
     const full = path.join('scripts', file)
     const runtime = file.endsWith('.mjs') ? 'node'
-      : WINDOW_TEST.test(readFileSync(full, 'utf8')) ? 'electron' : 'node'
+      : (() => { const text = readFileSync(full, 'utf8')
+          return SELF_LAUNCHING.test(text) ? 'node' : WINDOW_TEST.test(text) ? 'electron' : 'node' })()
     return { name: file.replace(/\.(mjs|cjs)$/, ''), file: full, runtime }
   })
   .filter((t) => !NEEDS_A_BUILD.has(t.name))

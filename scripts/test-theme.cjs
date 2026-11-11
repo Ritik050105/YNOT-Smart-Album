@@ -213,6 +213,7 @@ app.whenReady().then(async()=>{
     await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[]});
    }
    await fs.writeFile(path.join(out,`${screen}-${theme}.png`),(await win.webContents.capturePage()).toPNG());
+   await win.webContents.debugger.sendCommand('DOM.disable');await win.webContents.debugger.sendCommand('DOM.enable');
   }
  }
  assert.deepEqual(errors,[]);
