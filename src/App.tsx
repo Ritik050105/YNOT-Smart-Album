@@ -1,24 +1,17 @@
 import {recordRecentProject} from '@/engine/recentProjects'
-import PanelResizer from '@/components/PanelResizer'
-import { useEffect, useState } from 'react'
-import MenuBar from './components/MenuBar'
-import TopBar from './components/TopBar'
-import AlbumInfoPanel from './components/AlbumInfoPanel'
-import Inspector from './components/Inspector'
-import PhotoBin from './components/PhotoBin'
-import SpreadsPanel from './components/SpreadsPanel'
-import MatchingTemplatesPanel from './components/MatchingTemplatesPanel'
-import KeyboardShortcuts from './components/KeyboardShortcuts'
-import GlobalDropZone from './components/GlobalDropZone'
-import MissingColorProfileDialog from './components/MissingColorProfileDialog'
+import { Suspense, lazy, useEffect, useState } from 'react'
+
+// Everything below the home screen is loaded on demand. The editor pulls in the canvas, the
+// template library and the PSD reader — about half the bundle — and none of it is needed to
+// show the album list, which is the first thing anyone sees.
+const EditorScreen = lazy(() => import('./components/EditorScreen'))
+const DesignerViewScreen = lazy(() => import('./components/DesignerViewScreen'))
+const GalleryScreen = lazy(() => import('./components/GalleryScreen'))
+const SlideshowScreen = lazy(() => import('./components/SlideshowScreen'))
 import MissingImagesDialog from './components/MissingImagesDialog'
 import { registerProjectFonts, ensureFontLoaded } from './engine/fonts'
 import HomeScreen from './components/HomeScreen'
-import Icon from './components/Icon'
 import NewProjectLoadingOverlay from './components/NewProjectLoadingOverlay'
-import DesignerViewScreen from './components/DesignerViewScreen'
-import GalleryScreen from './components/GalleryScreen'
-import SlideshowScreen from './components/SlideshowScreen'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import { useBottomDockResize } from '@/engine/useBottomDockResize'
@@ -26,7 +19,6 @@ import { deserializeProjectFile, serializeProjectFile, openProjectFromPath, save
 import { loadOpenSession, persistRecovery, invalidateRecovery, clearOpenSession, OpenSessionMarker } from '@/engine/sessionMarker'
 import { ProjectFile } from '@/types'
 import ContinueSessionPrompt from './components/ContinueSessionPrompt'
-import CoverSetup from './components/CoverSetup'
 import Modal from './components/Modal'
 
 export default function App() {
@@ -259,49 +251,15 @@ export default function App() {
 
   if (showHome) return <HomeScreen />
 
-  if (projectKind === 'gallery') return <GalleryScreen />
-
-  if (projectKind === 'slideshow') return <SlideshowScreen />
-
-  if (designerViewSpreadId) return <><MissingImagesDialog /><DesignerViewScreen /></>
-
+  // One boundary for all of them: the chunk is small and local, so this is a flash at most, but
+  // without it React throws the moment a lazy screen is first reached.
   return (
-    <div className="app-shell album-editor">
-      <KeyboardShortcuts />
-      <GlobalDropZone />
-      <CoverSetup />
-      <MissingColorProfileDialog />
-      <MissingImagesDialog />
-      <MenuBar />
-      <TopBar />
-      <div className="editor-workspace">
-      <div className="editor-workspace__content">
-      <MatchingTemplatesPanel />
-      <div className="app-body">
-        <main className="app-main">
-          <SpreadsPanel />
-        </main>
-        <button
-          className="panel-toggle panel-toggle--right"
-          onClick={toggleRightPanel}
-          title={rightPanelOpen ? 'Collapse right panel' : 'Expand right panel'}
-        >
-          <Icon name={rightPanelOpen ? 'chevronRight' : 'chevronLeft'} size={12} />
-        </button>
-      </div>
-      <div className="bottom-panel" hidden={matchingTemplatesOpen}>
-        <button
-          className="panel-toggle panel-toggle--bottom"
-          onMouseDown={handleBottomHandleMouseDown}
-          title={bottomPanelOpen ? 'Drag to resize, click to collapse the photo dock' : 'Expand photo dock'}
-        >
-          <Icon name={bottomPanelOpen ? 'chevronDown' : 'chevronUp'} size={12} />
-        </button>
-        {bottomPanelOpen && <PhotoBin />}
-      </div>
-      </div>
-      {rightPanelOpen && <PanelResizer axis="x" variable="--inspector-width" label="Resize right panel" initial={320} min={240} max={0.45}/>}{rightPanelOpen && <aside className="app-sidebar app-sidebar--right" aria-label="Album sidebar">{selectedPlaceholderId || selectedTextBoxId ? <Inspector /> : <AlbumInfoPanel />}</aside>}
-      </div>
-    </div>
+    <Suspense fallback={<NewProjectLoadingOverlay creating title="Loading" subtitle="Opening the album editor" />}>
+      {projectKind === 'gallery' ? <GalleryScreen />
+        : projectKind === 'slideshow' ? <SlideshowScreen />
+        : designerViewSpreadId ? <><MissingImagesDialog /><DesignerViewScreen /></>
+        : <EditorScreen />}
+    </Suspense>
   )
 }
+
