@@ -20,4 +20,4 @@ const {requireActivation}=require('../dist-electron/activation');
  actions=[];assert.equal(await requireActivation(),true,'Saved license works on next launch');
  fs.writeFileSync(path.join(root,'client-license.json'),license('b'.repeat(64)));actions=[2];assert.equal(await requireActivation(),false,'Copied license blocked');
  console.log('Activation flow passed: exit, copy ID, canceled picker, wrong PC, import, persistence and copied-license rejection.');
-})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{Module._load=original;fs.rmSync(root,{recursive:true,force:true})});
+})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{Module._load=original;fs.rmSync(root,{recursive:true,force:true});process.exit(process.exitCode??0)});
