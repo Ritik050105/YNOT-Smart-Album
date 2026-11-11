@@ -111,8 +111,15 @@
 .album-editor:has(.photo-dock) .spreads-panel--empty .spreads-panel__card--drop > svg { display: none; }
 .album-editor .photo-dock--empty .photo-dock__strip { flex: 1; width: 100%; min-height: 140px; padding: 22px; }
 .album-editor .photo-dock__dropzone { width: 100%; min-height: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; border: 1px dashed var(--text-faint); background: transparent; color: var(--text-faint); cursor: pointer; }
-.photo-dock__drop-icon { position: relative; }
-.photo-dock__drop-icon > span { position: absolute; right: -10px; bottom: 0; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 25px; line-height: 28px; }
+.photo-dock__drop-icon { position: relative; display: inline-flex; --drop-icon: clamp(56px, 8vw, 100px); }
+.photo-dock__drop-icon > svg { width: var(--drop-icon); height: var(--drop-icon); display: block; }
+.photo-dock__drop-icon > span {
+  position: absolute; right: calc(var(--drop-icon) * -0.06); bottom: calc(var(--drop-icon) * -0.02);
+  width: calc(var(--drop-icon) * 0.34); height: calc(var(--drop-icon) * 0.34);
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--accent); color: var(--on-accent);
+  font-size: calc(var(--drop-icon) * 0.24); line-height: 1; font-weight: 600;
+}
 .album-editor .photo-dock--empty .photo-dock__import-actions > .btn:first-child { background: var(--accent); color: var(--on-accent); }
 .album-editor .menubar__dropdown { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 3px; min-width: 300px; padding: 5px 8px; box-shadow: 0 5px 12px #0003; }
 .album-editor .menubar__dropdown-item { color: var(--text); min-height: 29px; font-size: 13px; }
@@ -123,7 +130,7 @@
   .album-editor .spreads-panel__empty-timeline { flex-basis: 65px; }
   .album-editor:has(.photo-dock) .spreads-panel--empty .spreads-panel__card--drop { width: min(85%, calc(100px * var(--spread-aspect))); padding: 12px; }
   .album-editor .photo-dock__dropzone { gap: 6px; min-height: 90px; }
-  .album-editor .photo-dock__drop-icon > svg { width: 50px; height: 50px; }
+  .album-editor .photo-dock__drop-icon { --drop-icon: 56px; }
 }
 .album-editor .menubar__dropdown-item.has-separator { border-top: 1px solid var(--border); margin-top: 5px; padding-top: 9px; }
 .menubar__recent summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; }
@@ -290,7 +297,7 @@
 @media (max-height: 650px) {
  .album-editor:not(.designer-view):has(.photo-dock) .app-body { flex-basis: 40vh; min-height: 150px; }
  .album-editor .photo-dock--empty .photo-dock__strip { padding: 8px; }
- .album-editor .photo-dock__drop-icon > svg { width: 32px; height: 32px; }
+ .album-editor .photo-dock__drop-icon { --drop-icon: 32px; }
  .album-editor .photo-dock__dropzone { font-size: 11px; }
 }
 
@@ -612,7 +619,7 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 /* Drag-adjustable workspace proportions, independent of thumbnail zoom. */
 .album-editor .app-body { min-width:0; }
 .album-editor:not(.designer-view) .editor-workspace__content > .app-body {flex:1 1 0;min-height:120px;}
-.album-editor .bottom-panel:has(.photo-dock):not([hidden]) {flex:0 0 min(var(--dock-height,35vh),65vh)!important;height:min(var(--dock-height,35vh),65vh);min-height:140px;}
+.album-editor .bottom-panel:has(.photo-dock):not([hidden]) {flex:0 1 min(var(--dock-height,35vh),65vh)!important;max-height:min(var(--dock-height,35vh),65vh);min-height:140px;}
 .album-editor .app-sidebar--right,.album-editor .editor-workspace > .app-sidebar--right {width:var(--inspector-width,320px);flex:none;min-width:0;max-width:45vw;position:relative;}
 .panel-resizer {background:var(--border);flex-shrink:0;touch-action:none;z-index:20;}
 .panel-resizer:hover,.panel-resizer:focus-visible {background:var(--accent);outline:none;}
@@ -750,7 +757,8 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 /* The empty browser prompt spans the grid and stays readable in a shallow dock. */
 .album-editor .photo-dock--empty .photo-dock__strip {min-height:0; overflow:auto;}
 .album-editor .photo-dock__dropzone {grid-column:1 / -1; min-width:0; min-height:76px; height:100%; flex-direction:row; gap:18px; padding:12px 24px; text-align:left; box-sizing:border-box;}
-.album-editor .photo-dock__drop-icon > svg {width:48px;height:48px;}
+/* Sized from the same measurement as its badge, so the two stay in proportion. */
+.album-editor .photo-dock__drop-icon { --drop-icon: 48px; }
 .album-editor .photo-dock__dropzone > span:last-child {max-width:420px;white-space:normal;overflow-wrap:anywhere;}
 
 .floating-text-tools { position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:35; display:flex; align-items:center; gap:6px; padding:8px; max-width:calc(100% - 32px); border:1px solid var(--border); border-radius:12px; background:var(--panel, #353535); box-shadow:0 8px 24px #0003; }
@@ -1016,3 +1024,16 @@ button:disabled { cursor:not-allowed; }
     width: var(--dock-action-icon); height: var(--dock-action-icon); flex: 0 0 auto;
   }
 }
+
+/* The bottom panel holds the drag handle and the dock stacked on top of each other, but it was
+   not a column — so the dock was sized against the panel's full height while sitting below the
+   handle, and ran past the bottom of the panel, and so off the screen. Two pixels at 900px tall,
+   more as the window gets shorter. As a column the dock simply takes what is left. */
+.album-editor .bottom-panel:has(.photo-dock):not([hidden]) { display: flex; flex-direction: column; }
+.album-editor .bottom-panel:has(.photo-dock):not([hidden]) > .photo-dock { flex: 1 1 auto; min-height: 0; max-height: none; }
+
+/* An icon is never the thing that should give way. Buttons here are flex containers, so an svg
+   inside one is a flex item and is allowed to shrink: a 16px plus was rendering at 8px and the
+   100px drop icon at 48, each keeping its height while losing its width. Nothing about an icon
+   should be elastic. */
+.album-editor button > svg, .photo-dock__drop-icon > svg { flex: 0 0 auto; }

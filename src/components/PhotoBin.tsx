@@ -288,7 +288,7 @@ export default function PhotoBin() {
             />
           ) : (
             <button className="btn btn--icon btn--tiny" title="Add bin" onClick={() => setAddingBin(true)}>
-              <Icon name="plus" size={11} />
+              <Icon name="plus" size={16} />
             </button>
           )}
         </div>
