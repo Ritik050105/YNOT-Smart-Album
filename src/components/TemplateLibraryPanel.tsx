@@ -1,7 +1,6 @@
 import TemplateTransfer from './TemplateTransfer'
 import { useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { BUILT_IN_TEMPLATES } from '@/engine/templates'
 import TemplateThumb from './TemplatePreview'
 import Icon from './Icon'
 

@@ -22,7 +22,6 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
   const settingsRef=useRef<HTMLDetailsElement>(null)
   useEffect(()=>{const close=(e:Event)=>{if(settingsRef.current&&!settingsRef.current.contains(e.target as Node))settingsRef.current.open=false};const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&settingsRef.current)settingsRef.current.open=false};document.addEventListener('pointerdown',close,true);document.addEventListener('focusin',close);document.addEventListener('keydown',key);return()=>{document.removeEventListener('pointerdown',close,true);document.removeEventListener('focusin',close);document.removeEventListener('keydown',key)}},[])
   const project = useProjectStore((s) => s.project)
-  const userTemplates = useProjectStore((s) => s.userTemplates)
   const renameProject = useProjectStore((s) => s.renameProject)
   const loadProjectFile = useProjectStore((s) => s.loadProjectFile)
   const undo = useProjectStore((s) => s.undo)

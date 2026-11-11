@@ -3,7 +3,7 @@ import { build } from 'esbuild'
 globalThis.localStorage??={getItem:()=>null,setItem(){}};globalThis.window??={dispatchEvent:()=>true,addEventListener(){},removeEventListener(){}}
 const result=await build({stdin:{contents:`export {default} from './src/components/AutoBuildModal';export {reset,clear} from 'react';export {templatesForCount} from './src/engine/templates'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,plugins:[{name:'dialog-state',setup(build){
   const stub=(filter,namespace,contents)=>{build.onResolve({filter},()=>({path:namespace,namespace}));build.onLoad({filter:/.*/,namespace},()=>({contents}))}
-  stub(/^react$/,'react',`let state=[],cursor=0;export const reset=()=>{cursor=0};export const clear=()=>{state=[];cursor=0};export const useState=value=>{const i=cursor++;if(!(i in state))state[i]=typeof value==='function'?value():value;return [state[i],value=>state[i]=value]};export const useMemo=fn=>fn();export const useRef=current=>({current});export const useEffect=()=>{};`)
+  stub(/^react$/,'react',`let state=[],cursor=0;export const reset=()=>{cursor=0};export const clear=()=>{state=[];cursor=0};export const useState=value=>{const i=cursor++;if(!(i in state))state[i]=typeof value==='function'?value():value;return [state[i],next=>{state[i]=typeof next==='function'?next(state[i]):next}]};export const useMemo=fn=>fn();export const useRef=current=>({current});export const useEffect=()=>{};export const useLayoutEffect=()=>{};export const useCallback=fn=>fn;export const useSyncExternalStore=(subscribe,getSnapshot)=>getSnapshot();`)
   stub(/^react-dom$/,'portal','export const createPortal=node=>node;')
   stub(/^react\/jsx-runtime$/,'jsx','export const Fragment="fragment";export const jsx=(type,props)=>({type,props});export const jsxs=jsx;')
   stub(/^@\/state\/projectStore$/,'store','export const useProjectStore=selector=>selector(globalThis.dialogStore);')
@@ -16,7 +16,13 @@ function nodes(node){return Array.isArray(node)?node.flatMap(nodes):node&&typeof
 const count=tree=>nodes(tree).find(node=>node.props?.id==='auto-build-count').props.value
 let tree=render()
 assert.equal(count(tree),18)
-const criteria=nodes(tree).filter(node=>node.type==='input'&&node.props.type==='checkbox')
+// The three Smart Grouping criteria, and only those. The dialog has other checkboxes now — start
+// on a right page, end on a left one, restrict the spread count — and none of them is a grouping
+// criterion, so taking every checkbox on the panel tested something that no longer exists.
+const criterionBoxes=tree=>{const group=nodes(tree).find(node=>node.props?.className==='checkbox-row-group')
+  return nodes(group).filter(node=>node.type==='input'&&node.props.type==='checkbox')}
+const criteria=criterionBoxes(tree)
+assert.equal(criteria.length,3,'Smart Grouping offers Blocks of time, Black & White and Metadata')
 criteria.forEach(node=>node.props.onChange({target:{checked:false}}))
 tree=render()
 const buildButton=tree=>nodes(tree.props.footer).find(node=>node.props.className==='btn btn--primary')
@@ -25,7 +31,7 @@ let noCriteriaSubmissions=0
 dialogStore.runAutoBuildFromGroups=()=>{noCriteriaSubmissions++}
 buildButton(tree).props.onClick()
 assert.equal(noCriteriaSubmissions,0,'The build handler also rejects a stale click after criteria were disabled')
-nodes(tree).find(node=>node.type==='input'&&node.props.type==='checkbox').props.onChange({target:{checked:true}})
+criterionBoxes(tree)[0].props.onChange({target:{checked:true}})
 tree=render()
 assert.equal(buildButton(tree).props.disabled,false,'One enabled criterion permits a smart build')
 criteria.forEach(node=>node.props.onChange({target:{checked:false}}))

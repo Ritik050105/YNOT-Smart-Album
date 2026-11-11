@@ -14,7 +14,6 @@ import HomeScreen from './components/HomeScreen'
 import NewProjectLoadingOverlay from './components/NewProjectLoadingOverlay'
 import { useProjectStore } from '@/state/projectStore'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
-import { useBottomDockResize } from '@/engine/useBottomDockResize'
 import { deserializeProjectFile, serializeProjectFile, openProjectFromPath, saveProjectToFile } from '@/engine/projectFile'
 import { loadOpenSession, persistRecovery, invalidateRecovery, clearOpenSession, OpenSessionMarker } from '@/engine/sessionMarker'
 import { ProjectFile } from '@/types'
@@ -24,9 +23,6 @@ import Modal from './components/Modal'
 export default function App() {
   const customFonts = useProjectStore(s=>s.project.customFonts)
   useEffect(()=>{ registerProjectFonts(customFonts ?? []); for(const f of customFonts ?? []) void ensureFontLoaded(f.family).catch(console.error) },[customFonts])
-  const selectedTextBoxId = useProjectStore(s => s.selectedTextBoxId)
-  const selectedPlaceholderId = useProjectStore(s => s.selectedPlaceholderId)
-  const matchingTemplatesOpen = useProjectStore(s => s.matchingTemplatesOpen)
   const [resumePrompt, setResumePrompt] = useState<OpenSessionMarker | null>(null)
   const [recoveryFile, setRecoveryFile] = useState<ProjectFile | null>(null)
   const [recoveryChecked, setRecoveryChecked] = useState(!window.albumStudio?.isElectron)
@@ -64,15 +60,10 @@ export default function App() {
   const designerViewSpreadId = useProjectStore((s) => s.designerViewSpreadId)
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
   const markSaved = useProjectStore((s) => s.markSaved)
-  const isDirty = useProjectStore((s) => s.isDirty)
-  const currentFilePath = useProjectStore((s) => s.currentFilePath)
   const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
   const project = useProjectStore((s) => s.project)
   const revealLeftPanel = useProjectStore((s) => s.revealLeftPanel)
-  const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
-  const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
   const projectKind = project.kind
-  const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
   useEffect(() => {
     const preventUnsavedClose = (event: BeforeUnloadEvent) => {
       if (!useProjectStore.getState().isDirty) return

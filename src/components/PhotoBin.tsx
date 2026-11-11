@@ -324,7 +324,10 @@ export default function PhotoBin() {
 
       {progress && <ImportProgress done={progress.done} total={progress.total}/>}
       <div className="photo-dock__status muted" role="status">
-        {importing && progress ? `Importing ${progress.done} of ${progress.total}…` : lastSummary ? describeImportSummary(lastSummary) : ''}
+        {/* The bar above already reads "Preparing photo previews - 27 of 30 - 90%"; this line
+            used to repeat it underneath as "Importing 27 of 30...". It carries the result once the
+            import is over, which is the part the bar does not say. */}
+        {!importing && lastSummary ? describeImportSummary(lastSummary) : ''}
         {(search.trim() || quickFilter !== 'all' || binFilter) && <> · Filters active <button className="btn btn--tiny" onClick={() => { setSearch(''); setQuickFilter('all'); setBinFilter('') }}>Clear all filters</button></>}
       </div>
       {browserTool && <div id="photo-browser-options" className="photo-dock__options">

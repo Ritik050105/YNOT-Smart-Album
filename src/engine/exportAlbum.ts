@@ -56,7 +56,6 @@ export async function exportAlbumToPdf(
 ): Promise<{ saved: boolean; filePath?: string }> {
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
   const pdf = await PDFDocument.create()
-  const pixelsPerInch = project.size.dpi
 
   for (const spread of selectSpreads(project, spreadIndices, includeCover)) {
     const size = spread.size ?? project.size
@@ -140,7 +139,6 @@ export async function exportAlbumToPsds(
   includeCover = true
 ): Promise<{ saved: boolean; dirPath?: string }> {
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
-  const pixelsPerInch = project.size.dpi
   const spreads = selectSpreads(project, spreadIndices, includeCover)
 
   async function* files() {
@@ -182,7 +180,6 @@ async function exportSpreadsAsRaster(
   quality = 0.97
 ): Promise<{ saved: boolean; dirPath?: string }> {
   const photosById = new Map(project.photos.map((p) => [p.id, p]))
-  const pixelsPerInch = project.size.dpi
   const spreads = selectSpreads(project, spreadIndices, includeCover)
 
   const files = []
@@ -386,7 +383,6 @@ export async function exportAlbumForManualProofing(
   const allSorted = [...project.spreads].sort((a, b) => a.order - b.order)
   const imageNumbers = computeImageNumbers(allSorted, options.numberingMode)
   const spreads = selectSpreads(project, spreadIndices)
-  const effectiveDpi = options.widthPx / project.size.widthIn
 
   const files = []
   for (const spread of spreads) {

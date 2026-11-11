@@ -11,7 +11,6 @@ import { useBottomDockResize } from '@/engine/useBottomDockResize'
 import DesignerCanvas from './DesignerCanvas'
 import Inspector from './Inspector'
 import AlbumInfoPanel from './AlbumInfoPanel'
-import TemplateLibraryPanel from './TemplateLibraryPanel'
 import PhotoBin from './PhotoBin'
 import MenuBar from './MenuBar'
 import GlobalDropZone from './GlobalDropZone'
@@ -23,7 +22,6 @@ import CoverSetup from './CoverSetup'
 import TopBar from './TopBar'
 import MatchingTemplatesPanel from './MatchingTemplatesPanel'
 
-const RULER_THICKNESS = 20
 function Ruler({orientation,pxPerIn,zoom,panPx,unit,dpi,pointer}: {
   orientation:'horizontal'|'vertical';sizeIn:number;pxPerIn:number;zoom:number;panPx:number;unit:'in'|'cm'|'mm'|'px';dpi:number;pointer:{x:number;y:number}|null
 }) {

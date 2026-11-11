@@ -6,7 +6,6 @@ import { loadRecentProjects, recordRecentProject, removeRecentProject, RecentPro
 import { clearOpenSession } from '@/engine/sessionMarker'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import NewProjectWizard from './NewProjectWizard'
-import Modal from './Modal'
 import Icon from './Icon'
 import BrandMark from './BrandMark'
 

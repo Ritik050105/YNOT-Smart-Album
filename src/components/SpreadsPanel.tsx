@@ -41,7 +41,6 @@ export default function SpreadsPanel() {
   const updateSpread = useProjectStore((s) => s.updateSpread)
   const mergeWithNext = useProjectStore((s) => s.mergeWithNext)
   const flipSpread = useProjectStore((s) => s.flipSpread)
-  const addCoverSpread = useProjectStore((s) => s.addCoverSpread)
   const duplicateSpread = useProjectStore((s) => s.duplicateSpread)
   const deleteSpread = useProjectStore((s) => s.deleteSpread)
   const enterDesignerView = useProjectStore((s) => s.enterDesignerView)

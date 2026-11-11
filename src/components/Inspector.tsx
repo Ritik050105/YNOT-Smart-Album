@@ -1,15 +1,10 @@
 import {deleteTextBoxOrGroup} from '@/engine/layerClipboard'
 import {rotateTextAroundCenter} from '@/engine/textRotation'
 import TextAppearance from './TextAppearance'
-import { pagePlacements } from '@/engine/pageTemplates'
 import { usePreferences } from '@/state/preferences'
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useProjectStore } from '@/state/projectStore'
-import { PlacedPhoto, PhotoAsset, TemplateDefinition } from '@/types'
-import { rankTemplates } from '@/engine/templateMatching'
-import { templatesForCount, generateCustomGrid, TemplateFrameFilter } from '@/engine/templates'
-import TemplateThumb from './TemplatePreview'
+import { PlacedPhoto } from '@/types'
 import { effectiveDpi, computeCoverCrop } from '@/engine/cropFit'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import FontPicker from './FontPicker'
@@ -35,12 +30,7 @@ export default function Inspector() {
   const removeImageFrame = useProjectStore((s) => s.removeImageFrame)
   const updateMultiplePlacements = useProjectStore((s) => s.updateMultiplePlacements)
   const updateTextBox = useProjectStore((s) => s.updateTextBox)
-  const removeTextBox = useProjectStore((s) => s.removeTextBox)
   const resetPlacementToOriginal = useProjectStore((s) => s.resetPlacementToOriginal)
-  const applyTemplateToSpread = useProjectStore((s) => s.applyTemplateToSpread)
-  const applyTemplateToAllSpreads = useProjectStore((s) => s.applyTemplateToAllSpreads)
-  const saveSpreadAsTemplate = useProjectStore((s) => s.saveSpreadAsTemplate)
-  const userTemplates = useProjectStore((s) => s.userTemplates)
   const toneClipboard = useProjectStore((s) => s.toneClipboard)
   const copyToneAdjustments = useProjectStore((s) => s.copyToneAdjustments)
   const pasteToneAdjustments = useProjectStore((s) => s.pasteToneAdjustments)
@@ -49,12 +39,6 @@ export default function Inspector() {
   const [autoAdjusting, setAutoAdjusting] = useState(false)
   // Shared with the menu bar's Templates menu (All Templates / Templates without square frames /
   // Templates only with 3:2 frame ratios), so picking it from either place stays in sync.
-  const frameFilter = useProjectStore((s) => s.templateFrameFilter)
-  const setFrameFilter = useProjectStore((s) => s.setTemplateFrameFilter)
-  const [templateName, setTemplateName] = useState('')
-  const [customRows, setCustomRows] = useState(3)
-  const [customCols, setCustomCols] = useState(3)
-  const openMatchingTemplates = useProjectStore(s => s.openMatchingTemplates)
   useEffect(() => {
     function onOpenGallery() {
       const state = useProjectStore.getState()
@@ -67,7 +51,6 @@ export default function Inspector() {
   // positioned in place) so it isn't clipped by the sidebar's own scroll container, and sized to
   // the album's real spread aspect ratio instead of a generic square so it shows the layout's
   // true proportions.
-  const [hoverPreview, setHoverPreview] = useState<{ template: TemplateDefinition; rect: DOMRect } | null>(null)
 
   const spread = project.spreads.find((s) => s.id === selectedSpreadId)
   if (!spread) {
@@ -96,7 +79,6 @@ export default function Inspector() {
   const textBox = spread.textBoxes.find((t) => t.id === selectedTextBoxId)
   const photo = placement?.photoId ? project.photos.find((p) => p.id === placement.photoId) : undefined
   if (placement?.locked || textBox?.locked) return <div className="panel inspector"><strong>Layer locked</strong><p className="muted">Unlock this layer to edit, move or resize it.</p><button className="btn" onClick={()=>useProjectStore.getState().setLayerLocked(spread.id,placement?'image':'text',placement?.placeholderId??textBox!.id,false)}>Unlock layer</button></div>
-  const groupId=placement?.groupId??textBox?.groupId
   const spreadAspect = size.widthIn / size.heightIn
   const boxForSelected = computePlaceholderBoxes(spread, 900, 900 / spreadAspect).find(
     (b) => b.placeholderId === selectedPlaceholderId
@@ -370,41 +352,6 @@ export default function Inspector() {
   )
 }
 
-/** The larger, true-shape preview shown while hovering a quick-pick swatch — portaled to <body>
- *  so it floats above everything (not clipped by the sidebar's scroll container) and positioned
- *  next to the swatch that triggered it. */
-function TemplateHoverPreview({
-  template,
-  rect,
-  aspect,
-  photos,
-  marginPx,
-  gapPx,
-  placements,
-}: {
-  template: TemplateDefinition
-  rect: DOMRect
-  aspect: number
-  photos: (PhotoAsset | undefined)[]
-  marginPx: number
-  gapPx: number
-  placements: PlacedPhoto[]
-}) {
-  const width = 220
-  const gap = 10
-  // Prefer floating to the left of the swatch (sidebar is on the right edge of the window), but
-  // fall back to the right if there's not enough room — e.g. a narrower window.
-  const left = rect.left - width - gap >= 0 ? rect.left - width - gap : rect.right + gap
-  const estHeight = width / aspect + 36
-  const top = Math.min(Math.max(8, rect.top + rect.height / 2 - estHeight / 2), window.innerHeight - estHeight - 8)
-
-  return (
-    <div className="template-hover-preview" style={{ left, top, width }}>
-      <TemplateThumb template={template} photos={photos} aspect={aspect} marginPx={marginPx} gapPx={gapPx} placements={placements} />
-      <span className="template-hover-preview__name">{template.name}</span>
-    </div>
-  )
-}
 
 /** Shown instead of the single-photo panel when more than one placeholder is multi-selected
  *  (shift/ctrl+click on the canvas) — lets the user batch-apply tone adjustments across all of them. */

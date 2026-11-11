@@ -1002,7 +1002,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   cycleSpreadTemplate: (spreadId, direction) => {
-    const { project, userTemplates, templateFrameFilter } = get()
+    const { project, templateFrameFilter } = get()
     const spread = project.spreads.find((item) => item.id === spreadId)
     if (!spread || spread.isCover || !spread.placements.length) return
     const eligible=pagePlacements(spread,(spread.size??project.size).widthIn/(spread.size??project.size).heightIn,'spread')

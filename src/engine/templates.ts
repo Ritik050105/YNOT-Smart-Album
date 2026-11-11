@@ -1,5 +1,5 @@
 import { TemplateDefinition, PlaceholderRect } from '@/types'
-import { GAP, distributeEvenly, placeGridInRect, geometrySignature, resolveTemplateFrames } from './templateLayout'
+import { GAP, placeGridInRect, geometrySignature, resolveTemplateFrames } from './templateLayout'
 import { GENERATED_TEMPLATES } from './templateGenerator'
 import { expandTemplateLibrary } from './referenceTemplates'
 import { EDITORIAL_TEMPLATES } from './editorialTemplates'
