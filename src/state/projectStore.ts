@@ -24,7 +24,7 @@ import {
   defaultPlacement,
   buildSpreadFromPlacements,
 } from '@/engine/autoLayout'
-import { BUILT_IN_TEMPLATES, uniqueTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
+import { builtInTemplates, uniqueTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
 import { templateShapeMismatches } from '@/engine/templateMatching'
 import { respaceBoxes } from '@/engine/templateLayout'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
@@ -1541,7 +1541,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   setAutoLayoutOptions: (opts) => set((s) => ({ autoLayoutOptions: { ...s.autoLayoutOptions, ...opts } })),
 
-  allTemplates: () => uniqueTemplates([...BUILT_IN_TEMPLATES, ...get().userTemplates]),
+  allTemplates: () => uniqueTemplates([...builtInTemplates(), ...get().userTemplates]),
 
   undo: (keepTemplateBrowser = false) =>
     set((s) => {

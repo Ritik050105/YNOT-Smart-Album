@@ -6,13 +6,13 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const result = await build({
-  stdin: { contents: `export {BUILT_IN_TEMPLATES,findTemplate,importedDesignTemplates,setUserTemplateRegistry,templatesForCount} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {isFullSpreadTemplate} from './src/engine/templates';export {cyclingTemplates} from './src/state/templateBrowsing';export {resolveTemplateFrames} from './src/engine/templateLayout'`, resolveDir: process.cwd() },
+  stdin: { contents: `export {builtInTemplates,findTemplate,importedDesignTemplates,setUserTemplateRegistry,templatesForCount} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {isFullSpreadTemplate} from './src/engine/templates';export {cyclingTemplates} from './src/state/templateBrowsing';export {resolveTemplateFrames} from './src/engine/templateLayout'`, resolveDir: process.cwd() },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { BUILT_IN_TEMPLATES, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, templateCategory, isFullSpreadTemplate, cyclingTemplates, resolveTemplateFrames } =
+const { builtInTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, templateCategory, isFullSpreadTemplate, cyclingTemplates, resolveTemplateFrames } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
-const byId = id => BUILT_IN_TEMPLATES.find(t => t.id === id)
+const byId = id => builtInTemplates().find(t => t.id === id)
 
 // The generated family. It now runs edge to edge, which makes its 1-3 photo members identical to
 // the six hand-written layouts it grew out of, so dedup keeps the generated ones (they are first
@@ -152,7 +152,7 @@ for (let n = 1; n <= 30; n++) {
   assert.ok(image.length >= 10, `count ${n} offers 10+ image templates (got ${image.length})`)
   assert.ok(mixed.length >= 1, `count ${n} offers a mixed template (got ${mixed.length})`)
   if (n === 1) continue
-  const full = BUILT_IN_TEMPLATES.filter(t => t.photoCount === n && isFullSpreadTemplate(t))
+  const full = builtInTemplates().filter(t => t.photoCount === n && isFullSpreadTemplate(t))
   assert.ok(full.some(t => !t.textBoxes?.length), `count ${n} offers a full-bleed image template`)
   assert.ok(full.some(t => t.textBoxes?.length), `count ${n} offers a full-bleed mixed template`)
 }

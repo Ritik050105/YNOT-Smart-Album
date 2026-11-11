@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto'
 import { build } from 'esbuild'
 import { readFileSync } from 'node:fs'
 const bundle = await build({ stdin: { contents: `export * from './src/engine/templates';export {GENERATED_TEMPLATES} from './src/engine/templateGenerator';export * from './src/engine/templateLayout';export * from './src/engine/templateMatching'`, resolveDir: process.cwd() }, bundle: true, platform: 'node', format: 'esm', write: false })
-const { BUILT_IN_TEMPLATES: templates, geometrySignature, findTemplate, rankTemplates, GENERATED_TEMPLATES, uniqueTemplates } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
+const { builtInTemplates, geometrySignature, findTemplate, rankTemplates, GENERATED_TEMPLATES, uniqueTemplates } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
+const templates = builtInTemplates()
 const templateSource = readFileSync('src/engine/templates.ts', 'utf8')
 const handNames = templateSource.match(/const HAND_CRAFTED_TEMPLATES[^=]*= \[([\s\S]*?)\]/)[1].split(',').map(s=>s.trim()).filter(Boolean)
 const handIds = handNames.map(name=>templateSource.match(new RegExp('const '+name+"[^=]*= \\{\\s*id: '([^']+)'"))[1])

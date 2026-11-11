@@ -31,14 +31,14 @@ const engine = await import(`data:text/javascript;base64,${Buffer.from(result.ou
 engine.initializeCanvas(createCanvas)
 const catalogueBundle=await build({stdin:{contents:`export * from './src/engine/templates'; export { GENERATED_TEMPLATES } from './src/engine/templateGenerator'; export { geometrySignature } from './src/engine/templateLayout'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false})
 const catalogue=await import(`data:text/javascript;base64,${Buffer.from(catalogueBundle.outputFiles[0].text).toString('base64')}`)
-assert.equal(catalogue.uniqueTemplates(catalogue.BUILT_IN_TEMPLATES).length,catalogue.BUILT_IN_TEMPLATES.length)
-const hidden=catalogue.GENERATED_TEMPLATES.find(t=>!catalogue.BUILT_IN_TEMPLATES.some(u=>u.id===t.id))
+assert.equal(catalogue.uniqueTemplates(catalogue.builtInTemplates()).length,catalogue.builtInTemplates().length)
+const hidden=catalogue.GENERATED_TEMPLATES.find(t=>!catalogue.builtInTemplates().some(u=>u.id===t.id))
 assert.ok(hidden,'Duplicate generated layouts must be removed from browsing')
 assert.deepEqual(catalogue.findTemplate(hidden.id),hidden,'Old album template IDs must still resolve')
 assert.deepEqual(catalogue.templatesForCount(hidden.photoCount,[hidden.id]),[hidden],'Old enabled-template lists must still work')
-const first=catalogue.BUILT_IN_TEMPLATES[0]
+const first=catalogue.builtInTemplates()[0]
 assert.equal(catalogue.uniqueTemplates([first,{...first,id:'duplicate',placeholders:[...first.placeholders].reverse()}]).length,1)
-console.log(`Template checks passed: ${catalogue.BUILT_IN_TEMPLATES.length} unique layouts; legacy album IDs and enabled lists preserved.`)
+console.log(`Template checks passed: ${catalogue.builtInTemplates().length} unique layouts; legacy album IDs and enabled lists preserved.`)
 
 const source = createCanvas(60, 40)
 const sourceCtx = source.getContext('2d')

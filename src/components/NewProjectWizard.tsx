@@ -3,7 +3,7 @@ import Modal from './Modal'
 import Icon from './Icon'
 import { useProjectStore, NewProjectOptions } from '@/state/projectStore'
 import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES, DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
-import { matchesFrameFilter, TemplateFrameFilter, BUILT_IN_TEMPLATES } from '@/engine/templates'
+import { matchesFrameFilter, TemplateFrameFilter, builtInTemplates } from '@/engine/templates'
 import { loadSizePresets, addSizePreset, deleteSizePreset, SizePreset } from '@/engine/sizePresets'
 import { inToDisplay, displayToIn, DisplayUnit } from '@/engine/units'
 import { AlbumSize, AlbumSizeCategory, EdgeInset } from '@/types'
@@ -197,7 +197,7 @@ export default function NewProjectWizard({
 
   const enabledTemplateIds = useMemo(() => {
     if (libraryFilter === 'all') return null
-    const narrowed = BUILT_IN_TEMPLATES.filter((t) => matchesFrameFilter(t, libraryFilter, previewAspect)).map((t) => t.id)
+    const narrowed = builtInTemplates().filter((t) => matchesFrameFilter(t, libraryFilter, previewAspect)).map((t) => t.id)
     return narrowed
   }, [libraryFilter, previewAspect])
 
@@ -471,7 +471,7 @@ export default function NewProjectWizard({
             ))}
           </div>
 
-          <p className="library-appearance__summary" aria-live="polite">{enabledTemplateIds ? enabledTemplateIds.filter(id => id !== 'cover-front-spine-back').length : BUILT_IN_TEMPLATES.length - 1} matching layouts</p>
+          <p className="library-appearance__summary" aria-live="polite">{enabledTemplateIds ? enabledTemplateIds.filter(id => id !== 'cover-front-spine-back').length : builtInTemplates().length - 1} matching layouts</p>
           <div className="field-section">
             <div className="field-section__title">Appearance</div>
             <div className="style-field">

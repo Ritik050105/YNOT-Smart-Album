@@ -893,7 +893,20 @@ export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefini
 }
 
 // Keep legacy IDs resolvable so existing albums retain their frame IDs and geometry.
-export const BUILT_IN_TEMPLATES = uniqueTemplates(legacyTemplates)
+/** Every built-in layout, deduped — built the first time it is asked for, not when this module
+ *  is imported.
+ *
+ *  Deduping the whole library means comparing the arrangement of every template against every
+ *  other, which is two seconds of blocking work. Three places want this list: the New Project
+ *  wizard's library filter and its count, and allTemplates(). None of them is the home screen,
+ *  and templatesForCount — which is what the editor actually uses — works from legacyTemplates
+ *  with a cache of its own. So the app was paying for it on every launch and almost never
+ *  reading it. */
+let builtIn: TemplateDefinition[] | null = null
+export function builtInTemplates(): TemplateDefinition[] {
+  if (!builtIn) builtIn = uniqueTemplates(legacyTemplates)
+  return builtIn
+}
 
 /** CSS style for a template swatch's background — a thumbnail image, a flat color, or a CSS
  *  gradient string (the generated library's `thumbnailColor` values are gradients, e.g.
