@@ -1,5 +1,5 @@
 import { TemplateDefinition, PlaceholderRect } from '@/types'
-import { GAP, distributeEvenly, placeGridInRect, geometrySignature } from './templateLayout'
+import { GAP, distributeEvenly, placeGridInRect, geometrySignature, resolveTemplateFrames } from './templateLayout'
 import { GENERATED_TEMPLATES } from './templateGenerator'
 import { expandTemplateLibrary } from './referenceTemplates'
 import { EDITORIAL_TEMPLATES } from './editorialTemplates'
@@ -819,11 +819,47 @@ const legacyTemplates = [...ALBUM_TEMPLATES, ...BLEED_FEATURE_TEMPLATES, ...EDGE
  *  are. A spread split 1:1 and the same spread split 1:2 are one arrangement at two sizes, and
  *  only one of them belongs in the browser — a shelf of near-identical tiles is the complaint this
  *  answers. Running to the trim is a different design, so `bleed` stays part of the signature. */
-function arrangementSignature(frames: PlaceholderRect[]): string {
+const arrangementCache = new WeakMap<PlaceholderRect[], string>()
+
+/** Strips an authored page margin, so a layout drawn 4% in from the sheet and the same layout
+ *  drawn 9% in are one arrangement rather than two. The album applies its own margin when the
+ *  template is used, so the one in the artwork is a drawing convention, not part of the design.
+ *
+ *  Only an even margin is stripped — all four insets equal, and small. A layout pushed to one
+ *  side is making a point of where it sits on the sheet, and stretching it to fill would say the
+ *  opposite. */
+function withoutAuthoredMargin(frames: PlaceholderRect[]): PlaceholderRect[] {
+  if (!frames.length) return frames
+  const left = Math.min(...frames.map(p => p.x)), right = Math.max(...frames.map(p => p.x + p.width))
+  const top = Math.min(...frames.map(p => p.y)), bottom = Math.max(...frames.map(p => p.y + p.height))
+  const insets = [left, top, 1 - right, 1 - bottom]
+  const even = Math.max(...insets) - Math.min(...insets) <= 0.025
+  if (!even || Math.max(...insets) <= 0.001 || Math.max(...insets) > 0.14) return frames
+  const width = right - left, height = bottom - top
+  if (width <= 0 || height <= 0) return frames
+  return frames.map(p => ({ ...p,
+    x: (p.x - left) / width, y: (p.y - top) / height,
+    width: p.width / width, height: p.height / height }))
+}
+
+function arrangementSignature(authored: PlaceholderRect[]): string {
+  const cached = arrangementCache.get(authored)
+  if (cached !== undefined) return cached
+  // Authored gutters are not part of the arrangement. The same pair of photographs side by side is
+  // in the library three times over — once flush, once with a hairline between them, once with a
+  // wide one — and each gutter adds its own pair of edges, so comparing raw coordinates reads them
+  // as three different designs. resolveTemplateFrames collapses a gutter to a shared boundary
+  // before anything else, which is exactly the normalisation wanted here; at zero margin and zero
+  // gap it does that and nothing more.
+  const frames = withoutAuthoredMargin(resolveTemplateFrames(authored, 1, 0, 0))
   // The distinct edges the layout is built on, near-equal ones merged: these are its grid lines.
+  // Wide enough to absorb a gutter the collapse pass left behind, narrow enough that two sides of
+  // a real photograph are never mistaken for one edge. An authored page margin is handled before
+  // this, by withoutAuthoredMargin, rather than by widening the tolerance until it swallows one.
+  const TOLERANCE = 0.04
   const gridLines = (values: number[]) => {
     const out: number[] = []
-    for (const v of [...values].sort((a, b) => a - b)) if (!out.length || v - out[out.length - 1] > 0.02) out.push(v)
+    for (const v of [...values].sort((a, b) => a - b)) if (!out.length || v - out[out.length - 1] > TOLERANCE) out.push(v)
     return out
   }
   // The sheet's own edges count as grid lines even when nothing touches them, and the number of
@@ -832,11 +868,13 @@ function arrangementSignature(frames: PlaceholderRect[]): string {
   // arrangement only in the sense that every solo layout is.
   const xs = gridLines([0, 1, ...frames.flatMap(p => [p.x, p.x + p.width])])
   const ys = gridLines([0, 1, ...frames.flatMap(p => [p.y, p.y + p.height])])
-  const line = (list: number[], v: number) => Math.max(0, list.findIndex(e => Math.abs(e - v) <= 0.02))
-  return `${xs.length}x${ys.length}:` + frames.map(p => [
+  const line = (list: number[], v: number) => Math.max(0, list.findIndex(e => Math.abs(e - v) <= TOLERANCE))
+  const signature = `${xs.length}x${ys.length}:` + frames.map(p => [
     line(xs, p.x), line(ys, p.y), line(xs, p.x + p.width), line(ys, p.y + p.height),
     p.bleed ? 'b' : '', Math.round((p.rotationDeg ?? 0) / 5),
   ].join(',')).sort().join('|')
+  arrangementCache.set(authored, signature)
+  return signature
 }
 
 export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefinition[] {
