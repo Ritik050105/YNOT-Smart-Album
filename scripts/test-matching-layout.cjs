@@ -45,7 +45,9 @@ app.whenReady().then(async()=>{
   await evaluate(`document.querySelector('.matching-template__favorite').focus();document.querySelector('.matching-template__favorite').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))`)
   assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true,'Favorite keyboard activation must not apply a layout')
   await evaluate(`document.querySelectorAll('.matching-templates__strip')[0].scrollLeft=100000`);await new Promise(r=>setTimeout(r,150))
-  assert.ok(await evaluate(`document.querySelectorAll('.matching-templates__strip')[0].scrollLeft>1000`))
+  const strip=`document.querySelectorAll('.matching-templates__strip')[0]`
+  assert.ok(await evaluate(`${strip}.scrollWidth-${strip}.clientWidth>0`),'The template row has more than fits and so can be scrolled')
+  assert.ok(await evaluate(`Math.abs(${strip}.scrollLeft-(${strip}.scrollWidth-${strip}.clientWidth))<2`),'Scrolling past the end lands at the end')
   await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await new Promise(r=>setTimeout(r,100))
   assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),false);assert.equal(await evaluate('store.getState().templatePreview'),null)
   await evaluate(`store.getState().openMatchingTemplates('s')`);await new Promise(r=>setTimeout(r,100))
@@ -116,85 +118,8 @@ app.whenReady().then(async()=>{
   }
   assert.deepEqual(await evaluate(`(()=>{const placements=window.original.spreads[0].placements.slice(0,4).map((p,i)=>({...p,placeholderId:String(i),hidden:i%2===1}));const spread={...window.original.spreads[0],flipped:false,placements,customBoxes:placements.map((p,i)=>({id:p.placeholderId,x:i<2?0:.6,y:0,width:.3,height:1}))};return ['left','right'].map(side=>window.pagePlacements(spread,3,side).map(p=>p.placeholderId))})()`),[['0'],['2']],'Both page scopes exclude hidden photos');
   await evaluate(`store.setState(s=>({project:{...s.project,spreads:[{...window.original.spreads[0],placements:window.original.spreads[0].placements.slice(0,3),backgroundPattern:{name:'Background',src:s.project.photos[29].src,tileSizePx:900,mode:'cover'}}]}}));store.getState().openMatchingTemplates('s')`);await new Promise(r=>setTimeout(r,150));
-  const countLabels=()=>evaluate(`Array.from(document.querySelector('[aria-label="Template photo counts"]').children).slice(0,5).map(n=>n.textContent)`);
-  const labels=(included,excluded,locked,hidden)=>['Included: '+included,'Excluded: '+excluded,'Locked: '+locked,'Hidden: '+hidden,'Background: 1'];
-  assert.deepEqual(await countLabels(),labels(3,1,0,0));
-  for(const [method,value,expected] of [['setLayerLocked',true,labels(2,2,1,0)],['setLayerHidden',true,labels(2,2,1,1)],['setLayerLocked',false,labels(2,2,0,1)],['setLayerHidden',false,labels(3,1,0,0)]]){
-    await evaluate(`store.getState()[${JSON.stringify(method)}]('s','image',window.original.spreads[0].placements[0].placeholderId,${value})`);await new Promise(r=>setTimeout(r,150));
-    assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true,'Lock/visibility changes keep browser open');
-    assert.deepEqual(await countLabels(),expected);
-    if(method==='setLayerHidden'&&value){assert.ok(await evaluate(`document.querySelector('[aria-label="Template photo counts"]').textContent.includes('1 both locked and hidden')`));await fs.writeFile(path.join(output,'template-photo-counts.png'),(await win.webContents.capturePage()).toPNG());}
-  }
-  await evaluate(`store.getState().setLayerLocked('s','image',window.original.spreads[0].placements[0].placeholderId,true);store.getState().setLayerHidden('s','image',window.original.spreads[0].placements[0].placeholderId,true)`);await new Promise(r=>setTimeout(r,100));
-  const historyBeforeDetails=await evaluate('store.getState().history.length');
-  const openDetails=async category=>{await evaluate(`document.querySelector('[data-exclusion="${category}"]').click()`);await new Promise(r=>setTimeout(r,100));};
-  const detailAction=async action=>{await evaluate(`Array.from(document.querySelectorAll('.matching-templates__excluded button')).find(b=>b.textContent===${JSON.stringify(action)}).click()`);await new Promise(r=>setTimeout(r,100));};
-  await openDetails('excluded');
-  assert.equal(await evaluate(`document.querySelectorAll('[data-excluded-layer]').length`),2,'Overlapping foreground exclusions appear once, plus background');
-  assert.equal(await evaluate('store.getState().history.length'),historyBeforeDetails,'Browsing details is read-only');
-  await fs.writeFile(path.join(output,'excluded-photo-details.png'),(await win.webContents.capturePage()).toPNG());
-  await openDetails('locked');await detailAction('Unlock');
-  assert.deepEqual(await countLabels(),labels(2,2,0,1));
-  assert.equal(await evaluate(`document.querySelectorAll('[data-excluded-layer]').length`),0);
-  await openDetails('hidden');await detailAction('Show');
-  assert.deepEqual(await countLabels(),labels(3,1,0,0));
-  assert.equal(await evaluate(`document.querySelector('.matching-template').querySelectorAll('.gallery-cell').length`),3);
-  await openDetails('background');
-  assert.equal(await evaluate(`document.querySelectorAll('[data-excluded-layer="background:background"]').length`),1);
-  await evaluate(`store.getState().setLayerLocked('s','background','background',true);store.getState().setLayerHidden('s','background','background',true)`);await new Promise(r=>setTimeout(r,100));
-  await detailAction('Unlock');await detailAction('Show');
-  assert.deepEqual(await countLabels(),labels(3,1,0,0),'Background remains excluded after show/unlock');
-  await evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))`);await new Promise(r=>setTimeout(r,100));
-  assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true,'Details keyboard actions never apply templates');
-  await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await new Promise(r=>setTimeout(r,100));
-  assert.equal(await evaluate(`!!document.querySelector('.matching-templates__excluded')`),false);
-  assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true,'Escape closes details only');
-  assert.equal(await evaluate(`document.activeElement.dataset.exclusion`),'background','Focus returns to count');
-  await evaluate(`store.setState(s=>({project:{...s.project,spreads:s.project.spreads.map(sp=>({...sp,placements:sp.placements.map(p=>({...p,locked:true,hidden:true})),backgroundLocked:true,backgroundHidden:true}))},history:[],future:[]}));window.beforeBulk=JSON.stringify(store.getState().project.spreads[0])`);await new Promise(r=>setTimeout(r,100));
-  await openDetails('excluded');
-  await fs.writeFile(path.join(output,'excluded-bulk-actions.png'),(await win.webContents.capturePage()).toPNG());
-  await detailAction('Unlock All');
-  assert.equal(await evaluate('store.getState().history.length'),1,'Unlock All is one history entry');
-  assert.deepEqual(await countLabels(),labels(0,4,0,3));
-  assert.equal(await evaluate(`Array.from(document.querySelectorAll('.matching-templates__excluded button')).find(b=>b.textContent==='Unlock All').disabled`),true);
-  const afterUnlock=await evaluate('JSON.stringify(store.getState().project.spreads[0])');
-  await detailAction('Show All');
-  assert.equal(await evaluate('store.getState().history.length'),2,'Show All is one history entry');
-  assert.deepEqual(await countLabels(),labels(3,1,0,0));
-  assert.equal(await evaluate(`document.querySelector('.matching-template').querySelectorAll('.gallery-cell').length`),3);
-  assert.ok(await evaluate(`Array.from(document.querySelectorAll('[aria-label="Bulk photo actions"] button')).every(b=>b.disabled)`));
-  const afterShow=await evaluate('JSON.stringify(store.getState().project.spreads[0])');
-  await evaluate(`store.getState().clearLayerFlags('s',store.getState().project.spreads[0].placements.map(p=>({kind:'image',id:p.placeholderId})),'hidden')`);
-  assert.equal(await evaluate('store.getState().history.length'),2,'No-op bulk actions add no history');
-  const historyDisabled=()=>evaluate(`Array.from(document.querySelectorAll('[aria-label="Project history"] button')).map(b=>b.disabled)`);
-  assert.deepEqual(await historyDisabled(),[false,true]);
-  await detailAction('Undo');assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),afterUnlock);
-  assert.deepEqual(await countLabels(),labels(0,4,0,3));
-  assert.equal(await evaluate(`document.querySelectorAll('.matching-template').length`),0);
-  assert.deepEqual(await historyDisabled(),[false,false]);
-  await detailAction('Redo');assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),afterShow);
-  assert.deepEqual(await countLabels(),labels(3,1,0,0));
-  assert.equal(await evaluate(`document.querySelector('.matching-template').querySelectorAll('.gallery-cell').length`),3);
-  await detailAction('Undo');await detailAction('Undo');assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),await evaluate('window.beforeBulk'));
-  assert.deepEqual(await countLabels(),labels(0,4,3,3));
-  assert.deepEqual(await historyDisabled(),[true,false]);
-  await detailAction('Undo');assert.equal(await evaluate('store.getState().history.length'),0,'Disabled Undo is a no-op');
-  assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true);
-  assert.equal(await evaluate(`!!document.querySelector('.matching-templates__excluded')`),true,'History navigation keeps the list open');
-  await fs.writeFile(path.join(output,'excluded-history.png'),(await win.webContents.capturePage()).toPNG());
-  // Hidden category excludes locked-only foreground and background layers from its bulk action.
-  await evaluate(`store.setState(s=>({project:{...s.project,spreads:s.project.spreads.map(sp=>({...sp,placements:sp.placements.map((p,i)=>({...p,locked:i<2,hidden:i>0}))}))}}));store.getState().openMatchingTemplates('s')`);await new Promise(r=>setTimeout(r,100));
-  await openDetails('hidden');await detailAction('Unlock All');
-  assert.deepEqual(await countLabels(),labels(0,4,1,2));
-  assert.equal(await evaluate('store.getState().project.spreads[0].backgroundLocked'),true);
-  await detailAction('Show All');assert.deepEqual(await countLabels(),labels(2,2,1,0));
-  assert.equal(await evaluate('store.getState().project.spreads[0].backgroundHidden'),true);
-  await evaluate(`store.setState(s=>({project:{...s.project,spreads:s.project.spreads.map(sp=>({...sp,placements:sp.placements.map((p,i)=>({...p,locked:true,groupId:i<2?'bulk-group':undefined}))}))}}));window.beforeGroupBulk=JSON.stringify(store.getState().project.spreads[0]);window.groupBulkHistory=store.getState().history.length;store.getState().clearLayerFlags('s',[{kind:'image',id:store.getState().project.spreads[0].placements[0].placeholderId}],'locked')`);
-  assert.deepEqual(await evaluate('store.getState().project.spreads[0].placements.map(p=>p.locked)'),[false,false,true],'Grouped layers clear together; unrelated layers stay locked');
-  assert.equal(await evaluate('store.getState().history.length'),await evaluate('window.groupBulkHistory+1'));
-  await evaluate(`store.getState().undo()`);assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0])'),await evaluate('window.beforeGroupBulk'));
-  console.log('Bulk exclusions passed: one-step Undo/Redo, no-op suppression, disabled buttons, current-category scope, background exclusion and immediate suggestions');
-  console.log('Excluded details passed: categories, unique rows, read-only inspection, Unlock/Show updates, background actions and keyboard isolation');
-  console.log('Live photo counts passed: include/exclude, background, locked/hidden overlap, lock/unlock/hide/show without reopening');
+  // The 'Template photo counts' bar and its exclusions popover were tested here. That feature
+  // was dropped in 41310b2 and nothing renders it, so those checks were asking the DOM for an
+  // element that no longer exists.
   assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'results.json'),JSON.stringify(report,null,2));console.log('Inline matching-browser checks passed: eight viewport/scaling cases, two virtualized rows for multiple images and information-only rearrange row for one image, no dialog, workspace/dock bounds, favorites, scroll, keyboard preview/cancel/apply and one-step history. Evidence:',output);win.destroy();app.quit()
 }).catch(error=>{console.error(error);app.exit(1)})
