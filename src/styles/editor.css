@@ -156,8 +156,7 @@
   .album-editor .album-info-panel .field { grid-template-columns: 90px minmax(0, 1fr); gap: 6px; }
 }
 .album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions > button > span { display: none; }
-.album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions > button { width: 38px; padding: 0; }
-.album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions svg { width: 19px; height: 19px; }
+.album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions > button { width: var(--dock-action-size); }
 .album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__toolbar { gap: 8px; }
 
 /* Keep the same physical spread proportions as the designer and export renderer. */
@@ -271,7 +270,7 @@
 .missing-image-list small { display: block; opacity: .65; font-size: 11px; }
 @media (max-width: 900px) {
  .album-editor .photo-dock__import-actions > button > span { display: none; }
- .album-editor .photo-dock__import-actions > button { width: 34px; padding: 0; }
+ .album-editor .photo-dock__import-actions > button { width: var(--dock-action-size); }
  .album-editor .topbar > .btn--icon { width: 32px; height: 32px; }
  .album-editor .topbar > .btn--primary { min-height: 34px; font-size: 12px; padding: 0 10px; }
  .album-editor .app-sidebar { max-width: 40vw; }
@@ -994,3 +993,26 @@ button:disabled { cursor:not-allowed; }
    style update per frame instead of a full re-render, which is what keeps the crop under the
    pointer rather than a few frames behind it. */
 .image-design__window { position:absolute; object-fit:fill; pointer-events:none; }
+
+/* Import Images, Import Favorites and Auto Build carry a 12px icon because it normally sits
+   beside a word. Take the word away — the window is narrow, or the right sidebar is open — and a
+   12px glyph is lost inside a square button, beside mode tabs drawn at 20 and 24. Whenever the
+   label goes, the button becomes a square that scales with the window and its icon fills it the
+   way every other icon button's does, centred on both axes. The label is hidden rather than
+   removed, so each collapse has to say so itself. */
+.album-editor { --dock-action-size: clamp(32px, 3.4vw, 38px); --dock-action-icon: clamp(17px, 1.9vw, 21px); }
+.album-editor .photo-dock__import-actions > button { display: inline-flex; align-items: center; justify-content: center; }
+.album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions > button {
+  width: var(--dock-action-size); height: var(--dock-action-size); padding: 0;
+}
+.album-editor:has(.editor-workspace > .app-sidebar--right) .photo-dock__import-actions > button > svg {
+  width: var(--dock-action-icon); height: var(--dock-action-icon); flex: 0 0 auto;
+}
+@media (max-width: 900px) {
+  .album-editor .photo-dock__import-actions > button {
+    width: var(--dock-action-size); height: var(--dock-action-size); padding: 0;
+  }
+  .album-editor .photo-dock__import-actions > button > svg {
+    width: var(--dock-action-icon); height: var(--dock-action-icon); flex: 0 0 auto;
+  }
+}
