@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { PhotoAsset } from '@/types'
 import { useProjectStore } from '@/state/projectStore'
 import { importAndDedupe, ImportSummary } from './importWorkflow'
@@ -18,10 +18,29 @@ import { isMissingColorProfileDialogHidden } from './colorProfile'
  *  second one dedupes against a list that already has the first one's photos in it. */
 let importQueue: Promise<unknown> = Promise.resolve()
 
+/** How far the running import has got, shared by every component that asks.
+ *
+ *  This used to be component state inside the hook, which meant each caller had a progress of its
+ *  own: a drop from Explorer is handled by GlobalDropZone, so only GlobalDropZone knew about it
+ *  and the photo dock's bar — the one place an import reports itself — stayed empty. That is why
+ *  dropping files used to put a card over the whole window saying "Importing 3 of 12": it was the
+ *  only component that could see the number. One import, one progress, read wherever it is
+ *  wanted. */
+let importProgress: { done: number; total: number } | null = null
+const progressWatchers = new Set<() => void>()
+function setImportProgress(next: { done: number; total: number } | null) {
+  importProgress = next
+  for (const watch of progressWatchers) watch()
+}
+function watchImportProgress(onChange: () => void) {
+  progressWatchers.add(onChange)
+  return () => { progressWatchers.delete(onChange) }
+}
+
 export function useImportPhotos() {
   const addPhotos = useProjectStore((s) => s.addPhotos)
   const setPhotoFavorite = useProjectStore((s) => s.setPhotoFavorite)
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const progress = useSyncExternalStore(watchImportProgress, () => importProgress, () => importProgress)
   const [lastSummary, setLastSummary] = useState<ImportSummary | null>(null)
   useEffect(() => {
     if (!lastSummary) return
@@ -39,13 +58,13 @@ export function useImportPhotos() {
 
   async function runImport(files: File[], opts?: { markFavorite?: boolean }) {
     setLastSummary(null)
-    setProgress({ done: 0, total: files.length })
+    setImportProgress({ done: 0, total: files.length })
     const projectId = useProjectStore.getState().project.id
     try {
-    const { newAssets, matchedAssets, summary } = await importAndDedupe(files, useProjectStore.getState().project.photos, (done, total) => setProgress({ done, total }))
+    const { newAssets, matchedAssets, summary } = await importAndDedupe(files, useProjectStore.getState().project.photos, (done, total) => setImportProgress({ done, total }))
     if (useProjectStore.getState().project.id !== projectId) {
       newAssets.forEach((asset) => { if (asset.src.startsWith('blob:')) URL.revokeObjectURL(asset.src) })
-      setProgress(null)
+      setImportProgress(null)
       return []
     }
     if (newAssets.length > 0) {
@@ -62,10 +81,10 @@ export function useImportPhotos() {
       }
     }
     if (opts?.markFavorite) matchedAssets.filter((a) => !a.favorite).forEach((a) => setPhotoFavorite(a.id, true))
-    setProgress(null)
+    setImportProgress(null)
     setLastSummary(summary)
     return matchedAssets
-    } finally { setProgress(null) }
+    } finally { setImportProgress(null) }
   }
 
   return { handleFiles, importing: progress !== null, progress, lastSummary }

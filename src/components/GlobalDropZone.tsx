@@ -16,7 +16,7 @@ function dragHasFiles(e: DragEvent): boolean {
  *  dragleave on its parent. */
 export default function GlobalDropZone() {
   const [active, setActive] = useState(false)
-  const { handleFiles, importing, progress, lastSummary: summary } = useImportPhotos()
+  const { handleFiles, importing, lastSummary: summary } = useImportPhotos()
   const depth = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const handleFilesRef = useRef(handleFiles)
@@ -85,11 +85,17 @@ export default function GlobalDropZone() {
     <>
       <input ref={inputRef} type="file" accept={IMAGE_FILE_ACCEPT} multiple hidden
         onChange={(event) => { void handleFiles(event.target.files); event.target.value = '' }} />
-      {(active || importing) && (
+      {/* Only while a drag is over the window. Once the files are in, the import is an import
+          like any other and reports itself where every other one does — the bar across the photo
+          dock. This used to keep covering the whole window with a card of its own reading
+          "Importing 3 of 12", the import UI from before that bar existed, so dropping photographs
+          in from Explorer blocked the app behind a screen that importing from inside it never
+          showed. */}
+      {active && !importing && (
         <div className="global-drop-overlay">
           <div className="global-drop-overlay__card">
             <Icon name="upload" size={32} />
-            <p>{importing ? `Importing ${progress!.done} of ${progress!.total}…` : 'Drop photos anywhere to import'}</p>
+            <p>Drop photos anywhere to import</p>
           </div>
         </div>
       )}

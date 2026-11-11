@@ -1692,6 +1692,13 @@ input[type='checkbox'] {
   border-color: var(--accent);
   box-shadow: var(--shadow-glow);
 }
+/* The spread cards take their height from the thumbnail inside them, which the drop cards have
+   nothing of — so they stayed the height of their own sentence while every real card grew with
+   the window. Giving them the album's own proportions makes them a spread-shaped space, which is
+   what they stand in for. */
+.spreads-panel__card--drop:not(.spreads-panel__card--cover) {
+  aspect-ratio: var(--spread-aspect, 2);
+}
 .spreads-panel__card--drop {
   display: flex;
   align-items: center;
