@@ -685,7 +685,12 @@ export default function DesignerCanvas() {
   const selectedGapUnits=guideTargets([]).filter(t=>t.keys?.length&&t.keys.every(k=>activeGuideKeys.includes(k)))
   const sharedGapGuides=selectedSpacingGuides(selectedGapUnits)
   const guideInteraction=Konva.isDragging()||transformerRef.current?.isTransforming()||textTransformerRef.current?.isTransforming()||groupTransformerRef.current?.isTransforming()
-  const displayedGuides=gapDrag?[...(sharedGapGuides.length?sharedGapGuides:[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>{const delta=gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)-(s.to-s.from),factor=gapDrag.anchor.includes(':')&&pickedAnchor?(pickedAnchor.rect[gapDrag.axis]*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)>=s.to-.01?1:0):gapDrag.anchor==='first'?0:gapDrag.anchor==='last'?1:.5;return {...s,from:s.from-delta*factor,to:s.to+delta*(1-factor)}})}]),...(gapDrag.match?[gapDrag.match]:[])]:guideInteraction||smartGuides.length?(smartGuides.length?smartGuides:sharedGapGuides.length?sharedGapGuides:restingGuides):[]
+  // At rest the canvas shows the selection's own spacing — the gaps shared by a multi-selection, or
+  // else the measurements of the one selected frame. That last branch had ended up nested inside
+  // the "while interacting" case with [] as the alternative, so nothing was ever shown at rest:
+  // dropping a frame onto equal spacing took the measurements off the canvas the moment they became
+  // something to click, and a multi-selection never showed its gaps at all.
+  const displayedGuides=gapDrag?[...(sharedGapGuides.length?sharedGapGuides:[{...gapDrag.guide,segments:gapDrag.guide.segments?.map(s=>{const delta=gapDrag.gap*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)-(s.to-s.from),factor=gapDrag.anchor.includes(':')&&pickedAnchor?(pickedAnchor.rect[gapDrag.axis]*(gapDrag.axis==='x'?STAGE_WIDTH:stageHeight)>=s.to-.01?1:0):gapDrag.anchor==='first'?0:gapDrag.anchor==='last'?1:.5;return {...s,from:s.from-delta*factor,to:s.to+delta*(1-factor)}})}]),...(gapDrag.match?[gapDrag.match]:[])]:guideInteraction||smartGuides.length?(smartGuides.length?smartGuides:sharedGapGuides.length?sharedGapGuides:restingGuides):sharedGapGuides.length?sharedGapGuides:restingGuides
   function beginGapDrag(e:Konva.KonvaEventObject<MouseEvent>,g:SmartGuide,segment:NonNullable<SmartGuide['segments']>[number]) {
     e.cancelBubble=true
     if(e.evt.button!==0||!segment.keys||!baseSpread||!spread)return
