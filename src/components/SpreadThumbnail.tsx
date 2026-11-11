@@ -1,7 +1,7 @@
 import OverviewTextControls from './OverviewTextControls'
 import {previewSource} from '@/engine/previewImage'
 import { usePreferences } from '@/state/preferences'
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Spread, PhotoAsset, AlbumSize } from '@/types'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { renderSpreadToCanvas } from '@/engine/renderSpread'
@@ -75,8 +75,12 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
   }, [spread, photosById, size, renderWidth, highResolution])
 
   const previewHeight = 100 * size.heightIn / size.widthIn
-  const dropBox = computePlaceholderBoxes(spread,100,previewHeight).find(box=>box.placeholderId===dropPlaceholderId)
-  const selectedBox = computePlaceholderBoxes(spread, 100, previewHeight).find(box => box.placeholderId === selectedPlaceholderId)
+  // Once per card, not twice per render. Every card in the overview runs this, and resolving a
+  // template is not free — it was being paid again on every hover and every drag frame.
+  const previewBoxes = useMemo(() => computePlaceholderBoxes(spread, 100, previewHeight),
+    [spread.templateId, spread.customBoxes, spread.marginPx, spread.gapPx, spread.flipped, previewHeight])
+  const dropBox = previewBoxes.find(box => box.placeholderId === dropPlaceholderId)
+  const selectedBox = previewBoxes.find(box => box.placeholderId === selectedPlaceholderId)
   const selectedPlacement = spread.placements.find(p => p.placeholderId === selectedPlaceholderId)
 
   return (

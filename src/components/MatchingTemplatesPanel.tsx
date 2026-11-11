@@ -129,7 +129,7 @@ export default function MatchingTemplatesPanel() {
   return <section className="matching-templates" aria-label="Matching templates" onMouseLeave={() => { setActive(null); preview(null) }}>
     <header className="matching-templates__header">
       <span role="status">Spread {number}: {rows[0].length} matching {kind} templates found.</span>
-      {!designer&&<QuoteTemplates spreadId={spread.id}/>}{spread.pageSide === 'spread' && <select aria-label="Template page" value={scope} onChange={e=>setScope(e.target.value as TemplateScope)}>
+      {!designer&&<QuoteTemplates spreadId={spread.id} buttonsOnly/>}{spread.pageSide === 'spread' && <select aria-label="Template page" value={scope} onChange={e=>setScope(e.target.value as TemplateScope)}>
         <option value="spread">Whole spread</option><option value="left">Left page only</option><option value="right">Right page only</option>
       </select>}
       <select aria-label="Template frame filter" value={filter} onChange={e => setFilter(e.target.value as typeof filter)}>

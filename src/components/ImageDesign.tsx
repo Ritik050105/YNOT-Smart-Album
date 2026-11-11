@@ -19,6 +19,9 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
   const [mixer, setMixer] = useState<{left:number;top:number} | null>(null)
   useEffect(() => { const close = (e: KeyboardEvent) => { if (e.key === 'Escape') setMixer(null) }; window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close) }, [])
   const [error, setError] = useState('')
+  // True while the crop is being dragged. The rendered preview is replaced by a plain window onto
+  // the photograph for the duration, which is why the drag costs nothing per frame.
+  const [dragging, setDragging] = useState(false)
   /** Writes the drag straight into the project, with no history entry, so the spread on the canvas
    *  and in the timeline moves under the pointer. The commit below restores and re-applies it once
    *  through `update`, which is what undo sees. */
@@ -31,6 +34,11 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
   // full re-renders in flight at once, so it lags a frame or two behind the pointer. Coalescing
   // them onto animation frames keeps the preview live under the cursor.
   useEffect(() => {
+    // Not while dragging. Redrawing here means a full drawPlacement - tone filters, black-and-white
+    // mix, border, the lot - on a 600x420 canvas, started afresh on every animation frame and
+    // finishing whenever it finishes. That is what put the preview a few frames behind the
+    // pointer. The window below shows the same pixels for free until the drag ends.
+    if (dragging) return
     let current = true
     const frame = requestAnimationFrame(() => {
       const preview = document.createElement('canvas')
@@ -45,7 +53,7 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
       }).catch(() => { if (current) setError('Image preview unavailable. Locate the original image to reconnect it.') })
     })
     return () => { current = false; cancelAnimationFrame(frame) }
-  }, [placement, photo, previewSrc, width, height])
+  }, [placement, photo, previewSrc, width, height, dragging])
   const cropPreview=photo?computeCoverCrop(photo.width,photo.height,width,height,placement.focalX,placement.focalY,placement.zoom):null
   function slider(label: string, key: keyof PlacedPhoto, min: number, max: number, reset = 0, suffix = '', factor = 1) {
     const value = Number(placement[key] ?? reset) * factor
@@ -60,7 +68,7 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
         <img className="image-design__full" aria-hidden="true" src={previewSrc} style={{transformOrigin:`${(cropPreview.cropX+cropPreview.cropWidth/2)/photo.width*100}% ${(cropPreview.cropY+cropPreview.cropHeight/2)/photo.height*100}%`,transform:`rotate(${placement.imageRotationDeg??0}deg) scale(${rotationCoverScale(width,height,placement.imageRotationDeg??0)})`}}/>
         <div className="image-design__crop" style={{left:cropPreview.cropX/photo.width*100+'%',top:cropPreview.cropY/photo.height*100+'%',width:cropPreview.cropWidth/photo.width*100+'%',height:cropPreview.cropHeight/photo.height*100+'%'}}>
           <canvas ref={canvas} aria-label="Drag to reposition the image inside its frame" style={{touchAction:'none',cursor:placement.locked?'default':'grab'}} onPointerDown={e=>{
-            if(e.button!==0||placement.locked)return;e.preventDefault();cancelDrag.current?.();const node=e.currentTarget,rect=node.getBoundingClientRect(),startX=e.clientX,startY=e.clientY
+            if(e.button!==0||placement.locked)return;e.preventDefault();cancelDrag.current?.();setDragging(true);const node=e.currentTarget,rect=node.getBoundingClientRect(),startX=e.clientX,startY=e.clientY
             const original={focalX:placement.focalX,focalY:placement.focalY};let next=original;node.setPointerCapture(e.pointerId)
             const crop=computeCoverCrop(photo.width,photo.height,rect.width,rect.height,placement.focalX,placement.focalY,placement.zoom),angle=(placement.imageRotationDeg??0)*Math.PI/180
             const clamp=(v:number,half:number)=>Math.max(half,Math.min(1-half,v))
@@ -77,7 +85,7 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
               next={focalX:clamp(placement.focalX+localX/rect.width*crop.cropWidth/photo.width,crop.cropWidth/photo.width/2),focalY:clamp(placement.focalY+localY/rect.height*crop.cropHeight/photo.height,crop.cropHeight/photo.height/2)}
               if(!frame)frame=requestAnimationFrame(()=>{frame=0;live(next)})
             }
-            const cleanup=()=>{if(frame)cancelAnimationFrame(frame);frame=0;cancelDrag.current=null;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',commit);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',escape)}
+            const cleanup=()=>{if(frame)cancelAnimationFrame(frame);frame=0;setDragging(false);cancelDrag.current=null;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',commit);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',escape)}
             // The drag has been writing straight into the project so the spread moves with it; put
             // the original back before committing, so undo gets one entry for the whole drag.
             const commit=()=>{cleanup();live(original);if(next.focalX!==original.focalX||next.focalY!==original.focalY)update(next)}
@@ -85,6 +93,14 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
             const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();cancel()}}
             cancelDrag.current=cancel;window.addEventListener('pointermove',move);window.addEventListener('pointerup',commit);window.addEventListener('pointercancel',cancel);window.addEventListener('keydown',escape)
           }}/>
+          {dragging && <img className="image-design__window" aria-hidden="true" src={previewSrc} style={{
+            left: -(cropPreview.cropX / cropPreview.cropWidth) * 100 + '%',
+            top: -(cropPreview.cropY / cropPreview.cropHeight) * 100 + '%',
+            width: (photo.width / cropPreview.cropWidth) * 100 + '%',
+            height: (photo.height / cropPreview.cropHeight) * 100 + '%',
+            transformOrigin: `${(cropPreview.cropX+cropPreview.cropWidth/2)/photo.width*100}% ${(cropPreview.cropY+cropPreview.cropHeight/2)/photo.height*100}%`,
+            transform: `rotate(${placement.imageRotationDeg??0}deg) scale(${rotationCoverScale(width,height,placement.imageRotationDeg??0)})`,
+          }}/>}
           <div className="image-design__thirds" aria-hidden="true"/>
         </div>
       </div>}

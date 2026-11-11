@@ -137,3 +137,37 @@ export function supportsUniformGap(frames:PlaceholderRect[],aspect:number,margin
  }
  return true
 }
+
+/** Re-spaces frames that were stored as absolute boxes when the album's margin or gap changes.
+ *
+ *  A spread keeps `customBoxes` as soon as anything moves a frame by hand, and an imported design
+ *  arrives with them already set. Those boxes are final coordinates, so `computePlaceholderBoxes`
+ *  returns them untouched — which is right for the artwork, and wrong for the two controls whose
+ *  whole job is to re-space the page. Changing Gap simply did nothing on such a spread.
+ *
+ *  The frames are re-spaced the way `resolveTemplateFrames` spaces a template: the layout is
+ *  mapped from the old inner rectangle into the new one for the margin, and half the gap change is
+ *  taken off each interior edge. An edge sitting on the trim stays on the trim — a photograph run
+ *  to the paper's edge is not holding a gap against anything. */
+export function respaceBoxes(
+  boxes: PlaceholderRect[], aspect: number,
+  from: { marginPx: number; gapPx: number }, to: { marginPx: number; gapPx: number },
+): PlaceholderRect[] {
+  const width = 900, height = width / aspect
+  const onTrim = (v: number, edge: number) => Math.abs(v - edge) < 0.004
+  const map = (value: number, span: number, oldMargin: number, newMargin: number) =>
+    (newMargin + (value * span - oldMargin) * (span - newMargin * 2) / Math.max(1e-6, span - oldMargin * 2)) / span
+  const dx = (to.gapPx - from.gapPx) / 2 / width, dy = (to.gapPx - from.gapPx) / 2 / height
+  return boxes.map((p) => {
+    const edges = { left: onTrim(p.x, 0), top: onTrim(p.y, 0), right: onTrim(p.x + p.width, 1), bottom: onTrim(p.y + p.height, 1) }
+    let left = edges.left ? 0 : map(p.x, width, from.marginPx, to.marginPx) + dx
+    let top = edges.top ? 0 : map(p.y, height, from.marginPx, to.marginPx) + dy
+    let right = edges.right ? 1 : map(p.x + p.width, width, from.marginPx, to.marginPx) - dx
+    let bottom = edges.bottom ? 1 : map(p.y + p.height, height, from.marginPx, to.marginPx) - dy
+    // Never let spacing eat a frame: a gap wider than the cell leaves it at a tenth of its size
+    // rather than inverted or gone.
+    if (right - left < p.width * 0.1) { const mid = (left + right) / 2, half = p.width * 0.05; left = mid - half; right = mid + half }
+    if (bottom - top < p.height * 0.1) { const mid = (top + bottom) / 2, half = p.height * 0.05; top = mid - half; bottom = mid + half }
+    return { ...p, x: left, y: top, width: right - left, height: bottom - top }
+  })
+}

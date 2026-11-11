@@ -1038,6 +1038,20 @@ export function setUserTemplateRegistry(templates: TemplateDefinition[]) {
   userTemplateRegistry = templates
   // Every cached answer was computed from the old registry.
   forCountCache = new WeakMap()
+  byId = null
+}
+
+/** Every template by id. findTemplate used to scan the library, which is thousands of entries, and
+ *  it is called for every frame of every spread — including once per pointer move while a frame is
+ *  being dragged, where the scan was most of the frame budget. */
+let byId: Map<string, TemplateDefinition> | null = null
+function templateIndex(): Map<string, TemplateDefinition> {
+  if (!byId) {
+    byId = new Map()
+    for (const t of legacyTemplates) if (!byId.has(t.id)) byId.set(t.id, t)
+    for (const t of userTemplateRegistry) byId.set(t.id, t)
+  }
+  return byId
 }
 
 /** Imported PSD/artwork templates carry absolute frames — a finished design, not a layout that
@@ -1061,7 +1075,7 @@ export function importedDesignTemplates(
 
 /** Looks up a template by id across both the built-in library and the user's saved/imported ones. */
 export function findTemplate(id: string): TemplateDefinition | undefined {
-  const known = legacyTemplates.find((t) => t.id === id) ?? userTemplateRegistry.find((t) => t.id === id)
+  const known = templateIndex().get(id)
   if (known) return known
 
   // Auto-generated templates (justified/hero grids, custom rows x cols) aren't stored anywhere —

@@ -408,7 +408,12 @@ export default function DesignerCanvas() {
   const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([])
   const [liveFrame, setLiveFrame] = useState<(GuideRect & {id:string;rotationDeg?:number}) | null>(null)
   useEffect(()=>{setSmartGuides([]);setLiveFrame(null)},[selectedPlaceholderId,selectedTextBoxId,spread?.id,canvasTool])
-  const boxes = spread ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight).filter(b=>!spread.placements.find(p=>p.placeholderId===b.placeholderId)?.hidden) : []
+  // Recomputed only when something that moves a frame changes. It used to run on every render,
+  // and a drag renders on every pointer move — so each move re-resolved the whole template, which
+  // is what the dragging lag was.
+  const boxes = useMemo(() => spread
+    ? computePlaceholderBoxes(spread, STAGE_WIDTH, stageHeight).filter(b=>!spread.placements.find(p=>p.placeholderId===b.placeholderId)?.hidden)
+    : [], [spread?.templateId, spread?.customBoxes, spread?.marginPx, spread?.gapPx, spread?.flipped, spread?.placements, stageHeight])
   const addImageFrame = useProjectStore((s) => s.addImageFrame)
   const addImageFrames = useProjectStore((s) => s.addImageFrames)
   const updateImageFrame = useProjectStore((s) => s.updateImageFrame)

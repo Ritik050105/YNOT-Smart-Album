@@ -2,7 +2,9 @@ export type Theme = 'light' | 'dark' | 'classic'
 
 const STORAGE_KEY = 'albumstudio.theme'
 
-/** Light is the app's default — only switches to dark if the user explicitly chose it before. */
+/** Classic Graphite & Gold is the app's default: it is YNOT's own livery, and the first thing a
+ *  photographer should see is the brand, not a generic blue. Any other theme is only used when the
+ *  user chose it themselves and it is still in storage. */
 export function getStoredTheme(): Theme {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -10,7 +12,7 @@ export function getStoredTheme(): Theme {
   } catch {
     // Storage unavailable (e.g. private mode) — default below.
   }
-  return 'light'
+  return 'classic'
 }
 
 export function applyTheme(theme: Theme) {

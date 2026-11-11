@@ -1001,3 +1001,9 @@ button:disabled { cursor:not-allowed; }
    ghost, so the answer arrives while the photo can still be taken somewhere else. */
 .spread-drop-replace.is-refused { box-shadow: 0 0 0 1px #fff6, inset 0 0 18px #d4452f66; }
 .timeline-drag-hint { position: fixed; z-index: 10001; pointer-events: none; transform: translate(-50%, 0); max-width: 280px; padding: 5px 9px; border-radius: 7px; background: #d4452f; color: #fff; font: 600 11.5px/1.35 'Segoe UI', sans-serif; text-align: center; box-shadow: 0 6px 18px #0005; }
+
+/* Shown only while the crop is being dragged, in place of the rendered canvas: the photograph at
+   full strength, aligned with the dimmed copy behind it and clipped by the crop box. It costs one
+   style update per frame instead of a full re-render, which is what keeps the crop under the
+   pointer rather than a few frames behind it. */
+.image-design__window { position:absolute; object-fit:fill; pointer-events:none; }

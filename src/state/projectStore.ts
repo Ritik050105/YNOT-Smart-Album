@@ -25,6 +25,7 @@ import {
   buildSpreadFromPlacements,
 } from '@/engine/autoLayout'
 import { BUILT_IN_TEMPLATES, uniqueTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
+import { respaceBoxes } from '@/engine/templateLayout'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
 import { previewSource } from '@/engine/previewImage'
 import { warmPhotos } from '@/engine/imageUrl'
@@ -247,6 +248,11 @@ interface ProjectState {
   designerViewSpreadId: string | null
   templateBrowseKind: 'image' | 'mixed'
   matchingTemplatesOpen: boolean
+  /** The spread whose font-template browser is open, or null. It lives here rather than in the
+   *  component because the button that opens it sits inside the image-template panel, and opening
+   *  the browser closes that panel — which used to unmount the state along with it, so the panel
+   *  collapsed and nothing opened. */
+  fontBrowserSpreadId: string | null
   fontPreview: { textBoxId: string; family: string } | null
   templatePreview: Spread | null
   favoriteTemplateIds: string[]
@@ -469,6 +475,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   designerViewSpreadId: null,
   templateBrowseKind: 'image',
   matchingTemplatesOpen: false,
+  fontBrowserSpreadId: null,
   fontPreview: null,
   templatePreview: null,
   favoriteTemplateIds: loadTemplateFavorites(),
@@ -1037,7 +1044,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   updateSpread: (spreadId, patch) =>
     withHistory(set, (p) => ({
       ...p,
-      spreads: p.spreads.map((s) => (s.id === spreadId ? { ...s, ...patch } : s)),
+      spreads: p.spreads.map((s) => {
+        if (s.id !== spreadId) return s
+        const next = { ...s, ...patch }
+        // Margin and gap are the two controls whose whole job is to re-space the page, and a
+        // spread holding absolute boxes — anything with a frame moved by hand, or an imported
+        // design — ignored them completely, because those boxes are used as final coordinates.
+        const spacingChanged = (patch.marginPx !== undefined && patch.marginPx !== s.marginPx)
+          || (patch.gapPx !== undefined && patch.gapPx !== s.gapPx)
+        if (!spacingChanged || !s.customBoxes?.length || patch.customBoxes) return next
+        const size = s.size ?? p.size
+        return { ...next, customBoxes: respaceBoxes(s.customBoxes, size.widthIn / size.heightIn,
+          { marginPx: s.marginPx, gapPx: s.gapPx },
+          { marginPx: next.marginPx, gapPx: next.gapPx }) }
+      }),
     })),
 
   applyBackgroundToAllSpreads: (spreadId, pattern) => withHistory(set, (p) => {
