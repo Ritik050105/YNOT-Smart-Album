@@ -61,14 +61,24 @@ function photoShapes(photos: PhotoAsset[]): ('landscape' | 'portrait' | 'square'
  *  offered for this set of photos at all. Square frames are the give in the system: they take any
  *  photo, so they soak up whichever shape the layout is short of. */
 export function templateShapesFit(photos: PhotoAsset[], template: TemplateDefinition, aspect = 1, marginPx = 0, gapPx = 0): boolean {
+  return templateShapeMismatches(photos, template, aspect, marginPx, gapPx) === 0
+}
+
+/** How many photographs this layout cannot give a frame of their own shape, which is zero for a
+ *  layout that fits. A count rather than a yes-or-no, because a mixed drop of uprights and
+ *  landscapes often has no layout that suits every one of them, and the honest answer then is the
+ *  layout that suits the most — not whichever happened to rank first among all the wrong ones. */
+export function templateShapeMismatches(photos: PhotoAsset[], template: TemplateDefinition, aspect = 1, marginPx = 0, gapPx = 0): number {
   const frames = resolveTemplateFrames(template.placeholders, aspect, marginPx, gapPx)
-  if (frames.length !== photos.length) return false
+  if (frames.length !== photos.length) return photos.length
   const shapes = photoShapes(photos)
   const frameShapes = frames.map((frame) => shapeOf(frame.width * aspect, frame.height))
   const count = (list: string[], shape: string) => list.filter((value) => value === shape).length
   const portraitShort = Math.max(0, count(shapes, 'portrait') - count(frameShapes, 'portrait'))
   const landscapeShort = Math.max(0, count(shapes, 'landscape') - count(frameShapes, 'landscape'))
-  return portraitShort + landscapeShort <= count(frameShapes, 'square')
+  // Square frames are the give in the system: they take any photograph, so they soak up whichever
+  // shape the layout is short of before anything counts as a mismatch.
+  return Math.max(0, portraitShort + landscapeShort - count(frameShapes, 'square'))
 }
 
 export function rankTemplates(photos: PhotoAsset[], templates: TemplateDefinition[], aspect = 1, keepOrder = true, marginPx = 0, gapPx = 0) {

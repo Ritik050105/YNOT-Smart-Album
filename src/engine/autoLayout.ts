@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TextBox } from '@/types'
 import { suggestTemplate, findTemplate, templatesForCount, TemplateFrameFilter } from './templates'
-import { rankTemplates, templateFramesInReadingOrder, templateShapesFit } from './templateMatching'
+import { rankTemplates, templateFramesInReadingOrder, templateShapesFit, templateShapeMismatches } from './templateMatching'
 
 export interface AutoLayoutOptions {
   groupBlackAndWhite?: boolean
@@ -303,6 +303,15 @@ export function buildSpreadsFromGroups(
     // photo lands in a landscape frame and loses its top and bottom, which no crop can recover.
     const shapesFit = candidates.filter((t) => templateShapesFit(group, t, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx))
     if (shapesFit.length) candidates = shapesFit
+    else {
+      // No layout suits every photograph — a mixed handful of uprights and landscapes often has
+      // none. Take the ones that suit the most rather than letting the ranking choose freely
+      // among layouts that all crop something, which is how an upright ended up in a landscape
+      // frame while a layout that had an upright frame for it sat unused.
+      const missed = candidates.map((t) => [t, templateShapeMismatches(group, t, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx)] as const)
+      const fewest = Math.min(...missed.map(([, n]) => n))
+      candidates = missed.filter(([, n]) => n === fewest).map(([t]) => t)
+    }
     const ranked = rankTemplates(group, candidates, layout.aspect ?? 1, matchTimelineOrder, appearance.marginPx, appearance.gapPx)
     if (templateReuse === 'medium') ranked.sort((a, b) => (a.score + (a.template.id === lastTemplateId ? 0.02 : 0)) - (b.score + (b.template.id === lastTemplateId ? 0.02 : 0)))
     const { template, photos: assigned, score } = ranked[0]

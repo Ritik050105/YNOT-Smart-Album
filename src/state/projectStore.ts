@@ -1630,7 +1630,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       project,
       leftPanelOpen: false,
       rightPanelOpen: false,
-      bottomPanelOpen: false,
+      // The photo dock is where a new album starts: it holds Import Images and the drop zone,
+      // and a project with no photographs yet has nothing else to offer. It was being closed
+      // here, so every new project opened onto an empty canvas with the way in hidden.
+      bottomPanelOpen: true,
       designerViewSpreadId: null,
       selectedSpreadId: null,
       selectedPlaceholderId: null,
