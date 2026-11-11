@@ -65,6 +65,11 @@ function deleteGalleryPhotos(photoIds:string[]){
  if(!window.confirm(question))return
  state.removePoolPhotos(eligible)
 }
+/** A photograph's bins, for one that has none recorded. Albums saved before bins existed have
+  * no such field, and a single undefined here took the whole photo dock down with it — React
+  * unmounts the component that throws, so one old photograph emptied the panel. */
+const binsOf = (photo: { bins?: string[] }) => photo.bins ?? []
+
 export default function PhotoBin() {
   const photos = useProjectStore((s) => s.project.photos)
   const spreads = useProjectStore((s) => s.project.spreads)
@@ -201,7 +206,7 @@ export default function PhotoBin() {
       if (quickFilter === 'adjusted') return adjustedPhotoIds.has(p.id)
       return true
     })
-    .filter((p) => (binFilter ? p.bins.includes(binFilter) : true))
+    .filter((p) => (binFilter ? binsOf(p).includes(binFilter) : true))
     .filter((p) => (search.trim() ? p.fileName.toLowerCase().includes(search.trim().toLowerCase()) : true))
 
   const sorted = [...filtered].sort((a, b) => {
@@ -217,7 +222,7 @@ export default function PhotoBin() {
   function toggleBin(photoId: string, bin: string) {
     const photo = photos.find((p) => p.id === photoId)
     if (!photo) return
-    const bins = photo.bins.includes(bin) ? photo.bins.filter((b) => b !== bin) : [...photo.bins, bin]
+    const bins = binsOf(photo).includes(bin) ? binsOf(photo).filter((b) => b !== bin) : [...binsOf(photo), bin]
     setPhotoBins(photoId, bins)
   }
 
@@ -225,7 +230,7 @@ export default function PhotoBin() {
     const name = newBinName.trim()
     if (!name) return
     const photo = photos.find((p) => p.id === photoId)
-    if (!photo || photo.bins.includes(name)) return
+    if (!photo || binsOf(photo).includes(name)) return
     setPhotoBins(photoId, [...photo.bins, name])
     setNewBinName('')
   }
@@ -255,7 +260,7 @@ export default function PhotoBin() {
           {allBins.map((b) => (
             <span className={`photo-dock__bin ${binFilter === b ? 'is-active' : ''}`} key={b} data-bin={b} onDragOver={e=>{if(Array.from(e.dataTransfer.types).includes('application/x-photo-ids')){e.preventDefault();e.currentTarget.classList.add('is-drop-target');e.dataTransfer.dropEffect='copy'}}} onDragLeave={e=>e.currentTarget.classList.remove('is-drop-target')} onDrop={e=>{e.preventDefault();e.stopPropagation();e.currentTarget.classList.remove('is-drop-target');try{const ids=JSON.parse(e.dataTransfer.getData('application/x-photo-ids'));if(Array.isArray(ids)&&ids.every(id=>typeof id==='string'))useProjectStore.getState().addPhotosToBin(ids,b)}catch{}}}>
               <button className="photo-dock__bin-name" onClick={() => setBinFilter(b)}>
-                {b} ({photos.filter((p) => p.bins.includes(b)).length})
+                {b} ({photos.filter((p) => binsOf(p).includes(b)).length})
               </button>
               <button
                 className="photo-dock__bin-delete"
@@ -482,7 +487,7 @@ export default function PhotoBin() {
                   >
                     {allBins.map((b) => (
                       <label key={b}>
-                        <input type="checkbox" checked={photo.bins.includes(b)} onChange={() => toggleBin(photo.id, b)} />
+                        <input type="checkbox" checked={binsOf(photo).includes(b)} onChange={() => toggleBin(photo.id, b)} />
                         {b}
                       </label>
                     ))}
