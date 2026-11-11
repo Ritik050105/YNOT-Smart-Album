@@ -17,7 +17,11 @@ assert.equal(new Set(templates.map(t => t.id)).size, templates.length)
 for (let count = 1; count <= 30; count++) {
   const candidates = templates.filter(t => t.photoCount === count && t.id !== 'cover-front-spine-back')
   assert.ok(candidates.length > 0, `${count} photos`)
-  if (count > 1) assert.ok(candidates.some(t => t.id.startsWith('ref-paired-') && Math.abs(t.placeholders.filter(p=>p.x+p.width<=0.5).length-count/2)<=0.5), `Balanced paired pages for ${count} photos`)
+  // Every count still offers a spread that splits its photos evenly across the fold. It used to be
+  // pinned to the ref-paired- family, but dedup now collapses arrangements that differ only in
+  // their proportions, and at low counts an earlier family wins that signature — the design is
+  // there, under another name, which is what this is actually asserting.
+  if (count > 1) assert.ok(candidates.some(t => Math.abs(t.placeholders.filter(p=>p.x+p.width<=0.5).length-count/2)<=0.5), `Balanced paired pages for ${count} photos`)
   const newSignatures = new Set()
   for (const t of candidates) {
     assert.equal(t.placeholders.length, count)

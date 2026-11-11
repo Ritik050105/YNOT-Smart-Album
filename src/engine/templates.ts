@@ -6,6 +6,7 @@ import { EDITORIAL_TEMPLATES } from './editorialTemplates'
 import { SIGNATURE_TEMPLATES } from './signatureTemplates'
 import { ALBUM_TEMPLATES } from './albumTemplates'
 import { EDGE_TEMPLATES } from './edgeTemplates'
+import { BLEED_FEATURE_TEMPLATES } from './bleedFeatureTemplates'
 
 // A plain incrementing counter (not crypto.randomUUID()) — module evaluation order is the same
 // on every app launch, so this produces the exact same placeholder ids every time. That stability
@@ -812,13 +813,36 @@ const editorialAdditions = EDITORIAL_TEMPLATES.filter(t => {
 // The signature set leads: it is the short list of hand-written layouts a designer reaches for
 // first, and being ahead of everything else means it also wins the dedup pass when a generated
 // grid happens to land on the same geometry.
-const legacyTemplates = [...ALBUM_TEMPLATES, ...EDGE_TEMPLATES, ...SIGNATURE_TEMPLATES, ...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions]
+const legacyTemplates = [...ALBUM_TEMPLATES, ...BLEED_FEATURE_TEMPLATES, ...EDGE_TEMPLATES, ...SIGNATURE_TEMPLATES, ...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions]
+
+/** What makes two layouts the same design: which edges the frames share, not how wide the columns
+ *  are. A spread split 1:1 and the same spread split 1:2 are one arrangement at two sizes, and
+ *  only one of them belongs in the browser — a shelf of near-identical tiles is the complaint this
+ *  answers. Running to the trim is a different design, so `bleed` stays part of the signature. */
+function arrangementSignature(frames: PlaceholderRect[]): string {
+  // The distinct edges the layout is built on, near-equal ones merged: these are its grid lines.
+  const gridLines = (values: number[]) => {
+    const out: number[] = []
+    for (const v of [...values].sort((a, b) => a - b)) if (!out.length || v - out[out.length - 1] > 0.02) out.push(v)
+    return out
+  }
+  // The sheet's own edges count as grid lines even when nothing touches them, and the number of
+  // lines is part of the signature. Without that, one photograph on the left page and one filling
+  // the whole spread would both read as "a single frame" and collapse into each other — the same
+  // arrangement only in the sense that every solo layout is.
+  const xs = gridLines([0, 1, ...frames.flatMap(p => [p.x, p.x + p.width])])
+  const ys = gridLines([0, 1, ...frames.flatMap(p => [p.y, p.y + p.height])])
+  const line = (list: number[], v: number) => Math.max(0, list.findIndex(e => Math.abs(e - v) <= 0.02))
+  return `${xs.length}x${ys.length}:` + frames.map(p => [
+    line(xs, p.x), line(ys, p.y), line(xs, p.x + p.width), line(ys, p.y + p.height),
+    p.bleed ? 'b' : '', Math.round((p.rotationDeg ?? 0) / 5),
+  ].join(',')).sort().join('|')
+}
 
 export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefinition[] {
   const seen = new Set<string>()
   return templates.filter(t => {
-    // Ignore tiny spacing variants that look identical in the template browser.
-    const frames = t.placeholders.map(p => [p.x, p.y, p.width, p.height].map(v => Math.round(v * 20)).join(',')).sort().join('|')
+    const frames = arrangementSignature(t.placeholders)
     // Captions are part of the design: the same photo grid with and without a text box, or with the
     // caption in a different place, are different templates and both belong in the browser.
     const text = (t.textBoxes ?? []).map(b => [b.x, b.y, b.width, b.height].map(v => Math.round(v * 20)).join(',')).sort().join('|')
@@ -1012,6 +1036,7 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
  *  browser into tabs (Classic / Seamless / Grid / Hero / Split / Mosaic / Collage / Filmstrip /
  *  Custom / My Templates), since the generated library doesn't carry a separate "family" field. */
 export function templateFamilyLabel(t: TemplateDefinition): string {
+  if (t.id.startsWith('ref-bleed-')) return 'Bleed Feature'
   if (t.id.startsWith('ref-edge-')) return 'Edge to Edge'
   if (t.id.startsWith('ref-album-')) return 'Album Study'
   if (t.id.startsWith('ref-signature-')) return 'Signature'

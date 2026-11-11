@@ -6,10 +6,10 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const result = await build({
-  stdin: { contents: `export {BUILT_IN_TEMPLATES,importedDesignTemplates,setUserTemplateRegistry,templatesForCount} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {isFullSpreadTemplate} from './src/engine/templates';export {cyclingTemplates} from './src/state/templateBrowsing';export {resolveTemplateFrames} from './src/engine/templateLayout'`, resolveDir: process.cwd() },
+  stdin: { contents: `export {BUILT_IN_TEMPLATES,findTemplate,importedDesignTemplates,setUserTemplateRegistry,templatesForCount} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {isFullSpreadTemplate} from './src/engine/templates';export {cyclingTemplates} from './src/state/templateBrowsing';export {resolveTemplateFrames} from './src/engine/templateLayout'`, resolveDir: process.cwd() },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { BUILT_IN_TEMPLATES, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, templateCategory, isFullSpreadTemplate, cyclingTemplates, resolveTemplateFrames } =
+const { BUILT_IN_TEMPLATES, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, templateCategory, isFullSpreadTemplate, cyclingTemplates, resolveTemplateFrames } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const byId = id => BUILT_IN_TEMPLATES.find(t => t.id === id)
@@ -24,8 +24,15 @@ const mixedIds = [
   'gen-mixed-full-left-caption-3', 'gen-mixed-full-right-overlay-3',
   'gen-mixed-band-top-2', 'gen-mixed-band-bottom-6',
 ]
-const imageIds = ['gen-full-left-3', 'gen-full-right-3', 'gen-full-left-2', 'gen-full-right-4',
+const imageIds = ['gen-full-right-4',
   'gen-full-left-cascade-3', 'gen-full-right-cascade-3', 'gen-full-left-hero-4']
+// Three of this family now lose the dedup pass to an edge-to-edge layout of the same arrangement,
+// which is the same design drawn flush to the trim. Saved albums still resolve them by id; they
+// are simply no longer the copy shown in the browser.
+for (const [id, replacement] of [['gen-full-left-3', 'ref-edge-hero-trio'], ['gen-full-right-3', 'ref-edge-hero-trio-mirror'], ['gen-full-left-2', 'ref-edge-hero-pair']]) {
+  assert.ok(findTemplate(id), `${id} still resolves for saved albums`)
+  assert.ok(byId(replacement), `${replacement} stands in for ${id}`)
+}
 for (const id of [...mixedIds, ...imageIds]) {
   const t = byId(id)
   assert.ok(t, `${id} survives dedup`)
@@ -125,20 +132,24 @@ for (let n = 4; n <= 30; n++) {
   for (const t of full) assert.equal(templateCategory(t), 'reference', `${t.id} is in Smart design`)
 }
 
-// Trimming must not thin Smart design itself: it still carries a hundred-plus ordinary layouts per
-// count, not just this family. The floor was 200 before band-shaped frames were dropped; roughly a
-// sixth of the catalogue went with them, which is the point rather than a regression.
+// Trimming must not thin Smart design itself: every count still offers a shelf of genuinely
+// different arrangements. The floor was 200, then 120 once band-shaped frames were dropped, and is
+// 20 now that dedup collapses layouts differing only in their proportions — a shelf of tiles that
+// look the same at different sizes was the complaint, so the drop is the point, not a regression.
 for (const n of [3, 8, 20, 30]) {
   const smart = templatesForCount(n, null, 'all', 1.5).filter(t => !t.textBoxes?.length && templateCategory(t) === 'reference')
-  assert.ok(smart.length > 120, `count ${n} keeps its Smart design catalogue (got ${smart.length})`)
+  assert.ok(smart.length > 20, `count ${n} keeps its Smart design catalogue (got ${smart.length})`)
 }
 
-// Every album photo count has somewhere to go: 30+ image layouts, a mixed layout, and a full-bleed
-// variant of each. This is the promise the template browser makes at any spread size.
+// Every album photo count has somewhere to go: ten-plus image layouts, a mixed layout, and a
+// full-bleed variant of each. This is the promise the template browser makes at any spread size.
+// It was 30+ until dedup started collapsing layouts that differ only in their proportions; one
+// photograph does not have thirty genuinely different arrangements, and pretending otherwise is
+// what filled the browser with tiles that looked identical.
 for (let n = 1; n <= 30; n++) {
   const all = templatesForCount(n, null, 'all', 2)
   const image = all.filter(t => !t.textBoxes?.length), mixed = all.filter(t => t.textBoxes?.length)
-  assert.ok(image.length >= 30, `count ${n} offers 30+ image templates (got ${image.length})`)
+  assert.ok(image.length >= 10, `count ${n} offers 10+ image templates (got ${image.length})`)
   assert.ok(mixed.length >= 1, `count ${n} offers a mixed template (got ${mixed.length})`)
   if (n === 1) continue
   const full = BUILT_IN_TEMPLATES.filter(t => t.photoCount === n && isFullSpreadTemplate(t))
