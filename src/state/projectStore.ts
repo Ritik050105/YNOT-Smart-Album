@@ -25,6 +25,7 @@ import {
   buildSpreadFromPlacements,
 } from '@/engine/autoLayout'
 import { BUILT_IN_TEMPLATES, uniqueTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
+import { templateShapeMismatches } from '@/engine/templateMatching'
 import { respaceBoxes } from '@/engine/templateLayout'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
 import { previewSource } from '@/engine/previewImage'
@@ -875,6 +876,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const at = beforeFrameId ? placements.findIndex((pl) => pl.placeholderId === beforeFrameId) : placements.length
     placements.splice(at < 0 ? placements.length : at, 0, ...validIds.map((id) => defaultPlacement(uuid(), id, { width: p.defaultBorderWidth, color: p.defaultBorderColor }, p.photos.find(photo => photo.id === id))))
     const candidates=cyclingTemplates({...p,spreads:[]},{...target,placements},get().templateFrameFilter,get().favoriteTemplateIds)
+    // Dropping photographs onto a spread used to take whichever layout came first in the library,
+    // which is why a landscape photograph kept landing in an upright frame: the choice never
+    // looked at the photographs at all. Auto-build has always ranked by shape; this is the same
+    // rule, applied where the photographs actually arrive. Sorting is stable, so among layouts
+    // that suit the photographs equally well the library's own order still decides.
+    const dropped=placements.flatMap(pl=>{const photo=p.photos.find(ph=>ph.id===pl.photoId);return photo?[photo]:[]})
+    const spreadAspect=(target.size??p.size).widthIn/(target.size??p.size).heightIn
+    if(dropped.length===placements.length){
+      const missed=new Map(candidates.map(t=>[t.id,templateShapeMismatches(dropped,t,spreadAspect,target.marginPx,target.gapPx)]))
+      candidates.sort((a,b)=>missed.get(a.id)!-missed.get(b.id)!)
+    }
     const height=DESIGN_WIDTH/(target.size??p.size).widthIn*(target.size??p.size).heightIn
     const oldBoxes=computePlaceholderBoxes(target,DESIGN_WIDTH,height)
     const stacked={...target,placements,customBoxes:placements.map((pl,i)=>{const old=oldBoxes.find(b=>b.placeholderId===pl.placeholderId);return {id:pl.placeholderId,...(old?{x:old.x/DESIGN_WIDTH,y:old.y/height,width:old.width/DESIGN_WIDTH,height:old.height/height}:{x:.1+(i%8)*.025,y:.1+(i%8)*.025,width:.6,height:.6}),preferredOrientation:'any' as const}}),flipped:false}

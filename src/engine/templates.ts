@@ -7,6 +7,7 @@ import { SIGNATURE_TEMPLATES } from './signatureTemplates'
 import { ALBUM_TEMPLATES } from './albumTemplates'
 import { EDGE_TEMPLATES } from './edgeTemplates'
 import { BLEED_FEATURE_TEMPLATES, isBleedFeatureTemplate } from './bleedFeatureTemplates'
+import { SHAPE_SET_TEMPLATES } from './shapeSetTemplates'
 
 // A plain incrementing counter (not crypto.randomUUID()) — module evaluation order is the same
 // on every app launch, so this produces the exact same placeholder ids every time. That stability
@@ -813,7 +814,7 @@ const editorialAdditions = EDITORIAL_TEMPLATES.filter(t => {
 // The signature set leads: it is the short list of hand-written layouts a designer reaches for
 // first, and being ahead of everything else means it also wins the dedup pass when a generated
 // grid happens to land on the same geometry.
-const legacyTemplates = [...ALBUM_TEMPLATES, ...BLEED_FEATURE_TEMPLATES, ...EDGE_TEMPLATES, ...SIGNATURE_TEMPLATES, ...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions]
+const legacyTemplates = [...ALBUM_TEMPLATES, ...BLEED_FEATURE_TEMPLATES, ...EDGE_TEMPLATES, ...SIGNATURE_TEMPLATES, ...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions, ...SHAPE_SET_TEMPLATES]
 
 /** What makes two layouts the same design: which edges the frames share, not how wide the columns
  *  are. A spread split 1:1 and the same spread split 1:2 are one arrangement at two sizes, and
