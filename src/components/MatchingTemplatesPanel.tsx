@@ -38,14 +38,8 @@ export default function MatchingTemplatesPanel() {
 
   const [active, setActive] = useState<{ row: number; index: number } | null>(null)
   const [offsets, setOffsets] = useState([0, 0])
-  // Each section keeps its own scroll, so both stay on screen however many templates match.
-  const [sectionHeight, setSectionHeight] = useState(200)
   const [tileWidth, setTileWidth] = useState(220)
-  // The strip's own box. The tiles are absolutely positioned, so the number of columns that fit
-  // has to be measured rather than left to the browser to wrap.
-  const [strip, setStrip] = useState({ width: 1200, height: 200 })
   const strips = useRef<(HTMLDivElement | null)[]>([])
-  const observed = useRef(new WeakSet<HTMLDivElement>())
   const spread = project.spreads.find(s => s.id === spreadId && !s.isCover)
   const size = spread?.size ?? project.size
   const target = spread?.pageSide === 'spread' ? scope : 'spread'
@@ -65,17 +59,8 @@ export default function MatchingTemplatesPanel() {
       const panel = document.querySelector('.matching-templates')?.clientHeight || window.innerHeight * 0.42
       // Room taken by the two labels, the header and the padding between the strips.
       const perRow = Math.max(44, (panel - 86) / 2)
-      // Two grid rows per section at the default panel height. The tiles wrap now, so sizing one
-      // to fill the whole section would show eight templates and hide the other twenty — which is
-      // the complaint this answers. Drag the panel taller and both the tiles and the rows grow.
-      const perTile = Math.max(72, (perRow - 12) / 2)
       const widest = window.innerWidth <= 800 ? 150 : Math.max(160, Math.min(420, window.innerWidth * 0.24))
-      setTileWidth(Math.max(42, Math.min(widest, perTile * aspect)))
-      setSectionHeight(perRow)
-      const box = strips.current.find(Boolean)
-      if (box) setStrip(current =>
-        current.width === box.clientWidth && current.height === box.clientHeight
-          ? current : { width: box.clientWidth, height: box.clientHeight })
+      setTileWidth(Math.max(42, Math.min(widest, perRow * aspect)))
     }
     resize()
     window.addEventListener('resize', resize)
@@ -85,12 +70,6 @@ export default function MatchingTemplatesPanel() {
     return () => { window.removeEventListener('resize', resize); observer.disconnect() }
   }, [aspect,designer,open])
   const {categories,setCategories,collection,setCollection,favoritesOnly,setFavoritesOnly}=useTemplateBrowsing()
-  // Every matching template is laid out as a wrapping grid and reached by scrolling down, rather
-  // than as one long line reached by clicking an arrow. Eight at a time behind a Next button is
-  // not a browser, and the panel is resizable precisely so this can be made taller.
-  const tileHeight = tileWidth / aspect
-  const columns = Math.max(1, Math.floor((strip.width + 12) / (tileWidth + 12)))
-  const gridRows = (n: number) => Math.ceil(n / columns)
   const rows = useMemo(() => {
     if (!open || !spread || !count) return [[], []]
     const photos = placements.flatMap(p => { const photo = project.photos.find(photo => photo.id === p.photoId); return photo ? [photo] : [] })
@@ -129,12 +108,12 @@ export default function MatchingTemplatesPanel() {
       const template = rows[row][index]?.template
       if (!template) return
       setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target)
-      const box = strips.current[row], top = Math.floor(index / columns) * (tileHeight + 12)
-      if (box && (top < box.scrollTop || top + tileHeight > box.scrollTop + box.clientHeight)) box.scrollTop = top
+      const strip = strips.current[row], left = index * (tileWidth + 12)
+      if (strip && (left < strip.scrollLeft || left + tileWidth > strip.scrollLeft + strip.clientWidth)) strip.scrollLeft = left
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, rows, active, preview, close, apply, spreadId, tileWidth, tileHeight, columns, count, target, autoRearrange])
+  }, [open, rows, active, preview, close, apply, spreadId, tileWidth, count, target, autoRearrange])
   useEffect(() => {
     if (open && !spread) close()
     return () => { useProjectStore.getState().previewMatchingTemplate(null) }
@@ -159,19 +138,10 @@ export default function MatchingTemplatesPanel() {
     {count === 1 && <div className="matching-templates__info"><strong>Rearrange Timeline:</strong><span>A single image has no timeline order to rearrange.</span></div>}
     {(count > 1 ? ['Rearrange Timeline', 'Match Timeline Order'] : ['Match Timeline Order']).map((label, row) => <div className="matching-templates__row" key={label}>
       <span className="matching-templates__label">{label}:</span>
-      <button className="btn btn--icon" aria-label={`Previous ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ top: -strips.current[row]!.clientHeight * 0.9, behavior: 'smooth' })}><Icon name="chevronLeft" size={14} /></button>
-      <div className="matching-templates__strip" style={{ maxHeight: sectionHeight }} ref={el => {
-          strips.current[row] = el
-          if (!el || observed.current.has(el)) return
-          observed.current.add(el)
-          const measure = () => setStrip(current =>
-            current.width === el.clientWidth && current.height === el.clientHeight
-              ? current : { width: el.clientWidth, height: el.clientHeight })
-          measure()
-          new ResizeObserver(measure).observe(el)
-        }} aria-label={label} onPointerDown={e=>{if(e.button!==0||(e.target as Element).closest('button'))return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setMarquee({x:e.clientX,y:e.clientY,left:e.clientX,top:e.clientY,width:0,height:0});setSelection([])}} onPointerMove={e=>{if(!marquee)return;const box={...marquee,left:Math.min(marquee.x,e.clientX),top:Math.min(marquee.y,e.clientY),width:Math.abs(e.clientX-marquee.x),height:Math.abs(e.clientY-marquee.y)};setMarquee(box);setSelection(Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-template-id]')).filter(el=>{const r=el.getBoundingClientRect();return r.right>=box.left&&r.left<=box.left+box.width&&r.bottom>=box.top&&r.top<=box.top+box.height}).map(el=>el.dataset.templateId!))}} onPointerUp={()=>setMarquee(null)} onPointerCancel={()=>setMarquee(null)} onScroll={event => { const offset = Math.max(0, Math.floor(event.currentTarget.scrollTop / (tileHeight + 12)) - 2) * columns; setOffsets(current => current[row] === offset ? current : current.map((value, i) => i === row ? offset : value)) }}>
-        <div style={{ position: 'relative', flex: '1 1 auto', width: '100%', height: Math.max(0, gridRows(rows[row].length) * (tileHeight + 12) - 12) }}>
-        {rows[row].slice(offsets[row], offsets[row] + columns * (Math.ceil(strip.height / (tileHeight + 12)) + 4)).map(({template, photos}, slot) => { const index = offsets[row] + slot; return <div className={`matching-template ${active?.row === row && active.index === index ? 'is-previewing' : ''} ${spread.templateId === template.id ? 'is-current' : ''} ${selection.includes(template.id)?'is-selected':''}`} key={template.id} data-template-id={template.id} onContextMenu={e=>{e.preventDefault();setMenu({x:e.clientX,y:e.clientY,id:template.id});if(!selection.includes(template.id))setSelection([template.id])}} style={{ position: 'absolute', left: (index % columns) * (tileWidth + 12), top: Math.floor(index / columns) * (tileHeight + 12), width: tileWidth }}>
+      <button className="btn btn--icon" aria-label={`Previous ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ left: -strips.current[row]!.clientWidth * 0.8, behavior: 'smooth' })}><Icon name="chevronLeft" size={14} /></button>
+      <div className="matching-templates__strip" ref={el => { strips.current[row] = el }} aria-label={label} onPointerDown={e=>{if(e.button!==0||(e.target as Element).closest('button'))return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setMarquee({x:e.clientX,y:e.clientY,left:e.clientX,top:e.clientY,width:0,height:0});setSelection([])}} onPointerMove={e=>{if(!marquee)return;const box={...marquee,left:Math.min(marquee.x,e.clientX),top:Math.min(marquee.y,e.clientY),width:Math.abs(e.clientX-marquee.x),height:Math.abs(e.clientY-marquee.y)};setMarquee(box);setSelection(Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-template-id]')).filter(el=>{const r=el.getBoundingClientRect();return r.right>=box.left&&r.left<=box.left+box.width&&r.bottom>=box.top&&r.top<=box.top+box.height}).map(el=>el.dataset.templateId!))}} onPointerUp={()=>setMarquee(null)} onPointerCancel={()=>setMarquee(null)} onScroll={event => { const offset = Math.max(0, Math.floor(event.currentTarget.scrollLeft / (tileWidth + 12)) - 2); setOffsets(current => current[row] === offset ? current : current.map((value, i) => i === row ? offset : value)) }}>
+        <div style={{ position: 'relative', flex: '0 0 auto', width: Math.max(0, rows[row].length * (tileWidth + 12) - 12), height: tileWidth / aspect + 12 }}>
+        {rows[row].slice(offsets[row], offsets[row] + Math.ceil((strips.current[row]?.clientWidth ?? tileWidth * 10) / (tileWidth + 12)) + 8).map(({template, photos}, slot) => { const index = offsets[row] + slot; return <div className={`matching-template ${active?.row === row && active.index === index ? 'is-previewing' : ''} ${spread.templateId === template.id ? 'is-current' : ''} ${selection.includes(template.id)?'is-selected':''}`} key={template.id} data-template-id={template.id} onContextMenu={e=>{e.preventDefault();setMenu({x:e.clientX,y:e.clientY,id:template.id});if(!selection.includes(template.id))setSelection([template.id])}} style={{ position: 'absolute', left: index * (tileWidth + 12), width: tileWidth }}>
           <button className="matching-template__apply" title={`${template.name} — preview, click to apply`} onMouseEnter={() => { setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onFocus={() => { setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onClick={e => { if(e.shiftKey||e.ctrlKey||e.metaKey){setSelection(ids=>ids.includes(template.id)?ids.filter(id=>id!==template.id):[...ids,template.id]);return}apply(spread.id, template.id, !autoRearrange || count <= 1 || row === 1, target); close() }}>
             <TemplateThumb template={template} photos={templateFramesInReadingOrder(template).map(frame=>photos[template.placeholders.indexOf(frame)])} placements={placements} aspect={aspect} marginPx={spread.marginPx * (target === 'spread' ? 1 : 2)} gapPx={spread.gapPx * (target === 'spread' ? 1 : 2)} />
             <span className="sr-only">{label}: {template.name}</span>
@@ -181,7 +151,7 @@ export default function MatchingTemplatesPanel() {
         </div>
         {!rows[row].length && <p className="muted">No matching templates. Change the frame filter{favoritesOnly ? ' or turn off Favorites' : ''}.</p>}
       </div>
-      <button className="btn btn--icon" aria-label={`Next ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ top: strips.current[row]!.clientHeight * 0.9, behavior: 'smooth' })}><Icon name="chevronRight" size={14} /></button>
+      <button className="btn btn--icon" aria-label={`Next ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ left: strips.current[row]!.clientWidth * 0.8, behavior: 'smooth' })}><Icon name="chevronRight" size={14} /></button>
     </div>)}
     {marquee&&<div style={{position:"fixed",left:marquee.left,top:marquee.top,width:marquee.width,height:marquee.height,border:"1px solid var(--accent)",background:"rgba(100,140,220,.16)",pointerEvents:"none",zIndex:1000}}/>}
     {menu&&<ContextMenu x={menu.x} y={menu.y} onClose={()=>setMenu(null)} items={[

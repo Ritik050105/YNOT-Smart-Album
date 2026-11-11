@@ -2610,7 +2610,7 @@ input[type='checkbox'] {
 .matching-templates__header select { max-width: 210px; min-width: 0; padding: 4px; }
 .matching-templates__row { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--border); }
 .matching-templates__label { width: clamp(108px, 15vw, 240px); flex-shrink: 0; font-size: 12px; color: var(--text-muted); }
-.matching-templates__strip { display: flex; gap: 12px; flex: 1; min-width: 0; overflow-x: hidden; overflow-y: auto; padding: 2px 0 7px; max-height: 100%; }
+.matching-templates__strip { display: flex; gap: 12px; flex: 1; min-width: 0; overflow-x: auto; padding: 2px 0 7px; }
 .matching-template { position: relative; flex: 0 0 auto; width: clamp(160px, 24vw, 360px); border: 2px solid transparent; border-radius: 3px; }
 .matching-template.is-current { border-color: var(--border); }
 .matching-template.is-previewing { border-color: var(--accent); }
