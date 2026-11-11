@@ -13,6 +13,12 @@ app.whenReady().then(async()=>{
  win.webContents.on('console-message',(_,level,message)=>{if(level===3)console.error(message)});await win.loadFile(path.join(out,'index.html'));const evaluate=async code=>{try{return await win.webContents.executeJavaScript(`(()=>eval(${JSON.stringify(code)}))()`)}catch(e){console.error(code);throw e}}
  await new Promise(r=>setTimeout(r,200));await evaluate(`window.dispatchEvent(new CustomEvent('album-studio:enter-editor'))`)
  for(let i=0;i<40&&!await evaluate('!!document.querySelector(".spreads-panel--empty")');i++)await new Promise(r=>setTimeout(r,100))
+ // A new project opens with the photo dock showing: it holds Import Images and the drop zone,
+ // and an album with no photographs in it has nothing else to offer. What follows is about the
+ // empty workspace's layout as the window changes size, and it works up from a closed dock, so
+ // close it here rather than assume it starts that way.
+ assert.equal(await evaluate('store.getState().bottomPanelOpen'),true,'A new project opens with the photo dock showing')
+ await evaluate(`document.querySelector('[aria-label="Hide image browser"]').click()`);await new Promise(r=>setTimeout(r,150))
  assert.equal(await evaluate('store.getState().bottomPanelOpen'),false)
  assert.equal(await evaluate('document.querySelectorAll(".app-sidebar").length'),0)
  for(const [w,h]of [[1600,900],[1366,768],[1024,768],[720,480]]){
