@@ -24,10 +24,20 @@ export function PreviewCell({
   const crop = photo && photo.width > 0 && photo.height > 0
     ? computeCoverCrop(photo.width, photo.height, ph.width * aspect, ph.height, placement?.focalX, placement?.focalY, placement?.zoom)
     : undefined
+  // A frame that runs to the trim is drawn without a border on that side. The border is there to
+  // separate one photograph from the next; on the outer edge it is a hairline of panel colour
+  // around a photograph that is meant to reach the paper's edge, which makes a full-spread layout
+  // preview as an inset one — the single thing that tells the two apart at thumbnail size.
+  const trim = (v: number) => v <= 0.001
+  const edge = { left: trim(ph.x), top: trim(ph.y), right: trim(1 - ph.x - ph.width), bottom: trim(1 - ph.y - ph.height) }
   return (
     <span
       className="gallery-cell"
       style={{
+        borderLeftWidth: edge.left ? 0 : undefined,
+        borderTopWidth: edge.top ? 0 : undefined,
+        borderRightWidth: edge.right ? 0 : undefined,
+        borderBottomWidth: edge.bottom ? 0 : undefined,
         left: `${ph.x * 100}%`,
         top: `${ph.y * 100}%`,
         width: `${ph.width * 100}%`,
