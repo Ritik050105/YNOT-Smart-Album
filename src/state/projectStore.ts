@@ -1562,7 +1562,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   updateProjectSettings: (patch) => withHistory(set, (p) => ({ ...p, ...patch })),
 
   loadProjectFile: (file) => {
-    warmPhotos(file.project.photos)
+    warmPhotos(file.project.photos ?? [])
     get().closeMatchingTemplates()
     saveUserTemplates(file.userTemplates)
     // Older saved project files predate these fields — default them so opening one doesn't
@@ -1586,13 +1586,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       kind: file.project.kind ?? 'album',
       slideDurationMs: file.project.slideDurationMs ?? 4000,
       size: migrateAlbumSize(file.project.size),
-      photos: file.project.photos.map((photo) => ({ ...photo, bins: photo.bins ?? [], favorite: photo.favorite ?? false })),
-      spreads: file.project.spreads.map((spread) => ({
+      // Every list an album is made of, defaulted. A field added after a project was saved is
+      // simply absent from that file, and the code reads these as the arrays the types promise —
+      // forty-odd places read spread.textBoxes without asking whether it is there. One missing
+      // array is a crash on open, which is how a photograph with no bins emptied the photo dock.
+      photos: (file.project.photos ?? []).map((photo) => ({ ...photo, bins: photo.bins ?? [], favorite: photo.favorite ?? false })),
+      spreads: (file.project.spreads ?? []).map((spread) => ({
         ...spread,
         flipped: spread.flipped ?? false,
         isCover: spread.isCover ?? false,
         guides: spread.guides ?? { horizontal: [], vertical: [] },
-        placements: spread.placements.map((p) => ({
+        textBoxes: spread.textBoxes ?? [],
+        placements: (spread.placements ?? []).map((p) => ({
           ...p,
           cornerRadiusPx: p.cornerRadiusPx ?? 24,
           flipHorizontal: p.flipHorizontal ?? false,
