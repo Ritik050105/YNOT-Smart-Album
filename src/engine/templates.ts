@@ -6,7 +6,7 @@ import { EDITORIAL_TEMPLATES } from './editorialTemplates'
 import { SIGNATURE_TEMPLATES } from './signatureTemplates'
 import { ALBUM_TEMPLATES } from './albumTemplates'
 import { EDGE_TEMPLATES } from './edgeTemplates'
-import { BLEED_FEATURE_TEMPLATES } from './bleedFeatureTemplates'
+import { BLEED_FEATURE_TEMPLATES, isBleedFeatureTemplate } from './bleedFeatureTemplates'
 
 // A plain incrementing counter (not crypto.randomUUID()) — module evaluation order is the same
 // on every app launch, so this produces the exact same placeholder ids every time. That stability
@@ -875,6 +875,12 @@ export function templateSwatchStyle(t: Pick<TemplateDefinition, 'thumbnailColor'
 /** The full-bleed-page family — one page edge to edge, the facing page carrying the photos and,
  *  in the mixed variants, the caption. Listed ahead of everything else in the template browser,
  *  the way a recently used layout is, because it is the look designers reach for most. */
+/** Layouts the browsers must not test for a uniform gap: one of their frames runs to the trim by
+ *  design, so the seam beside it is a margin rather than a gap and the check can never pass. */
+export function runsToTheTrim(t: TemplateDefinition): boolean {
+  return isFullSpreadTemplate(t) || isBleedFeatureTemplate(t.id)
+}
+
 export function isFullSpreadTemplate(t: TemplateDefinition): boolean {
   // The generated family only — its ids always end in the photo count. The six hand-written
   // originals it grew from carry gutters and an inset, so they are ordinary templates: this
