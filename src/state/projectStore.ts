@@ -595,6 +595,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectSpread: (id) =>
     set({
       matchingTemplatesOpen: false,
+      fontBrowserSpreadId: null,
       fontPreview: null,
       templatePreview: null,
       selectedSpreadId: id,
@@ -712,7 +713,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setTemplateFrameFilter: (f) => set({ templateFrameFilter: f }),
   toggleShowPhotoFileNames: () => set((s) => ({ showPhotoFileNames: !s.showPhotoFileNames })),
-  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [], canvasTool: 'select', matchingTemplatesOpen: false, templatePreview: null }),
+  enterDesignerView: (spreadId) => set({ designerViewSpreadId: spreadId, selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [], canvasTool: 'select', matchingTemplatesOpen: false, fontBrowserSpreadId: null, templatePreview: null }),
   exitDesignerView: (keepEmpty = false) => {
     const spread = get().project.spreads.find((s) => s.id === get().designerViewSpreadId)
     if (!keepEmpty && spread?.isCover && !spread.placements.some((p) => p.photoId) && !spread.textBoxes.some((t) => t.text.trim())) {
@@ -720,7 +721,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return
     }
     // A leftover Pan/Text/Shape tool would block moving and editing in the normal window, so always come back on Select.
-    set({ designerViewSpreadId: null, canvasTool: 'select' })
+    // The font browser's state lives in the store so its button can survive the image browser
+    // closing; the price is that it no longer disappears with the screen it was opened on.
+    set({ designerViewSpreadId: null, canvasTool: 'select', fontBrowserSpreadId: null })
   },
   setCanvasViewportMirror: (zoom, pan) => set({ canvasZoom: zoom, canvasPan: pan }),
 
@@ -1626,6 +1629,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   newProjectFile: () =>
     set({
       matchingTemplatesOpen: false,
+      fontBrowserSpreadId: null,
       fontPreview: null,
       templatePreview: null,
       project: newProject({ name: 'Untitled Album' }),
@@ -1669,6 +1673,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   createSimpleProject: (kind, name, clientName) =>
     set({
       matchingTemplatesOpen: false,
+      fontBrowserSpreadId: null,
       fontPreview: null,
       templatePreview: null,
       project: newProject({ name, kind, clientName }),

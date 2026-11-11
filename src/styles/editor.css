@@ -722,7 +722,11 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
  .spread-card-controls__center {grid-column:1 / -1;grid-row:2;flex-wrap:wrap;row-gap:0}
  .spread-card-controls__end {grid-column:2;grid-row:1}
  .spread-card-controls__actions,.spread-card-controls__end,.spread-card-controls__center {height:18px}
- .spread-card-controls__center button,.spread-card-controls__actions button,.spread-card-controls__end button {min-width:0;height:18px;padding-inline:2px}
+ /* Prefixed with .album-editor to match the rule that gives these buttons 28px: unprefixed, this
+    lost on specificity, and every button stayed 28px tall inside an 18px row — poking out of the
+    bar and onto the row beside it. */
+ .album-editor .spread-card-controls__center button,.album-editor .spread-card-controls__actions button,.album-editor .spread-card-controls__end button,.album-editor .spread-card-controls__quotes button {min-width:0;height:18px;padding-inline:2px}
+ .album-editor .spread-card-controls__end > span {line-height:18px}
 }
 
 /* Keep the work surfaces ordered independently of dialog and toolbar colors. */

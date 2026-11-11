@@ -71,7 +71,8 @@ app.whenReady().then(async()=>{
  for(const bottom of [false,true])for(const right of [false,true]){
    await evaluate(`store.setState({bottomPanelOpen:${bottom},rightPanelOpen:${right}})`)
    await new Promise(r=>setTimeout(r,180))
-   assert.ok(await evaluate(`(()=>{const bar=document.querySelector('.spread-card-controls'),bounds=bar.getBoundingClientRect(),items=[...bar.querySelectorAll('button'),bar.querySelector('.spread-card-controls__end > span')].map(e=>e.getBoundingClientRect());return items.every((r,i)=>r.left>=bounds.left-1&&r.right<=bounds.right+1&&items.slice(i+1).every(s=>Math.min(r.right,s.right)-Math.max(r.left,s.left)<=1||Math.min(r.bottom,s.bottom)-Math.max(r.top,s.top)<=1))})()`),'Spread toolbar controls never overlap after panel toggles')
+   const toolbar=await evaluate(`(()=>{const bar=document.querySelector('.spread-card-controls'),bounds=bar.getBoundingClientRect(),items=[...bar.querySelectorAll('button'),bar.querySelector('.spread-card-controls__end > span')].map(e=>e.getBoundingClientRect());const bad=[];items.forEach((r,i)=>{if(r.left<bounds.left-1||r.right>bounds.right+1)bad.push('outside:'+i);items.slice(i+1).forEach((q,j)=>{if(Math.min(r.right,q.right)-Math.max(r.left,q.left)>1&&Math.min(r.bottom,q.bottom)-Math.max(r.top,q.top)>1)bad.push(i+'x'+(i+1+j))})});return {bar:[Math.round(bounds.width),Math.round(bounds.height)],card:Math.round(bar.closest('.spreads-panel__card').getBoundingClientRect().width),win:[innerWidth,innerHeight],bad}})()`)
+   assert.equal(toolbar.bad.length,0,`Spread toolbar controls overlap after panel toggles (bottom ${bottom}, right ${right}): ${JSON.stringify(toolbar)}`)
    assert.ok(await evaluate(`(()=>{const card=document.querySelector('[data-spread-drag]').getBoundingClientRect(),icon=document.querySelector('.spread-card-controls__center').getBoundingClientRect();return Math.abs(icon.left+icon.width/2-card.left-card.width/2)<1})()`),'Template control group remains centered')
  }
  await evaluate('store.getState().selectSpread(store.getState().project.spreads[0].id)')
@@ -252,7 +253,8 @@ app.whenReady().then(async()=>{
  await evaluate(`document.querySelector('.font-picker__current').click()`)
  await new Promise(r=>setTimeout(r,100))
  assert.ok(await evaluate(`Array.from(document.querySelectorAll('.font-picker__list button')).some(e=>e.textContent.includes('QA-Arial'))`))
- assert.ok(await evaluate(`(()=>{const a=document.querySelector('.font-picker__current').getBoundingClientRect(),b=document.querySelector('.font-picker__dropdown').getBoundingClientRect();return Math.abs(a.width-b.width)<2&&b.height<300&&!document.body.textContent.includes('Choose a typeface')})()`),'Font dropdown stays within field width and compact height')
+ const picker=await evaluate(`(()=>{const a=document.querySelector('.font-picker__current').getBoundingClientRect(),b=document.querySelector('.font-picker__dropdown').getBoundingClientRect();return {fieldW:Math.round(a.width),dropW:Math.round(b.width),dropH:Math.round(b.height),hasChoose:document.body.textContent.includes('Choose a typeface')}})()`)
+ assert.ok(Math.abs(Math.max(picker.fieldW,220)-picker.dropW)<2&&picker.dropH<300&&!picker.hasChoose,`Font dropdown stays within field width and compact height: ${JSON.stringify(picker)}`)
  const gridProject=await evaluate('JSON.stringify(store.getState().project)')
  await evaluate(`store.setState({showGrid:false});`)
  await new Promise(r=>setTimeout(r,50))

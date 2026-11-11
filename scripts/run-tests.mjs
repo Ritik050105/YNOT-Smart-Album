@@ -16,7 +16,7 @@
 //   node scripts/run-tests.mjs --electron      only the ones that drive a window
 //   node scripts/run-tests.mjs --node          only the ones that do not
 
-import { readdirSync, readFileSync, existsSync } from 'node:fs'
+import { readdirSync, readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 
@@ -30,6 +30,11 @@ const SELF_LAUNCHING = /process\.versions\.electron/
 // A window test builds a bundle with esbuild and drives a real browser window, so it is slow and
 // deserves room; a plain one that takes this long has hung.
 const TIMEOUT = { electron: 240_000, node: 120_000 }
+
+// The theme sweep checks the hover state of every button on about thirty-five screens in two
+// themes, waiting out each transition, so it runs for many minutes by design. It was being killed
+// at 240 seconds around screen eleven and recorded as hanging.
+const SLOW = new Map([['test-theme', 1_500_000]])
 
 /** Not suite tests: these take a packaged app's path and architecture as arguments and check a
  *  build, so there is nothing for them to do on their own. Run by hand after packaging:
@@ -73,7 +78,7 @@ const run = (test) => new Promise((resolve) => {
   const command = test.runtime === 'electron' ? ELECTRON : process.execPath
   const child = spawn(command, [test.file], { stdio: ['ignore', 'pipe', 'pipe'] })
   let output = '', done = false
-  const timer = setTimeout(() => { done = true; child.kill('SIGKILL') }, TIMEOUT[test.runtime])
+  const timer = setTimeout(() => { done = true; child.kill('SIGKILL') }, SLOW.get(test.name) ?? TIMEOUT[test.runtime])
   child.stdout.on('data', (d) => { output += d })
   child.stderr.on('data', (d) => { output += d })
   const started = Date.now()
@@ -87,7 +92,13 @@ const failures = []
 for (const [index, test] of tests.entries()) {
   const result = await run(test)
   const ok = result.code === 0
-  if (!ok) failures.push(result)
+  if (!ok) {
+    failures.push(result)
+    // Keep the whole output. The one line printed below is rarely the whole story, and
+    // re-running a window test to read it again costs minutes.
+    mkdirSync('test-failures', { recursive: true })
+    writeFileSync(`test-failures/${test.name}.log`, result.output)
+  }
   const label = `${String(index + 1).padStart(2)}/${tests.length}`
   const mark = ok ? 'pass' : 'FAIL'
   console.log(`${label} ${mark} ${test.name.padEnd(34)} ${result.seconds.toFixed(1).padStart(6)}s  ${test.runtime}`
