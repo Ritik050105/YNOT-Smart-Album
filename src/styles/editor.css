@@ -1146,3 +1146,10 @@ body.has-effect-panel .designer-canvas-wrap { margin-right: min(342px, calc(100v
   height: min(var(--template-browser-height), 30vh); max-height: min(var(--template-browser-height), 30vh);
 }
 .timeline-drag-preview, .timeline-drag-hint { will-change: transform; }
+
+/* Font tools: buttons share each row evenly, so three of them never leave one stranded at half width. */
+.inspector .font-picker { display: flex; flex-wrap: wrap; gap: 4px; }
+.inspector .font-picker > .font-picker__anchor, .inspector .font-picker > .font-scan, .inspector .font-picker > [role=alert] { flex: 1 1 100%; }
+.inspector .font-picker > .btn { flex: 1 1 calc(50% - 4px); min-width: 0; }
+.inspector .field-section .slider-field--range { grid-template-columns: 96px minmax(0, 1fr) 52px; }
+.inspector .field-section .slider-field .row > span:first-child { white-space: nowrap; }
