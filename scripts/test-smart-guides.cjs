@@ -58,6 +58,9 @@ console.log('Matching sizes passed: horizontal, vertical, corner anchors, fixed 
 const cross=snapRect({x:300,y:80,width:100,height:100},[{x:100,y:40,width:100,height:100},{x:100,y:160,width:100,height:100},{x:300,y:200,width:100,height:100}],900,600,0);
 assert.ok(cross.guides.some(g=>g.bands?.some(b=>b.x===100&&b.y===140&&b.width===100&&b.height===20)),'Fill the entire matching gap in the neighboring column');
 assert.ok(cross.guides.some(g=>g.bands?.some(b=>b.x===300&&b.y===180&&b.width===100&&b.height===20)),'Fill the entire manipulated gap');
+// A stretch of page as tall as a frame is not a gutter and is never filled in yellow.
+const wide=snapRect({x:100,y:60,width:100,height:100},[{x:100,y:560,width:100,height:100},{x:400,y:60,width:100,height:100},{x:400,y:560,width:100,height:100}],900,800,0);
+assert.ok(!wide.guides.some(g=>g.bands?.some(b=>b.height>=300)),'A page-sized gap is not highlighted');
 console.log('Filled gap bands passed: matching gaps across columns');
 
 const layout={exports:{}};

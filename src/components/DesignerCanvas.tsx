@@ -1029,22 +1029,27 @@ export default function DesignerCanvas() {
         {canvasTool === 'frame' && <div className="frame-tool-hint" role="status"><strong>Image frame</strong><span>Drag to draw · Click for a standard frame</span><button className="btn" onClick={() => setCanvasTool('select')}>Done</button></div>}
         <button
           className="btn"
-          onClick={() =>
+          onClick={() => {
+            // Placed in the middle of the page, large enough to read, selected and ready to type into —
+            // it used to appear as a small grey line in the corner that nothing had selected.
+            const id = uuid()
             addTextBox(spread.id, {
-              id: uuid(),
-              x: 0.1,
-              y: 0.1,
-              width: 0.4,
-              height: 0.15,
-              text: 'Double-click to edit',
+              id,
+              x: 0.2,
+              y: 0.44,
+              width: 0.6,
+              height: 0.12,
+              text: 'Your text',
               fontFamily: 'Georgia',
-              fontSize: 24,
+              fontSize: 48,
               color: '#222222',
-              align: 'left',
+              align: 'center',
               bold: false,
               italic: false,
             })
-          }
+            selectTextBox(id)
+            setEditingTextId(id)
+          }}
         >
           <Icon name="type" size={14} />
           Add Text
@@ -1527,6 +1532,7 @@ export default function DesignerCanvas() {
               ref={element => { if (element) { element.style.height = '0px'; element.style.height = `${element.scrollHeight - 6}px` } }}
               onInput={e => { const fitted = fitTextBoxSize({ ...box, text: e.currentTarget.value }, size); e.currentTarget.style.width = `${fitted.width * STAGE_WIDTH * stageScale}px`; e.currentTarget.style.left = `${stagePos.x + fitted.x * STAGE_WIDTH * stageScale}px`; e.currentTarget.style.height = '0px'; e.currentTarget.style.height = `${e.currentTarget.scrollHeight - 6}px` }}
               autoFocus
+              onFocus={e => { if (e.currentTarget.value === 'Your text') e.currentTarget.select() }}
               defaultValue={box.text}
               onBlur={(e) => {
                 updateTextBox(spread.id, box.id, { text: e.target.value })

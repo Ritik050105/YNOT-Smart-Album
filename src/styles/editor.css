@@ -1135,3 +1135,14 @@ button:disabled { cursor:not-allowed; }
    sits beside the design instead of on top of it. */
 body.has-effect-panel .designer-canvas-wrap { margin-right: min(342px, calc(100vw - var(--inspector-width, 320px) - 80px)); }
 @media (max-width: 800px) { body.has-effect-panel .designer-canvas-wrap { margin-right: 0; } }
+
+/* Designer View, same budget as the overview: with a template browser open the gallery and the browser each
+   take a capped share, so the canvas being worked on keeps most of the window. Uncapped, the font browser and
+   the gallery left the spread a sliver 150px tall. */
+.album-editor.designer-view:has(.matching-templates, .font-template-browser) .bottom-panel:not([hidden]) {
+  flex-basis: min(var(--dock-height, 35vh), 20vh) !important; max-height: min(var(--dock-height, 35vh), 20vh); min-height: 120px;
+}
+.album-editor.designer-view .matching-templates, .album-editor.designer-view .font-template-browser {
+  height: min(var(--template-browser-height), 30vh); max-height: min(var(--template-browser-height), 30vh);
+}
+.timeline-drag-preview, .timeline-drag-hint { will-change: transform; }

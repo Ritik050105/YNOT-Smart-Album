@@ -75,7 +75,11 @@ export function snapRect(rect:GuideRect, targets:GuideRect[], width:number, heig
     for(const a of units)for(const b of units){
       const from=a[axis]+a[size],gap=b[axis]-from,low=Math.max(a[cross],b[cross]),high=Math.min(a[cross]+a[crossSize],b[cross]+b[crossSize])
       if(gap<=.01||high<=low||units.some(c=>c!==a&&c!==b&&c[axis]<b[axis]&&c[axis]+c[size]>from&&c[cross]<high&&c[cross]+c[crossSize]>low))continue
-      pairs.push({a,b,gap,band:axis==='x'?{x:from,y:low,width:gap,height:high-low}:{x:low,y:from,width:high-low,height:gap}})
+      const band=axis==='x'?{x:from,y:low,width:gap,height:high-low}:{x:low,y:from,width:high-low,height:gap}
+      // A highlight marks the gutter between two neighbouring frames. A stretch of page as wide as a frame
+      // is not a gutter — it is where something else belongs — and filled in yellow it hid the design.
+      if(gap>(axis==='x'?width:height)*.2)continue
+      pairs.push({a,b,gap,band})
     }
     const matches=pairs.filter(p=>((p.a===result||p.b===result)&&initialGap>0&&Math.abs(p.gap-initialGap)<.01)||pairs.some(q=>q!==p&&Math.abs(q.gap-p.gap)<.01&&(q.a===result||q.b===result||p.a===result||p.b===result)))
     for(const p of matches){

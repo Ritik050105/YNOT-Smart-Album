@@ -57,20 +57,25 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
       if (!text) { hintNode.current?.remove(); hintNode.current = null; return }
       if (!hintNode.current) {
         const node = document.createElement('div')
-        node.className = 'timeline-drag-hint'; node.setAttribute('role', 'status')
+        node.className = 'timeline-drag-hint'; node.setAttribute('role', 'status'); node.style.left = '0'; node.style.top = '0'
         document.body.appendChild(node); hintNode.current = node
       }
       if (hintNode.current.textContent !== text) hintNode.current.textContent = text
-      hintNode.current.style.left = x + 'px'; hintNode.current.style.top = (y + 44) + 'px'
+      hintNode.current.style.transform = `translate3d(${x}px, ${y + 44}px, 0) translate(-50%, 0)`
+    }
+    // A transform moves a node without laying the page out again, and it is applied straight from the pointer event
+    // rather than a frame later, so the image stays under the cursor instead of trailing it.
+    const moveGhost = (x: number, y: number) => {
+      if (ghost.current) ghost.current.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`
+      showHint(x, y)
     }
     const showGhost = (src: string, x: number, y: number) => {
       if (!ghost.current) {
         const node = document.createElement('img')
-        node.className = 'timeline-drag-preview'; node.alt = ''; node.src = src
+        node.className = 'timeline-drag-preview'; node.alt = ''; node.src = src; node.style.left = '0'; node.style.top = '0'
         document.body.appendChild(node); ghost.current = node
       }
-      ghost.current.style.left = x + 'px'; ghost.current.style.top = y + 'px'
-      showHint(x, y)
+      moveGhost(x, y)
     }
     let scrollFrame = 0
     let pointerFrame = 0
@@ -153,6 +158,7 @@ export function useTimelineDrag(onDrop: (source: TimelineSource, target: Timelin
       current.y = event.clientY
       if (!current.active && Math.hypot(current.x - current.startX, current.y - current.startY) < 5) return
       if (!current.active) current.active = true
+      if (ghost.current) moveGhost(current.x, current.y)
       if (!scrollFrame) scrollFrame = requestAnimationFrame(scroll)
       if (!pointerFrame) pointerFrame = requestAnimationFrame(() => {
         pointerFrame = 0
