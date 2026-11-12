@@ -74,18 +74,48 @@ export default function SpreadsPanel() {
   useEffect(() => {
     const row = spreadsRef.current
     if (!row) return
+    // Where the spread being worked on sat before the cards were made smaller, so that making them
+    // larger again can put it back. Holding a position across a change is not enough on its own:
+    // when the strip shrinks until it fits the window the scroll is clamped to zero and the spread
+    // cannot stay put, and without a memory it would stay wherever the clamp left it for good.
+    let remembered: { id: string; offset: number } | null = null
+    const takeOver = () => { remembered = null } // the user is scrolling now: stop second-guessing them
+    row.addEventListener('wheel', takeOver, { passive: true })
+    row.addEventListener('pointerdown', takeOver)
     const measure = () => {
       const css = getComputedStyle(row)
       const available = row.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom) - 4
       const ratio = project.size.widthIn / project.size.heightIn
       const height = Math.max(32, Math.min(available, (row.clientWidth - 32) / Math.max(1, ratio)))
+      // Resizing the cards changes the width of the whole strip, and the browser answers by clamping
+      // the scroll position — so opening a template browser, which gives the overview less height and
+      // the cards less width, threw the strip several hundred pixels sideways, and closing it grew the
+      // cards back without bringing the scroll with them, leaving the spread being worked on at the
+      // edge of the window or off it. The spread that was selected (else the first one in view) is held
+      // where it was on screen across the change, and put back where it started once the cards grow.
+      const columns = Array.from(row.querySelectorAll<HTMLElement>('.spreads-panel__column'))
+      const bounds = row.getBoundingClientRect()
+      const inView = (el: HTMLElement) => { const r = el.getBoundingClientRect(); return r.right > bounds.left && r.left < bounds.right }
+      const anchor = columns.find((el) => el.classList.contains('is-selected') && inView(el)) ?? columns.find(inView)
+      const id = anchor?.dataset.overviewSpread
+      const heldAt = anchor ? anchor.getBoundingClientRect().left - bounds.left : undefined
+      const previous = parseFloat(row.parentElement?.style.getPropertyValue('--overview-height') ?? '')
+      if (remembered && remembered.id !== id) remembered = null
+      if (id && heldAt !== undefined && Number.isFinite(previous) && height < previous - 1 && !remembered) remembered = { id, offset: heldAt }
       row.parentElement?.style.setProperty('--overview-height', `${height}px`)
+      if (anchor && heldAt !== undefined) {
+        const wanted = remembered?.offset ?? heldAt
+        const drift = anchor.getBoundingClientRect().left - bounds.left - wanted
+        if (Math.abs(drift) > 0.5) row.scrollLeft += drift
+        const landed = anchor.getBoundingClientRect().left - bounds.left
+        if (remembered && Number.isFinite(previous) && height > previous + 1 && Math.abs(landed - remembered.offset) <= 1) remembered = null
+      }
     }
     let frame = 0
     const observer = new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure) })
     observer.observe(row)
     measure()
-    return () => { observer.disconnect(); cancelAnimationFrame(frame) }
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); row.removeEventListener('wheel', takeOver); row.removeEventListener('pointerdown', takeOver) }
   }, [project.size.widthIn, project.size.heightIn])
   const { drag, target, setDragHint } = useTimelineDrag((source, destination) => {
     if (destination.bin) { if (source.photoIds.length) useProjectStore.getState().addPhotosToBin(source.photoIds, destination.bin); return }
@@ -138,7 +168,7 @@ export default function SpreadsPanel() {
     group?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     const card = Array.from(spreadsRef.current?.children ?? []).find((el) => (el as HTMLElement).dataset.overviewSpread === selectedSpreadId)
     card?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [selectedSpreadId, matchingTemplatesOpen])
+  }, [selectedSpreadId]) // eslint-disable-line react-hooks/exhaustive-deps — closing a browser must not re-run this
 
   // With no cover yet there was nothing to select, so the button looked dead: open cover setup instead.
   function goToCover() {

@@ -19,8 +19,9 @@
 .album-editor:not(.designer-view) .app-body { flex: 0 0 47vh; min-height: 240px; }
 .album-editor:not(.designer-view):has(.bottom-panel .photo-dock) .bottom-panel:not([hidden]) { flex: 1; min-height: 150px; display: flex; flex-direction: column; }
 .album-editor:not(.designer-view):has(.matching-templates) .app-body { flex: 1; min-height: 0; }
-.album-editor:has(.matching-templates) .spreads-panel { --spread-width: calc(max(48px, min(26vh, calc(100cqh - clamp(95px, 17vh, 164px) - 44px))) * var(--spread-aspect)); }
-.album-editor:has(.matching-templates) .spreads-panel__card--cover { flex-basis: max(48px, min(26vh, calc(100cqh - clamp(95px, 17vh, 164px) - 44px))); }
+/* (The cover and the strip used to be re-sized from a 26vh formula whenever a template browser was
+   open. The overview measures its own row now and sizes the cover and every spread from that one
+   number; that formula sized only the cover, which shrank alone and slid the whole strip sideways.) */
 .album-editor:not(.designer-view):not(:has(.bottom-panel .photo-dock)) .app-body { flex: 1; }
 .album-editor .panel-toggle--left, .album-editor .panel-toggle--right { width: 8px; background: var(--bg-canvas); color: var(--text-muted); border: 0; }
 .album-editor .panel-toggle--bottom { height: 5px; background: var(--panel-alt); border: 0; flex-shrink: 0; }
@@ -727,6 +728,11 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
     bar and onto the row beside it. */
  .album-editor .spread-card-controls__center button,.album-editor .spread-card-controls__actions button,.album-editor .spread-card-controls__end button,.album-editor .spread-card-controls__quotes button {min-width:0;height:18px;padding-inline:2px}
  .album-editor .spread-card-controls__end > span {line-height:18px}
+ /* The middle row holds nine layout buttons and the quote tools. On a narrow card they wrapped onto a
+    third row that hung below the bar, so they share the row's width instead and shrink to fit it. */
+ .spread-card-controls__center {flex-wrap:nowrap;min-width:0}
+ .spread-card-controls__center > *,.spread-card-controls__center .spread-card-controls__templates {display:flex;flex:1 1 0;min-width:0}
+ .album-editor .spread-card-controls__center button {flex:1 1 0;width:auto;min-width:0;padding-inline:0}
 }
 
 /* Keep the work surfaces ordered independently of dialog and toolbar colors. */
@@ -1041,3 +1047,13 @@ button:disabled { cursor:not-allowed; }
    100px drop icon at 48, each keeping its height while losing its width. Nothing about an icon
    should be elastic. */
 .album-editor button > svg, .photo-dock__drop-icon > svg { flex: 0 0 auto; }
+
+/* A template browser and the photo dock are on screen together, so neither may take what the overview
+   needs. The dock keeps showing the photographs but at about a fifth of the window, and the browser
+   is held to about a third; the designer view has its own layout and is left alone. */
+.album-editor:not(.designer-view):has(.matching-templates, .font-template-browser) .bottom-panel:has(.photo-dock):not([hidden]) {
+  flex-basis: min(var(--dock-height, 35vh), 20vh) !important; max-height: min(var(--dock-height, 35vh), 20vh); min-height: 120px;
+}
+.album-editor:not(.designer-view) .matching-templates, .album-editor:not(.designer-view) .font-template-browser {
+  height: min(var(--template-browser-height), 34vh); max-height: min(var(--template-browser-height), 34vh);
+}

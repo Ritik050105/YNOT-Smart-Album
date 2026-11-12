@@ -23,7 +23,6 @@ import Icon from './Icon'
 export default function EditorScreen() {
   const rightPanelOpen = useProjectStore((s) => s.rightPanelOpen)
   const toggleRightPanel = useProjectStore((s) => s.toggleRightPanel)
-  const matchingTemplatesOpen = useProjectStore((s) => s.matchingTemplatesOpen)
   const selectedPlaceholderId = useProjectStore((s) => s.selectedPlaceholderId)
   const selectedTextBoxId = useProjectStore((s) => s.selectedTextBoxId)
   const { bottomPanelOpen, handleMouseDown: handleBottomHandleMouseDown } = useBottomDockResize()
@@ -52,7 +51,7 @@ export default function EditorScreen() {
           <Icon name={rightPanelOpen ? 'chevronRight' : 'chevronLeft'} size={12} />
         </button>
       </div>
-      <div className="bottom-panel" hidden={matchingTemplatesOpen}>
+      <div className="bottom-panel">
         <button
           className="panel-toggle panel-toggle--bottom"
           onMouseDown={handleBottomHandleMouseDown}
