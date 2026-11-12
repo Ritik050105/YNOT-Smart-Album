@@ -1,6 +1,6 @@
 import { PhotoAsset, TemplateDefinition } from '@/types'
 import { resolveTemplateFrames } from './templateLayout'
-import { shapeOf } from './layoutMath'
+import { orientationFits, shapeOf } from './layoutMath'
 
 export function templateFramesInReadingOrder(template: TemplateDefinition) {
   return [...template.placeholders].sort((a, b) => a.x - b.x || a.y - b.y)
@@ -79,6 +79,21 @@ export function templateShapeMismatches(photos: PhotoAsset[], template: Template
   // Square frames are the give in the system: they take any photograph, so they soak up whichever
   // shape the layout is short of before anything counts as a mismatch.
   return Math.max(0, portraitShort + landscapeShort - count(frameShapes, 'square'))
+}
+
+/** The same count as templateShapeMismatches, for when the photographs keep their order: photo k
+ *  goes into the k-th frame in reading order, so a layout that has the right number of upright and
+ *  landscape frames can still put a panorama in a tall frame. This checks the frame each photo would
+ *  really get. */
+export function templateOrderMismatches(photos: PhotoAsset[], template: TemplateDefinition, aspect = 1, marginPx = 0, gapPx = 0): number {
+  const frames = resolveTemplateFrames(template.placeholders, aspect, marginPx, gapPx)
+  if (frames.length !== photos.length) return photos.length
+  return templateFramesInReadingOrder(template).reduce((count, placeholder, k) => {
+    const frame = frames[template.placeholders.indexOf(placeholder)], photo = photos[k]
+    const photoShape = photo.width > 0 && photo.height > 0 ? { width: photo.width, height: photo.height }
+      : photo.orientation === 'portrait' ? { width: 2, height: 3 } : photo.orientation === 'landscape' ? { width: 3, height: 2 } : { width: 1, height: 1 }
+    return count + (orientationFits(photoShape, { width: frame.width * aspect, height: frame.height }) ? 0 : 1)
+  }, 0)
 }
 
 export function rankTemplates(photos: PhotoAsset[], templates: TemplateDefinition[], aspect = 1, keepOrder = true, marginPx = 0, gapPx = 0) {

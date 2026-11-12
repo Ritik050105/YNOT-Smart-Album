@@ -24,5 +24,5 @@ export function cyclingTemplates(project:Project,spread:Spread,filter:TemplateFr
  const {categories,collection,favoritesOnly}=useTemplateBrowsing.getState()
  const list=[...templatesForCount(count,project.enabledTemplateIds,filter,aspect),...importedDesignTemplates(count,project.enabledTemplateIds,filter,aspect)].filter(t=>(!favoritesOnly||favorites.includes(t.id))&&(kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length)&&categories[templateCategory(t)]&&matchesCollection(t.id,collection,readCollections(),favorites)&&(templateCategory(t)!=='reference'||runsToTheTrim(t)||supportsUniformGap(t.placeholders,aspect,spread.marginPx,spread.gapPx)))
  const photos=spread.placements.flatMap(pl=>{const photo=project.photos.find(ph=>ph.id===pl.photoId);return photo?[photo]:[]})
- return offeredLayouts(photos.length===count?photos:[],list,aspect,spread.marginPx,spread.gapPx)
+ return offeredLayouts(photos.length===count?photos:[],list,aspect,spread.marginPx,spread.gapPx,true)
 }

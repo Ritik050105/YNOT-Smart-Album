@@ -1,8 +1,8 @@
 import { v4 as uuid } from 'uuid'
 import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TextBox } from '@/types'
 import { suggestTemplate, findTemplate, templatesForCount, TemplateFrameFilter } from './templates'
-import { preferEvenLayouts } from './layoutOffer'
-import { rankTemplates, templateFramesInReadingOrder, templateShapesFit, templateShapeMismatches } from './templateMatching'
+import { preferEvenLayouts, uniformGapLayouts } from './layoutOffer'
+import { rankTemplates, templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches } from './templateMatching'
 
 export interface AutoLayoutOptions {
   groupBlackAndWhite?: boolean
@@ -103,6 +103,10 @@ export interface SpreadAppearanceDefaults {
   borderWidth: number
   borderColor: string
 }
+
+/** Spreads with more photographs than this keep their timeline order whatever the shapes: shuffling
+ *  twenty photographs to chase frame shapes would wreck the story more than it helps. */
+const MAX_REARRANGED = 8
 
 export const FALLBACK_APPEARANCE_DEFAULTS: SpreadAppearanceDefaults = {
   backgroundColor: '#ffffff',
@@ -289,6 +293,8 @@ export function buildSpreadsFromGroups(
     const side = singlePageSide(index, groups.length, layout)
     let candidates = autoBuildTemplates(group.length, groupDesigns?.[index]?.templateIds ?? enabledTemplateIds, layout, side ?? false)
     if (!candidates.length) throw new Error(`No enabled template matches ${group.length} images with the current frame and layout filters. Change the filters or images per spread.`)
+    // Layouts that leave the album's own gap between photos come first, ahead of the reuse rules below.
+    candidates = uniformGapLayouts(candidates, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx)
     if ((templateReuse === 'never' || templateReuse === 'low') && candidates.length) {
       // "Never" drops every template already used. If that leaves nothing — more spreads at this
       // photo count than there are templates for it — fall back to the least-used, because
@@ -302,19 +308,29 @@ export function buildSpreadsFromGroups(
     }
     // Only layouts that can give every photo a frame of its own shape. Without this a portrait
     // photo lands in a landscape frame and loses its top and bottom, which no crop can recover.
-    const shapesFit = candidates.filter((t) => templateShapesFit(group, t, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx))
-    if (shapesFit.length) candidates = shapesFit
+    // With the photographs kept in timeline order each one is judged against the frame it would
+    // actually get; free to rearrange, the layout only needs the right number of each shape.
+    let keepOrder = matchTimelineOrder
+    let mismatches = keepOrder ? templateOrderMismatches : templateShapeMismatches
+    const shapesFit = candidates.filter((t) => mismatches(group, t, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx) === 0)
+    // Timeline order can rule out every layout (a panorama, then an upright, then a landscape has
+    // no frames in that sequence). Then the photographs of this one spread are reordered among
+    // themselves, as the "Rearrange Timeline" row of the template browser does, rather than
+    // putting one of them in a frame of the wrong shape.
+    const rearranged = keepOrder && !shapesFit.length && group.length <= MAX_REARRANGED ? candidates.filter((t) => templateShapeMismatches(group, t, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx) === 0) : []
+    if (rearranged.length) { candidates = rearranged; keepOrder = false; mismatches = templateShapeMismatches }
+    else if (shapesFit.length) candidates = shapesFit
     else {
       // No layout suits every photograph — a mixed handful of uprights and landscapes often has
       // none. Take the ones that suit the most rather than letting the ranking choose freely
       // among layouts that all crop something, which is how an upright ended up in a landscape
       // frame while a layout that had an upright frame for it sat unused.
-      const missed = candidates.map((t) => [t, templateShapeMismatches(group, t, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx)] as const)
+      const missed = candidates.map((t) => [t, mismatches(group, t, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx)] as const)
       const fewest = Math.min(...missed.map(([, n]) => n))
       candidates = missed.filter(([, n]) => n === fewest).map(([t]) => t)
     }
     candidates = preferEvenLayouts(candidates, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx)
-    const ranked = rankTemplates(group, candidates, layout.aspect ?? 1, matchTimelineOrder, appearance.marginPx, appearance.gapPx)
+    const ranked = rankTemplates(group, candidates, layout.aspect ?? 1, keepOrder, appearance.marginPx, appearance.gapPx)
     if (templateReuse === 'medium') ranked.sort((a, b) => (a.score + (a.template.id === lastTemplateId ? 0.02 : 0)) - (b.score + (b.template.id === lastTemplateId ? 0.02 : 0)))
     const { template, photos: assigned, score } = ranked[0]
     if (!Number.isFinite(score) || score >= 1) throw new Error('No matching template has usable frame dimensions. Reduce the margin or gap.')

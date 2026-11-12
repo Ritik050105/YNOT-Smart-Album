@@ -12,12 +12,13 @@ export {templateShapeMismatches} from './src/engine/templateMatching'
 export {supportsUniformGap} from './src/engine/templateLayout'
 export {templateCategory} from './src/engine/templateTransfer'
 export {offeredLayouts} from './src/engine/layoutOffer'
+export {templateOrderMismatches} from './src/engine/templateMatching'
 export {hasEvenMargins,frameSizeSpread} from './src/engine/templateLayout'`,
     resolveDir: process.cwd(),
   },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { templatesForCount, runsToTheTrim, templateShapeMismatches, supportsUniformGap, templateCategory, offeredLayouts, hasEvenMargins, frameSizeSpread } =
+const { templatesForCount, runsToTheTrim, templateShapeMismatches, supportsUniformGap, templateCategory, offeredLayouts, hasEvenMargins, frameSizeSpread, templateOrderMismatches } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const MARGIN = 10, GAP = 10
@@ -59,6 +60,26 @@ for (const aspect of ASPECTS) {
       if (fit < worst) { worst = fit; worstAt = `aspect ${aspect}, ${count} photos, ${landscapes} landscape` }
     }
   }
+}
+
+// Photographs that keep their timeline order get the frame at their own position, so a layout with
+// the right NUMBER of upright and landscape frames can still put a panorama in a tall one. The
+// shelf for a fixed order must judge each photograph against the frame it would really get.
+{
+  const pano = { id: 'pano', width: 1200, height: 400 }, tall = { id: 'tall', width: 400, height: 1000 }
+  const wide = { id: 'wide', width: 900, height: 600 }, upright = { id: 'up', width: 600, height: 900 }
+  let zero = 0, total = 0
+  for (const aspect of ASPECTS) for (let count = 2; count <= 8; count++) {
+    const seq = [pano, tall, wide, upright, tall, wide, pano, upright].slice(0, count).map((p, i) => ({ ...p, id: p.id + i }))
+    const offered = templatesForCount(count, null, 'all', aspect).filter(t => !t.textBoxes?.length)
+      .filter(t => templateCategory(t) !== 'reference' || runsToTheTrim(t) || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
+    const shelf = offeredLayouts(seq, offered, aspect, MARGIN, GAP, true)
+    const fewest = Math.min(...offered.map(t => templateOrderMismatches(seq, t, aspect, MARGIN, GAP)))
+    assert.ok(shelf.length > 0 && shelf.every(t => templateOrderMismatches(seq, t, aspect, MARGIN, GAP) === fewest),
+      `aspect ${aspect}, ${count} photos in a fixed order: every offered layout gives each photograph a frame of its own shape`)
+    total++; if (fewest === 0) zero++
+  }
+  assert.ok(zero / total > 0.5, `most fixed-order sequences have a layout that suits every photograph (${zero}/${total})`)
 }
 
 console.log(`Shape coverage checks passed: every mix on every album shape has a layout; the thinnest is ${worst} (${worstAt}).`)

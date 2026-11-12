@@ -12,7 +12,7 @@ import { pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { importedDesignTemplates, isFullSpreadTemplate, runsToTheTrim, templatesForCount, uniqueTemplates } from '@/engine/templates'
-import {rankTemplates, templateFramesInReadingOrder, templateShapeMismatches} from '@/engine/templateMatching'
+import {rankTemplates, templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches} from '@/engine/templateMatching'
 import { isEditableTarget } from '@/engine/keyboard'
 import TemplateThumb from './TemplatePreview'
 import Icon from './Icon'
@@ -86,11 +86,16 @@ export default function MatchingTemplatesPanel() {
     // the row is always a layout the photographs go into whole.
     // Ordered by how many photographs the layout cannot give a frame of their own shape, so the
     // row opens with the ones that suit every photograph, then the ones that suit all but one.
-    const missed = new Map(candidates.map(t => [t.id,
-      photos.length === count ? templateShapeMismatches(photos, t, aspect, marginPx, gapPx) : 0]))
-    const offered = offeredLayouts(photos.length === count ? photos : [], candidates, aspect, marginPx, gapPx)
-    return (count > 1 ? [false, true] : [true]).map(keepOrder => (rankTemplates(photos, offered, aspect, !autoRearrange || keepOrder, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
-      .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^ref-(bleed|album|edge|signature)-/.test(b.template.id)) - Number(/^ref-(bleed|album|edge|signature)-/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))))
+    // The row that keeps the timeline order judges each photograph against the frame it would
+    // really be given; the rearranging row only needs the right number of each shape.
+    const shelf = (keep: boolean) => {
+      const fitting = offeredLayouts(photos.length === count ? photos : [], candidates, aspect, marginPx, gapPx, keep)
+      const mismatches = keep ? templateOrderMismatches : templateShapeMismatches
+      const missed = new Map(fitting.map(t => [t.id, photos.length === count ? mismatches(photos, t, aspect, marginPx, gapPx) : 0]))
+      return { fitting, missed }
+    }
+    return (count > 1 ? [false, true] : [true]).map(keepOrder => { const rowKeep = !autoRearrange || keepOrder, { fitting, missed } = shelf(rowKeep); return (rankTemplates(photos, fitting, aspect, rowKeep, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
+      .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^ref-(bleed|album|edge|signature)-/.test(b.template.id)) - Number(/^ref-(bleed|album|edge|signature)-/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))) })
   }, [kind,collection,collections,userTemplates, categories, open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
   useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [kind,collection, categories, userTemplates, open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
   useEffect(() => {

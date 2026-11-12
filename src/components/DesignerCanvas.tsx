@@ -1532,6 +1532,8 @@ export default function DesignerCanvas() {
               ref={element => { if (element) { element.style.height = '0px'; element.style.height = `${element.scrollHeight - 6}px` } }}
               onInput={e => { const fitted = fitTextBoxSize({ ...box, text: e.currentTarget.value }, size); e.currentTarget.style.width = `${fitted.width * STAGE_WIDTH * stageScale}px`; e.currentTarget.style.left = `${stagePos.x + fitted.x * STAGE_WIDTH * stageScale}px`; e.currentTarget.style.height = '0px'; e.currentTarget.style.height = `${e.currentTarget.scrollHeight - 6}px` }}
               autoFocus
+              // Escape finishes editing, the way every text field in a design tool does; blur commits the text.
+              onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); e.currentTarget.blur() } }}
               onFocus={e => { if (e.currentTarget.value === 'Your text') e.currentTarget.select() }}
               defaultValue={box.text}
               onBlur={(e) => {
