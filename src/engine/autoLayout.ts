@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TextBox } from '@/types'
 import { suggestTemplate, findTemplate, templatesForCount, TemplateFrameFilter } from './templates'
+import { preferEvenLayouts } from './layoutOffer'
 import { rankTemplates, templateFramesInReadingOrder, templateShapesFit, templateShapeMismatches } from './templateMatching'
 
 export interface AutoLayoutOptions {
@@ -106,7 +107,7 @@ export interface SpreadAppearanceDefaults {
 export const FALLBACK_APPEARANCE_DEFAULTS: SpreadAppearanceDefaults = {
   backgroundColor: '#ffffff',
   gapPx: 8,
-  marginPx: 10,
+  marginPx: 4,
   borderWidth: 0,
   borderColor: '#ffffff',
 }
@@ -312,6 +313,7 @@ export function buildSpreadsFromGroups(
       const fewest = Math.min(...missed.map(([, n]) => n))
       candidates = missed.filter(([, n]) => n === fewest).map(([t]) => t)
     }
+    candidates = preferEvenLayouts(candidates, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx)
     const ranked = rankTemplates(group, candidates, layout.aspect ?? 1, matchTimelineOrder, appearance.marginPx, appearance.gapPx)
     if (templateReuse === 'medium') ranked.sort((a, b) => (a.score + (a.template.id === lastTemplateId ? 0.02 : 0)) - (b.score + (b.template.id === lastTemplateId ? 0.02 : 0)))
     const { template, photos: assigned, score } = ranked[0]

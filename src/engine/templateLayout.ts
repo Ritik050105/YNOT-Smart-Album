@@ -138,6 +138,23 @@ export function supportsUniformGap(frames:PlaceholderRect[],aspect:number,margin
  return true
 }
 
+/** Whether the page is framed evenly: the blank edge round the layout is the same on all four
+ *  sides, so the border reads as one margin rather than a wider strip on one side. Measured on the
+ *  frames as they are drawn, with the album's own margin and gap applied. */
+export function hasEvenMargins(frames:PlaceholderRect[],aspect:number,marginPx:number,gapPx:number){
+ const resolved=resolveTemplateFrames(frames,aspect,marginPx,gapPx),height=900/aspect
+ if(!resolved.length)return false
+ const sides=[Math.min(...resolved.map(p=>p.x))*900,(1-Math.max(...resolved.map(p=>p.x+p.width)))*900,Math.min(...resolved.map(p=>p.y))*height,(1-Math.max(...resolved.map(p=>p.y+p.height)))*height]
+ return Math.max(...sides)-Math.min(...sides)<=1
+}
+
+/** The largest frame over the smallest, by area. A layout past about 6 is one hero and a scatter of
+ *  postage stamps, which is what reads as uneven rather than designed. */
+export function frameSizeSpread(frames:PlaceholderRect[]){
+ const areas=frames.map(p=>p.width*p.height).filter(a=>a>0)
+ return areas.length?Math.max(...areas)/Math.min(...areas):Infinity
+}
+
 /** Re-spaces frames that were stored as absolute boxes when the album's margin or gap changes.
  *
  *  A spread keeps `customBoxes` as soon as anything moves a frame by hand, and an imported design

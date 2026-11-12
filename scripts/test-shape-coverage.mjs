@@ -10,12 +10,14 @@ const result = await build({
     contents: `export {templatesForCount,runsToTheTrim} from './src/engine/templates'
 export {templateShapeMismatches} from './src/engine/templateMatching'
 export {supportsUniformGap} from './src/engine/templateLayout'
-export {templateCategory} from './src/engine/templateTransfer'`,
+export {templateCategory} from './src/engine/templateTransfer'
+export {offeredLayouts} from './src/engine/layoutOffer'
+export {hasEvenMargins,frameSizeSpread} from './src/engine/templateLayout'`,
     resolveDir: process.cwd(),
   },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { templatesForCount, runsToTheTrim, templateShapeMismatches, supportsUniformGap, templateCategory } =
+const { templatesForCount, runsToTheTrim, templateShapeMismatches, supportsUniformGap, templateCategory, offeredLayouts, hasEvenMargins, frameSizeSpread } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const MARGIN = 10, GAP = 10
@@ -40,6 +42,18 @@ for (const aspect of ASPECTS) {
         ...Array.from({ length: count - landscapes }, (_, i) => upright(i)),
       ]
       const fit = offered.filter(t => templateShapeMismatches(photos, t, aspect, MARGIN, GAP) === 0).length
+      // What the browser actually shows: only layouts whose frames suit the photographs' shapes
+      // (landscape photos meet landscape or square frames, uprights meet upright or square), and
+      // evenly framed ones while enough of those remain.
+      const shelf = offeredLayouts(photos, offered, aspect, MARGIN, GAP)
+      assert.ok(shelf.length > 0, `aspect ${aspect}, ${count} photos, ${landscapes} landscape: the shelf is not empty`)
+      const fewest = Math.min(...offered.map(t => templateShapeMismatches(photos, t, aspect, MARGIN, GAP)))
+      assert.ok(shelf.every(t => templateShapeMismatches(photos, t, aspect, MARGIN, GAP) === fewest),
+        `aspect ${aspect}, ${count} photos, ${landscapes} landscape: the shelf holds only layouts that fit the photographs' shapes`)
+      if (shelf.length > 0 && shelf.some(t => !runsToTheTrim(t) && !hasEvenMargins(t.placeholders, aspect, MARGIN, GAP))) {
+        assert.ok(shelf.filter(t => runsToTheTrim(t) || (hasEvenMargins(t.placeholders, aspect, MARGIN, GAP) && frameSizeSpread(t.placeholders) <= 6)).length < 3,
+          `aspect ${aspect}, ${count} photos, ${landscapes} landscape: uneven layouts are shown only when fewer than three even ones fit`)
+      }
       assert.ok(fit > 0,
         `aspect ${aspect}, ${count} photos, ${landscapes} landscape: no layout gives every photograph a frame of its own shape`)
       if (fit < worst) { worst = fit; worstAt = `aspect ${aspect}, ${count} photos, ${landscapes} landscape` }

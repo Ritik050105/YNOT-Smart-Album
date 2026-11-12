@@ -1153,3 +1153,19 @@ body.has-effect-panel .designer-canvas-wrap { margin-right: min(342px, calc(100v
 .inspector .font-picker > .btn { flex: 1 1 calc(50% - 4px); min-width: 0; }
 .inspector .field-section .slider-field--range { grid-template-columns: 96px minmax(0, 1fr) 52px; }
 .inspector .field-section .slider-field .row > span:first-child { white-space: nowrap; }
+
+/* Effect-panel close button: the × glyph is centred in its square */
+.layer-effect-panel > header .btn { display: inline-flex; align-items: center; justify-content: center; line-height: 1; font-size: 16px; padding: 0; width: 26px; height: 26px; }
+
+/* Design preview: crisp one-pixel thirds, lit on both light and dark photographs, plus a centre
+   cross so the subject can be lined up on the middle of the frame. */
+.image-design__thirds {
+  background:
+    linear-gradient(#fff,#fff) 33.333% 0 / 1px 100% no-repeat,
+    linear-gradient(#fff,#fff) 66.667% 0 / 1px 100% no-repeat,
+    linear-gradient(#fff,#fff) 0 33.333% / 100% 1px no-repeat,
+    linear-gradient(#fff,#fff) 0 66.667% / 100% 1px no-repeat;
+  opacity: .6;
+  filter: drop-shadow(0 0 1px #000);
+}
+.image-design__center { width: 100%; justify-content: center; margin: -10px 0 14px; height: 28px; padding-block: 0; font-size: 12px; }

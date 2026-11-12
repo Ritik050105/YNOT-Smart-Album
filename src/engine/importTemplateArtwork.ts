@@ -1,4 +1,4 @@
-import {readPsd,Layer} from 'ag-psd'
+import type {Layer} from 'ag-psd'
 import {TextBox} from '@/types'
 import {imageFileSource,isImageFile,MAX_ARTWORK_BYTES,MAX_ARTWORK_LABEL,MAX_ARTWORK_PIXELS} from './imageSource'
 
@@ -6,7 +6,7 @@ export async function importTemplateArtwork(file:File):Promise<TextBox[]>{
  if(!isImageFile(file)||file.size>MAX_ARTWORK_BYTES)throw new Error(`Choose an image or PSD up to ${MAX_ARTWORK_LABEL}.`)
  const groupId=crypto.randomUUID()
  if(/\.psd$/i.test(file.name)){
-  const bytes=await file.arrayBuffer(),header=readPsd(bytes,{skipThumbnail:true,skipLayerImageData:true,skipCompositeImageData:true})
+  const {readPsd}=await import('ag-psd'),bytes=await file.arrayBuffer(),header=readPsd(bytes,{skipThumbnail:true,skipLayerImageData:true,skipCompositeImageData:true})
   if(!header.width||!header.height||header.width*header.height>MAX_ARTWORK_PIXELS)throw new Error('PSD dimensions are too large.')
   const psd=readPsd(bytes,{skipThumbnail:true})
   const boxes:TextBox[]=[]

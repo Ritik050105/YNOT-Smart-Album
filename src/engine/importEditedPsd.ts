@@ -1,8 +1,9 @@
-import {readPsd,Layer} from 'ag-psd'
+import type {Layer} from 'ag-psd'
 import {PhotoAsset,PlaceholderRect} from '@/types'
 
 export interface EditedPsdLayer {photo:PhotoAsset;frame:PlaceholderRect;hidden:boolean;opacity:number;groupId?:string}
-export function importEditedPsd(bytes:Uint8Array):EditedPsdLayer[]{
+export async function importEditedPsd(bytes:Uint8Array):Promise<EditedPsdLayer[]>{
+ const {readPsd}=await import('ag-psd')
  const header=readPsd(bytes,{skipLayerImageData:true,skipCompositeImageData:true,skipThumbnail:true})
  if(header.width*header.height>100000000)throw new Error('PSD is too large for layered return (100 megapixel limit).')
  const psd=readPsd(bytes,{skipCompositeImageData:true,skipThumbnail:true}),layers:EditedPsdLayer[]=[]

@@ -1,6 +1,6 @@
 import {effectPadding} from './blendingEffects'
 import { spreadLayers } from './spreadLayers'
-import { writePsdUint8Array, Layer, Psd } from 'ag-psd'
+import type { Layer, Psd } from 'ag-psd'
 import { PhotoAsset, Spread, AlbumSize } from '@/types'
 import { DESIGN_WIDTH, computePlaceholderBoxes } from './layoutMath'
 import { drawPlacement, drawTextBox, drawSpreadBackground, renderSpreadToCanvas } from './renderSpread'
@@ -89,5 +89,6 @@ export async function buildSpreadPsdBytes(
   layers.sort((a,b)=>(layerRanks.get(a)??-1)-(layerRanks.get(b)??-1))
   const composite = await renderSpreadToCanvas(spread, photosById, size, pixelsPerInch)
   const psd: Psd = { width, height, canvas: composite, children: layers, imageResources: { resolutionInfo: { horizontalResolution: pixelsPerInch, horizontalResolutionUnit: 'PPI', widthUnit: 'Inches', verticalResolution: pixelsPerInch, verticalResolutionUnit: 'PPI', heightUnit: 'Inches' } } }
+  const { writePsdUint8Array } = await import('ag-psd')
   return writePsdUint8Array(psd)
 }

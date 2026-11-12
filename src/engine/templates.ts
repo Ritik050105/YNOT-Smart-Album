@@ -1,6 +1,6 @@
 import { TemplateDefinition, PlaceholderRect } from '@/types'
 import { GAP, placeGridInRect, geometrySignature, resolveTemplateFrames } from './templateLayout'
-import { GENERATED_TEMPLATES } from './templateGenerator'
+import { generatedTemplates } from './templateGenerator'
 import { expandTemplateLibrary } from './referenceTemplates'
 import { EDITORIAL_TEMPLATES } from './editorialTemplates'
 import { SIGNATURE_TEMPLATES } from './signatureTemplates'
@@ -797,7 +797,11 @@ const HAND_CRAFTED_TEMPLATES: TemplateDefinition[] = [
 
 /** 300 interior layouts per photo count (1–30), plus the cover. Keep original entries first
  *  so existing projects and equally ranked layout suggestions retain their geometry/order. */
-const originalTemplates = [...HAND_CRAFTED_TEMPLATES, ...GENERATED_TEMPLATES]
+let legacyCache: TemplateDefinition[] | null = null
+/** The whole built-in library, assembled on first use (see generatedTemplates). */
+function legacy(): TemplateDefinition[] {
+  if (legacyCache) return legacyCache
+const originalTemplates = [...HAND_CRAFTED_TEMPLATES, ...generatedTemplates()]
 const existingTemplates = [...originalTemplates, ...expandTemplateLibrary(originalTemplates)]
 const signatures = new Set(existingTemplates.map(t => `${t.photoCount}:${geometrySignature(t.placeholders)}`))
 const editorialAdditions = EDITORIAL_TEMPLATES.filter(t => {
@@ -814,7 +818,9 @@ const editorialAdditions = EDITORIAL_TEMPLATES.filter(t => {
 // The signature set leads: it is the short list of hand-written layouts a designer reaches for
 // first, and being ahead of everything else means it also wins the dedup pass when a generated
 // grid happens to land on the same geometry.
-const legacyTemplates = [...ALBUM_TEMPLATES, ...BLEED_FEATURE_TEMPLATES, ...EDGE_TEMPLATES, ...SIGNATURE_TEMPLATES, ...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions, ...SHAPE_SET_TEMPLATES]
+legacyCache = [...ALBUM_TEMPLATES, ...BLEED_FEATURE_TEMPLATES, ...EDGE_TEMPLATES, ...SIGNATURE_TEMPLATES, ...FULL_SPREAD_TEMPLATES, ...existingTemplates, ...editorialAdditions, ...SHAPE_SET_TEMPLATES]
+  return legacyCache
+}
 
 /** What makes two layouts the same design: which edges the frames share, not how wide the columns
  *  are. A spread split 1:1 and the same spread split 1:2 are one arrangement at two sizes, and
@@ -904,7 +910,7 @@ export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefini
  *  reading it. */
 let builtIn: TemplateDefinition[] | null = null
 export function builtInTemplates(): TemplateDefinition[] {
-  if (!builtIn) builtIn = uniqueTemplates(legacyTemplates)
+  if (!builtIn) builtIn = uniqueTemplates(legacy())
   return builtIn
 }
 
@@ -1020,7 +1026,7 @@ function computeTemplatesForCount(
   frameFilter: TemplateFrameFilter,
   aspect: number
 ): TemplateDefinition[] {
-  let builtins = [...legacyTemplates, ...userTemplateRegistry].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
+  let builtins = [...legacy(), ...userTemplateRegistry].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
   if (enabledTemplateIds !== null) builtins = builtins.filter((t) => enabledTemplateIds.includes(t.id))
   if (frameFilter !== 'all') builtins = builtins.filter((t) => matchesFrameFilter(t, frameFilter, aspect))
   // Smart design is the curated shelf: only layouts whose frames are photo-shaped belong on it.
@@ -1062,7 +1068,7 @@ let byId: Map<string, TemplateDefinition> | null = null
 function templateIndex(): Map<string, TemplateDefinition> {
   if (!byId) {
     byId = new Map()
-    for (const t of legacyTemplates) if (!byId.has(t.id)) byId.set(t.id, t)
+    for (const t of legacy()) if (!byId.has(t.id)) byId.set(t.id, t)
     for (const t of userTemplateRegistry) byId.set(t.id, t)
   }
   return byId

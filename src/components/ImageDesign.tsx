@@ -1,5 +1,6 @@
 import {usePreviewSource} from '@/engine/previewImage'
 import {computeCoverCrop,rotationCoverScale} from '@/engine/cropFit'
+import {subjectBoxFromImage} from '@/engine/subjectFocus'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PlacedPhoto, PhotoAsset } from '@/types'
@@ -59,6 +60,21 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
     const value = Number(placement[key] ?? reset) * factor
     return <div className="image-adjustment" key={key}><SliderField label={label} resetValue={reset*factor} value={Math.round(value * 100) / 100} min={min} max={max} suffix={suffix} onChange={v => update({ [key]: v / factor })}/><button className="adjustment-reset" aria-label={`Reset ${label}`} title={`Reset ${label}`} disabled={value === reset * factor} onClick={() => update({ [key]: reset })}>×</button></div>
   }
+  /** Centres the frame on the subject's head and sizes it to the subject: tight enough that the
+   *  head and shoulders fill it, never zoomed past the photograph's own resolution or out of its
+   *  cover fit. The crop need not reach the photo's edges — it follows the face. */
+  async function centerOnSubject(){
+    if(!photo||placement.locked)return
+    try{
+      const image=new Image();image.src=previewSrc;await image.decode()
+      const box=subjectBoxFromImage(image)
+      if(!box){setError('No subject found to centre on. Drag the frame to place it by hand.');return}
+      setError('')
+      const base=computeCoverCrop(photo.width,photo.height,width,height,.5,.5,1)
+      const fit=Math.min(base.cropWidth/(box.width*photo.width*2.6),base.cropHeight/(box.height*photo.height*2.6))
+      update({focalX:box.focusX,focalY:box.focusY,zoom:Math.max(1,Math.min(3,Math.round(fit*100)/100))})
+    }catch{setError('Image preview unavailable. Locate the original image to reconnect it.')}
+  }
   const mix = placement.blackWhiteMix
   return <div className="image-design">
     <details className="inspector-group" open><summary>Design</summary>
@@ -104,6 +120,7 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
           <div className="image-design__thirds" aria-hidden="true"/>
         </div>
       </div>}
+      {photo && cropPreview && <button className="btn image-design__center" disabled={placement.locked} onClick={()=>void centerOnSubject()}>Center on subject</button>}
       {error && <p role="status">{error}</p>}
 
       {slider('Scale', 'zoom', 100, 500, 1, '%', 100)}

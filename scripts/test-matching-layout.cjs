@@ -46,6 +46,10 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('store.getState().matchingTemplatesOpen'),true,'Favorite keyboard activation must not apply a layout')
   await evaluate(`document.querySelectorAll('.matching-templates__strip')[0].scrollLeft=100000`);await new Promise(r=>setTimeout(r,150))
   const strip=`document.querySelectorAll('.matching-templates__strip')[0]`
+  // Only layouts that suit the photographs' shapes are offered, so the row can be short; a narrow
+  // strip still shows the row scrolls and that scrolling past the end lands on the end.
+  await evaluate(`${strip}.style.width=${strip}.style.maxWidth='30px';${strip}.scrollLeft=100000`);await new Promise(r=>setTimeout(r,150))
+  assert.ok(await evaluate(`${strip}.querySelectorAll('.matching-template').length>0`),'The template row offers at least one layout')
   assert.ok(await evaluate(`${strip}.scrollWidth-${strip}.clientWidth>0`),'The template row has more than fits and so can be scrolled')
   assert.ok(await evaluate(`Math.abs(${strip}.scrollLeft-(${strip}.scrollWidth-${strip}.clientWidth))<2`),'Scrolling past the end lands at the end')
   await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await new Promise(r=>setTimeout(r,100))

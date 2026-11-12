@@ -47,7 +47,7 @@ export default function ExternalEditor(){
          const before=entry.photoId?original?.src:JSON.stringify(project.spreads.find(s=>s.id===entry.spreadId))
          if(before!==entry.baseline){watches.current.delete(file);setSyncNotice(`${entry.app==='canva'?'Canva':'Photoshop'} save preserved. This image or spread changed in YNOT; reopen it in the editor to start a new sync session.`);continue}
          if(entry.spreadId && /\.psd$/i.test(file)) {
-           const layers=importEditedPsd(new Uint8Array(result.data))
+           const layers=await importEditedPsd(new Uint8Array(result.data))
            current.applyExternalPsd(entry.spreadId,layers)
            entry.baseline=JSON.stringify(useProjectStore.getState().project.spreads.find(s=>s.id===entry.spreadId))
            entry.revision=result.revision

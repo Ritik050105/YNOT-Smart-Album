@@ -1,4 +1,3 @@
-import googleCatalog from '@/data/googleFontsCatalog.json'
 import {loadGoogleFont} from './googleFontCache'
 import bundledFonts from '@/assets/google-fonts/manifest.json'
 import bundledFontUrls from './bundledFontAssets'
@@ -101,7 +100,7 @@ export async function ensureFontLoaded(family: string): Promise<void> {
     return
   }
   const font = bundledFonts.find(f=>f.family===family)
-  if(!font){if(googleCatalog.some(f=>f.family===family))await loadGoogleFont(family);return}
+  if(!font){if((await import('@/data/googleFontsCatalog.json')).default.some(f=>f.family===family))await loadGoogleFont(family);return}
   if(!bundledLoads.has(family)){
     const pending=Promise.all(font.files.map(async file=>{
       const url=(bundledFontUrls as Record<string,string>)['../assets/google-fonts/'+file]

@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import NewProjectWindowApp from './components/NewProjectWindowApp'
+// Only the separate New Project window needs the wizard and the template library behind it.
+const NewProjectWindowApp = lazy(() => import('./components/NewProjectWindowApp'))
 import { applyTheme, getStoredTheme } from './engine/theme'
 import './styles/app.css'
 import './styles/editor.css'
@@ -16,6 +17,6 @@ const isNewProjectWindow = new URLSearchParams(window.location.search).get('view
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {isNewProjectWindow ? <NewProjectWindowApp /> : <App />}
+    {isNewProjectWindow ? <Suspense fallback={null}><NewProjectWindowApp /></Suspense> : <App />}
   </React.StrictMode>
 )

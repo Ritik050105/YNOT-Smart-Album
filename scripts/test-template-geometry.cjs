@@ -48,7 +48,7 @@ window.run=async()=>{
   {name:'Images',opened:true,children:[{name:'hero',left:0,top:0,canvas:full}]},
  ]});
  window.bleedFile=new File([bleed],'full-bleed.psd',{type:'image/vnd.adobe.photoshop'});
- const imported=importEditedPsd(psd);
+ const imported=await importEditedPsd(psd);
  return {blank,frames,squareRadius:detectCornerRadius(square),roundedRadius:detectCornerRadius(roundedLayer(80,60,12)),
   layers:imported.map(l=>({name:l.photo.fileName,hidden:l.hidden,frame:l.frame,width:l.photo.width}))};
 };

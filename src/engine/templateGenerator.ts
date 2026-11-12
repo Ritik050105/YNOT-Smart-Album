@@ -382,15 +382,22 @@ function genModern(count: number) {
   }
 }
 
-for (let count = 1; count <= MAX_COUNT; count++) {
-  genGrids(count)
-  genGridsByColumn(count)
-  genHero(count)
-  genSplit(count)
-  genFilmstrip(count)
-  genMosaic(count)
-  genCollage(count)
-  genModern(count)
+/** Built on first use rather than at import: generating and de-duplicating the whole library is
+ *  hundreds of milliseconds of blocking work, and the home screen never reads it. */
+let generated = false
+export function generatedTemplates(): TemplateDefinition[] {
+  if (!generated) {
+    generated = true
+    for (let count = 1; count <= MAX_COUNT; count++) {
+      genGrids(count)
+      genGridsByColumn(count)
+      genHero(count)
+      genSplit(count)
+      genFilmstrip(count)
+      genMosaic(count)
+      genCollage(count)
+      genModern(count)
+    }
+  }
+  return results
 }
-
-export const GENERATED_TEMPLATES: TemplateDefinition[] = results

@@ -1,11 +1,12 @@
 import { usePreferences } from '@/state/preferences'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { openProjectFromFile, openProjectFromPath } from '@/engine/projectFile'
 import { loadRecentProjects, recordRecentProject, removeRecentProject, RecentProjectEntry, ALBUM_STATUSES, AlbumStatus, ProjectSort, browseRecentProjects, setRecentProjectStatus } from '@/engine/recentProjects'
 import { clearOpenSession } from '@/engine/sessionMarker'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
-import NewProjectWizard from './NewProjectWizard'
+// Opened on demand: the wizard and the template library behind it are not needed to show the home screen.
+const NewProjectWizard = lazy(() => import('./NewProjectWizard'))
 import Icon from './Icon'
 import BrandMark from './BrandMark'
 
@@ -236,7 +237,7 @@ export default function HomeScreen() {
       )}
 
       {newProjectOpen && (
-        <NewProjectWizard onClose={() => setNewProjectOpen(false)} onCreated={() => void handleAlbumCreated()} />
+        <Suspense fallback={null}><NewProjectWizard onClose={() => setNewProjectOpen(false)} onCreated={() => void handleAlbumCreated()} /></Suspense>
       )}
 
     </div>

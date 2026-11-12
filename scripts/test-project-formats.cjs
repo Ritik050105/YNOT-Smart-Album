@@ -26,6 +26,8 @@ app.whenReady().then(async () => {
     const tops = await evaluate(`Array.from(document.querySelectorAll('.shape-option'),el=>el.getBoundingClientRect().top)`)
     assert.equal(tops.length, 4); assert.ok(Math.max(...tops) - Math.min(...tops) < 1, 'Format labels share a baseline')
   }
+  // Width by height: 12 high x 18 wide, 12 high x 15 wide, 17.717 high x 12.007 wide, and a 15 square.
+  assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.shape-option'),el=>el.getAttribute('aria-label'))`), ['18 by 12 inches', '15 by 12 inches', '12.007 by 17.717 inches', '15 by 15 inches'])
   await fs.writeFile(path.join(output, 'aligned-formats.png'), (await win.webContents.capturePage()).toPNG())
   for (const size of sizes.filter(size => ["Square", "Landscape", "Portrait"].includes(size.category))) { // the preset tab only offers these three shapes
     await evaluate('window.restart()'); await settle()

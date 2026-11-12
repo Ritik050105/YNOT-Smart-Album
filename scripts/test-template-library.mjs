@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { build } from 'esbuild'
 import { readFileSync } from 'node:fs'
-const bundle = await build({ stdin: { contents: `export * from './src/engine/templates';export {GENERATED_TEMPLATES} from './src/engine/templateGenerator';export * from './src/engine/templateLayout';export * from './src/engine/templateMatching'`, resolveDir: process.cwd() }, bundle: true, platform: 'node', format: 'esm', write: false })
-const { builtInTemplates, geometrySignature, findTemplate, rankTemplates, GENERATED_TEMPLATES, uniqueTemplates } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
+const bundle = await build({ stdin: { contents: `export * from './src/engine/templates';export {generatedTemplates} from './src/engine/templateGenerator';export * from './src/engine/templateLayout';export * from './src/engine/templateMatching'`, resolveDir: process.cwd() }, bundle: true, platform: 'node', format: 'esm', write: false })
+const { builtInTemplates, geometrySignature, findTemplate, rankTemplates, generatedTemplates, uniqueTemplates } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const templates = builtInTemplates()
 const templateSource = readFileSync('src/engine/templates.ts', 'utf8')
 const handNames = templateSource.match(/const HAND_CRAFTED_TEMPLATES[^=]*= \[([\s\S]*?)\]/)[1].split(',').map(s=>s.trim()).filter(Boolean)
 const handIds = handNames.map(name=>templateSource.match(new RegExp('const '+name+"[^=]*= \\{\\s*id: '([^']+)'"))[1])
-const legacy = [...handIds.map(findTemplate), ...GENERATED_TEMPLATES]
+const legacy = [...handIds.map(findTemplate), ...generatedTemplates()]
 console.log('Legacy geometry:', legacy.length, createHash('sha256').update(JSON.stringify(legacy.map(t => [t.id, t.placeholders]))).digest('hex'))
 assert.equal(legacy.length, 1750)
 assert.equal(createHash('sha256').update(JSON.stringify(legacy.map(t => [t.id, t.placeholders]))).digest('hex'), 'f187b43c9e5c34d08f9721e92ee08b5386ea5197decb984fa9517c05f5aa3169', 'Saved album geometry must stay unchanged')

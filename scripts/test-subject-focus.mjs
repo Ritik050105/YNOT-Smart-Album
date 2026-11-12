@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 
 const result = await build({
-  stdin: { contents: `export {subjectFocusFromImage} from './src/engine/subjectFocus';export {computeCoverCrop} from './src/engine/cropFit'`, resolveDir: process.cwd() },
+  stdin: { contents: `export {subjectFocusFromImage,subjectBoxFromImage} from './src/engine/subjectFocus';export {computeCoverCrop} from './src/engine/cropFit'`, resolveDir: process.cwd() },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 
@@ -54,7 +54,7 @@ function photoWithFaceAt(fx, fy, { width = 120, height = 80, faceSize = 18 } = {
   return { pixels, width, height }
 }
 
-const { subjectFocusFromImage, computeCoverCrop } = await import(
+const { subjectFocusFromImage, subjectBoxFromImage, computeCoverCrop } = await import(
   `data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 for (const [fx, fy, label] of [[0.5, 0.22, 'high'], [0.22, 0.5, 'left'], [0.78, 0.5, 'right'], [0.5, 0.78, 'low']]) {
@@ -90,6 +90,20 @@ for (const [fx, fy, label] of [[0.5, 0.22, 'high'], [0.22, 0.5, 'left'], [0.78, 
   const pixels = new Uint8ClampedArray(width * height * 4).fill(255)
   globalThis.document = fakeDocument(pixels, width, height)
   assert.equal(subjectFocusFromImage({}), null, 'a blank photo reports no subject')
+}
+
+// The head box is centred on the face itself, not pulled toward the middle, and it takes the head
+// that stands highest when a lower patch of skin (a hand) is also in the frame.
+{
+  const { pixels, width, height } = photoWithFaceAt(0.3, 0.25, { width: 160, height: 160, faceSize: 32 })
+  for (let y = 120; y < 134; y++) for (let x = 100; x < 114; x++) { const i = (y * width + x) * 4; pixels[i] = 215; pixels[i + 1] = 165; pixels[i + 2] = 135 }
+  globalThis.document = fakeDocument(pixels, width, height)
+  const box = subjectBoxFromImage({})
+  assert.ok(box, 'a face is found')
+  assert.ok(Math.abs(box.focusX - 0.3) < 0.03 && Math.abs(box.focusY - 0.25) < 0.03, `the box is centred on the face (got ${box.focusX}, ${box.focusY})`)
+  assert.ok(Math.abs(box.width - 0.2) < 0.04 && Math.abs(box.height - 0.2) < 0.04, `the box is the size of the face (got ${box.width} x ${box.height})`)
+  const focus = subjectFocusFromImage({})
+  assert.ok(Math.abs(focus.focusX - 0.3) < 0.03, 'the import focal point sits on the face, not pulled to the middle')
 }
 
 console.log('Subject focus checks passed: the crop follows the subject, stays off the edges, keeps a high subject a centred crop would cut, and reports nothing on a blank frame.')

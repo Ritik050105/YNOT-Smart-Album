@@ -40,9 +40,11 @@ export const ALBUM_SIZES: AlbumSize[] = [
   size('ls-16x12', '16" x 12" Landscape', 'Landscape', 16, 12),
   size('ls-20x16', '20" x 16" Landscape', 'Landscape', 20, 16),
 
-  size('pt-12x18', '12" x 18" Portrait', 'Portrait', 12, 18),
-  size('pt-12x15', '12" x 15" Portrait', 'Portrait', 12, 15),
-  size('ls-17.717x12.007', '17.717" x 12.007" Landscape', 'Landscape', 17.717, 12.007),
+  // Height x width as the studio specifies them: 12 high by 18 wide, 12 high by 15 wide, and
+  // 17.717 high by 12.007 wide.
+  size('ls-18x12', '18" x 12" Landscape', 'Landscape', 18, 12),
+  size('ls-15x12', '15" x 12" Landscape', 'Landscape', 15, 12),
+  size('pt-12.007x17.717', '12.007" x 17.717" Portrait', 'Portrait', 12.007, 17.717),
 
   size('pan-12x6', '12" x 6" Panoramic', 'Panoramic', 12, 6),
   size('pan-18x6', '18" x 6" Panoramic', 'Panoramic', 18, 6),
@@ -56,7 +58,7 @@ export const ALBUM_SIZES: AlbumSize[] = [
 
 export const ALBUM_SIZE_CATEGORIES: AlbumSize['category'][] = ['Square', 'Portrait', 'Landscape', 'Panoramic', 'Magazine']
 
-/** The three formats the New Album window opens with, in the order it shows them. */
-export const WIZARD_FORMATS: AlbumSize[] = ['pt-12x18', 'pt-12x15', 'ls-17.717x12.007', 'sq-15'].map((id) => ALBUM_SIZES.find((s) => s.id === id)!)
+/** The four formats the New Album window opens with, in the order it shows them. */
+export const WIZARD_FORMATS: AlbumSize[] = ['ls-18x12', 'ls-15x12', 'pt-12.007x17.717', 'sq-15'].map((id) => ALBUM_SIZES.find((s) => s.id === id)!)
 
 export const DEFAULT_ALBUM_SIZE = ALBUM_SIZES.find((s) => s.id === 'sq-12')!

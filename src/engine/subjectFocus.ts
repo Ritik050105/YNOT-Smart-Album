@@ -25,10 +25,54 @@ function skinLikelihood(r: number, g: number, b: number): number {
 
 export interface SubjectFocus { focusX: number; focusY: number }
 
+/** The face-sized patch of skin that most looks like the subject's head: its centre and its size,
+ *  as fractions of the photograph. Neighbouring skin pixels are grouped, and of the groups big
+ *  enough to be a face the highest one wins — heads sit above hands and arms. Null when nothing
+ *  skin-coloured is large enough, which is the cue to fall back to the broader centroid. */
+export interface SubjectBox extends SubjectFocus { width: number; height: number }
+
+export function subjectBoxFromPixels(data: Uint8ClampedArray): SubjectBox | null {
+  const skin = new Uint8Array(SAMPLE * SAMPLE)
+  for (let i = 0; i < skin.length; i++) {
+    const p = i * 4
+    if (data[p + 3] >= 128 && skinLikelihood(data[p], data[p + 1], data[p + 2])) skin[i] = 1
+  }
+  let best: SubjectBox | null = null, bestScore = 0
+  const stack: number[] = []
+  for (let start = 0; start < skin.length; start++) {
+    if (skin[start] !== 1) continue
+    let area = 0, sumX = 0, sumY = 0, minX = SAMPLE, maxX = 0, minY = SAMPLE, maxY = 0
+    skin[start] = 2; stack.push(start)
+    while (stack.length) {
+      const i = stack.pop()!, x = i % SAMPLE, y = (i - x) / SAMPLE
+      area++; sumX += x + 0.5; sumY += y + 0.5
+      if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y
+      for (const n of [i - 1, i + 1, i - SAMPLE, i + SAMPLE]) {
+        const nx = n % SAMPLE
+        if (n < 0 || n >= skin.length || Math.abs(nx - x) > 1 || skin[n] !== 1) continue
+        skin[n] = 2; stack.push(n)
+      }
+    }
+    // A face is at least a few cells across at this resolution; anything smaller is a speck.
+    if (area < 8) continue
+    const cy = sumY / area / SAMPLE
+    const score = area * (1.5 - cy)
+    if (score > bestScore) {
+      bestScore = score
+      best = { focusX: sumX / area / SAMPLE, focusY: sumY / area / SAMPLE, width: (maxX - minX + 1) / SAMPLE, height: (maxY - minY + 1) / SAMPLE }
+    }
+  }
+  return best
+}
+
 /** The focal point from a SAMPLE x SAMPLE block of RGBA pixels, or null when nothing stands out.
  *  Takes pixels rather than an image so the caller can answer other questions from the same
  *  sample — the importer reads black-and-white off it too, and decodes the photo once. */
 export function subjectFocusFromPixels(data: Uint8ClampedArray): SubjectFocus | null {
+  // A found face is centred on exactly: the crop is clamped to the photograph afterwards, so
+  // there is no need to hold the point back from the edges here.
+  const face = subjectBoxFromPixels(data)
+  if (face) return { focusX: Math.max(0.08, Math.min(0.92, face.focusX)), focusY: Math.max(0.08, Math.min(0.92, face.focusY)) }
   const at = (x: number, y: number) => (y * SAMPLE + x) * 4
   let totalWeight = 0, sumX = 0, sumY = 0
   for (let y = 1; y < SAMPLE - 1; y++) {
@@ -62,6 +106,12 @@ export function subjectFocusFromPixels(data: Uint8ClampedArray): SubjectFocus | 
 export function subjectFocusFromImage(image: CanvasImageSource): SubjectFocus | null {
   const pixels = samplePixels(image)
   return pixels && subjectFocusFromPixels(pixels)
+}
+
+/** The subject's head box for an already-decoded image. */
+export function subjectBoxFromImage(image: CanvasImageSource): SubjectBox | null {
+  const pixels = samplePixels(image)
+  return pixels && subjectBoxFromPixels(pixels)
 }
 
 /** The SAMPLE x SAMPLE RGBA block every measurement here works from. */

@@ -1,6 +1,7 @@
 import {CSSProperties,PointerEvent as ReactPointerEvent,useRef,useState} from 'react'
 import {createRoot} from 'react-dom/client'
-import {readPsd,Layer} from 'ag-psd'
+import type {Layer} from 'ag-psd'
+import type {readPsd as ReadPsd} from 'ag-psd'
 import {TemplateDefinition,PlaceholderRect,TextBox} from '@/types'
 import {imageFileSource,isImageFile,MAX_ARTWORK_BYTES,MAX_ARTWORK_LABEL,MAX_ARTWORK_PIXELS} from '@/engine/imageSource'
 import {detectCornerRadius,detectTemplateFrames,maskVisibleBounds,opaqueBounds,vectorMaskGeometry} from '@/engine/templateGeometry'
@@ -49,7 +50,7 @@ function flatColor(canvas:HTMLCanvasElement):string|undefined{
  *  Photoshop fill colour, size and alignment; photo layers keep any rounded corners their own alpha
  *  channel shows; and a layer that covers the page (or is named like one) becomes the background
  *  instead of a frame. */
-function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'isPsd'|'dropped'>&{width:number;height:number}{
+function readPsdTemplate(readPsd:typeof ReadPsd,bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'isPsd'|'dropped'>&{width:number;height:number}{
  // Read the header alone first: decoding every layer of an oversized PSD would exhaust memory
  // before the dimension check below ever ran.
  const header=readPsd(bytes,{skipThumbnail:true,skipLayerImageData:true,skipCompositeImageData:true})
@@ -155,7 +156,7 @@ function readPsdTemplate(bytes:ArrayBuffer):Omit<Detected,'preview'|'aspect'|'is
 export async function detectTemplate(file:File):Promise<Detected>{
  const isPsd=/\.psd$/i.test(file.name)
  let frames:PlaceholderRect[]=[],textBoxes:TextBox[]=[],backgroundColor:string|undefined
- if(isPsd){const read=readPsdTemplate(await file.arrayBuffer());frames=read.frames;textBoxes=read.textBoxes;backgroundColor=read.backgroundColor}
+ if(isPsd){const read=readPsdTemplate((await import('ag-psd')).readPsd,await file.arrayBuffer());frames=read.frames;textBoxes=read.textBoxes;backgroundColor=read.backgroundColor}
  const source=await imageFileSource(file)
  let preview:string,aspect:number
  try{

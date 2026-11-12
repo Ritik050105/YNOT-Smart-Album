@@ -249,7 +249,7 @@ export default function NewProjectWizard({
       colorProfile: 'sRGB',
       defaultBackgroundColor: backgroundColor,
       defaultGapPx: gapPx,
-      defaultMarginPx: 10,
+      defaultMarginPx: gapPx / 2, // the blank edge matches the gap between photos
       defaultBorderWidth: borderWidth,
       defaultBorderColor: borderColor,
       enabledTemplateIds,
@@ -464,7 +464,7 @@ export default function NewProjectWizard({
             {previewTemplates.map((t) => (
               <div key={t.id} className={`library-preview ${matchesFrameFilter(t, libraryFilter, FILTER_EXAMPLE_ASPECT) ? '' : 'is-excluded'}`}
                 title={`${t.name} — ${matchesFrameFilter(t, libraryFilter, FILTER_EXAMPLE_ASPECT) ? 'Included' : 'Excluded by selected filter'}`}>
-                <TemplateThumb template={t} aspect={FILTER_EXAMPLE_ASPECT} marginPx={10} gapPx={gapPx} backgroundColor={backgroundColor}
+                <TemplateThumb template={t} aspect={FILTER_EXAMPLE_ASPECT} marginPx={gapPx / 2} gapPx={gapPx} backgroundColor={backgroundColor}
                   borderColor={borderColor} borderWidth={borderWidth} className="template-preview-grid__swatch" />
                 <span className="sr-only">{t.name}: {matchesFrameFilter(t, libraryFilter, FILTER_EXAMPLE_ASPECT) ? 'Included' : 'Excluded by selected filter'}</span>
               </div>

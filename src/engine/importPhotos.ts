@@ -1,7 +1,6 @@
 import {seedPreview,previewSource,registerPath} from './previewImage'
 import { RAW_FILE, imgUrl } from './imageUrl'
 import { getPreferences } from '@/state/preferences'
-import exifr from 'exifr'
 import { v4 as uuid } from 'uuid'
 import { PhotoAsset } from '@/types'
 import { imageFileSource, isImageFile } from './imageSource'
@@ -71,6 +70,7 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
   let cameraModel: string | undefined
   let metadata: Record<string,string> = {}
   try {
+    const { default: exifr } = await import('exifr') // on demand: 75 kB the home screen does not need
     const exif = await exifr.parse(file, ['DateTimeOriginal', 'CreateDate', 'ModifyDate', 'Make', 'Model','ColorSpace','ExposureTime','FNumber','ISO','ExposureCompensation','FocalLength','LensModel','Flash'])
     if(exif)for(const [label,key] of Object.entries({'Color profile':'ColorSpace','Shutter speed':'ExposureTime','Aperture':'FNumber','ISO':'ISO','Exposure compensation':'ExposureCompensation','Focal length':'FocalLength','Lens model':'LensModel','Flash fired':'Flash'})){if(exif[key]!=null)metadata[label]=label === 'Color profile' && exif[key] === 1 ? 'sRGB' : String(exif[key])}
     cameraModel = [exif?.Make, exif?.Model].filter(Boolean).join(' ') || undefined

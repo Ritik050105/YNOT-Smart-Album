@@ -1,4 +1,3 @@
-import catalog from '@/data/googleFontsCatalog.json'
 
 /** Either raw bytes (browser / first download) or an ynot-img:// URL served from the desktop font cache. */
 type Face = {data?:BufferSource;url?:string;weight:string;style:string;unicodeRange:string}
@@ -22,6 +21,7 @@ async function cached(family:string,faces?:Face[]):Promise<Face[]|undefined>{
 }
 export async function prepareGoogleFont(family:string):Promise<void>{ await googleFontFaces(family) }
 async function googleFontFaces(family:string):Promise<Face[]>{
+    const {default:catalog}=await import('@/data/googleFontsCatalog.json')
     const entry=catalog.find(font=>font.family===family)
     if(!entry)throw new Error('Unknown Google font')
     let faces=(await window.albumStudio?.readCachedFont?.(family).catch(()=>null) as Face[]|null|undefined)??await cached(family)
