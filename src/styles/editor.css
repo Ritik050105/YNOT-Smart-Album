@@ -1131,3 +1131,7 @@ button:disabled { cursor:not-allowed; }
 .text-effect-row { min-height: 26px; }
 .layer-effect-panel input[type=number], .layer-effect-panel .slider-field__input { min-width: 0; }
 .layer-effect-panel .effect-preview { height: 84px; margin-bottom: 8px; border-radius: 8px; }
+/* While the effect editor is open the canvas is narrower by the editor's width (plus its gap), so the editor
+   sits beside the design instead of on top of it. */
+body.has-effect-panel .designer-canvas-wrap { margin-right: min(342px, calc(100vw - var(--inspector-width, 320px) - 80px)); }
+@media (max-width: 800px) { body.has-effect-panel .designer-canvas-wrap { margin-right: 0; } }
