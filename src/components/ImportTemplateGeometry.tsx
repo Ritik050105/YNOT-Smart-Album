@@ -220,6 +220,7 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
  const [textIds,setTextIds]=useState(found.textBoxes.map(t=>t.id))
  const [useBackground,setUseBackground]=useState(!!found.backgroundColor)
  const [selected,setSelected]=useState(0)
+ const [pickedText,setPickedText]=useState<string|null>(null)
  const box=boxes[selected]
  const texts=found.textBoxes.filter(t=>textIds.includes(t.id))
  // A frame drawn at an angle is measured unrotated, so its upright box can poke past the artwork
@@ -243,7 +244,7 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
    <div className="frame-review__stage">
     <div ref={stage} className="frame-review__canvas" style={{'--art-aspect':found.aspect,background:useBackground&&found.backgroundColor?found.backgroundColor:undefined} as CSSProperties}>
      <img src={found.preview} alt="Imported artwork"/>
-     {texts.map(t=><span key={t.id} className="frame-review__text" style={{left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`}}/>)}
+     {texts.map(t=><span key={t.id} className={`frame-review__text${pickedText===t.id?' is-picked':''}`} style={{left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`}}/>)}
      {boxes.map((b,i)=><div key={b.id} role="button" tabIndex={0} aria-label={`Frame ${i+1}${b.rotationDeg?`, turned ${Math.round(b.rotationDeg)} degrees`:''}`} aria-pressed={i===selected}
       className={`frame-review__frame${i===selected?' is-selected':''}`} onPointerDown={e=>grab(e,i)}
       onKeyDown={e=>{const step=e.shiftKey?0.05:0.005;const by=(dx:number,dy:number)=>{e.preventDefault();setSelected(i);setBoxes(bs=>bs.map((v,j)=>j===i?{...v,x:v.x+dx,y:v.y+dy}:v))};
@@ -269,20 +270,30 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
       <li><Icon name="rectangle" size={13}/><span>{[rounded?`${rounded} rounded`:'Square corners',turned?`${turned} turned`:''].filter(Boolean).join(' · ')}</span></li>
       <li><Icon name="droplet" size={13}/><span>{found.backgroundColor?`Background ${found.backgroundColor}`:'No background layer'}</span></li>
      </ul>
-     {found.backgroundColor&&<label className="frame-review__toggle"><input type="checkbox" checked={useBackground} onChange={e=>setUseBackground(e.target.checked)}/>
-      <span className="frame-review__swatch" style={{background:found.backgroundColor}}/>Use this page colour</label>}
      {found.dropped>0&&<p className="frame-review__note" role="status">This artwork had {found.dropped+boxes.length} shapes — the {boxes.length} largest were kept, since a template holds at most 100. Add any that are missing below.</p>}
      {!found.isPsd&&<p className="frame-review__note">Frames were traced from the flattened artwork. Import the layered PSD to carry text, rounded corners and the background across too.</p>}
     </section>
-    {!!found.textBoxes.length&&<section className="frame-review__group">
-     <h3>Text layers</h3>
-     <ul className="frame-review__texts">{found.textBoxes.map(t=><li key={t.id}>
-      <label><input type="checkbox" checked={textIds.includes(t.id)} onChange={e=>setTextIds(ids=>e.target.checked?[...ids,t.id]:ids.filter(id=>id!==t.id))}/>
-       <span className="frame-review__swatch" style={{background:t.color}} title={t.color}/>
-       <span className="frame-review__text-name" title={t.text}>{t.text.trim()||'Untitled text'}</span></label>
-      <span className="frame-review__text-meta">{t.fontFamily} · {Math.round(t.fontSize)}px · {t.align}</span>
-     </li>)}</ul>
-    </section>}
+    <section className="frame-review__group">
+     <h3>Layers</h3>
+     {/* Topmost first, the way a layers panel reads: text over photo frames over the page colour. */}
+     <ul className="frame-review__layers" aria-label="Layers">
+      {found.textBoxes.map(t=><li key={t.id} className={pickedText===t.id?'is-selected':undefined}>
+       <input type="checkbox" aria-label={`Keep text layer ${t.text.trim()||'Untitled text'}`} checked={textIds.includes(t.id)} onChange={e=>setTextIds(ids=>e.target.checked?[...ids,t.id]:ids.filter(id=>id!==t.id))}/>
+       <button type="button" className="frame-review__layer" onClick={()=>setPickedText(pickedText===t.id?null:t.id)} title={t.text}>
+        <span className="frame-review__swatch" style={{background:t.color}}/>
+        <span className="frame-review__layer-name">{t.text.trim()||'Untitled text'}</span>
+        <span className="frame-review__text-meta">{t.fontFamily} · {Math.round(t.fontSize)}px</span></button></li>)}
+      {boxes.map((b,i)=><li key={b.id} className={i===selected&&!pickedText?'is-selected':undefined}>
+       <span className="frame-review__layer-icon"><Icon name="image" size={12}/></span>
+       <button type="button" className="frame-review__layer" onClick={()=>{setSelected(i);setPickedText(null)}}>
+        <span className="frame-review__thumb" style={{backgroundImage:`url(${found.preview})`,backgroundSize:`${100/b.width}% ${100/b.height}%`,backgroundPosition:`${b.width>=1?0:b.x/(1-b.width)*100}% ${b.height>=1?0:b.y/(1-b.height)*100}%`}}/>
+        <span className="frame-review__layer-name">Photo frame {i+1}</span>
+        <span className="frame-review__text-meta">{Math.round(b.width*100)}×{Math.round(b.height*100)}%</span></button>
+       <button type="button" className="btn btn--tiny" aria-label={`Remove frame ${i+1}`} title="Remove this frame" onClick={()=>{setBoxes(boxes.filter((_,j)=>j!==i));setSelected(Math.max(0,i<=selected?selected-1:selected))}}>×</button></li>)}
+      {found.backgroundColor&&<li><input type="checkbox" aria-label="Use the page colour" checked={useBackground} onChange={e=>setUseBackground(e.target.checked)}/>
+       <span className="frame-review__layer"><span className="frame-review__swatch" style={{background:found.backgroundColor}}/><span className="frame-review__layer-name">Background</span><span className="frame-review__text-meta">{found.backgroundColor}</span></span></li>}
+     </ul>
+    </section>
     <section className="frame-review__group">
      <h3>Selected frame</h3>
      {box?<>

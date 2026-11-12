@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import Modal from './Modal'
 import Icon from './Icon'
 import { useProjectStore, NewProjectOptions } from '@/state/projectStore'
-import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES, DEFAULT_ALBUM_SIZE } from '@/engine/albumSizes'
+import { ALBUM_SIZES, ALBUM_SIZE_CATEGORIES, DEFAULT_ALBUM_SIZE, WIZARD_FORMATS } from '@/engine/albumSizes'
 import { matchesFrameFilter, TemplateFrameFilter, builtInTemplates } from '@/engine/templates'
 import { loadSizePresets, addSizePreset, deleteSizePreset, SizePreset } from '@/engine/sizePresets'
 import { inToDisplay, displayToIn, DisplayUnit } from '@/engine/units'
@@ -120,16 +120,16 @@ export default function NewProjectWizard({
 
   const [step, setStep] = useState<1 | 2>(1)
   const [specTab, setSpecTab] = useState<'company' | 'custom'>('company')
-  const [shape, setShape] = useState<AlbumSizeCategory>('Square')
-  const [presetId, setPresetId] = useState(DEFAULT_ALBUM_SIZE.id)
+  const [shape, setShape] = useState<AlbumSizeCategory>(WIZARD_FORMATS[0].category)
+  const [presetId, setPresetId] = useState(WIZARD_FORMATS[0].id)
 
   const [presets, setPresets] = useState<SizePreset[]>(() => loadSizePresets())
   const [selectedPreset, setSelectedPreset] = useState('')
   const [presetName, setPresetName] = useState('')
   const [savingPreset, setSavingPreset] = useState(false)
   const [units, setUnits] = useState<DisplayUnit>('in')
-  const [widthIn, setWidthIn] = useState(DEFAULT_ALBUM_SIZE.widthIn)
-  const [heightIn, setHeightIn] = useState(DEFAULT_ALBUM_SIZE.heightIn)
+  const [widthIn, setWidthIn] = useState(WIZARD_FORMATS[0].widthIn)
+  const [heightIn, setHeightIn] = useState(WIZARD_FORMATS[0].heightIn)
   const [dpi, setDpi] = useState(DEFAULT_ALBUM_SIZE.dpi)
   const [trim, setTrim] = useState<EdgeInset>(DEFAULT_ALBUM_SIZE.trim)
   const [safeZone, setSafeZone] = useState<EdgeInset>(DEFAULT_ALBUM_SIZE.safeZone)
@@ -215,11 +215,10 @@ export default function NewProjectWizard({
     setMaxPages(size.maxPages ?? 0)
   }
 
-  function toggleShape(category: AlbumSizeCategory) {
+  function chooseFormat(size: AlbumSize) {
     setSelectedPreset('')
-    setShape(category)
-    const first = ALBUM_SIZES.find((a) => a.category === category)
-    if (first) selectStandardSize(first.id)
+    setShape(size.category)
+    selectStandardSize(size.id)
   }
 
   function resolveSize(): AlbumSize {
@@ -319,15 +318,16 @@ export default function NewProjectWizard({
               <div className="field-section">
                 <div className="field-section__title">Album Format and Size (in):</div>
                 <div className="shape-picker">
-                  {SHAPES.slice(0, 3).map((s) => (
+                  {WIZARD_FORMATS.map((f) => (
                     <button
-                      key={s.category}
-                      className={`shape-option ${!selectedPreset && shape === s.category ? 'is-selected' : ''}`}
-                      aria-label={s.label}
-                      aria-pressed={!selectedPreset && shape === s.category}
-                      onClick={() => toggleShape(s.category)}
+                      key={f.id}
+                      className={`shape-option ${!selectedPreset && presetId === f.id ? 'is-selected' : ''}`}
+                      aria-label={`${f.widthIn} by ${f.heightIn} inches`}
+                      aria-pressed={!selectedPreset && presetId === f.id}
+                      onClick={() => chooseFormat(f)}
                     >
-                      <span className="shape-option__icon"><span className="shape-option__swatch" style={{ aspectRatio: s.aspect }} /></span>
+                      <span className="shape-option__icon"><span className="shape-option__swatch" style={{ width: Math.round(104 * f.widthIn / Math.max(f.widthIn, f.heightIn)), height: Math.round(104 * f.heightIn / Math.max(f.widthIn, f.heightIn)), maxHeight: 'none' }} /></span>
+                      <span className="shape-option__size">{f.widthIn}×{f.heightIn}</span>
 
                     </button>
                   ))}

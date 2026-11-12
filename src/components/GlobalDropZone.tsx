@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { describeImportSummary } from '@/engine/importWorkflow'
 import { useImportPhotos } from '@/engine/useImportPhotos'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
+import { hasOutsideFiles } from '@/engine/internalDrag'
 import Icon from './Icon'
 
 function dragHasFiles(e: DragEvent): boolean {
-  return !!e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')
+  return hasOutsideFiles(e.dataTransfer)
 }
 
 /** Lets photos be dropped anywhere on the window, not just the small Import panel box — the

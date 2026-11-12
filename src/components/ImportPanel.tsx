@@ -1,3 +1,4 @@
+import { hasOutsideFiles } from '@/engine/internalDrag'
 import ImportProgress from './ImportProgress'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useRef, useState } from 'react'
@@ -58,7 +59,7 @@ export default function ImportPanel() {
           e.stopPropagation()
           dragDepth.current = 0
           setIsDragging(false)
-          if (!importing) void handleFiles(e.dataTransfer.files)
+          if (!importing && hasOutsideFiles(e.dataTransfer)) void handleFiles(e.dataTransfer.files)
         }}
         onClick={() => !importing && inputRef.current?.click()}
       >

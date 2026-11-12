@@ -1,3 +1,4 @@
+import { hasOutsideFiles } from '@/engine/internalDrag'
 import {PreviewImage} from '@/engine/previewImage'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
 import { useRef, useState } from 'react'
@@ -93,7 +94,7 @@ export default function GalleryScreen() {
         onDrop={(e) => {
           e.preventDefault()
           setIsDragging(false)
-          void handleFiles(e.dataTransfer.files)
+          if (hasOutsideFiles(e.dataTransfer)) void handleFiles(e.dataTransfer.files)
         }}
       >
         {visible.length === 0 ? (

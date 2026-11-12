@@ -55,6 +55,9 @@ app.whenReady().then(async()=>{
  await evaluate('store.getState().undo()');await wait();
  assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes.length`),0);
  await click('[aria-label="Next text template preview"]');
+ // Next places a template; undoing that is what takes it off again.
+ assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes.length>0`),true,'Next places a text template');
+ await evaluate('store.getState().undo()');await wait();
  // Undo took the composition off the spread, so no card may still read as placed: a card's state
  // comes from the spread itself, not from a list the browser keeps on the side.
  assert.equal(await evaluate(`!!document.querySelector('.quote-template-grid .quote-template-card[aria-pressed="true"]')`),false,'Undo clears the placed marks');

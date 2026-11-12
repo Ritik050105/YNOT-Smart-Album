@@ -24,12 +24,12 @@ app.whenReady().then(async () => {
   for (const [width, height] of [[720, 480], [1280, 800]]) {
     win.setSize(width, height); await settle()
     const tops = await evaluate(`Array.from(document.querySelectorAll('.shape-option'),el=>el.getBoundingClientRect().top)`)
-    assert.equal(tops.length, 3); assert.ok(Math.max(...tops) - Math.min(...tops) < 1, 'Format labels share a baseline')
+    assert.equal(tops.length, 4); assert.ok(Math.max(...tops) - Math.min(...tops) < 1, 'Format labels share a baseline')
   }
   await fs.writeFile(path.join(output, 'aligned-formats.png'), (await win.webContents.capturePage()).toPNG())
   for (const size of sizes.filter(size => ["Square", "Landscape", "Portrait"].includes(size.category))) { // the preset tab only offers these three shapes
     await evaluate('window.restart()'); await settle()
-    await evaluate(`Array.from(document.querySelectorAll('.shape-option')).find(el=>el.getAttribute("aria-label")===${JSON.stringify(size.category)}).click()`); await settle()
+    await evaluate(`{const labels=${JSON.stringify(sizes.filter(s=>s.category===size.category).map(s=>s.widthIn+' by '+s.heightIn+' inches'))};Array.from(document.querySelectorAll('.shape-option')).find(el=>labels.includes(el.getAttribute("aria-label"))).click()}`); await settle()
     await evaluate(`var select=document.querySelector('select[aria-label="Exact size"]');select.value=${JSON.stringify(size.id)};select.dispatchEvent(new Event('change',{bubbles:true}))`); await settle()
     await evaluate(`Array.from(document.querySelectorAll('button')).find(el=>el.textContent.trim()==='Next').click()`); await settle()
     const ratios = await evaluate(`Array.from(document.querySelectorAll('.template-preview-grid__swatch'),el=>{const [w,h='1']=el.style.aspectRatio.split('/');return Number(w)/Number(h)})`)

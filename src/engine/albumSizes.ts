@@ -25,6 +25,7 @@ export const ALBUM_SIZES: AlbumSize[] = [
   size('sq-10', '10" x 10" Square', 'Square', 10, 10),
   size('sq-12', '12" x 12" Square', 'Square', 12, 12),
   size('sq-14', '14" x 14" Square', 'Square', 14, 14),
+  size('sq-15', '15" x 15" Square', 'Square', 15, 15),
   size('sq-16', '16" x 16" Square', 'Square', 16, 16),
 
   size('pt-5x7', '5" x 7" Portrait', 'Portrait', 5, 7),
@@ -39,6 +40,10 @@ export const ALBUM_SIZES: AlbumSize[] = [
   size('ls-16x12', '16" x 12" Landscape', 'Landscape', 16, 12),
   size('ls-20x16', '20" x 16" Landscape', 'Landscape', 20, 16),
 
+  size('pt-12x18', '12" x 18" Portrait', 'Portrait', 12, 18),
+  size('pt-12x15', '12" x 15" Portrait', 'Portrait', 12, 15),
+  size('ls-17.717x12.007', '17.717" x 12.007" Landscape', 'Landscape', 17.717, 12.007),
+
   size('pan-12x6', '12" x 6" Panoramic', 'Panoramic', 12, 6),
   size('pan-18x6', '18" x 6" Panoramic', 'Panoramic', 18, 6),
   size('pan-20x8', '20" x 8" Panoramic', 'Panoramic', 20, 8),
@@ -50,5 +55,8 @@ export const ALBUM_SIZES: AlbumSize[] = [
 ]
 
 export const ALBUM_SIZE_CATEGORIES: AlbumSize['category'][] = ['Square', 'Portrait', 'Landscape', 'Panoramic', 'Magazine']
+
+/** The three formats the New Album window opens with, in the order it shows them. */
+export const WIZARD_FORMATS: AlbumSize[] = ['pt-12x18', 'pt-12x15', 'ls-17.717x12.007', 'sq-15'].map((id) => ALBUM_SIZES.find((s) => s.id === id)!)
 
 export const DEFAULT_ALBUM_SIZE = ALBUM_SIZES.find((s) => s.id === 'sq-12')!

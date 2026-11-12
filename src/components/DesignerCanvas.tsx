@@ -1439,7 +1439,7 @@ export default function DesignerCanvas() {
             const horizontal=g.axis==='x', x=horizontal?r.x:r.x+r.width+8/stageScale, y=horizontal?r.y-8/stageScale:r.y
             const points=horizontal?[x,y,x+r.width,y]:[x,y,x,y+r.height]
             return <Group key={j}><Rect {...r} stroke="#2583ff" strokeWidth={1} strokeScaleEnabled={false}/><Line points={points} stroke="#423700" strokeWidth={4} strokeScaleEnabled={false}/><Line points={points} stroke="#ffcf33" strokeWidth={2} strokeScaleEnabled={false}/></Group>
-          })}</Group>:g.segments?<Group key={i} name="equal-spacing-guide">{g.bands?.map((band,k)=><Rect key={"band"+k} {...band} fill="#ffdf00" opacity={.85} listening={false}/>)}{g.segments.map((s,j)=>{
+          })}</Group>:g.segments?<Group key={i} name="equal-spacing-guide">{(guideInteraction||!!gapDrag)&&g.bands?.map((band,k)=><Rect key={"band"+k} {...band} fill="#ffdf00" opacity={.85} listening={false}/>)}{g.segments.map((s,j)=>{
             const x=g.axis==='x',tick=4/stageScale
             const label=`${inToDisplay((s.to-s.from)/STAGE_WIDTH*size.widthIn,project.units,size.dpi)} ${project.units}`
             const labelWidth=(label.length*8+12)/stageScale

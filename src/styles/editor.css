@@ -1057,3 +1057,39 @@ button:disabled { cursor:not-allowed; }
 .album-editor:not(.designer-view) .matching-templates, .album-editor:not(.designer-view) .font-template-browser {
   height: min(var(--template-browser-height), 34vh); max-height: min(var(--template-browser-height), 34vh);
 }
+
+/* The text panel, tighter: the font tools sit two to a row, bold/italic/alignment share one row of
+   equal buttons, and the blending-effect rows and their editor use less height. */
+.inspector .font-picker { grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 8px; }
+.inspector .font-picker > .font-picker__anchor, .inspector .font-picker > .font-scan, .inspector .font-picker > [role=alert] { grid-column: 1 / -1; }
+.inspector .font-picker > .btn, .inspector .font-picker .font-scan .btn { min-height: 26px; padding: 3px 6px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inspector .font-picker .font-scan { display: grid; gap: 3px; font-size: 11px; line-height: 1.3; color: var(--text-muted); }
+.inspector .font-picker .font-scan p { margin: 0; }
+.inspector .text-style-row { grid-template-columns: repeat(auto-fit, minmax(34px, 1fr)); gap: 4px; margin: 4px 0; }
+.inspector .text-style-row .btn { min-height: 28px; padding: 2px 4px; }
+.text-effect-row { margin: 1px 0; gap: 4px; }
+.text-effect-row__open { padding: 5px 8px; font-size: 13px; }
+.text-effect-row .btn { min-width: 26px; min-height: 26px; padding: 0 6px; }
+.layer-effect-panel { padding: 14px; }
+.layer-effect-panel .effect-controls { gap: 10px; }
+.layer-effect-panel .effect-controls fieldset { padding: 8px 10px; gap: 7px; border-radius: 8px; }
+.layer-effect-panel .effect-controls legend { font-size: 11px; }
+.layer-effect-panel .effect-control, .layer-effect-panel .effect-check { font-size: 12px; gap: 8px; }
+.layer-effect-panel .slider-field { gap: 2px; }
+.layer-effect-panel .slider-field__input { width: 64px; min-height: 26px; }
+.layer-effect-panel > header { margin-bottom: 8px; padding-block: 8px; }
+.layer-effect-panel > footer { padding-block: 8px; }
+.layer-effect-panel select { min-height: 26px; }
+
+/* Import review: one Layers list for text, photo frames and the page colour. */
+.frame-review__layers { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 240px; overflow: auto; }
+.frame-review__layers li { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 6px; border: 1px solid transparent; min-width: 0; }
+.frame-review__layers li.is-selected { background: var(--accent-soft); border-color: var(--accent); }
+.frame-review__layers input[type=checkbox] { flex: none; margin: 0; }
+.frame-review__layer-icon { flex: none; width: 13px; display: inline-flex; justify-content: center; color: var(--text-muted); }
+.frame-review__layer { flex: 1; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: center; text-align: left; background: transparent; border: 0; padding: 0; color: inherit; cursor: pointer; font: inherit; }
+.frame-review__layer .frame-review__text-meta { grid-column: 2; padding-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.frame-review__layer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.frame-review__thumb { width: 28px; height: 28px; border-radius: 4px; border: 1px solid var(--border); background-color: var(--panel-raised); background-repeat: no-repeat; grid-row: 1 / span 2; }
+.frame-review__layer > .frame-review__swatch { grid-row: 1 / span 2; }
+.frame-review__text.is-picked { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); }

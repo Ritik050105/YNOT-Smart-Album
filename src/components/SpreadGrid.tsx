@@ -73,7 +73,7 @@ export default function SpreadGrid() {
   }
 
   return <>
-    <ol className="spread-grid" aria-label="Spread grid">
+    <ol className="spread-grid" aria-label="Spread grid" style={{ '--spread-aspect': project.size.widthIn / project.size.heightIn } as React.CSSProperties}>
       {spreads.map((spread, index) => {
         const photos = spread.placements.filter(p => p.photoId).length
         const pages = spread.pageSide === 'spread' ? `${firstPage[index]}–${firstPage[index] + 1}` : `${firstPage[index]}`
@@ -107,7 +107,7 @@ export default function SpreadGrid() {
               move(index, e.key === 'ArrowLeft' ? -1 : 1)
             }}
           >
-            <LazyCell><SpreadThumbnail spread={spread} photosById={photosById} size={project.size} width={150} /></LazyCell>
+            <LazyCell><SpreadThumbnail spread={spread} photosById={photosById} size={project.size} width={150} responsive /></LazyCell>
             <span className="spread-grid__caption">
               <span className="spread-grid__number">{index + 1}</span>
               <span className="spread-grid__pages">p. {pages}</span>

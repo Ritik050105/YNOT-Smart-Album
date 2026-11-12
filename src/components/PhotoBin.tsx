@@ -1,3 +1,4 @@
+import { hasOutsideFiles } from '@/engine/internalDrag'
 import {PreviewImage} from '@/engine/previewImage'
 import ContextMenu from './ContextMenu'
 import { galleryActions } from '@/engine/galleryActions'
@@ -516,7 +517,7 @@ export default function PhotoBin() {
         {photos.length === 0 ? <button className="photo-dock__dropzone" disabled={importing}
           onClick={() => importInputRef.current?.click()}
           onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
-          onDrop={e => { e.preventDefault(); e.stopPropagation(); if (!importing) void handleFiles(e.dataTransfer.files) }}>
+          onDrop={e => { e.preventDefault(); e.stopPropagation(); if (!importing && hasOutsideFiles(e.dataTransfer)) void handleFiles(e.dataTransfer.files) }}>
           <span className="photo-dock__drop-icon"><Icon name="image" size={100} /><span>+</span></span>
           <span>Drop images here to import them into the project.</span>
         </button> : sorted.length === 0 && <p className="muted photo-dock__empty">No photos match this filter.</p>}
