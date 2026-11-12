@@ -95,6 +95,13 @@ app.whenReady().then(async () => {
     assert.equal(closed.sel.w, before.sel.w, `${label}: the cards did not return to their size`)
   }
 
+  // Designer View: with a template browser open and the gallery collapsed, no empty panel is left behind.
+  const id = await evaluate(`return store.getState().selectedSpreadId`)
+  await evaluate(`store.getState().enterDesignerView(${JSON.stringify(id)});if(store.getState().bottomPanelOpen)store.getState().toggleBottomPanel()`); await wait(800)
+  await evaluate(`[...document.querySelectorAll('button')].find(b=>/Browse.*Font/i.test((b.textContent||'')+(b.getAttribute('aria-label')||''))).click()`); await wait(800)
+  const empty = await evaluate(`const p=document.querySelector('.bottom-panel').getBoundingClientRect();return {h:Math.round(p.height),hasDock:!!document.querySelector('.photo-dock'),browser:!!document.querySelector('.font-template-browser')}`)
+  assert.ok(empty.browser && !empty.hasDock, 'the font browser is open and the gallery is collapsed')
+  assert.ok(empty.h < 60, `a collapsed gallery leaves an empty panel ${empty.h}px tall`)
   console.log('PASS: browse panels keep the selected spread in place, keep the photo dock, and leave the overview usable')
   win.destroy(); app.quit()
 }).catch((e) => { console.error(e); app.exit(1) })
