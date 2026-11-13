@@ -12,6 +12,7 @@ import {startFontTemplateDrag,endFontTemplateDrag} from '@/engine/fontTemplateDr
 import {imgUrl} from '@/engine/imageUrl'
 import {renderSpreadToCanvas} from '@/engine/renderSpread'
 import {fitTextBoxSize} from '@/engine/textBoxSize'
+import {stepFontTemplate} from '@/engine/fontTemplateStep'
 
 import Modal from './Modal'
 import ContextMenu from './ContextMenu'
@@ -79,19 +80,24 @@ export default function QuoteTemplates({spreadId,compact=false,saveHost,buttonsO
  // the spread for real and clicking again takes it off, so several can be stacked at once — which
  // is the only way to build a layered title out of two templates.
  const [hovered,setHovered]=useState<string|null>(null)
+ // The boxes the last placement or step put on the spread, by id: Previous / Next replace exactly these, so
+ // a layer of the same template that was already there is left alone.
+ const lastPlaced=useRef<string[]>([])
  // Which templates are on this spread is read off the spread itself, through a group id derived
  // from the template. Keeping a separate list meant a template deleted from the canvas — or an
  // undo — left its card still showing as placed.
  const groupFor=(quoteId:string)=>'quote:'+quoteId
- const isPlaced=(quoteId:string)=>!!spread?.textBoxes.some(b=>b.groupId===groupFor(quoteId))
+ // A second layer of one template carries a number after the group (quote:id#2), so each layer is its own group.
+ const inGroup=(groupId:string|undefined,quoteId:string)=>groupId===groupFor(quoteId)||!!groupId?.startsWith(groupFor(quoteId)+'#')
+ const isPlaced=(quoteId:string)=>!!spread?.textBoxes.some(b=>inGroup(b.groupId,quoteId))
  const chosen=isPlaced(hovered??'')?undefined:visible.find(q=>q.id===hovered)
  const place=(quote:typeof visible[number])=>{
   const state=useProjectStore.getState(),current=state.project.spreads.find(p=>p.id===spreadId)
   if(!current)return
   const size=current.size??state.project.size
   const groupId=groupFor(quote.id)
-  if(current.textBoxes.some(b=>b.groupId===groupId)){
-   state.updateSpread(spreadId,{textBoxes:current.textBoxes.filter(b=>b.groupId!==groupId)})
+  if(current.textBoxes.some(b=>inGroup(b.groupId,quote.id))){
+   state.updateSpread(spreadId,{textBoxes:current.textBoxes.filter(b=>!inGroup(b.groupId,quote.id))})
    // The boxes are gone, so anything still pointing at them is a selection of nothing.
    state.setLayerSelection([])
    state.selectTextBox(null)
@@ -103,6 +109,7 @@ export default function QuoteTemplates({spreadId,compact=false,saveHost,buttonsO
   const boxes=quote.boxes.map(b=>fitTextBoxSize({...b,id:crypto.randomUUID(),groupId},size))
   state.updateSpread(spreadId,{textBoxes:[...current.textBoxes,...boxes]})
   state.setLayerSelection(boxes.map(b=>'text:'+b.id))
+  lastPlaced.current=boxes.map(b=>b.id)
   setActive(quote.id)
  }
  useEffect(()=>{if(compact&&selectedSpreadId!==spreadId)setOpen(false)},[compact,selectedSpreadId,spreadId])
@@ -112,18 +119,17 @@ export default function QuoteTemplates({spreadId,compact=false,saveHost,buttonsO
  // They used to move a highlight that nothing read, so pressing them appeared to do nothing.
  const step=(direction:number)=>{
   if(!visible.length)return
-  const placed=visible.find(q=>q.id===active&&isPlaced(q.id))??visible.find(q=>isPlaced(q.id))
-  const from=placed?visible.indexOf(placed):-1
-  const next=visible[from<0?(direction>0?0:visible.length-1):(from+direction+visible.length)%visible.length]
   const state=useProjectStore.getState(),current=state.project.spreads.find(p=>p.id===spreadId)
   if(!current)return
-  const fitted=state.project.spreads.find(p=>p.id===spreadId)?.size??state.project.size
-  const groupId=groupFor(next.id)
-  const kept=current.textBoxes.filter(b=>!(placed&&b.groupId===groupFor(placed.id))&&b.groupId!==groupId)
-  const boxes=next.boxes.map(b=>fitTextBoxSize({...b,id:crypto.randomUUID(),groupId},fitted))
-  state.updateSpread(spreadId,{textBoxes:[...kept,...boxes]})
-  state.setLayerSelection(boxes.map(b=>'text:'+b.id))
-  setActive(next.id);setHovered(null)
+  const fitted=current.size??state.project.size
+  // The rule itself lives in fontTemplateStep, where it is tested: replace the selected template layer with
+  // its neighbour, keep every other layer, and make a template that is already on the spread a new layer.
+  const result=stepFontTemplate({textBoxes:current.textBoxes,templates:visible,direction,selectedIds:selectedKeys().filter(k=>k.startsWith('text:')).map(k=>k.slice(5)),lastPlacedIds:lastPlaced.current,activeId:active,groupFor,copy:(b,groupId)=>fitTextBoxSize({...b,id:crypto.randomUUID(),groupId},fitted)})
+  if(!result)return
+  state.updateSpread(spreadId,{textBoxes:result.textBoxes})
+  state.setLayerSelection(result.placedIds.map(id=>'text:'+id))
+  lastPlaced.current=result.placedIds
+  setActive(result.templateId);setHovered(null)
   requestAnimationFrame(()=>document.querySelector('.font-template-browser .quote-template-card[aria-pressed="true"]')?.scrollIntoView({inline:'nearest',block:'nearest'}))
  }
  const openBrowser=(direction?:number)=>{const state=useProjectStore.getState();if(state.selectedSpreadId!==spreadId)state.selectSpread(spreadId);state.closeMatchingTemplates();setOpen(true);if(direction)step(direction)}

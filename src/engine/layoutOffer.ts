@@ -12,14 +12,17 @@ const MIN_EVEN_LAYOUTS = 3
  *  for a mixed set, the ones that miss the fewest are kept rather than an empty shelf. Layouts
  *  whose frame count differs from the photo count (imported designs) are not judged. With
  *  `keepOrder` each photograph is judged against the frame it would actually be given. */
-export function onlyFittingShapes(photos: PhotoAsset[], templates: TemplateDefinition[], aspect: number, marginPx: number, gapPx: number, keepOrder = false): TemplateDefinition[] {
+export function onlyFittingShapes(photos: PhotoAsset[], templates: TemplateDefinition[], aspect: number, marginPx: number, gapPx: number, keepOrder = false, strict = false): TemplateDefinition[] {
   if (!photos.length) return templates
   const judged = templates.filter(t => t.placeholders.length === photos.length)
   if (!judged.length) return templates
   const count = keepOrder ? templateOrderMismatches : templateShapeMismatches
   const missed = new Map(judged.map(t => [t.id, count(photos, t, aspect, marginPx, gapPx)]))
   const fewest = Math.min(...missed.values())
-  return templates.filter(t => !missed.has(t.id) || missed.get(t.id) === fewest)
+  // Strict: only layouts that give every photograph a frame of its own shape, and nothing at all when
+  // there are none, rather than the nearest misses.
+  const wanted = strict ? 0 : fewest
+  return templates.filter(t => !missed.has(t.id) || missed.get(t.id) === wanted)
 }
 
 /** Layouts whose spacing honours the album's gap: built-in layouts must leave exactly the chosen gap
@@ -39,6 +42,6 @@ export function preferEvenLayouts(templates: TemplateDefinition[], aspect: numbe
 }
 
 /** The one rule every browser applies after its own category and collection filters. */
-export function offeredLayouts(photos: PhotoAsset[], templates: TemplateDefinition[], aspect: number, marginPx: number, gapPx: number, keepOrder = false): TemplateDefinition[] {
-  return preferEvenLayouts(onlyFittingShapes(photos, templates, aspect, marginPx, gapPx, keepOrder), aspect, marginPx, gapPx)
+export function offeredLayouts(photos: PhotoAsset[], templates: TemplateDefinition[], aspect: number, marginPx: number, gapPx: number, keepOrder = false, strict = false): TemplateDefinition[] {
+  return preferEvenLayouts(onlyFittingShapes(photos, templates, aspect, marginPx, gapPx, keepOrder, strict), aspect, marginPx, gapPx)
 }

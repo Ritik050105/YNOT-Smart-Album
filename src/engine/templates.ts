@@ -967,10 +967,20 @@ export function matchesFrameFilter(t: TemplateDefinition, filter: TemplateFrameF
   return true
 }
 
+/** Whether an id list takes in the balanced family: no list does, and so does a list that has any of its
+ *  layouts (Auto Build passes everything on offer, balanced layouts included). A hand-picked library has none. */
+const balancedAllowed = new WeakMap<string[], boolean>()
+function allowsBalanced(ids: string[] | null): boolean {
+  if (ids === null) return true
+  let known = balancedAllowed.get(ids)
+  if (known === undefined) balancedAllowed.set(ids, known = ids.some(id => id.startsWith('mix-')))
+  return known
+}
+
 /** Balanced layouts drawn for these photographs in their own order, so the browser's "match timeline
  *  order" row has real choices. Offered like the rest of the family: not to a hand-picked library. */
 export function sequenceCandidates(photos: { width: number; height: number }[], count: number, enabledTemplateIds: string[] | null, frameFilter: TemplateFrameFilter, aspect: number): TemplateDefinition[] {
-  if (enabledTemplateIds !== null || photos.length !== count || count < 2) return []
+  if (photos.length !== count || count < 2 || !allowsBalanced(enabledTemplateIds)) return []
   const all = balancedForSequence(sequenceKinds(photos), aspect)
   return frameFilter === 'all' ? all : all.filter(t => matchesFrameFilter(t, frameFilter, aspect))
 }
@@ -1162,7 +1172,7 @@ export function templateFamilyLabel(t: TemplateDefinition): string {
   if (t.id.startsWith('ref-storyboard-')) return 'Storyboard'
   if (t.id.startsWith('ref-mosaic-')) return 'Mosaic'
   if (t.id.startsWith('seamless-')) return 'Seamless'
-  if (t.id.startsWith('mix-') || t.id.startsWith('mixseq-')) return 'Balanced'
+  if (t.id.startsWith('mix-') || /^mixseq3?-/.test(t.id)) return 'Balanced'
   if (t.id.startsWith('gen-grid-') || t.id.startsWith('gen-gridcol-')) return 'Grid'
   if (t.id.startsWith('gen-hero-')) return 'Hero'
   if (t.id.startsWith('gen-split-')) return 'Split'

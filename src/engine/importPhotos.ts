@@ -5,7 +5,7 @@ import { v4 as uuid } from 'uuid'
 import { PhotoAsset } from '@/types'
 import { imageFileSource, isImageFile } from './imageSource'
 import { hasColorProfile } from './colorProfile'
-import { SubjectFocus, samplePixels, subjectFocusFromPixels } from './subjectFocus'
+import { SubjectFocus, samplePixels, subjectFocusFromImage } from './subjectFocus'
 
 const CONCURRENCY = 3
 
@@ -29,7 +29,7 @@ async function analysePreview(src: string): Promise<{ blackAndWhite?: boolean; f
     await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = reject; image.src = thumbnail })
     const pixels = samplePixels(image)
     if (!pixels) return {}
-    return { blackAndWhite: blackAndWhiteFromPixels(pixels), focus: subjectFocusFromPixels(pixels) ?? undefined }
+    return { blackAndWhite: blackAndWhiteFromPixels(pixels), focus: subjectFocusFromImage(image) ?? undefined }
   } catch { return {} }
 }
 

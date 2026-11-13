@@ -55,6 +55,20 @@ export function orientationFits(photo: { width: number; height: number }, frame:
   return p === target || p === 'square' || target === 'square'
 }
 
+/** The rule for choosing a template, stricter than the one for dropping a photo by hand: a landscape
+ *  photo only goes into a landscape or square frame, a portrait photo only into a portrait or square
+ *  frame, and a square photo only into a frame that is square or close to it. A frame of the opposite
+ *  shape is never picked for the photograph; changing one is the designer's call, made by hand in
+ *  Designer View. "Close to square" is a frame up to a quarter wider or taller than it is long: it
+ *  trims a square photograph by a fifth at most, where a 2:3 frame would throw away a third. */
+export const SQUARISH_MIN = 0.8, SQUARISH_MAX = 1.25
+export function shapeFitsStrictly(photo: 'landscape' | 'portrait' | 'square', frameWidth: number, frameHeight: number) {
+  const shape = shapeOf(frameWidth, frameHeight)
+  if (shape === 'square') return true
+  if (photo === 'square') { const ratio = frameWidth / frameHeight; return ratio >= SQUARISH_MIN && ratio <= SQUARISH_MAX }
+  return photo === shape
+}
+
 export function boundedFrameRect(rect: { x: number; y: number; width: number; height: number }) {
   if (!Object.values(rect).every(Number.isFinite)) throw new Error('Frame coordinates must be finite numbers.')
   return { x: rect.x, y: rect.y, width: Math.max(0.002, rect.width), height: Math.max(0.002, rect.height) }

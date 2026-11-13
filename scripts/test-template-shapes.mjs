@@ -1,6 +1,7 @@
-// A layout is only offered for a set of photos if it can give each photo a frame of its own shape.
-// Square frames are the give in the system: they take any photo, so they absorb whichever shape the
-// layout is short of.
+// A layout is only offered for a set of photos if it can give each photo a frame of its own shape:
+// landscape photos get landscape or square frames, portrait photos get portrait or square frames, and
+// square photos get square frames only. Square frames take a landscape or a portrait photograph, so they
+// absorb whichever of those two the layout is short of.
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 
@@ -54,12 +55,20 @@ assert.ok(templateShapesFit(photos('portrait', 'portrait'), template(portraitFra
 assert.ok(templateShapesFit(photos('portrait', 'landscape'), template(square, square), ASPECT),
   'an all-square layout takes any mix')
 
-// A square photo goes anywhere, so it never makes a layout infeasible.
-assert.ok(templateShapesFit(photos('square', 'landscape'), template(landscapeFrame, landscapeFrame), ASPECT),
-  'a square photo is happy in a landscape frame')
+// A square photograph is not forced into a landscape or a portrait frame either, whatever else the layout has.
+assert.equal(templateShapesFit(photos('square', 'landscape'), template(landscapeFrame, landscapeFrame), ASPECT), false,
+  'a square photo is not offered a landscape frame')
+assert.equal(templateShapesFit(photos('square'), template(portraitFrame), ASPECT), false,
+  'a square photo is not offered a portrait frame')
+assert.ok(templateShapesFit(photos('square', 'landscape'), template(square, landscapeFrame), ASPECT),
+  'a square photo takes the square frame and the landscape photo the landscape one')
+assert.ok(templateShapesFit(photos('landscape', 'portrait'), template(square, square), ASPECT),
+  'square frames take a landscape and a portrait photograph')
+assert.equal(templateShapesFit(photos('square', 'portrait'), template(square, landscapeFrame), ASPECT), false,
+  'the square frame goes to the square photo, so the portrait one is left without a frame of its own shape')
 
 // Counts must line up: a layout for three photos is not offered for two.
 assert.equal(templateShapesFit(photos('square', 'square'), template(square, square, square), ASPECT), false,
   'a three-frame layout is not offered to two photos')
 
-console.log('Template shape checks passed: a photo is never forced into the opposite shape, square frames absorb the shortfall, square photos fit anywhere, and frame counts must match.')
+console.log('Template shape checks passed: a photo is never forced into the opposite shape, square frames absorb the shortfall of landscapes and portraits, a square photo takes only a square frame, and frame counts must match.')

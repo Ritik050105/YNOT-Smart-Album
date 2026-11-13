@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
 import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TextBox } from '@/types'
-import { suggestTemplate, findTemplate, templatesForCount, TemplateFrameFilter } from './templates'
+import { suggestTemplate, findTemplate, templatesForCount, sequenceCandidates, TemplateFrameFilter } from './templates'
 import { preferEvenLayouts, uniformGapLayouts } from './layoutOffer'
 import { rankTemplates, templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches } from './templateMatching'
 
@@ -293,6 +293,9 @@ export function buildSpreadsFromGroups(
   return groups.map((group, index) => {
     const side = singlePageSide(index, groups.length, layout)
     let candidates = autoBuildTemplates(group.length, groupDesigns?.[index]?.templateIds ?? enabledTemplateIds, layout, side ?? false)
+    // With the photographs kept in order, layouts drawn for exactly this order come too, so the spread
+    // does not have to be reordered to find a layout that suits every photograph.
+    if (matchTimelineOrder && !side) candidates = [...sequenceCandidates(group, group.length, groupDesigns?.[index]?.templateIds ?? enabledTemplateIds, layout.frameFilter ?? 'all', layout.aspect ?? 1), ...candidates]
     if (!candidates.length) throw new Error(`No enabled template matches ${group.length} images with the current frame and layout filters. Change the filters or images per spread.`)
     // Layouts that leave the album's own gap between photos come first, ahead of the reuse rules below.
     candidates = uniformGapLayouts(candidates, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx)

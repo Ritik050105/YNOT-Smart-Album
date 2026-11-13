@@ -1,5 +1,6 @@
 import { PlaceholderRect, TemplateDefinition } from '@/types'
 import { supportsUniformGap } from './templateLayout'
+import { shapeOf } from './layoutMath'
 import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
 
 /** Balanced layouts for every mix of landscape and upright photographs.
@@ -23,6 +24,8 @@ import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
 /** Frames of each shape sit well clear of the shape rule's 1.15 deadband, whatever the album. */
 const LANDSCAPE = { ideal: 1.5, min: 1.22, max: 2.6 }
 const UPRIGHT = { ideal: 1 / 1.5, min: 0.38, max: 0.82 }
+/** A square photograph needs a square frame: well inside the shape rule's 0.87-1.15 deadband. */
+const SQUARE = { ideal: 1, min: 0.9, max: 1.1 }
 
 /** Largest frame over smallest. Past this a layout reads as one hero and a scatter of stamps. */
 const MAX_SPREAD = 3.6
@@ -65,7 +68,7 @@ function order(landscapes: number, uprights: number, pattern: number, random: ()
   }
 }
 
-const WIDE_CHOICES = [1.3, 1.4, 1.5, 1.6, 1.75], TALL_CHOICES = [0.58, 0.62, 1 / 1.5, 0.72, 0.77]
+const WIDE_CHOICES = [1.3, 1.4, 1.5, 1.6, 1.75], TALL_CHOICES = [0.58, 0.62, 1 / 1.5, 0.72, 0.77], SQUARE_CHOICES = [0.96, 1, 1.04]
 const pick = (list: number[], random: () => number) => list[Math.floor(random() * list.length)]
 
 /** Photographs in rows, every row as wide as the block. A row's height follows from the shapes in
@@ -77,7 +80,7 @@ function justified(kinds: number[], from: number, to: number, x: number, y: numb
   const n = to - from
   // Work in the orientation where the block is rows; flip afterwards for columns.
   const ratios = Array.from({ length: n }, (_, i) => {
-    const r = kinds[from + i] === 0 ? pick(WIDE_CHOICES, random) : pick(TALL_CHOICES, random)
+    const kind = kinds[from + i], r = kind === 0 ? pick(WIDE_CHOICES, random) : kind === 2 ? pick(SQUARE_CHOICES, random) : pick(TALL_CHOICES, random)
     return columns ? 1 / r : r
   })
   const region = columns ? (h / (w * aspect)) : (w * aspect) / h
@@ -172,8 +175,8 @@ function evaluate(boxes: Box[], kinds: number[], aspect: number, round: number):
   const xs = new Set<number>(), ys = new Set<number>()
   for (let i = 0; i < boxes.length; i++) {
     const [x, y, w, h] = boxes[i]
-    const ratio = (w * aspect) / h, shape = kinds[i] === 0 ? LANDSCAPE : UPRIGHT
-    if (ratio < (kinds[i] === 0 ? wideMin : shape.min) || ratio > (kinds[i] === 0 ? shape.max : tallMax)) return null
+    const ratio = (w * aspect) / h, kind = kinds[i], shape = kind === 0 ? LANDSCAPE : kind === 2 ? SQUARE : UPRIGHT
+    if (ratio < (kind === 0 ? wideMin : shape.min) || ratio > (kind === 1 ? tallMax : shape.max)) return null
     dev += Math.abs(Math.log(ratio / shape.ideal))
     const area = w * h
     minArea = Math.min(minArea, area); maxArea = Math.max(maxArea, area)
@@ -308,8 +311,13 @@ function layoutsFor(count: number, landscapes: number, aspectKey: number): Candi
 
 /** Rebuilds a balanced layout from its id, so albums saved with one still resolve it. */
 export function balancedFromId(id: string): TemplateDefinition | undefined {
-  const ordered = id.match(/^mixseq-(\d+)-(\d+)-(\d+)-(\d+)$/)
-  if (ordered) return balancedForSequence(kindsOfBits(Number(ordered[3]), Number(ordered[2])), Number(ordered[1]) / KEY_SCALE).find(t => t.id === id)
+  const ordered = id.match(/^mixseq(3?)-(\d+)-(\d+)-(\d+)-(\d+)$/)
+  if (ordered) {
+    const [, three, key, count, code, rank] = ordered
+    const list = balancedForSequence(kindsOfCode(Number(code), Number(count), three ? 3 : 2), Number(key) / KEY_SCALE)
+    // An id from an earlier build names its layout by rank; the layouts for that order are the nearest there is.
+    return three ? list.find(t => t.id === id) : list[Number(rank)]
+  }
   const m = id.match(/^mix-(\d+)-(\d+)-(\d+)l-(\d+)$/)
   if (!m) return undefined
   // Ids from earlier builds carry the shape in hundredths; they are small enough to tell apart.
@@ -324,15 +332,18 @@ export function balancedFromId(id: string): TemplateDefinition | undefined {
  *  within a column. A layout drawn for a mix of shapes only suits that row if its frames happen to
  *  come out in the same order as the photographs. These are drawn for the order itself: the
  *  frames flow down columns, left to right, so the n-th frame is the n-th photograph's shape. */
+/** 0 for a landscape photograph, 1 for a portrait one, 2 for a square one, by the app's own shape rule. */
 export function sequenceKinds(photos: { width: number; height: number }[]): number[] {
-  return photos.map(p => (p.width >= p.height ? 0 : 1))
+  return photos.map(p => { const shape = shapeOf(p.width, p.height); return shape === 'landscape' ? 0 : shape === 'portrait' ? 1 : 2 })
 }
-const bitsOf = (kinds: number[]) => kinds.reduce((sum, k, i) => sum + (k ? 2 ** i : 0), 0)
-const kindsOfBits = (bits: number, count: number) => Array.from({ length: count }, (_, i) => (Math.floor(bits / 2 ** i) % 2))
+/** The order of shapes as one number: base 3 here. Earlier builds wrote it in base 2 (landscape and
+ *  portrait only) under the id prefix `mixseq-`, which still decodes the way it was written. */
+const codeOf = (kinds: number[]) => kinds.reduce((sum, k, i) => sum + k * 3 ** i, 0)
+const kindsOfCode = (code: number, count: number, base = 3) => Array.from({ length: count }, (_, i) => (Math.floor(code / base ** i) % base))
 
 function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number): Candidate[] {
   const count = kinds.length
-  const random = rng(bitsOf(kinds) * 7919 + count * 131 + aspectKey)
+  const random = rng(codeOf(kinds) % 2147483647 * 7919 + count * 131 + aspectKey)
   const found = new Map<string, Candidate>()
   const holds = new WeakMap<Candidate, boolean>()
   const kept: Candidate[] = []
@@ -371,15 +382,15 @@ const sequenceCache = new Map<string, TemplateDefinition[]>()
 export function balancedForSequence(kinds: number[], aspect: number): TemplateDefinition[] {
   const count = kinds.length
   if (count < 2 || count > MAX_PHOTOS_PER_SPREAD || !Number.isFinite(aspect) || aspect <= 0) return []
-  const aspectKey = keyFor(aspect), bits = bitsOf(kinds), cacheKey = `${aspectKey}|${count}|${bits}`
+  const aspectKey = keyFor(aspect), code = codeOf(kinds), cacheKey = `${aspectKey}|${count}|${code}`
   const hit = sequenceCache.get(cacheKey)
   if (hit) return hit
   const out = sequenceLayouts(kinds, aspectKey / KEY_SCALE, aspectKey).map((c, rank): TemplateDefinition => {
-    const id = `mixseq-${aspectKey}-${count}-${bits}-${rank}`
-    const wide = kinds.filter(k => k === 0).length
+    const id = `mixseq3-${aspectKey}-${count}-${code}-${rank}`
+    const wide = kinds.filter(k => k === 0).length, tall = kinds.filter(k => k === 1).length, square = count - wide - tall
     return {
       id,
-      name: `Balanced · in your order · ${wide} Wide, ${count - wide} Upright · ${rank + 1}`,
+      name: `Balanced · in your order · ${wide} Wide, ${tall} Upright${square ? `, ${square} Square` : ''} · ${rank + 1}`,
       photoCount: count,
       pageSide: 'spread',
       isBuiltIn: true,

@@ -106,4 +106,28 @@ for (const [fx, fy, label] of [[0.5, 0.22, 'high'], [0.22, 0.5, 'left'], [0.78, 
   assert.ok(Math.abs(focus.focusX - 0.3) < 0.03, 'the import focal point sits on the face, not pulled to the middle')
 }
 
+// A violet-grey studio backdrop is not skin, however much of the picture it covers: it used to read as
+// one enormous face and put the subject at the middle of the page.
+{
+  const width = 160, height = 100, pixels = new Uint8ClampedArray(width * height * 4)
+  for (let i = 0; i < width * height; i++) { pixels[i * 4] = 112; pixels[i * 4 + 1] = 102; pixels[i * 4 + 2] = 118; pixels[i * 4 + 3] = 255 }
+  globalThis.document = fakeDocument(pixels, width, height)
+  assert.equal(subjectBoxFromImage({ naturalWidth: width, naturalHeight: height }), null, 'a violet-grey backdrop is not a face')
+}
+
+// Skin runs on below the chin into the neck and chest, and the whole run is one region. The face is the
+// top of it, so the box stops where a face would, not at the bottom of the neck.
+{
+  const width = 160, height = 160, pixels = new Uint8ClampedArray(width * height * 4)
+  for (let i = 0; i < width * height; i++) { pixels[i * 4] = 112; pixels[i * 4 + 1] = 102; pixels[i * 4 + 2] = 118; pixels[i * 4 + 3] = 255 }
+  const skin = (x0, y0, x1, y1) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * width + x) * 4; pixels[i] = 215; pixels[i + 1] = 165; pixels[i + 2] = 135 } }
+  skin(56, 16, 104, 76)   // a face 48 wide, 60 tall
+  skin(72, 76, 88, 150)   // a neck 16 wide running to the bottom of the picture
+  globalThis.document = fakeDocument(pixels, width, height)
+  const box = subjectBoxFromImage({ naturalWidth: width, naturalHeight: height })
+  assert.ok(box, 'the face is found')
+  assert.ok(box.height < 0.55, `the box stops at the chin, not the end of the neck (height ${box.height})`)
+  assert.ok(Math.abs(box.focusX - 0.5) < 0.03 && box.focusY < 0.4, `the focal point is on the face (got ${box.focusX}, ${box.focusY})`)
+}
+
 console.log('Subject focus checks passed: the crop follows the subject, stays off the edges, keeps a high subject a centred crop would cut, and reports nothing on a blank frame.')
