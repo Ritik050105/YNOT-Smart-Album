@@ -1,5 +1,6 @@
 import { MAX_PHOTOS_PER_SPREAD } from '@/engine/spreadLimits'
 import {cyclingTemplates} from './templateBrowsing'
+import {setSlideDirection} from '@/engine/slideDirection'
 import {EditedPsdLayer} from '@/engine/importEditedPsd'
 import {askTemplateCategory} from '@/components/ClassifyTemplate'
 import {classifyTemplates,recordTemplateUse} from '@/engine/templateCollections'
@@ -1023,6 +1024,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (candidates.length < 2) return
     const current = candidates.findIndex((template) => template.id === spread.templateId)
     const next = current < 0 ? (direction > 0 ? 0 : candidates.length - 1) : (current + direction + candidates.length) % candidates.length
+    setSlideDirection(direction)
     get().applyTemplateToSpread(spreadId, candidates[next].id)
     if (get().selectedSpreadId === spreadId) set({ selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [] })
   },
@@ -1035,6 +1037,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (candidates.length < 2) return
     const current = candidates.findIndex((template) => template.id === spread.templateId)
     const next = current < 0 ? (direction > 0 ? 0 : candidates.length - 1) : (current + direction + candidates.length) % candidates.length
+    setSlideDirection(direction)
     get().applyTemplateToSpread(spreadId, candidates[next].id)
     if (get().selectedSpreadId === spreadId) set({ selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [] })
   },

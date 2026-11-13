@@ -5,6 +5,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Spread, PhotoAsset, AlbumSize } from '@/types'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { renderSpreadToCanvas } from '@/engine/renderSpread'
+import { slideDirection } from '@/engine/slideDirection'
 
 interface Props {
   spread: Spread
@@ -16,6 +17,28 @@ interface Props {
   /** The hovered frame will refuse this photo for its shape, so it is drawn as a warning. */
   dropRefused?: boolean
   selectedPlaceholderId?: string | null
+}
+
+/** How long a slide takes. Short, so holding the button down keeps up with the key. */
+const SLIDE_MS=170
+
+/** A copy of what a canvas shows now. */
+function snapshotOf(canvas:HTMLCanvasElement){
+  const copy=document.createElement('canvas')
+  copy.width=canvas.width;copy.height=canvas.height
+  copy.getContext('2d')?.drawImage(canvas,0,0)
+  return copy
+}
+
+/** One step of a slide: the leaving picture and the arriving one side by side, shifted by `progress` (0-1) of the card's width. */
+function drawSlide(canvas:HTMLCanvasElement,leaving:HTMLCanvasElement,arriving:HTMLCanvasElement,direction:1|-1,progress:number){
+  if(canvas.width!==arriving.width||canvas.height!==arriving.height){canvas.width=arriving.width;canvas.height=arriving.height}
+  const ctx=canvas.getContext('2d')
+  if(!ctx)return
+  const w=canvas.width,h=canvas.height,shift=Math.round(w*progress)
+  ctx.clearRect(0,0,w,h)
+  ctx.drawImage(leaving,-direction*shift,0,w,h)
+  ctx.drawImage(arriving,direction*(w-shift),0,w,h)
 }
 
 /** Puts a rendered frame on the card's canvas. The canvas is only resized when the frame's size really differs:
@@ -38,7 +61,6 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
   const lastGeometry=useRef<string>()
   const previousSpread=useRef<Spread>()
   const lastSeen=useRef<Spread>()
-  const shownBoxes=useRef(new Map<string,{x:number;y:number;width:number;height:number}>())
   const highResolution=usePreferences(s=>s.values.highResolution)
   size = spread.size ?? size
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -54,52 +76,38 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
   useEffect(() => {
     let cancelled = false
     setFailed(false)
-    // Where each photograph is on the card right now (0-1 of the spread, by photo), whether the card has
-    // settled or a slide is half way. The next slide starts from here. It used to start from the last layout
-    // that finished, so pressing Next again before a slide ended snapped the card back to where it began
-    // and slid on from there: held down, that read as the card blinking.
-    const shown = shownBoxes.current
     const prior = lastSeen.current, priorGeometry = lastGeometry.current
     lastSeen.current = spread
+    // What the card shows right now, kept as it is: the layout it is leaving. If a slide is half done (a key held down), this is
+    // that half-done picture, so the next slide carries on from it instead of jumping back to where the last one began.
+    const mayChangeLayout = !!prior && (prior.templateId !== spread.templateId || prior.customBoxes !== spread.customBoxes)
+    const leaving = mayChangeLayout && canvasRef.current && canvasRef.current.width > 0 ? snapshotOf(canvasRef.current) : null
     void Promise.all([...photosById].filter(([id])=>spread.placements.some(p=>p.photoId===id)).map(async([id,p])=>[id,{...p,src:await previewSource(p.src)}] as const)).then(async entries=>{
       const geometry=JSON.stringify([spread.templateId,spread.customBoxes,spread.placements.map(p=>p.photoId)])
       lastGeometry.current=geometry
-      // Presses that arrive faster than the screen redraws would each render a frame nobody sees: wait for the next frame, and
-      // the effect of every press but the last has been cancelled by then.
-      // (A window that is not being drawn does not run frames, so the wait gives up after a short while.)
+      const dpi=(highResolution?renderWidth:Math.min(420,renderWidth))/size.widthIn
+      // Presses that arrive faster than the screen redraws would each render a picture nobody sees: wait for the next frame, and
+      // the effect of every press but the last has been cancelled by then. (A window that is not being drawn does not run
+      // frames, so the wait gives up after a short while.)
       await Promise.race([new Promise(requestAnimationFrame),new Promise(resolve=>setTimeout(resolve,40))])
       if(cancelled)return null
-      const dpi=(highResolution?renderWidth:Math.min(420,renderWidth))/size.widthIn
-      const height=900*size.heightIn/size.widthIn
-      const next=computePlaceholderBoxes(spread,900,height)
-      const photoOf=(placeholderId:string)=>spread.placements.find(p=>p.placeholderId===placeholderId)?.photoId
-      const settle=()=>{shown.clear();for(const b of next){const id=photoOf(b.placeholderId);if(id)shown.set(id,{x:b.x/900,y:b.y/height,width:b.width/900,height:b.height/height})}}
-      let finished:HTMLCanvasElement|null=null
-      // Layout-only key (template/box geometry, not which photo fills each box): a plain photo
-      // swap keeps every box in place, so it must not trigger the morph animation below.
+      const rendered=await renderSpreadToCanvas(spread,new Map(entries),size,dpi,true)
+      if(cancelled)return null
+      // A change of layout slides: the old picture moves out one side and the new one in from the other, each keeping its own
+      // size. (Frames that grew out of a point, or shrank into one, to reach their new places are gone: nothing is scaled.)
       const layoutChanged=prior&&(prior.templateId!==spread.templateId||prior.customBoxes!==spread.customBoxes)
-      if(animations&&layoutChanged&&!canvasRef.current?.parentElement?.hasAttribute('data-overview-dragging')&&prior&&priorGeometry!==geometry&&prior.placements.length===spread.placements.length){
-        const old=computePlaceholderBoxes(prior,900,height),start=performance.now()
-        // Each box slides from where its photograph is now: where the card has drawn it, else where the layout it replaced had it.
-        const from=new Map(next.map((b,i)=>{const id=photoOf(b.placeholderId),oldId=prior.placements.find(p=>p.photoId===id)?.placeholderId,o=old.find(x=>x.placeholderId===oldId)??old[i]??b;return [b.placeholderId,(id&&shown.get(id))||{x:o.x/900,y:o.y/height,width:o.width/900,height:o.height/height}] as const}))
-        // Drawn at the resolution the finished card has, so the card does not change size (and visibly
-        // re-sharpen) when the slide ends. Time-driven: a slow frame skips ahead instead of stretching the slide.
-        const animDpi=dpi
-        while(!cancelled){const t=Math.min(1,(performance.now()-start)/180),ease=1-Math.pow(1-t,3)
-          const boxes=next.map(b=>{const a=from.get(b.placeholderId)!;return {id:b.placeholderId,x:a.x+(b.x/900-a.x)*ease,y:a.y+(b.y/height-a.y)*ease,width:a.width+(b.width/900-a.width)*ease,height:a.height+(b.height/height-a.height)*ease,preferredOrientation:'any' as const}})
-          // The last step is the finished card itself, so it is not rendered a second time afterwards.
-          const frame=t===1?await renderSpreadToCanvas(spread,new Map(entries),size,dpi,true):await renderSpreadToCanvas({...spread,flipped:false,customBoxes:boxes},new Map(entries),size,animDpi),canvas=canvasRef.current
-          if(cancelled||!canvas)break
-          drawFrame(canvas,frame)
-          if(t===1){finished=frame;break}
-          shown.clear();for(const b of boxes){const id=photoOf(b.id);if(id)shown.set(id,{x:b.x,y:b.y,width:b.width,height:b.height})}
+      if(animations&&leaving&&layoutChanged&&priorGeometry!==geometry&&!canvasRef.current?.parentElement?.hasAttribute('data-overview-dragging')){
+        const direction=slideDirection(),start=performance.now()
+        while(!cancelled){
+          const canvas=canvasRef.current
+          if(!canvas)return null
+          const t=Math.min(1,(performance.now()-start)/SLIDE_MS)
+          drawSlide(canvas,leaving,rendered,direction,1-Math.pow(1-t,3))
+          if(t===1)break
           await new Promise(requestAnimationFrame)
         }
       }
-      if(cancelled)return null
-      const rendered=finished??await renderSpreadToCanvas(spread,new Map(entries),size,dpi,true)
-      if(!cancelled)settle()
-      return rendered
+      return cancelled?null:rendered
     }).then((rendered) => {
       const canvas = canvasRef.current
       if (cancelled || !canvas || !rendered) return

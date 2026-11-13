@@ -1,3 +1,4 @@
+import { setSlideDirection } from '@/engine/slideDirection'
 import {useTemplateBrowsing} from '@/state/templateBrowsing'
 import {askTemplateCategory} from './ClassifyTemplate'
 import ContextMenu from './ContextMenu'
@@ -38,6 +39,14 @@ export default function MatchingTemplatesPanel() {
   const [scope, setScope] = useState<TemplateScope>('spread')
 
   const [active, setActive] = useState<{ row: number; index: number } | null>(null)
+  // The card slides toward the template chosen: forward when the tile is to the right of the last one looked at, back when to the
+  // left, and back the way it came when the preview is taken off.
+  const lastTile = useRef<{ row: number; index: number } | null>(null), lastDirection = useRef<1 | -1>(1)
+  const slideToward = (row: number, index: number) => {
+    const last = lastTile.current, direction: 1 | -1 = last && last.row === row ? (index >= last.index ? 1 : -1) : 1
+    lastTile.current = { row, index }; lastDirection.current = direction; setSlideDirection(direction)
+  }
+  const slideBack = () => { setSlideDirection(lastDirection.current === 1 ? -1 : 1) }
   const [offsets, setOffsets] = useState([0, 0])
   const [tileWidth, setTileWidth] = useState(220)
   const strips = useRef<(HTMLDivElement | null)[]>([])
@@ -120,7 +129,7 @@ export default function MatchingTemplatesPanel() {
       index = Math.max(0, Math.min(rows[row].length - 1, index))
       const template = rows[row][index]?.template
       if (!template) return
-      setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target)
+      slideToward(row, index); setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target)
       const strip = strips.current[row], left = index * (tileWidth + 12)
       if (strip && (left < strip.scrollLeft || left + tileWidth > strip.scrollLeft + strip.clientWidth)) strip.scrollLeft = left
     }
@@ -133,7 +142,7 @@ export default function MatchingTemplatesPanel() {
   }, [open, spreadId, !!spread, close])
   if (!open || !spread) return null
   const number = project.spreads.filter(s => !s.isCover).sort((a, b) => a.order - b.order).findIndex(s => s.id === spread.id) + 1
-  return <section className="matching-templates" aria-label="Matching templates" onMouseLeave={() => { setActive(null); preview(null) }}>
+  return <section className="matching-templates" aria-label="Matching templates" onMouseLeave={() => { slideBack(); setActive(null); preview(null) }}>
     <header className="matching-templates__header">
       <span role="status">Spread {number}: {rows[0].length} matching {kind} templates found.</span>
       {!designer&&<QuoteTemplates spreadId={spread.id} buttonsOnly/>}{spread.pageSide === 'spread' && <select aria-label="Template page" value={scope} onChange={e=>setScope(e.target.value as TemplateScope)}>
@@ -155,7 +164,7 @@ export default function MatchingTemplatesPanel() {
       <div className="matching-templates__strip" ref={el => { strips.current[row] = el }} aria-label={label} onPointerDown={e=>{if(e.button!==0||(e.target as Element).closest('button'))return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setMarquee({x:e.clientX,y:e.clientY,left:e.clientX,top:e.clientY,width:0,height:0});setSelection([])}} onPointerMove={e=>{if(!marquee)return;const box={...marquee,left:Math.min(marquee.x,e.clientX),top:Math.min(marquee.y,e.clientY),width:Math.abs(e.clientX-marquee.x),height:Math.abs(e.clientY-marquee.y)};setMarquee(box);setSelection(Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-template-id]')).filter(el=>{const r=el.getBoundingClientRect();return r.right>=box.left&&r.left<=box.left+box.width&&r.bottom>=box.top&&r.top<=box.top+box.height}).map(el=>el.dataset.templateId!))}} onPointerUp={()=>setMarquee(null)} onPointerCancel={()=>setMarquee(null)} onScroll={event => { const offset = Math.max(0, Math.floor(event.currentTarget.scrollLeft / (tileWidth + 12)) - 2); setOffsets(current => current[row] === offset ? current : current.map((value, i) => i === row ? offset : value)) }}>
         <div style={{ position: 'relative', flex: '0 0 auto', width: Math.max(0, rows[row].length * (tileWidth + 12) - 12), height: tileWidth / aspect + 12 }}>
         {rows[row].slice(offsets[row], offsets[row] + Math.ceil((strips.current[row]?.clientWidth ?? tileWidth * 10) / (tileWidth + 12)) + 8).map(({template, photos}, slot) => { const index = offsets[row] + slot; return <div className={`matching-template ${active?.row === row && active.index === index ? 'is-previewing' : ''} ${spread.templateId === template.id ? 'is-current' : ''} ${selection.includes(template.id)?'is-selected':''}`} key={template.id} data-template-id={template.id} onContextMenu={e=>{e.preventDefault();setMenu({x:e.clientX,y:e.clientY,id:template.id});if(!selection.includes(template.id))setSelection([template.id])}} style={{ position: 'absolute', left: index * (tileWidth + 12), width: tileWidth }}>
-          <button className="matching-template__apply" title={`${template.name} — preview, click to apply`} onMouseEnter={() => { setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onMouseLeave={() => { setActive(current => current?.row === row && current.index === index ? null : current); preview(null) }} onFocus={() => { setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onClick={e => { if(e.shiftKey||e.ctrlKey||e.metaKey){setSelection(ids=>ids.includes(template.id)?ids.filter(id=>id!==template.id):[...ids,template.id]);return}apply(spread.id, template.id, !autoRearrange || count <= 1 || row === 1, target); close() }}>
+          <button className="matching-template__apply" title={`${template.name} — preview, click to apply`} onMouseEnter={() => { slideToward(row, index); setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onMouseLeave={() => { slideBack(); setActive(current => current?.row === row && current.index === index ? null : current); preview(null) }} onFocus={() => { slideToward(row, index); setActive({ row, index }); preview(template.id, !autoRearrange || count <= 1 || row === 1, target) }} onClick={e => { if(e.shiftKey||e.ctrlKey||e.metaKey){setSelection(ids=>ids.includes(template.id)?ids.filter(id=>id!==template.id):[...ids,template.id]);return}apply(spread.id, template.id, !autoRearrange || count <= 1 || row === 1, target); close() }}>
             <TemplateThumb template={template} photos={templateFramesInReadingOrder(template).map(frame=>photos[template.placeholders.indexOf(frame)])} placements={placements} aspect={aspect} marginPx={spread.marginPx * (target === 'spread' ? 1 : 2)} gapPx={spread.gapPx * (target === 'spread' ? 1 : 2)} backgroundColor={spread.backgroundHidden ? undefined : spread.backgroundColor} />
             <span className="sr-only">{label}: {template.name}</span>
           </button>
