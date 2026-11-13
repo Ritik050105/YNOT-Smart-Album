@@ -93,7 +93,7 @@ for (const side of ['left', 'right']) {
 // deliberate: a cascade leaves the step above each shorter photo open, and a caption variant gives
 // the facing page's lower band over to the text.
 for (const [margin, gap] of [[0, 0], [24, 12], [60, 40]]) {
-  for (const n of [2, 4, 9, 20, 30]) {
+  for (const n of [2, 4, 9, 20, 24]) {
     for (const t of templatesForCount(n, null, 'all', 1.5).filter(isFullSpreadTemplate)) {
       const frames = resolveTemplateFrames(t.placeholders, 1.5, margin, gap)
       const at = (margin ? ` at margin ${margin}/gap ${gap}` : '')
@@ -121,7 +121,7 @@ for (const [margin, gap] of [[0, 0], [24, 12], [60, 40]]) {
 // photo-shaped frames — never the row of letterbox bands a flush grid produces at these counts.
 // There is no fixed number of them: how many survive depends on the album's own proportions,
 // since the same grid is tidy squares on one shape and bands on another.
-for (let n = 4; n <= 30; n++) {
+for (let n = 4; n <= 24; n++) {
   const full = templatesForCount(n, null, 'all', 1.5).filter(t => !t.textBoxes?.length && isFullSpreadTemplate(t))
   assert.ok(full.length >= 4, `count ${n} offers full-spread image templates (got ${full.length})`)
   for (const t of full) for (const ph of t.placeholders) {
@@ -136,7 +136,7 @@ for (let n = 4; n <= 30; n++) {
 // different arrangements. The floor was 200, then 120 once band-shaped frames were dropped, and is
 // 20 now that dedup collapses layouts differing only in their proportions — a shelf of tiles that
 // look the same at different sizes was the complaint, so the drop is the point, not a regression.
-for (const n of [3, 8, 20, 30]) {
+for (const n of [3, 8, 20, 24]) {
   const smart = templatesForCount(n, null, 'all', 1.5).filter(t => !t.textBoxes?.length && templateCategory(t) === 'reference')
   assert.ok(smart.length > 20, `count ${n} keeps its Smart design catalogue (got ${smart.length})`)
 }
@@ -146,7 +146,7 @@ for (const n of [3, 8, 20, 30]) {
 // It was 30+ until dedup started collapsing layouts that differ only in their proportions; one
 // photograph does not have thirty genuinely different arrangements, and pretending otherwise is
 // what filled the browser with tiles that looked identical.
-for (let n = 1; n <= 30; n++) {
+for (let n = 1; n <= 24; n++) {
   const all = templatesForCount(n, null, 'all', 2)
   const image = all.filter(t => !t.textBoxes?.length), mixed = all.filter(t => t.textBoxes?.length)
   assert.ok(image.length >= 10, `count ${n} offers 10+ image templates (got ${image.length})`)

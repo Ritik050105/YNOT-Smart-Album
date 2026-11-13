@@ -1,3 +1,4 @@
+import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
 import { TemplateDefinition, PlaceholderRect } from '@/types'
 import { GAP, placeGridInRect, geometrySignature, resolveTemplateFrames } from './templateLayout'
 import { generatedTemplates } from './templateGenerator'
@@ -910,7 +911,7 @@ export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefini
  *  reading it. */
 let builtIn: TemplateDefinition[] | null = null
 export function builtInTemplates(): TemplateDefinition[] {
-  if (!builtIn) builtIn = uniqueTemplates(legacy())
+  if (!builtIn) builtIn = uniqueTemplates(legacy().filter((t) => t.photoCount <= MAX_PHOTOS_PER_SPREAD))
   return builtIn
 }
 
@@ -980,7 +981,7 @@ export function templatesForCount(
   frameFilter: TemplateFrameFilter = 'all',
   aspect = 1
 ): TemplateDefinition[] {
-  if (count <= 0) return []
+  if (count <= 0 || count > MAX_PHOTOS_PER_SPREAD) return []
   const bucketKey = enabledTemplateIds ?? ALL_TEMPLATES
   let bucket = forCountCache.get(bucketKey)
   if (!bucket) forCountCache.set(bucketKey, bucket = new Map())
@@ -1045,7 +1046,7 @@ function computeTemplatesForCount(
   }
   if (builtins.length > 0 || enabledTemplateIds !== null || frameFilter !== 'all') return builtins
   // Beyond the hand-designed 1-6 photo templates, offer two auto-generated, balanced layouts.
-  const clamped = Math.min(count, 30)
+  const clamped = Math.min(count, MAX_PHOTOS_PER_SPREAD)
   return [generateJustifiedGrid(clamped), generateHeroGrid(clamped)]
 }
 
@@ -1154,7 +1155,7 @@ export const TEMPLATE_FAMILIES = [
 
 /** Picks a reasonable default template for a count, varying the choice so consecutive spreads don't repeat. */
 export function suggestTemplate(count: number, avoidId?: string, enabledTemplateIds: string[] | null = null): TemplateDefinition {
-  const candidates = templatesForCount(Math.max(1, Math.min(count, 30)), enabledTemplateIds)
+  const candidates = templatesForCount(Math.max(1, Math.min(count, MAX_PHOTOS_PER_SPREAD)), enabledTemplateIds)
   if (candidates.length === 0) return full
   const filtered = candidates.filter((t) => t.id !== avoidId)
   const pool = filtered.length > 0 ? filtered : candidates

@@ -15,7 +15,7 @@ assert.equal(createHash('sha256').update(JSON.stringify(legacy.map(t => [t.id, t
 for (const t of legacy) assert.deepEqual(findTemplate(t.id),t,'Saved layouts still resolve')
 assert.equal(uniqueTemplates(templates).length,templates.length,'Only unique compositions are browsable')
 assert.equal(new Set(templates.map(t => t.id)).size, templates.length)
-for (let count = 1; count <= 30; count++) {
+for (let count = 1; count <= 24; count++) {
   const candidates = templates.filter(t => t.photoCount === count && t.id !== 'cover-front-spine-back')
   assert.ok(candidates.length > 0, `${count} photos`)
   // Every count still offers a spread that splits its photos evenly across the fold. It used to be
@@ -55,5 +55,5 @@ for (let count = 1; count <= 30; count++) {
     assert.equal(new Set(ranked[0].photos.map(p => p.id)).size, count)
   }
 }
-console.log('Template checks passed: Unique layouts for all 30 photo counts, stable legacy frames, finite bounds, no new duplicates/overlaps, mixed-photo matching at three aspect ratios.')
+console.log('Template checks passed: Unique layouts for all 24 photo counts, stable legacy frames, finite bounds, no new duplicates/overlaps, mixed-photo matching at three aspect ratios.')
 

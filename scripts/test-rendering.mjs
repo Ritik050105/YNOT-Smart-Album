@@ -235,13 +235,13 @@ window.albumStudio.pickDirectory=async()=>({canceled:true})
 assert.deepEqual(await engine.saveManyFiles((async function*(){throw new Error('Cancelled exports must not render')})()),{saved:false})
 console.log('PSD checks passed: editable text/style round-trips, cached previews and sequential export without rendering on cancellation.')
 
-const densePhotos=Array.from({length:30},(_,i)=>{
+const densePhotos=Array.from({length:24},(_,i)=>{
   const width=[180,120,140,320,80][i%5],height=[120,180,140,80,240][i%5]
   const canvas=createCanvas(width,height),ctx=canvas.getContext('2d'),color=[40+i*5,50+i*3,200-i*4]
   ctx.fillStyle=`rgb(${color.join(',')})`;ctx.fillRect(0,0,width,height)
   return {id:`dense-${i}`,width,height,src:canvas.toDataURL(),color}
 })
-for(const count of [20,25,30]) for(const aspect of [1.5,3]) {
+for(const count of [20,22,24]) for(const aspect of [1.5,3]) {
   const photos=densePhotos.slice(0,count),byId=new Map(photos.map(p=>[p.id,p]))
   const spread=engine.buildSpreadsFromGroups([photos],{backgroundColor:'#fffdfa',marginPx:24,gapPx:40,borderWidth:0,borderColor:'#fff'},null,{aspect,start:'spread',end:'spread',includeFullSpreadTemplates:true},false)[0]
   spread.placements.forEach((p,i)=>Object.assign(p,{zoom:i%3+1,focalX:i%3/2,focalY:1-i%3/2,flipHorizontal:i%2===0,flipVertical:i%3===0}))
@@ -253,7 +253,7 @@ for(const count of [20,25,30]) for(const aspect of [1.5,3]) {
       const pixel=rendered.getContext('2d').getImageData(Math.floor(box.x+box.width/2),Math.floor(box.y+box.height/2),1,1).data
       photo.color.forEach((value,i)=>assert.ok(Math.abs(pixel[i]-value)<=2,`Missing/distorted dense photo ${placement.photoId} (${count}, ${aspect}, ${dpi})`))
     })
-    if(count===30&&aspect===3&&dpi===150) await fs.writeFile(path.join(os.tmpdir(),'ynot-dense-30-export.png'),rendered.toBuffer('image/png'))
+    if(count===24&&aspect===3&&dpi===150) await fs.writeFile(path.join(os.tmpdir(),'ynot-dense-24-export.png'),rendered.toBuffer('image/png'))
   }
 }
-console.log('Dense raster checks passed: all 20/25/30 mixed photos visibly render at two aspect ratios and two export resolutions with zoom, focal points and flips.')
+console.log('Dense raster checks passed: all 20/22/24 mixed photos visibly render at two aspect ratios and two export resolutions with zoom, focal points and flips.')

@@ -6,7 +6,8 @@ import { build } from 'esbuild'
 
 const result = await build({
   stdin: {
-    contents: `export {buildSpreadsFromGroups} from './src/engine/autoLayout'
+    contents: `export {buildSpreadsFromGroups,groupPhotosForCount,spreadCountRange} from './src/engine/autoLayout'
+export {MAX_PHOTOS_PER_SPREAD} from './src/engine/spreadLimits'
 export {computePlaceholderBoxes,orientationFits} from './src/engine/layoutMath'
 export {runsToTheTrim,findTemplate} from './src/engine/templates'
 export {supportsUniformGap} from './src/engine/templateLayout'
@@ -15,7 +16,7 @@ export {templateCategory} from './src/engine/templateTransfer'`,
   },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { buildSpreadsFromGroups, computePlaceholderBoxes, orientationFits, runsToTheTrim, findTemplate, supportsUniformGap, templateCategory } =
+const { MAX_PHOTOS_PER_SPREAD, groupPhotosForCount, spreadCountRange, buildSpreadsFromGroups, computePlaceholderBoxes, orientationFits, runsToTheTrim, findTemplate, supportsUniformGap, templateCategory } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const shapes = [[900, 600], [600, 900], [700, 700], [1200, 400], [400, 1000], [900, 600]]
@@ -45,4 +46,11 @@ for (const aspect of [1, 1.5, 0.75]) {
     })
   }
 }
+// The cap: no spread holds more than 24, however many photographs or however high a range is asked for.
+assert.equal(MAX_PHOTOS_PER_SPREAD, 24)
+assert.equal(spreadCountRange(60, 1, 99).min, 3)
+const many = Array.from({ length: 60 }, (_, i) => photo(i))
+const options = { gapMinutes: 1e9, maxPhotosPerSpread: 99 }
+assert.ok(groupPhotosForCount(many, 1, options, 1, 99).every(g => g.length <= 24), 'groups never exceed 24')
+assert.ok(groupPhotosForCount(many, 3, options, 1, 99).every(g => g.length <= 24))
 console.log('Auto Build fit checks passed: every photograph gets a frame of its own shape and built-in layouts keep the album gap, on three album shapes and two gaps.')

@@ -58,13 +58,13 @@ const fourFrameId=templatesForCount(4)[0].id
 assert.deepEqual(autoBuildSpreads(libraryPhotos,options,appearance,[fourFrameId]).map(spread=>spread.placements.length),[4,4,4],'Direct Auto Build must also find a feasible library grouping')
 assert.throws(()=>autoBuildSpreads(libraryPhotos.slice(0,11),options,appearance,[fourFrameId]),/enabled templates cannot group/)
 assert.deepEqual(autoBuildSpreads(libraryPhotos,options,appearance,[templatesForCount(3)[0].id,templatesForCount(5)[0].id]).map(spread=>spread.placements.length),[3,3,3,3],'Automatic count selection skips infeasible combinations of supported frame counts')
-assert.deepEqual(groupPhotosForCount(libraryPhotos,3,options,1,30,size=>[2,4].includes(size)).map(group=>group.length),[4,4,4],'Grouping must use feasible enabled template counts')
-assert.throws(()=>groupPhotosForCount(libraryPhotos,3,options,1,30,size=>size===2),/enabled templates cannot group/)
-assert.deepEqual(groupPhotosForCount(libraryPhotos.slice(0,5),3,options,1,30,(size,index)=>size===(index===0?1:2)).map(group=>group.length),[1,2,2],'Single-page ends may use a different candidate pool')
+assert.deepEqual(groupPhotosForCount(libraryPhotos,3,options,1,24,size=>[2,4].includes(size)).map(group=>group.length),[4,4,4],'Grouping must use feasible enabled template counts')
+assert.throws(()=>groupPhotosForCount(libraryPhotos,3,options,1,24,size=>size===2),/enabled templates cannot group/)
+assert.deepEqual(groupPhotosForCount(libraryPhotos.slice(0,5),3,options,1,24,(size,index)=>size===(index===0?1:2)).map(group=>group.length),[1,2,2],'Single-page ends may use a different candidate pool')
 const moments=Array.from({length:12},(_,i)=>photo(i,1.5,i<3?i:i<6?100+i:300+i))
 const groups=groupPhotosForCount(moments,3,options,3,6)
 assert.deepEqual(groups.map((group)=>group.length),[3,3,6],'Manual count must retain the two large time gaps')
-for(let total=1;total<=80;total++) for(const [min,max] of [[1,6],[3,6],[5,6],[1,30]]) {
+for(let total=1;total<=80;total++) for(const [min,max] of [[1,6],[3,6],[5,6],[1,24]]) {
   const photos=Array.from({length:total},(_,i)=>photo(i,1.5,i))
   const count=Math.ceil(total/((min+max)/2))
   const grouped=groupPhotosForCount(photos,count,options,min,max)

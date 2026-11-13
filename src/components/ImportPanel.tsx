@@ -1,3 +1,4 @@
+import { MAX_PHOTOS_PER_SPREAD } from '@/engine/spreadLimits'
 import { hasOutsideFiles } from '@/engine/internalDrag'
 import ImportProgress from './ImportProgress'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
@@ -144,7 +145,7 @@ export default function ImportPanel() {
             label="Max photos per spread"
             value={options.maxPhotosPerSpread}
             min={1}
-            max={30}
+            max={MAX_PHOTOS_PER_SPREAD}
             onChange={(v) => setOptions({ maxPhotosPerSpread: v })}
           />
         </details>

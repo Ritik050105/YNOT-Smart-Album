@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid'
+import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
 import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TextBox } from '@/types'
 import { suggestTemplate, findTemplate, templatesForCount, TemplateFrameFilter } from './templates'
 import { preferEvenLayouts, uniformGapLayouts } from './layoutOffer'
@@ -152,16 +153,16 @@ export function splitPhotosIntoGroups(photos: PhotoAsset[], count: number): Phot
 
 /** Respect the requested range whenever the photo count permits it. */
 export function spreadCountRange(photoCount: number, minPhotos: number, maxPhotos: number) {
-  const max = Math.max(1, Math.min(30, Math.floor(maxPhotos) || 1))
+  const max = Math.max(1, Math.min(MAX_PHOTOS_PER_SPREAD, Math.floor(maxPhotos) || 1))
   const min = Math.max(1, Math.min(max, Math.floor(minPhotos) || 1))
   const minSpreads = Math.max(1, Math.ceil(photoCount / max))
   return { min: minSpreads, max: Math.max(minSpreads, Math.floor(photoCount / min)) }
 }
 
 /** Keep meaningful cuts when a user changes the count, instead of flattening smart groups. */
-export function groupPhotosForCount(photos: PhotoAsset[], count: number, options: AutoLayoutOptions, min = 1, max = 30, canGroup?: (size: number, index: number) => boolean, preserveOrder=false): PhotoAsset[][] {
+export function groupPhotosForCount(photos: PhotoAsset[], count: number, options: AutoLayoutOptions, min = 1, max = MAX_PHOTOS_PER_SPREAD, canGroup?: (size: number, index: number) => boolean, preserveOrder=false): PhotoAsset[][] {
   if (!photos.length) return []
-  max = Math.max(1, Math.min(30, Math.floor(max) || 1))
+  max = Math.max(1, Math.min(MAX_PHOTOS_PER_SPREAD, Math.floor(max) || 1))
   min = Math.max(1, Math.min(max, Math.floor(min) || 1))
   const sorted = preserveOrder ? [...photos] : sortPhotosByCapturedAt(photos)
   const range = spreadCountRange(sorted.length, min, max)
@@ -193,7 +194,7 @@ export function groupPhotosForCount(photos: PhotoAsset[], count: number, options
     }
   }
   let previousCosts = new Float64Array(sorted.length + 1).fill(Infinity)
-  // Group lengths are bounded to 30, so one byte per cut is sufficient for large albums.
+  // Group lengths are bounded to 24, so one byte per cut is sufficient for large albums.
   const cuts = Array.from({ length: n + 1 }, () => new Uint8Array(sorted.length + 1))
   previousCosts[0] = 0
   for (let groups = 1; groups <= n; groups++) {
@@ -260,8 +261,8 @@ export function autoBuildGroupFilter(spreadCount: number, enabledTemplateIds: st
   }
 }
 
-export function autoBuildSpreadCounts(photoCount: number, preferred: number, enabledTemplateIds: string[] | null, layout: AutoBuildLayoutOptions, min = 1, max = 30) {
-  const sizes = Array.from({ length: 30 }, (_, i) => i + 1).filter((size) => size >= min && size <= max && (autoBuildTemplates(size, enabledTemplateIds, layout).length || (layout.start === 'single' && autoBuildTemplates(size, enabledTemplateIds, layout, 'right').length) || (layout.end === 'single' && autoBuildTemplates(size, enabledTemplateIds, layout, 'left').length)))
+export function autoBuildSpreadCounts(photoCount: number, preferred: number, enabledTemplateIds: string[] | null, layout: AutoBuildLayoutOptions, min = 1, max = MAX_PHOTOS_PER_SPREAD) {
+  const sizes = Array.from({ length: MAX_PHOTOS_PER_SPREAD }, (_, i) => i + 1).filter((size) => size >= min && size <= max && (autoBuildTemplates(size, enabledTemplateIds, layout).length || (layout.start === 'single' && autoBuildTemplates(size, enabledTemplateIds, layout, 'right').length) || (layout.end === 'single' && autoBuildTemplates(size, enabledTemplateIds, layout, 'left').length)))
   if (!sizes.length) throw new Error('No enabled template matches the current image range, frame and layout filters.')
   const divisor = sizes.reduce((a, b) => { while (b) { const remainder = a % b; a = b; b = remainder } return a })
   if (photoCount % divisor) throw new Error('The enabled templates cannot group these images. Change the template filters or image selection.')
@@ -375,7 +376,7 @@ export function autoBuildSpreads(
   const counts = autoBuildSpreadCounts(photos.length, suggestAutoBuildSpreadCount(photos, options), enabledTemplateIds, layout)
   let groups: PhotoAsset[][] | undefined
   for (const count of counts) {
-    try { groups = groupPhotosForCount(photos, count, options, 1, 30, autoBuildGroupFilter(count, enabledTemplateIds, layout)); break }
+    try { groups = groupPhotosForCount(photos, count, options, 1, MAX_PHOTOS_PER_SPREAD, autoBuildGroupFilter(count, enabledTemplateIds, layout)); break }
     catch (error) {
       if (!(error instanceof Error) || !error.message.startsWith('The enabled templates cannot group')) throw error
     }
@@ -416,7 +417,7 @@ export function buildSpreadFromPlacements(source: PlacedPhoto[], pageSide: Sprea
   const template = suggestTemplate(Math.max(source.length, 1))
   const columns = Math.max(1, Math.ceil(Math.sqrt(source.length)))
   const rows = Math.ceil(source.length / columns)
-  const customBoxes = source.length > 30 ? source.map((_, i) => ({ id: uuid(), x: (i % columns) / columns, y: Math.floor(i / columns) / rows, width: 1 / columns, height: 1 / rows, preferredOrientation: 'any' as const })) : undefined
+  const customBoxes = source.length > MAX_PHOTOS_PER_SPREAD ? source.map((_, i) => ({ id: uuid(), x: (i % columns) / columns, y: Math.floor(i / columns) / rows, width: 1 / columns, height: 1 / rows, preferredOrientation: 'any' as const })) : undefined
   const frames = customBoxes ?? template.placeholders
   const placements = frames.map((ph, i) => source[i] ? { ...source[i], placeholderId: ph.id } : defaultPlacement(ph.id, null))
   return {

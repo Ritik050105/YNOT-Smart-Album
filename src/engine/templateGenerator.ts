@@ -29,6 +29,7 @@ function nextGradient(): string {
   return g
 }
 
+/** Stays at 30 so albums saved before the 24-photo cap still find their layouts; the browsers stop offering past 24. */
 const MAX_COUNT = 30
 const results: TemplateDefinition[] = []
 const seenSignatures = new Set<string>()

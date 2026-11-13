@@ -1,3 +1,4 @@
+import { MAX_PHOTOS_PER_SPREAD } from '@/engine/spreadLimits'
 import {cyclingTemplates} from './templateBrowsing'
 import {EditedPsdLayer} from '@/engine/importEditedPsd'
 import {askTemplateCategory} from '@/components/ClassifyTemplate'
@@ -551,7 +552,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const photoGroups = groups
       .map((ids) => ids.map((id) => photosById.get(id)).filter((p): p is PhotoAsset => !!p))
       .filter((g) => g.length > 0)
-      .flatMap((group) => Array.from({ length: Math.ceil(group.length / 30) }, (_, i) => group.slice(i * 30, (i + 1) * 30)))
+      .flatMap((group) => Array.from({ length: Math.ceil(group.length / MAX_PHOTOS_PER_SPREAD) }, (_, i) => group.slice(i * MAX_PHOTOS_PER_SPREAD, (i + 1) * MAX_PHOTOS_PER_SPREAD)))
     if (photoGroups.length === 0) return
     if(opts?.groupDesigns && opts.groupDesigns.length!==photoGroups.length)throw new Error('Bin template choices no longer match the selected groups. Reopen Auto Build.')
     const appearance = {
@@ -833,6 +834,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const target = targetSpreadId === null && source ? buildSpreadFromPlacements([], 'spread', source) : p.spreads.find((s) => s.id === targetSpreadId && !s.isCover)
     const placement = source?.placements.find((pl) => pl.placeholderId === frameId)
     if (!source || !target || !placement?.photoId || placement.locked || placement.hidden || (source === target && beforeFrameId === frameId)) return p
+    if (source !== target && target.placements.filter((pl) => pl.photoId).length >= MAX_PHOTOS_PER_SPREAD) return p
     if (beforeFrameId && !target.placements.some((pl) => pl.placeholderId === beforeFrameId)) return p
     const allSpreads = targetSpreadId === null ? [...p.spreads, { ...target, order: p.spreads.filter((s) => !s.isCover).length }] : p.spreads
     let changed = targetSpreadId === null
@@ -876,6 +878,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (!target || (beforeFrameId && !target.placements.some((pl) => pl.placeholderId === beforeFrameId))) return p
     if(targetSpreadId===null&&!p.spreads.some(s=>!s.isCover)&&p.layoutStart==='single')target.pageSide='right'
     const placements = target.placements.filter((pl) => pl.photoId)
+    validIds.splice(Math.max(0, MAX_PHOTOS_PER_SPREAD - placements.length))
+    if (!validIds.length) return p
     const at = beforeFrameId ? placements.findIndex((pl) => pl.placeholderId === beforeFrameId) : placements.length
     placements.splice(at < 0 ? placements.length : at, 0, ...validIds.map((id) => defaultPlacement(uuid(), id, { width: p.defaultBorderWidth, color: p.defaultBorderColor }, p.photos.find(photo => photo.id === id))))
     const candidates=cyclingTemplates({...p,spreads:[]},{...target,placements},get().templateFrameFilter,get().favoriteTemplateIds)
@@ -904,6 +908,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const interior = p.spreads.filter((s) => !s.isCover).sort((a, b) => a.order - b.order)
       const index = interior.findIndex((s) => s.id === spreadId)
       if (index === -1 || index === interior.length - 1) return p
+      if (interior[index].placements.length + interior[index + 1].placements.length > MAX_PHOTOS_PER_SPREAD) return p
       const merged = mergeSpreads(interior[index], interior[index + 1])
       interior.splice(index, 2, merged)
       const reordered = interior.map((s, i) => ({ ...s, order: i }))

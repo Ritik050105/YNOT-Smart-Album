@@ -1,3 +1,4 @@
+import { MAX_PHOTOS_PER_SPREAD } from '@/engine/spreadLimits'
 import TemplateTransfer from './TemplateTransfer'
 import { useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
@@ -11,7 +12,7 @@ export default function TemplateLibraryPanel() {
   const spreadAspect = useProjectStore((s) => s.project.size.widthIn / s.project.size.heightIn)
 
   return (
-    <div className="panel template-library"><TemplateTransfer/><label>Images per creative template<select value={countFilter} onChange={e=>setCountFilter(Number(e.target.value))}><option value={0}>All counts</option>{Array.from({length:30},(_,i)=><option key={i} value={i+1}>{i+1} images</option>)}</select></label>
+    <div className="panel template-library"><TemplateTransfer/><label>Images per creative template<select value={countFilter} onChange={e=>setCountFilter(Number(e.target.value))}><option value={0}>All counts</option>{Array.from({length:MAX_PHOTOS_PER_SPREAD},(_,i)=><option key={i} value={i+1}>{i+1} images</option>)}</select></label>
       <h3>
         <Icon name="bookOpen" size={14} />
         Template Library

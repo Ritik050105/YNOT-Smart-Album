@@ -1,3 +1,4 @@
+import { MAX_PHOTOS_PER_SPREAD } from '@/engine/spreadLimits'
 import {templatesForCount} from '@/engine/templates'
 import {useTemplateCollections,matchesCollection} from '@/engine/templateCollections'
 import {templateCategory} from '@/engine/templateTransfer'
@@ -40,10 +41,10 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
   const bins=[...new Set(allPhotos.flatMap(p=>p.bins))]
   const [binMode,setBinMode]=useState(false),[chosenBins,setChosenBins]=useState(bins),[followBins,setFollowBins]=useState(true)
   const [binRules,setBinRules]=useState<Record<string,BinRule>>({})
-  // Every template the project allows, in one pass over the 1-30 photo counts. A bin narrows it
+  // Every template the project allows, in one pass over the 1-24 photo counts. A bin narrows it
   // further by design family, by category and, with the heart, to the ones marked as favourites.
   const userTemplates=useProjectStore(s=>s.userTemplates)
-  const library=useMemo(()=>Array.from({length:30},(_,i)=>templatesForCount(i+1,project.enabledTemplateIds,frameFilter,project.size.widthIn/project.size.heightIn)).flat(),[project.enabledTemplateIds,frameFilter,project.size.widthIn,project.size.heightIn,userTemplates])
+  const library=useMemo(()=>Array.from({length:MAX_PHOTOS_PER_SPREAD},(_,i)=>templatesForCount(i+1,project.enabledTemplateIds,frameFilter,project.size.widthIn/project.size.heightIn)).flat(),[project.enabledTemplateIds,frameFilter,project.size.widthIn,project.size.heightIn,userTemplates])
   const enabledIds=useMemo(()=>library.map(t=>t.id),[library])
   const binRule=(bin:string):BinRule=>binRules[bin]??{kind:'reference',category:'',subcategory:'',favorites:false}
   const records=useCallback((rule:BinRule):TemplateDefinition[]=>{
@@ -85,7 +86,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
   const [restrictCount, setRestrictCount] = useState(false)
   const [blackAndWhite, setBlackAndWhite] = useState(true)
   const [metadata, setMetadata] = useState(true)
-  const [rangeSize, setRangeSize] = useState(Math.max(1, Math.min(30, autoLayoutOptions.maxPhotosPerSpread)))
+  const [rangeSize, setRangeSize] = useState(Math.max(1, Math.min(MAX_PHOTOS_PER_SPREAD, autoLayoutOptions.maxPhotosPerSpread)))
   const [rangeMin, setRangeMin] = useState(Math.max(1, Math.min(3, autoLayoutOptions.maxPhotosPerSpread)))
   const noGroupingCriteria = mode === 'smart' && !blocksOfTime && !blackAndWhite && !metadata
 
@@ -99,7 +100,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
   )
   const countRange = mode === 'range'
     ? spreadCountRange(targetPhotos.length, rangeMin, rangeSize)
-    : spreadCountRange(targetPhotos.length, 1, 30)
+    : spreadCountRange(targetPhotos.length, 1, MAX_PHOTOS_PER_SPREAD)
   const suggestedCount = mode === 'smart' ? smartCount
     : Math.ceil(targetPhotos.length / ((rangeMin + rangeSize) / 2))
 
@@ -114,7 +115,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
     const layout = { start: (!appending && startRight ? 'single' : 'spread') as 'single' | 'spread',
       end: (endLeft ? 'single' : 'spread') as 'single' | 'spread', includeFullSpreadTemplates: project.includeFullSpreadTemplates,
       aspect: project.size.widthIn / project.size.heightIn, frameFilter }
-    const min = mode === 'range' ? rangeMin : 1, max = mode === 'range' ? rangeSize : 30
+    const min = mode === 'range' ? rangeMin : 1, max = mode === 'range' ? rangeSize : MAX_PHOTOS_PER_SPREAD
     try {
       if(!enabledIds.length)throw new Error('Select a template design category with available templates.')
       if(binMode){
@@ -297,8 +298,8 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
             </label>
             <label className="field">
               Maximum images per spread
-              <input type="number" min={rangeMin} max={30} value={rangeSize}
-                onChange={(e) => { setRangeSize(Math.max(rangeMin, Math.min(30, Number(e.target.value)))); setTouchedSlider(false) }} />
+              <input type="number" min={rangeMin} max={MAX_PHOTOS_PER_SPREAD} value={rangeSize}
+                onChange={(e) => { setRangeSize(Math.max(rangeMin, Math.min(MAX_PHOTOS_PER_SPREAD, Number(e.target.value)))); setTouchedSlider(false) }} />
             </label>
           </div>
         )}

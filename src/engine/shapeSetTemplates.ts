@@ -1,3 +1,4 @@
+import { MAX_PHOTOS_PER_SPREAD } from "./spreadLimits"
 import { TemplateDefinition, PlaceholderRect } from '@/types'
 
 /** A layout for every mix of upright and landscape photographs.
@@ -84,7 +85,7 @@ function layout(landscapes: number, uprights: number, aspect: number): Box[] | n
     ? boxes : null
 }
 
-const MAX_PHOTOS = 12
+const MAX_PHOTOS = MAX_PHOTOS_PER_SPREAD
 
 export const SHAPE_SET_TEMPLATES: TemplateDefinition[] = (() => {
   const out: TemplateDefinition[] = []

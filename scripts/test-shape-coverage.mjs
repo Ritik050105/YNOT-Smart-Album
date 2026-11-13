@@ -30,7 +30,7 @@ const ASPECTS = [0.714, 0.8, 1, 1.25, 1.294, 1.5]
 
 let worst = Infinity, worstAt = ''
 for (const aspect of ASPECTS) {
-  for (let count = 1; count <= 12; count++) {
+  for (let count = 1; count <= 24; count++) {
     // Exactly what the browsers offer: the per-count list, minus captions, minus built-ins whose
     // spacing cannot honour the album's gap.
     const offered = templatesForCount(count, null, 'all', aspect)
