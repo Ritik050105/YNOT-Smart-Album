@@ -62,13 +62,15 @@ export default function App() {
   const setPreparingProject = useProjectStore((s) => s.setPreparingProject)
   const markSaved = useProjectStore((s) => s.markSaved)
   const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
-  const project = useProjectStore((s) => s.project)
+  // Narrow selectors, not the whole project: this component sits above the entire editor, so a subscription to the project
+  // re-rendered every panel on every change to any spread, which is most of what each press of Next template cost.
+  const projectId = useProjectStore((s) => s.project.id)
+  const projectKind = useProjectStore((s) => s.project.kind)
+  const albumAspect = useProjectStore((s) => s.project.size.widthIn / s.project.size.heightIn)
   const revealLeftPanel = useProjectStore((s) => s.revealLeftPanel)
   // The layouts for this album's shape are assembled in the background once the editor is open,
   // so the first template browser or Auto Build does not wait for them.
-  const albumAspect = project.size.widthIn / project.size.heightIn
   useEffect(() => { if (!showHome) warmTemplateLibrary(albumAspect) }, [albumAspect, showHome])
-  const projectKind = project.kind
   useEffect(() => {
     const preventUnsavedClose = (event: BeforeUnloadEvent) => {
       if (!useProjectStore.getState().isDirty) return
@@ -91,7 +93,7 @@ export default function App() {
           if (!result.saved) return // user canceled the save location dialog; stay in the editor
           const current = useProjectStore.getState()
           const unchanged = current.project === project && current.userTemplates === userTemplates
-          if (current.project.id === project.id && result.filePath) current.setCurrentFilePath(result.filePath)
+          if (current.project.id === projectId && result.filePath) current.setCurrentFilePath(result.filePath)
           if (!unchanged) { window.alert('The album changed while saving. Your latest edits are still open; try again before leaving.'); return }
           current.markSaved()
         } catch (error) {
@@ -137,13 +139,14 @@ export default function App() {
     let queued = false
     const save = async () => {
       const latest = useProjectStore.getState()
-      if (busy || disposed || latest.project.id !== project.id) return
+      if (busy || disposed || latest.project.id !== projectId) return
       if (!latest.isDirty) {
         if (lastSnapshot) { clearOpenSession(); lastSnapshot = null }
         return
       }
       if (lastSnapshot?.project === latest.project && lastSnapshot.userTemplates === latest.userTemplates && lastSnapshot.currentFilePath === latest.currentFilePath) return
       busy = true
+      lastWriteAt = Date.now()
       try {
         await persistRecovery(serializeProjectFile(latest.project, latest.userTemplates, true), {
           projectId: latest.project.id, filePath: latest.currentFilePath,
@@ -160,14 +163,21 @@ export default function App() {
         if (current.project !== latest.project || current.userTemplates !== latest.userTemplates || current.currentFilePath !== latest.currentFilePath || current.isDirty !== latest.isDirty) saveNow()
       }
     }
+    // The recovery copy is the whole project written out, so editing in quick succession (holding Next template down, a
+    // drag) must not write it for every step. The first change is saved at once; further ones wait until a short while
+    // after the last write, and then save everything that happened in between as one.
+    const MIN_GAP_MS = 400
+    let lastWriteAt = 0, delayed: ReturnType<typeof setTimeout> | undefined
     const saveNow = () => {
       if (queued || disposed) return
       queued = true
+      const wait = Math.max(0, MIN_GAP_MS - (Date.now() - lastWriteAt))
+      if (wait > 0) { clearTimeout(delayed); delayed = setTimeout(() => { queued = false; void save() }, wait); return }
       queueMicrotask(() => { queued = false; void save() })
     }
     const unsubscribe = useProjectStore.subscribe((next, previous) => {
       if (next.project !== previous.project || next.userTemplates !== previous.userTemplates || next.currentFilePath !== previous.currentFilePath || next.isDirty !== previous.isDirty) {
-        if (!next.isDirty || next.project.id !== project.id) invalidateRecovery()
+        if (!next.isDirty || next.project.id !== projectId) invalidateRecovery()
         saveNow()
       }
     })
@@ -176,12 +186,13 @@ export default function App() {
     saveNow()
     return () => {
       disposed = true
+      clearTimeout(delayed)
       unsubscribe()
       window.clearInterval(timer)
       window.removeEventListener('blur', saveNow)
       invalidateRecovery()
     }
-  },[resumePrompt,recoveryChecked,project.id])
+  },[resumePrompt,recoveryChecked,projectId])
 
   useEffect(()=>{
     const bridge=window.albumStudio

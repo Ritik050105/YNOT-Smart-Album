@@ -5,15 +5,16 @@ import PanelResizer from './PanelResizer'
 import { usePreferences, getPreferences } from '@/state/preferences'
 import { openInEditor } from './ExternalEditor'
 import { IMAGE_FILE_ACCEPT } from '@/engine/imageSource'
-import { CSSProperties, Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { CSSProperties, DragEvent as ReactDragEvent, Fragment, MouseEvent as ReactMouseEvent, MutableRefObject, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { useImportPhotos } from '@/engine/useImportPhotos'
 import { exportSingleSpreadToPdf } from '@/engine/exportAlbum'
 import { readDraggedPhotoIds, readTimelineFrame, overviewPhotoAt } from '@/engine/photoDrag'
 import { isFontTemplateDrag, dropFontTemplate } from '@/engine/fontTemplateDrag'
 import { readDraggedPattern } from '@/engine/patterns'
-import { useTimelineDrag } from '@/engine/useTimelineDrag'
+import { useTimelineDrag, TimelineTarget } from '@/engine/useTimelineDrag'
 import SpreadThumbnail from './SpreadThumbnail'
+import { PhotoAsset, Spread } from '@/types'
 import ContextMenu, { ContextMenuItem } from './ContextMenu'
 import Icon from './Icon'
 import QuoteTemplates from './QuoteTemplates'
@@ -25,6 +26,44 @@ import { computePlaceholderBoxes, orientationFits, shapeOf } from '@/engine/layo
  *  cover pinned first, a "drop images to create a new spread" card trailing. A single click
  *  selects a spread; double-click opens it in the focused Designer View to actually work on it —
  *  Escape (or its own back button) returns here. Reorder by drag. */
+/** One spread's row of photographs in the timeline strip.
+ *
+ *  It is a component of its own, and memoised, because the strip holds every photograph in the album and used to be rebuilt
+ *  as a whole whenever anything on the page changed. Pressing Next template changes one spread; the rest of the strip, which
+ *  may be hundreds of thumbnails, now stays as it was. The handlers come in through a ref that is always the latest, so
+ *  their changing does not defeat the memo. */
+type TimelineActions={selectSpread:(id:string|null)=>void;enterDesignerView:(id:string)=>void;openContextMenu:(e:ReactMouseEvent,id:string)=>void;handleSpreadDrop:(e:ReactDragEvent,spreadId:string,beforeFrameId?:string)=>void;splitSpread:(id:string,index:number)=>void;setPhotoMenu:(menu:{x:number;y:number;spreadId:string;frameId?:string;openedAt:number})=>void}
+const TimelinePhotos=memo(function TimelinePhotos({spread,index,selected,selectedPlaceholderId,target,photosById,actions}:{spread:Spread;index:number;selected:boolean;selectedPlaceholderId:string|null;target:TimelineTarget|null;photosById:Map<string,PhotoAsset>;actions:MutableRefObject<TimelineActions>}){
+  const act=()=>actions.current
+  // Thumbnails are keyed by photograph, not by frame: a new layout gives every frame a new id, and keyed by frame the whole row
+  // was thrown away and built again (every image created and loaded anew) on each press of Next template. Keyed by photograph the
+  // same elements are reused; the rare photograph that is in a spread twice gets a number.
+  const seen=new Map<string,number>()
+  const keyOf=(photoId:string,placeholderId:string)=>{const n=(seen.get(photoId)??0)+1;seen.set(photoId,n);return n===1?photoId:`${photoId}#${n}`||placeholderId}
+  return (
+          <div className={`spreads-panel__photos ${selected ? 'is-selected' : ''} ${target ? 'is-drop-target' : ''}`}
+            data-timeline-spread={spread.id} aria-label={`Images in spread ${index + 1}`}
+            onClick={e => act().selectSpread(e.target===e.currentTarget?null:spread.id)} onDoubleClick={() => act().enterDesignerView(spread.id)}
+            onContextMenu={(e) => act().openContextMenu(e, spread.id)}
+            onDragOver={(e) => e.preventDefault()} onDrop={(e) => act().handleSpreadDrop(e, spread.id)}>
+            {spread.placements.map((placement, placementIndex) => {
+              const photo = placement.photoId ? photosById.get(placement.photoId) : undefined
+              return photo ? <Fragment key={keyOf(photo.id,placement.placeholderId)}>
+                {spread.placements.slice(0,placementIndex).some(p=>p.photoId&&photosById.has(p.photoId))&&<button className="timeline-cut" aria-label={`Split spread ${index+1} before ${photo.fileName}`} title="Click to split into two spreads here" onClick={e=>{e.stopPropagation();act().splitSpread(spread.id,placementIndex)}} onDoubleClick={e=>e.stopPropagation()} />}
+                {target&&target.beforeFrameId===placement.placeholderId&&<span className="timeline-drop-marker" aria-label="Insert photo here">●</span>}
+                <PreviewImage src={photo.src} sourcePath={photo.sourcePath} alt={photo.fileName} title={`${photo.fileName} — drag to move in the timeline`} draggable={false}
+                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); act().selectSpread(spread.id); act().setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: placement.placeholderId }) }}
+                  data-timeline-frame={placement.placeholderId}
+                  onClick={e => { e.stopPropagation(); act().selectSpread(spread.id); useProjectStore.getState().selectPlaceholder(placement.placeholderId) }}
+                  className={`${selected && selectedPlaceholderId === placement.placeholderId ? 'is-selected' : ''} ${target && target.beforeFrameId === placement.placeholderId ? 'is-insert-before' : ''}`}
+                  onDrop={(e) => act().handleSpreadDrop(e, spread.id, placement.placeholderId)} />
+              </Fragment> : null
+            })}
+            {target&&!target.beforeFrameId&&<span className="timeline-drop-marker" aria-label="Append photo here">●</span>}
+          </div>
+  )
+})
+
 export default function SpreadsPanel() {
   const showCoverButton=usePreferences(s=>s.values.showCover)
   const canvasTool = useProjectStore(s=>s.canvasTool)
@@ -299,6 +338,10 @@ export default function SpreadsPanel() {
       { label: 'Duplicate Spread', onClick: () => duplicateSpread(spreadId) },
     ]
   }
+
+  // The latest handlers, in a ref that never changes, for the memoised timeline rows.
+  const timelineActions = useRef<TimelineActions>({} as TimelineActions)
+  timelineActions.current = { selectSpread, enterDesignerView, openContextMenu, handleSpreadDrop, splitSpread, setPhotoMenu }
 
   return (
     <div className={`spreads-panel ${project.spreads.length === 0 ? 'spreads-panel--empty' : ''}`} style={{ '--spread-aspect': project.size.widthIn / project.size.heightIn } as CSSProperties}>
@@ -477,26 +520,7 @@ export default function SpreadsPanel() {
       {spreads.length > 0 && <PanelResizer axis="y" variable="--timeline-height" label="Resize timeline" initial={150} min={65} max={0.35}/>}{spreads.length > 0 && <div ref={timelineRef} className="spreads-panel__timeline" aria-label="Album image timeline" onClick={e=>{if(e.target===e.currentTarget)selectSpread(null)}}>
         <span className="timeline-boundary timeline-boundary--edge" role="separator" aria-label="Start of timeline" />
         {spreads.map((spread, index) => <Fragment key={spread.id}>
-          <div className={`spreads-panel__photos ${selectedSpreadId === spread.id ? 'is-selected' : ''} ${target?.spreadId === spread.id ? 'is-drop-target' : ''}`}
-            data-timeline-spread={spread.id} aria-label={`Images in spread ${index + 1}`}
-            onClick={e => selectSpread(e.target===e.currentTarget?null:spread.id)} onDoubleClick={() => enterDesignerView(spread.id)}
-            onContextMenu={(e) => openContextMenu(e, spread.id)}
-            onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleSpreadDrop(e, spread.id)}>
-            {spread.placements.map((placement, placementIndex) => {
-              const photo = placement.photoId ? photosById.get(placement.photoId) : undefined
-              return photo ? <Fragment key={placement.placeholderId}>
-                {spread.placements.slice(0,placementIndex).some(p=>p.photoId&&photosById.has(p.photoId))&&<button className="timeline-cut" aria-label={`Split spread ${index+1} before ${photo.fileName}`} title="Click to split into two spreads here" onClick={e=>{e.stopPropagation();splitSpread(spread.id,placementIndex)}} onDoubleClick={e=>e.stopPropagation()} />}
-                {target?.spreadId===spread.id&&target.beforeFrameId===placement.placeholderId&&<span className="timeline-drop-marker" aria-label="Insert photo here">●</span>}
-                <PreviewImage src={photo.src} sourcePath={photo.sourcePath} alt={photo.fileName} title={`${photo.fileName} — drag to move in the timeline`} draggable={false}
-                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); selectSpread(spread.id); setPhotoMenu({ openedAt: Date.now(), x: e.clientX, y: e.clientY, spreadId: spread.id, frameId: placement.placeholderId }) }}
-                  data-timeline-frame={placement.placeholderId}
-                  onClick={e => { e.stopPropagation(); selectSpread(spread.id); useProjectStore.getState().selectPlaceholder(placement.placeholderId) }}
-                  className={`${selectedSpreadId === spread.id && selectedPlaceholderId === placement.placeholderId ? 'is-selected' : ''} ${target?.spreadId === spread.id && target.beforeFrameId === placement.placeholderId ? 'is-insert-before' : ''}`}
-                  onDrop={(e) => handleSpreadDrop(e, spread.id, placement.placeholderId)} />
-              </Fragment> : null
-            })}
-            {target?.spreadId===spread.id&&!target.beforeFrameId&&<span className="timeline-drop-marker" aria-label="Append photo here">●</span>}
-          </div>
+          <TimelinePhotos spread={spread} index={index} selected={selectedSpreadId === spread.id} selectedPlaceholderId={selectedSpreadId === spread.id ? selectedPlaceholderId : null} target={target?.spreadId === spread.id ? target : null} photosById={photosById} actions={timelineActions} />
           {index < spreads.length - 1 && <button className="timeline-boundary" aria-label={`Merge spread ${index + 1} with next spread`} title={`Remove cut after spread ${index + 1} (merge with next)`} onClick={() => mergeWithNext(spread.id)} />}
         </Fragment>)}
         <span className="timeline-boundary timeline-boundary--edge" role="separator" aria-label="End of timeline" />

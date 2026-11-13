@@ -10,7 +10,7 @@ const result=await build({stdin:{contents:`export {default as KeyboardShortcuts}
   build.onResolve({filter:/^react-dom\/client$/},()=>({path:'client',namespace:'client-test'}))
  build.onLoad({filter:/.*/,namespace:'client-test'},()=>({contents:'export const createRoot=()=>({render(){},unmount(){}});'}))
  build.onResolve({filter:/^react$/},()=>({path:'react',namespace:'test'}))
-  build.onLoad({filter:/.*/,namespace:'test'},()=>({contents:`export const useMemo=(fn)=>fn();export const useCallback=(fn)=>fn;export const useSyncExternalStore=(sub,get)=>get();export const useRef=(current)=>({current});export const useState=(value)=>[value,()=>{}];export const useEffect=(effect)=>globalThis.__keyboardEffects.push(effect);export default {};`}))
+  build.onLoad({filter:/.*/,namespace:'test'},()=>({contents:`export const memo=(component)=>component;export const useMemo=(fn)=>fn();export const useCallback=(fn)=>fn;export const useSyncExternalStore=(sub,get)=>get();export const useRef=(current)=>({current});export const useState=(value)=>[value,()=>{}];export const useEffect=(effect)=>globalThis.__keyboardEffects.push(effect);export default {};`}))
 }}]})
 const {KeyboardShortcuts,useProjectStore}=await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 const listeners=new Map()

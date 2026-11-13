@@ -12,7 +12,7 @@ const bundle=await build({stdin:{contents:`export {useTimelineDrag} from './src/
     build.onResolve({filter:/^react-dom\/client$/},()=>({path:'client',namespace:'client-test'}))
  build.onLoad({filter:/.*/,namespace:'client-test'},()=>({contents:'export const createRoot=()=>({render(){},unmount(){}});'}))
  build.onResolve({filter:/^react$/},()=>({path:'react',namespace:'hook-test'}))
-    build.onLoad({filter:/.*/,namespace:'hook-test'},()=>({contents:`
+    build.onLoad({filter:/.*/,namespace:'hook-test'},()=>({contents:`export const memo=c=>c;
       export const useMemo=(fn)=>fn();export const useCallback=(fn)=>fn;export const useSyncExternalStore=(sub,get)=>get();export const useRef=(current)=>({current});
       export const useState=(value)=>[value,()=>{}];
       export const useEffect=(effect)=>globalThis.__gestureEffects.push(effect);

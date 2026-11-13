@@ -1,3 +1,4 @@
+import { memo } from 'react'
 /** A small set of inline, stroke-style icons (no external icon library/font) used throughout
  *  the UI. Keeping them inline avoids a network dependency for core chrome. */
 const PATHS: Record<string, string> = {
@@ -72,7 +73,7 @@ const PATHS: Record<string, string> = {
   play: 'M7 4l13 8-13 8V4Z',
 }
 
-export default function Icon({
+function Icon({
   name,
   size = 16,
   strokeWidth = 1.8,
@@ -102,3 +103,6 @@ export default function Icon({
     </svg>
   )
 }
+
+/** Memoised: the same icon with the same props is drawn again on every render of the screens that hold hundreds of them. */
+export default memo(Icon)

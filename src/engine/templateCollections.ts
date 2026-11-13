@@ -2,6 +2,10 @@ import {useEffect,useState} from 'react'
 type Collections={categories:Record<string,string[]>;uses:Record<string,number>}
 const key='ynot:template-collections:v1'
 export function readCollections():Collections{try{const data=JSON.parse(localStorage.getItem(key)??'{}');return {categories:Object.fromEntries(Object.entries(data.categories??{}).filter(([name,ids])=>name.length<=100&&Array.isArray(ids)&&ids.every(id=>typeof id==='string')) as [string,string[]][]),uses:Object.fromEntries(Object.entries(data.uses??{}).filter(([,count])=>typeof count==='number'&&Number.isFinite(count)&&count>=0)) as Record<string,number>}}catch{return {categories:{},uses:{}}}}
+let sharedRaw:string|null=null,sharedValue:Collections|null=null
+/** The saved collections for reading only, parsed once per change of the stored text. Offering layouts asks for them once per
+ *  template, and parsing the stored JSON that often was a visible part of every press of Next. */
+export function readCollectionsShared():Collections{let raw='{}';try{raw=localStorage.getItem(key)??'{}'}catch{}if(sharedValue&&raw===sharedRaw)return sharedValue;sharedValue=readCollections();sharedRaw=raw;return sharedValue}
 function write(data:Collections){localStorage.setItem(key,JSON.stringify(data));window.dispatchEvent(new Event(key))}
 export function useTemplateCollections(){const [data,set]=useState(readCollections);useEffect(()=>{const update=()=>set(readCollections());window.addEventListener(key,update);return()=>window.removeEventListener(key,update)},[]);return data}
 export function classifyTemplates(ids:string[],category:string){const name=category.trim();if(!name||name.length>100||['__proto__','constructor','prototype','Favorites','Frequently used'].includes(name))throw new Error('Enter a category of 1–100 characters.');const data=readCollections();data.categories[name]=[...new Set([...(data.categories[name]??[]),...ids])];write(data)}

@@ -4,7 +4,7 @@ import {askTemplateCategory} from './ClassifyTemplate'
 import {deleteQuote,saveQuote,useSavedQuotes,importQuotes,exportQuotes} from '@/engine/savedQuotes'
 import {selectedKeys} from '@/engine/layerClipboard'
 import {selectionGeometry} from '@/engine/spreadLayers'
-import {useEffect,useState,useMemo,useRef} from 'react'
+import {memo,useEffect,useState,useMemo,useRef} from 'react'
 import {TextBox} from '@/types'
 import {previewSource} from '@/engine/previewImage'
 import {ensureFontLoaded} from '@/engine/fonts'
@@ -62,10 +62,12 @@ const events=['Wedding','Engagement','Reception','Destination Wedding','Concert'
 /** `buttonsOnly` renders the two buttons and nothing else. The pair in the image-template panel's
  *  header has to work that way: opening the font browser closes that panel, so this instance is
  *  gone a moment later and the browser has to be rendered by one that stays — the spread card's. */
-export default function QuoteTemplates({spreadId,compact=false,saveHost,buttonsOnly=false}:{spreadId:string;compact?:boolean;saveHost?:string;buttonsOnly?:boolean}){
+function QuoteTemplates({spreadId,compact=false,saveHost,buttonsOnly=false}:{spreadId:string;compact?:boolean;saveHost?:string;buttonsOnly?:boolean}){
  const [mounted,setMounted]=useState(false);useEffect(()=>setMounted(true),[])
- const saved=useSavedQuotes(),project=useProjectStore(s=>s.project),selectedSpreadId=useProjectStore(s=>s.selectedSpreadId),matchingOpen=useProjectStore(s=>s.matchingTemplatesOpen)
- const spread=project.spreads.find(p=>p.id===spreadId),size=spread?.size??project.size
+ // Narrow subscriptions: every spread card has one of these, and reading the whole project made all of them render again
+ // on every change to any spread, which is most of what pressing Next template cost once there were a few spreads.
+ const saved=useSavedQuotes(),projectSize=useProjectStore(s=>s.project.size),selectedSpreadId=useProjectStore(s=>s.selectedSpreadId),matchingOpen=useProjectStore(s=>s.matchingTemplatesOpen)
+ const spread=useProjectStore(s=>s.project.spreads.find(p=>p.id===spreadId)),size=spread?.size??projectSize
  const [localTemplates,setLocalTemplates]=useState(true),[inspiredTemplates,setInspiredTemplates]=useState(true)
  const [withImages,setWithImages]=useState(false),[menu,setMenu]=useState<{x:number;y:number;id:string}|null>(null)
  const open=useProjectStore(s=>s.fontBrowserSpreadId)===spreadId
@@ -139,3 +141,4 @@ export default function QuoteTemplates({spreadId,compact=false,saveHost,buttonsO
  {menu&&<ContextMenu x={menu.x} y={menu.y} onClose={()=>setMenu(null)} items={[{label:'Delete font template',danger:true,onClick:()=>{deleteQuote(menu.id);setMenu(null)}}]}/>}
  {saving&&<Modal className="save-template-dialog" width={420} title="Save font template" onClose={()=>setSaving(false)} footer={<><button className="btn" onClick={()=>setSaving(false)}>Cancel</button><div className="footer-spacer"/><button className="btn btn--primary" disabled={!title&&!content} onClick={save}>Save font template</button></>}><p className="muted">The selected text layers are saved together as one composition.</p><label className="field">Event<select value={category} onChange={e=>setCategory(e.target.value)}>{[...new Set([...events,...saved.map(q=>q.category)]),'Custom…'].map(e=><option key={e}>{e}</option>)}</select></label>{category==='Custom…'&&<label className="field">Custom event<input autoFocus aria-label="Custom event" value={custom} onChange={e=>setCustom(e.target.value)}/></label>}<label className="field"><span>Subcategory <span className="save-template-dialog__hint">optional</span></span><input list="quote-subcategories" maxLength={100} value={subcategory} onChange={e=>setSubcategory(e.target.value)}/><datalist id="quote-subcategories">{[...new Set(saved.filter(q=>q.category===category).map(q=>q.subcategory).filter(Boolean))].map(v=><option key={v} value={v}/>)}</datalist></label><div className="field save-template-dialog__kinds"><span>Save it as</span><div><label><input type="checkbox" checked={title} onChange={e=>setTitle(e.target.checked)}/>Title</label><label><input type="checkbox" checked={content} onChange={e=>setContent(e.target.checked)}/>Content</label></div>{!title&&!content&&<small>Pick at least one.</small>}</div>{notice&&<p className="save-template-dialog__notice" role="status">{notice}</p>}</Modal>}</>
 }
+export default memo(QuoteTemplates)

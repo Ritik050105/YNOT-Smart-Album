@@ -3,6 +3,17 @@ import { PlaceholderRect } from '@/types'
 export const GAP = 0.02
 
 /** Normalized display geometry shared by crop ranking, previews, editor and export. */
+/** The same answer as resolveTemplateFrames, remembered per frame list and setting. Choosing a layout asks it of
+  * every candidate on every press of Next, with the album's one margin and gap, and the answer never changes.
+  * The returned frames are shared: read them, do not change them. */
+const resolvedMemo=new WeakMap<PlaceholderRect[],Map<string,PlaceholderRect[]>>()
+export function resolveTemplateFramesShared(frames:PlaceholderRect[],aspect:number,marginPx=0,gapPx=0){
+ let known=resolvedMemo.get(frames);if(!known)resolvedMemo.set(frames,known=new Map())
+ const key=`${aspect}|${marginPx}|${gapPx}`;let hit=known.get(key)
+ if(!hit)known.set(key,hit=resolveTemplateFrames(frames,aspect,marginPx,gapPx))
+ return hit
+}
+
 export function resolveTemplateFrames(frames: PlaceholderRect[], aspect: number, marginPx = 0, gapPx = 0): PlaceholderRect[] {
   // Collapse small authored gutters to shared boundaries before applying the album gap.
   // Wide editorial whitespace and overlapping designs retain their intended geometry.

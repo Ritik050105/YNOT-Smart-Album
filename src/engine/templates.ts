@@ -1103,7 +1103,12 @@ function computeTemplatesForCount(
 // a template to a spread, and when rendering a spread's placeholder boxes) can find them too.
 let userTemplateRegistry: TemplateDefinition[] = []
 
+/** Changes whenever the library an answer was computed from does, so a remembered answer can tell it is stale. */
+let libraryVersion = 0
+export const templateLibraryVersion = () => libraryVersion
+
 export function setUserTemplateRegistry(templates: TemplateDefinition[]) {
+  libraryVersion++
   userTemplateRegistry = templates
   // Every cached answer was computed from the old registry.
   forCountCache = new WeakMap()

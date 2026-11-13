@@ -1,9 +1,14 @@
 import { PhotoAsset, TemplateDefinition } from '@/types'
-import { resolveTemplateFrames } from './templateLayout'
+import { resolveTemplateFramesShared as resolveTemplateFrames } from './templateLayout'
 import { SQUARISH_MAX, SQUARISH_MIN, shapeFitsStrictly, shapeOf } from './layoutMath'
 
+/** Frames in the order photographs fill them: by left edge, then top edge. Remembered per template, since it is
+ *  asked of every candidate on every press of Next; the array is shared, so it is read, never changed. */
+const readingOrders = new WeakMap<TemplateDefinition['placeholders'], TemplateDefinition['placeholders']>()
 export function templateFramesInReadingOrder(template: TemplateDefinition) {
-  return [...template.placeholders].sort((a, b) => a.x - b.x || a.y - b.y)
+  let order = readingOrders.get(template.placeholders)
+  if (!order) readingOrders.set(template.placeholders, order = [...template.placeholders].sort((a, b) => a.x - b.x || a.y - b.y))
+  return order
 }
 
 /** Minimum crop loss, with timeline order fixed or an optimal one-to-one frame assignment. */
@@ -46,7 +51,7 @@ export function matchTemplatePhotos(photos: PhotoAsset[], template: TemplateDefi
 
 /** The shape of each photo, using its real pixels and falling back to the orientation recorded at
  *  import when a photo has not been measured. */
-function photoShapes(photos: PhotoAsset[]): ('landscape' | 'portrait' | 'square')[] {
+export function photoShapes(photos: PhotoAsset[]): ('landscape' | 'portrait' | 'square')[] {
   return photos.map((photo) => {
     const ratio = photo.width > 0 && photo.height > 0 ? photo.width / photo.height
       : photo.orientation === 'portrait' ? 2 / 3 : photo.orientation === 'landscape' ? 1.5 : 1
@@ -118,4 +123,9 @@ export function templateOrderMismatches(photos: PhotoAsset[], template: Template
 export function rankTemplates(photos: PhotoAsset[], templates: TemplateDefinition[], aspect = 1, keepOrder = true, marginPx = 0, gapPx = 0) {
   return templates.map((template) => ({ template, ...matchTemplatePhotos(photos, template, aspect, keepOrder, marginPx, gapPx) }))
     .sort((a, b) => a.score - b.score)
+}
+
+/** One letter per photograph (L, P or S) for its shape: what a layout's fit depends on, and a short key to remember answers by. */
+export function photoShapeCodes(photos: PhotoAsset[]): string {
+  return photoShapes(photos).map((shape) => (shape === 'landscape' ? 'L' : shape === 'portrait' ? 'P' : 'S')).join('')
 }

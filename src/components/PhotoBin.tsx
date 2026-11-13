@@ -71,9 +71,29 @@ function deleteGalleryPhotos(photoIds:string[]){
   * unmounts the component that throws, so one old photograph emptied the panel. */
 const binsOf = (photo: { bins?: string[] }) => photo.bins ?? []
 
+/** Which photographs are used or adjusted, as one short string: it changes when that does, and not when a frame moves or
+ *  a layout is swapped (which reorders a spread's frames). Remembered for the spreads array it was last worked out from, as
+ *  the selector that asks for it runs on every change to the store. */
+let lastSpreads: Spread[] | null = null, lastKey = ''
+function usageKeyOf(spreads: Spread[]): string {
+  if (spreads === lastSpreads) return lastKey
+  const parts: string[] = []
+  for (const s of spreads) {
+    for (const p of s.placements) if (p.photoId) parts.push(p.photoId + (p.warmth !== 0 || p.brightness !== 0 || p.contrast !== 0 || p.saturation !== 0 || p.relightIntensity !== 0 ? '*' : ''))
+    const background = s.backgroundPattern?.edits?.photoId
+    if (background) parts.push('@' + background)
+  }
+  lastSpreads = spreads
+  return lastKey = parts.sort().join(',')
+}
+
 export default function PhotoBin() {
   const photos = useProjectStore((s) => s.project.photos)
-  const spreads = useProjectStore((s) => s.project.spreads)
+  // The bin only cares which photographs are used or adjusted, not where the frames are, so it reads a short key of that and
+  // renders again only when the key changes. Subscribing to the spreads themselves re-rendered every thumbnail in the bin on each
+  // change of layout, which is what pressing Next template does.
+  const usageKey = useProjectStore((s) => usageKeyOf(s.project.spreads))
+  const currentSpreads = () => useProjectStore.getState().project.spreads
   const setPlacementPhoto = useProjectStore((s) => s.setPlacementPhoto)
   const setPhotoBins = useProjectStore((s) => s.setPhotoBins)
   const setPhotoFavorite = useProjectStore((s) => s.setPhotoFavorite)
@@ -97,7 +117,7 @@ export default function PhotoBin() {
   const favoritesInputRef = useRef<HTMLInputElement>(null)
   const [autoBuildOpen, setAutoBuildOpen] = useState(false)
   const [patternsOpen, setPatternsOpen] = useState(false)
-  const autoBuildTargets = autoBuildTargetPhotoIds(photos, spreads, selectedPhotoIds)
+  const autoBuildTargets = useMemo(() => autoBuildTargetPhotoIds(photos, currentSpreads(), selectedPhotoIds), [photos, usageKey, selectedPhotoIds])
 
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
   const [binFilter, setBinFilter] = useState('')
@@ -115,13 +135,13 @@ export default function PhotoBin() {
   const [newBinName, setNewBinName] = useState('')
 
   const usedPhotoIds = useMemo(
-    () => new Set(spreads.flatMap((s) => [...s.placements.map((p) => p.photoId), s.backgroundPattern?.edits?.photoId].filter((id): id is string => !!id))),
-    [spreads]
+    () => new Set(currentSpreads().flatMap((s) => [...s.placements.map((p) => p.photoId), s.backgroundPattern?.edits?.photoId].filter((id): id is string => !!id))),
+    [usageKey]
   )
 
   const adjustedPhotoIds = useMemo(() => {
     const ids = new Set<string>()
-    for (const spread of spreads) {
+    for (const spread of currentSpreads()) {
       for (const p of spread.placements) {
         if (p.photoId && (p.warmth !== 0 || p.brightness !== 0 || p.contrast !== 0 || p.saturation !== 0 || p.relightIntensity !== 0)) {
           ids.add(p.photoId)
@@ -129,7 +149,7 @@ export default function PhotoBin() {
       }
     }
     return ids
-  }, [spreads])
+  }, [usageKey])
 
   const allBins = useMemo(
     () => Array.from(new Set([...photos.flatMap((p) => p.bins), ...extraBins])).sort(),
@@ -436,7 +456,7 @@ export default function PhotoBin() {
                   setPlacementPhoto(selectedSpreadId, selectedPlaceholderId, photo.id)
                   return
                 }
-                const target = findFirstEmptyPlaceholder(spreads, selectedSpreadId)
+                const target = findFirstEmptyPlaceholder(currentSpreads(), selectedSpreadId)
                 if (!target) return
                 setPlacementPhoto(target.spreadId, target.placeholderId, photo.id)
                 selectSpread(target.spreadId)
