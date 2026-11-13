@@ -1,5 +1,5 @@
 import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
-import { balancedForSequence, balancedFromId, balancedTemplates, balancedWarmSteps, sequenceKinds } from './balancedLayouts'
+import { balancedForMix, balancedForSequence, balancedFromId, balancedTemplates, balancedWarmSteps, lookOfFrames, sequenceKinds } from './balancedLayouts'
 import { TemplateDefinition, PlaceholderRect } from '@/types'
 import { GAP, placeGridInRect, geometrySignature, resolveTemplateFrames } from './templateLayout'
 import { generatedTemplates } from './templateGenerator'
@@ -889,7 +889,9 @@ function arrangementSignature(authored: PlaceholderRect[]): string {
 export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefinition[] {
   const seen = new Set<string>()
   return templates.filter(t => {
-    const frames = arrangementSignature(t.placeholders)
+    // A balanced layout cut the same way at a visibly different place is a different composition, so
+    // those are told apart by where their edges fall, to the nearest twelfth, not by topology alone.
+    const frames = t.id.startsWith('mix') ? `look:${lookOfFrames(t.placeholders)}` : arrangementSignature(t.placeholders)
     // Captions are part of the design: the same photo grid with and without a text box, or with the
     // caption in a different place, are different templates and both belong in the browser.
     const text = (t.textBoxes ?? []).map(b => [b.x, b.y, b.width, b.height].map(v => Math.round(v * 20)).join(',')).sort().join('|')
@@ -982,6 +984,17 @@ function allowsBalanced(ids: string[] | null): boolean {
 export function sequenceCandidates(photos: { width: number; height: number }[], count: number, enabledTemplateIds: string[] | null, frameFilter: TemplateFrameFilter, aspect: number): TemplateDefinition[] {
   if (photos.length !== count || count < 2 || !allowsBalanced(enabledTemplateIds)) return []
   const all = balancedForSequence(sequenceKinds(photos), aspect)
+  return frameFilter === 'all' ? all : all.filter(t => matchesFrameFilter(t, frameFilter, aspect))
+}
+
+/** The deep shelf for these photographs' mix of shapes, any order: layouts beyond the few per mix the library
+ *  holds, drawn for exactly this many landscapes, portraits and squares. For the browser's shelf of rearranged
+ *  layouts, which is worth the moment it takes the first time; Auto Build, which wants one good layout and
+ *  not thirty, does not ask for it. A layout the library also holds is told apart by the caller's duplicate check. */
+export function mixCandidates(photos: { width: number; height: number }[], count: number, enabledTemplateIds: string[] | null, frameFilter: TemplateFrameFilter, aspect: number): TemplateDefinition[] {
+  if (photos.length !== count || count < 2 || !allowsBalanced(enabledTemplateIds)) return []
+  const kinds = sequenceKinds(photos), wide = kinds.filter(k => k === 0).length, tall = kinds.filter(k => k === 1).length
+  const all = balancedForMix(wide, tall, count - wide - tall, aspect)
   return frameFilter === 'all' ? all : all.filter(t => matchesFrameFilter(t, frameFilter, aspect))
 }
 

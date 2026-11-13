@@ -12,7 +12,7 @@ import { usePreferences } from '@/state/preferences'
 import { pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { importedDesignTemplates, isFullSpreadTemplate, sequenceCandidates, templatesForCount, uniqueTemplates } from '@/engine/templates'
+import { importedDesignTemplates, isFullSpreadTemplate, mixCandidates, sequenceCandidates, templatesForCount, uniqueTemplates } from '@/engine/templates'
 import {rankTemplates, templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches} from '@/engine/templateMatching'
 import { isEditableTarget } from '@/engine/keyboard'
 import TemplateThumb from './TemplatePreview'
@@ -83,7 +83,7 @@ export default function MatchingTemplatesPanel() {
   const rows = useMemo(() => {
     if (!open || !spread || !count) return [[], []]
     const photos = placements.flatMap(p => { const photo = project.photos.find(photo => photo.id === p.photoId); return photo ? [photo] : [] })
-    const candidates = uniqueTemplates([...sequenceCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)])
+    const candidates = uniqueTemplates([...sequenceCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...mixCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)])
       .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (templateCategory(t)!=='reference'||supportsUniformGap(t.placeholders,aspect,spread.marginPx*(target==='spread'?1:2),spread.gapPx*(target==='spread'?1:2))) && categories[templateCategory(t)] && matchesCollection(t.id,collection,collections,favorites) && (!favoritesOnly || favorites.includes(t.id)))
     // Offer only layouts that can give every photo a frame of its own shape — a portrait photo in
     // a landscape frame loses its top and bottom. If nothing fits, show everything rather than an

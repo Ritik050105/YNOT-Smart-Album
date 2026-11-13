@@ -17,15 +17,32 @@ export const useTemplateBrowsing=create<{categories:{reference:boolean;creative:
 const cycleLists=new Map<string,{deps:unknown[];list:TemplateDefinition[]}>()
 const photosById=new WeakMap<PhotoAsset[],Map<string,PhotoAsset>>()
 function photoLookup(photos:PhotoAsset[]){let map=photosById.get(photos);if(!map){map=new Map(photos.map(p=>[p.id,p]));photosById.set(photos,map)}return map}
-export function cyclingCount(project:Project,spread:Spread,filter:TemplateFrameFilter,favorites:string[],kind:'image'|'mixed'='image'){
- return cyclingTemplates(project,spread,filter,favorites,kind).length
-}
-export function cyclingTemplates(project:Project,spread:Spread,filter:TemplateFrameFilter,favorites:string[],kind:'image'|'mixed'='image'){
+function cycleContext(project:Project,spread:Spread,filter:TemplateFrameFilter,kind:'image'|'mixed'){
  const size=spread.size??project.size,aspect=size.widthIn/size.heightIn,eligible=pagePlacements(spread,aspect,'spread'),count=eligible.filter(p=>p.photoId).length||eligible.length
  const state=useTemplateBrowsing.getState(),{categories,collection,favoritesOnly}=state
  const lookup=photoLookup(project.photos)
  const photos=spread.placements.flatMap(pl=>{const photo=pl.photoId?lookup.get(pl.photoId):undefined;return photo?[photo]:[]})
- const key=[kind,count,photos.length,photoShapeCodes(photos),aspect,spread.marginPx,spread.gapPx,filter,collection,favoritesOnly].join('|')
+ return {size,aspect,count,categories,collection,favoritesOnly,photos,key:[kind,count,photos.length,photoShapeCodes(photos),aspect,spread.marginPx,spread.gapPx,filter,collection,favoritesOnly].join('|')}
+}
+/** How many layouts cycling has for a spread, for the overview's enabled/disabled buttons, which ask on every
+ *  render for every spread. The first answer for a set of photographs can take a second to work out (the shelf is
+ *  drawn for those photographs), so a spread not worked out yet reads as "has some" and is worked out one at a
+ *  time when the page is idle; the buttons settle on the next render. A press never waits on this: it asks for the list itself. */
+const pending=new Set<string>()
+export function cyclingCount(project:Project,spread:Spread,filter:TemplateFrameFilter,favorites:string[],kind:'image'|'mixed'='image'){
+ const {key}=cycleContext(project,spread,filter,kind),hit=cycleLists.get(key)
+ if(hit&&hit.deps.every((v,i)=>v===[project.enabledTemplateIds,favorites,useTemplateBrowsing.getState().categories,templateLibraryVersion()][i]))return hit.list.length
+ if(typeof setTimeout!=='function')return cyclingTemplates(project,spread,filter,favorites,kind).length
+ if(!pending.has(key)){
+  pending.add(key)
+  setTimeout(function run(){
+   try{cyclingTemplates(project,spread,filter,favorites,kind)}finally{pending.delete(key)}
+  },20+pending.size*15)
+ }
+ return 2
+}
+export function cyclingTemplates(project:Project,spread:Spread,filter:TemplateFrameFilter,favorites:string[],kind:'image'|'mixed'='image'){
+ const {size,aspect,count,categories,collection,favoritesOnly,photos,key}=cycleContext(project,spread,filter,kind)
  const deps=[project.enabledTemplateIds,favorites,categories,templateLibraryVersion()]
  const hit=cycleLists.get(key)
  if(hit&&hit.deps.every((v,i)=>v===deps[i])){cycleLists.delete(key);cycleLists.set(key,hit);return hit.list}

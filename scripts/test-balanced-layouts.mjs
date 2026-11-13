@@ -6,7 +6,8 @@ import { build } from 'esbuild'
 
 const result = await build({
   stdin: {
-    contents: `export {balancedTemplates} from './src/engine/balancedLayouts'
+    contents: `export {balancedTemplates,balancedForMix} from './src/engine/balancedLayouts'
+export {uniqueTemplates,mixCandidates} from './src/engine/templates'
 export {templatesForCount,findTemplate,runsToTheTrim,templateFamilyLabel} from './src/engine/templates'
 export {templateShapeMismatches,templateOrderMismatches} from './src/engine/templateMatching'
 export {balancedForSequence,sequenceKinds} from './src/engine/balancedLayouts'
@@ -18,7 +19,7 @@ export {offeredLayouts} from './src/engine/layoutOffer'`,
   },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { balancedForSequence, sequenceKinds, sequenceCandidates, templateOrderMismatches, balancedTemplates, templatesForCount, findTemplate, runsToTheTrim, templateFamilyLabel, templateShapeMismatches, supportsUniformGap, hasEvenMargins, frameSizeSpread, templateCategory, offeredLayouts } =
+const { balancedForMix, uniqueTemplates, mixCandidates, balancedForSequence, sequenceKinds, sequenceCandidates, templateOrderMismatches, balancedTemplates, templatesForCount, findTemplate, runsToTheTrim, templateFamilyLabel, templateShapeMismatches, supportsUniformGap, hasEvenMargins, frameSizeSpread, templateCategory, offeredLayouts } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 // The wizard's default: a 6px gap with the margin at half of it.
@@ -98,6 +99,36 @@ for (const gap of [16, 28]) for (const count of [8, 12, 16]) {
     const shelf = offeredLayouts(photos, offered, aspect, gap / 2, gap)
     assert.ok(shelf.filter(t => t.id.startsWith('mix-')).length >= 8, `gap ${gap}, ${count} photos, ${landscapes} landscape: balanced layouts are on the shelf`)
   }
+}
+// The deep shelf for the photographs' own mix, squares included: at least thirty different layouts wherever the
+// geometry allows, every one tiling the page, keeping the gap at all four presets, and suiting its mix.
+{
+  const square = i => ({ id: 's' + i, width: 1000, height: 1000 })
+  const word = (l, p, q) => [...Array.from({ length: l }, (_, i) => landscape(i)), ...Array.from({ length: p }, (_, i) => upright(i)), ...Array.from({ length: q }, (_, i) => square(i))]
+  let floor = Infinity, floorAt = ''
+  for (const aspect of ASPECTS) for (const [l, p, q] of [[6, 0, 0], [0, 6, 0], [3, 3, 0], [2, 2, 2], [8, 0, 0], [4, 4, 0], [5, 5, 2], [12, 0, 0], [6, 6, 0], [8, 8, 8], [16, 8, 0], [24, 0, 0], [0, 12, 0], [10, 10, 4]]) {
+    const photos = word(l, p, q), count = photos.length, deep = balancedForMix(l, p, q, aspect)
+    assert.equal(balancedForMix(l, p, q, aspect), deep, 'the deep shelf is built once per mix')
+    for (const t of deep) {
+      assert.equal(t.placeholders.length, count)
+      assert.ok(Math.abs(t.placeholders.reduce((a, f) => a + f.width * f.height, 0) - 1) < 1e-6, `${t.id} tiles the page`)
+      for (const gap of [0, 6, 16, 28]) assert.ok(supportsUniformGap(t.placeholders, aspect, gap / 2, gap), `${t.id} keeps the gap at ${gap}`)
+      assert.ok(hasEvenMargins(t.placeholders, aspect, 3, 6), `${t.id} has an even margin`)
+      assert.ok(frameSizeSpread(t.placeholders) <= 6, `${t.id} frames are comparable in size`)
+      assert.equal(templateShapeMismatches(photos, t, aspect, MARGIN, GAP), 0, `${t.id} suits its own mix`)
+      assert.equal(findTemplate(t.id)?.id, t.id, `${t.id} resolves from its id`)
+    }
+    assert.equal(new Set(deep.map(t => t.id)).size, deep.length, 'ids are unique')
+    const shelf = offeredLayouts(photos, uniqueTemplates([...sequenceCandidates(photos, count, null, 'all', aspect), ...mixCandidates(photos, count, null, 'all', aspect), ...templatesForCount(count, null, 'all', aspect)]).filter(t => !t.textBoxes?.length)
+      .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP)), aspect, MARGIN, GAP, false, true)
+    if (shelf.length < floor) { floor = shelf.length; floorAt = `aspect ${aspect}, ${l}L ${p}P ${q}S` }
+    // Six or more landscapes and portraits have room for thirty compositions on any album shape. Squares are fussier: a
+    // square photograph wants a near-square frame, and the page has to be tiled with those, so a set with many of them
+    // has fewer ways to be laid out, and on some album shapes (a spread of four squares on 3:2, say) none.
+    if (count >= 6 && q === 0) assert.ok(shelf.length >= 30, `aspect ${aspect}, ${l}L ${p}P ${q}S: ${shelf.length} layouts, thirty wanted`)
+    else if (count >= 6) assert.ok(shelf.length >= 8, `aspect ${aspect}, ${l}L ${p}P ${q}S: ${shelf.length} layouts`)
+  }
+  console.log(`Deep shelf: thinnest checked mix offers ${floor} layouts (${floorAt}).`)
 }
 assert.ok(thinnest >= 1, `every mix has a layout (thinnest: ${thinnest} at ${thinnestAt})`)
 // Deterministic: the same album shape gives the same layouts every run, so saved albums keep theirs.

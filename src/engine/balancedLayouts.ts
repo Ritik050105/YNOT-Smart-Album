@@ -24,12 +24,13 @@ import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
 /** Frames of each shape sit well clear of the shape rule's 1.15 deadband, whatever the album. */
 const LANDSCAPE = { ideal: 1.5, min: 1.22, max: 2.6 }
 const UPRIGHT = { ideal: 1 / 1.5, min: 0.38, max: 0.82 }
-/** A square photograph needs a square frame: well inside the shape rule's 0.87-1.15 deadband. */
-const SQUARE = { ideal: 1, min: 0.9, max: 1.1 }
+/** A square photograph needs a square frame: inside the shape rule's 0.87-1.15 deadband, where a frame counts as square whatever the gap does to it. */
+const SQUARE = { ideal: 1, min: 0.89, max: 1.12 }
 
 /** Largest frame over smallest. Past this a layout reads as one hero and a scatter of stamps. */
 const MAX_SPREAD = 3.6
-const KEEP_PER_MIX = 12
+/** The deep shelf for a set of photographs' own mix (see `balancedForMix`); the library every count shares holds fewer. */
+const KEEP_PER_MIX = 40
 /** Draws per mix: enough to find the good ones, fewer as the count grows since the cost of a draw
  *  grows with it and big sets are rarer. A mix that is hard to tile simply gets fewer layouts. */
 const budget = (count: number) => ({ min: 120, max: count <= 6 ? 1200 : count <= 12 ? 700 : 480 })
@@ -50,8 +51,20 @@ function rng(seed: number) {
 /** The ways a split can order its photographs: grouped by shape, in either order, alternating,
  *  with one shape wrapped round the other, or shuffled. Grouped ones tend to look the most
  *  deliberate, so they get most of the draws. */
-function order(landscapes: number, uprights: number, pattern: number, random: () => number): number[] {
+function order(landscapes: number, uprights: number, pattern: number, random: () => number, squares = 0): number[] {
   const L = Array(landscapes).fill(0), U = Array(uprights).fill(1)
+  if (squares > 0) {
+    // Squares join as a third group: kept together, between the others, or scattered.
+    const S = Array(squares).fill(2)
+    switch (pattern % 6) {
+      case 0: return [...L, ...U, ...S]
+      case 1: return [...S, ...L, ...U]
+      case 2: return [...U, ...S, ...L]
+      case 3: return [...L, ...S, ...U]
+      case 4: { const out: number[] = [], pool = [landscapes, uprights, squares]; while (out.length < landscapes + uprights + squares) for (let k = 0; k < 3; k++) if (pool[k] > 0) { out.push(k === 0 ? 0 : k === 1 ? 1 : 2); pool[k]-- } return out }
+      default: return [...L, ...U, ...S].sort(() => random() - 0.5)
+    }
+  }
   switch (pattern % 6) {
     case 0: return [...L, ...U]
     case 1: return [...U, ...L]
@@ -68,7 +81,7 @@ function order(landscapes: number, uprights: number, pattern: number, random: ()
   }
 }
 
-const WIDE_CHOICES = [1.3, 1.4, 1.5, 1.6, 1.75], TALL_CHOICES = [0.58, 0.62, 1 / 1.5, 0.72, 0.77], SQUARE_CHOICES = [0.96, 1, 1.04]
+const WIDE_CHOICES = [1.3, 1.4, 1.5, 1.6, 1.75], TALL_CHOICES = [0.58, 0.62, 1 / 1.5, 0.72, 0.77], SQUARE_CHOICES = [0.92, 0.96, 1, 1.04, 1.09]
 const pick = (list: number[], random: () => number) => list[Math.floor(random() * list.length)]
 
 /** Photographs in rows, every row as wide as the block. A row's height follows from the shapes in
@@ -159,6 +172,31 @@ function block(kinds: number[], from: number, to: number, x: number, y: number, 
 
 interface Candidate { boxes: Box[]; score: number; signature: string }
 
+/** Pulls seams that nearly line up onto one line (within 3% of the page). Independent cuts in
+ *  neighbouring blocks land a hair apart, and a hair is enough to give the gap between them a
+ *  different width from the rest — those layouts used to be thrown away; lined up they are kept and
+ *  read tidier. Every edge goes through the same mapping, so the tiling stays a tiling. */
+const SNAP = 0.03
+function snapped(boxes: Box[]): Box[] {
+  const maps = [0, 1].map(axis => {
+    const edges = [...new Set(boxes.flatMap(b => [b[axis], b[axis] + b[axis + 2]].map(v => Math.round(v * 1e6) / 1e6)))].sort((p, q) => p - q)
+    const to = new Map<number, number>()
+    for (let i = 0; i < edges.length;) {
+      let j = i
+      while (j + 1 < edges.length && edges[j + 1] - edges[j] <= SNAP) j++
+      // Keep the sheet's own edges where they are; anything within reach of them joins them.
+      const mean = edges[i] === 0 ? 0 : edges[j] === 1 ? 1 : edges.slice(i, j + 1).reduce((a, v) => a + v, 0) / (j - i + 1)
+      for (let k = i; k <= j; k++) to.set(edges[k], mean)
+      i = j + 1
+    }
+    return (v: number) => to.get(Math.round(v * 1e6) / 1e6) ?? v
+  })
+  return boxes.map(([x, y, w, h]): Box => {
+    const x0 = maps[0](x), x1 = maps[0](x + w), y0 = maps[1](y), y1 = maps[1](y + h)
+    return [x0, y0, x1 - x0, y1 - y0]
+  })
+}
+
 /** Whether the album's gap comes out the same everywhere in the layout, at the album's own presets:
  *  the new-album wizard offers gaps of 0, 6, 16 and 28 and sets the margin to half the gap. A layout
  *  that holds at one and breaks at another would silently vanish from the browsers at that setting,
@@ -170,7 +208,10 @@ const gapHolds = (boxes: Box[], aspect: number, settings = GAP_SETTINGS) => {
 }
 
 function evaluate(boxes: Box[], kinds: number[], aspect: number, round: number): number | null {
-  const wideMin = LANDSCAPE.min - 0.025 * round, tallMax = UPRIGHT.max + 0.02 * round, maxSpread = MAX_SPREAD + 1.2 * round
+  // Later rounds widen what a frame may be. The shape rule takes a squarish frame (0.87 to 1.15) for a photograph of
+  // either orientation, so the last round lets those in, which is what gives two or three photographs more than a
+  // couple of ways to sit on a page.
+  const wideMin = [LANDSCAPE.min, 1.1, 1.0][round], tallMax = [UPRIGHT.max, 0.92, 1.0][round], maxSpread = MAX_SPREAD + 1.2 * round
   let dev = 0, minArea = Infinity, maxArea = 0
   const xs = new Set<number>(), ys = new Set<number>()
   for (let i = 0; i < boxes.length; i++) {
@@ -211,9 +252,28 @@ function arrangement(boxes: Box[]): string {
   return `${xs.length}x${ys.length}:` + boxes.map(([x, y, w, h]) => [at(xs, x), at(ys, y), at(xs, x + w), at(ys, y + h)].join(',')).sort().join('|')
 }
 
-function mixLayouts(count: number, landscapes: number, aspect: number, aspectKey: number): Candidate[] {
-  const uprights = count - landscapes
-  const random = rng(count * 100003 + landscapes * 1009 + aspectKey * 31)
+/** What a layout looks like at a glance: every edge to the nearest twelfth of the page. Two layouts
+ *  cut the same way but at visibly different places (a hero a half or two thirds of the page) are
+ *  different compositions, where `arrangement` calls them one. */
+export function layoutLook(boxes: Box[]): string {
+  return boxes.map(([x, y, w, h]) => [x, y, x + w, y + h].map(v => Math.round(v * 12)).join(',')).sort().join('|')
+}
+
+/** Best first, but taking one of each arrangement before a second of any, so the first ones on a
+ *  shelf are different from each other rather than the same cut in six proportions. */
+export const lookOfFrames = (frames: PlaceholderRect[]) => layoutLook(frames.map((f): Box => [f.x, f.y, f.width, f.height]))
+
+function diverse(sorted: Candidate[]): Candidate[] {
+  const groups = new Map<string, Candidate[]>()
+  for (const c of sorted) { const g = groups.get(c.signature); if (g) g.push(c); else groups.set(c.signature, [c]) }
+  const out: Candidate[] = []
+  for (let depth = 0; out.length < sorted.length; depth++) for (const g of groups.values()) if (g[depth]) out.push(g[depth])
+  return out
+}
+
+function mixLayouts(count: number, landscapes: number, squares: number, aspect: number, aspectKey: number, keep: number): Candidate[] {
+  const uprights = count - landscapes - squares
+  const random = rng(count * 100003 + landscapes * 1009 + squares * 7919 + aspectKey * 31)
   const found = new Map<string, Candidate>()
   const { min, max } = budget(count)
   // Per candidate, not per signature: a better draw can replace the one a signature first held.
@@ -222,30 +282,31 @@ function mixLayouts(count: number, landscapes: number, aspect: number, aspectKey
   let draw = 0
   // Most mixes are done in the first round. One that is hard to tile gets up to four more, so a
   // shelf is not left thin just because the first draws were unlucky.
-  for (let round = 0; round < 5 && kept.length < KEEP_PER_MIX; round++) {
-    for (let s = 0; s < max && (s < min || found.size < KEEP_PER_MIX * 2); s++, draw++) {
-      const items = order(landscapes, uprights, draw, random)
-      const boxes: Box[] = new Array(count)
-      if (!block(items, 0, count, 0, 0, 1, 1, aspect, random, boxes, 2)) continue
+  for (let round = 0; round < 5 && kept.length < keep; round++) {
+    for (let s = 0; s < max && (s < min || found.size < keep * 2); s++, draw++) {
+      const items = order(landscapes, uprights, draw, random, squares)
+      const drawn: Box[] = new Array(count)
+      if (!block(items, 0, count, 0, 0, 1, 1, aspect, random, drawn, 2)) continue
+      const boxes = snapped(drawn)
       const score = evaluate(boxes, items, aspect, Math.min(round, 2))
       if (score === null) continue
       // Draws that differ only in proportion are one layout: the library treats two layouts whose
       // frames touch the same grid lines as the same arrangement and keeps one, so the shelf is
       // made of different arrangements, each in its best proportions.
-      const signature = arrangement(boxes)
-      const known = found.get(signature)
-      if (!known || known.score > score) found.set(signature, { boxes, score, signature })
+      const look = layoutLook(boxes)
+      const known = found.get(look)
+      if (!known || known.score > score) found.set(look, { boxes, score, signature: arrangement(boxes) })
     }
     // A layout is only worth keeping if the album's gap comes out the same everywhere in it; a
     // slight stagger between neighbouring rows or columns breaks that.
     kept.length = 0
+    const good: Candidate[] = []
     for (const c of [...found.values()].sort((p, q) => p.score - q.score || (p.signature < q.signature ? -1 : 1))) {
       let ok = holds.get(c)
       if (ok === undefined) holds.set(c, ok = gapHolds(c.boxes, aspect))
-      if (!ok) continue
-      kept.push(c)
-      if (kept.length === KEEP_PER_MIX) break
+      if (ok) good.push(c)
     }
+    kept.push(...diverse(good).slice(0, keep))
   }
   return kept
 }
@@ -258,54 +319,84 @@ const cache = new Map<string, TemplateDefinition[]>()
 const KEY_SCALE = 10000
 const keyFor = (aspect: number) => Math.max(2000, Math.min(50000, Math.round(aspect * KEY_SCALE)))
 
+/** How many layouts per mix the general library holds. The photographs' own mix is served deeper (up
+ *  to KEEP_PER_MIX) by `balancedForMix`, so the library every count shares stays the size it was. */
+const LIBRARY_PER_MIX = 12
+
+/** One mix as templates: each find also stands mirrored, left to right and top to bottom, a different
+ *  composition (the weight sits elsewhere, the reading order changes) for no extra search, and a mirror
+ *  of a tiling is still a tiling with the same gaps. Ids carry the shape, count, mix and rank. */
+function mixTemplates(count: number, landscapes: number, squares: number, aspectKey: number, deep: boolean): TemplateDefinition[] {
+  const out: TemplateDefinition[] = []
+  const seen = new Set<string>()
+  const mix = squares ? `${landscapes}l${squares}s` : `${landscapes}l`
+  const tall = count - landscapes - squares
+  let rank = 0
+  for (const c of layoutsFor(count, landscapes, squares, aspectKey, deep ? KEEP_PER_MIX : LIBRARY_PER_MIX)) {
+    for (const [flipX, flipY] of [[false, false], [true, false], [false, true], [true, true]]) {
+      const boxes = c.boxes.map(([x, y, w, h]): Box => [flipX ? 1 - x - w : x, flipY ? 1 - y - h : y, w, h])
+      const key = layoutLook(boxes)
+      if (seen.has(key)) continue
+      seen.add(key)
+      // A mirror holds the gap at the same settings as the layout it mirrors, so only the widest is
+      // re-checked here; the test asserts every preset on every layout.
+      if ((flipX || flipY) && !gapHolds(boxes, aspectKey / KEY_SCALE, GAP_SETTINGS.slice(0, 1))) continue
+      const id = `mix-${aspectKey}-${count}-${mix}-${deep ? 'd' : ''}${rank++}`
+      out.push({
+        id,
+        name: `Balanced · ${landscapes} Wide, ${tall} Upright${squares ? `, ${squares} Square` : ''} · ${rank}`,
+        photoCount: count,
+        pageSide: 'spread',
+        isBuiltIn: true,
+        createdAt: new Date(0).toISOString(),
+        thumbnailColor: '#5e6368',
+        placeholders: readingOrder(boxes).map(({ b: [x, y, width, height] }, i): PlaceholderRect => ({
+          id: `${id}-p${i}`, x, y, width, height, preferredOrientation: 'any',
+        })),
+      })
+    }
+  }
+  return out
+}
+
 /** Every balanced layout for `count` photographs on an album of this shape, best first within each
- *  mix. One photograph needs no search: a full frame is already in the library. */
+ *  mix of wide and upright photographs. One photograph needs no search: a full frame is already in
+ *  the library. */
 export function balancedTemplates(count: number, aspect: number): TemplateDefinition[] {
   if (count < 2 || !Number.isFinite(aspect) || aspect <= 0) return []
   const aspectKey = keyFor(aspect), cacheKey = `${count}|${aspectKey}`
   const hit = cache.get(cacheKey)
   if (hit) return hit
   const out: TemplateDefinition[] = []
-  for (let landscapes = 0; landscapes <= count; landscapes++) {
-    let rank = 0
-    const seen = new Set<string>()
-    for (const c of layoutsFor(count, landscapes, aspectKey)) {
-      // Each find also stands mirrored, left to right and top to bottom: a different composition
-      // (the weight sits elsewhere, the reading order changes) for no extra search, and a mirror
-      // of a tiling is still a tiling with the same gaps.
-      for (const [flipX, flipY] of [[false, false], [true, false], [false, true], [true, true]]) {
-        const boxes = c.boxes.map(([x, y, w, h]): Box => [flipX ? 1 - x - w : x, flipY ? 1 - y - h : y, w, h])
-        const key = arrangement(boxes)
-        if (seen.has(key)) continue
-        seen.add(key)
-        // A mirror holds the gap at the same settings as the layout it mirrors, so only the widest is
-        // re-checked here; the test asserts every preset on every layout.
-        if ((flipX || flipY) && !gapHolds(boxes, aspectKey / KEY_SCALE, GAP_SETTINGS.slice(0, 1))) continue
-        const id = `mix-${aspectKey}-${count}-${landscapes}l-${rank++}`
-        out.push({
-          id,
-          name: `Balanced · ${landscapes} Wide, ${count - landscapes} Upright · ${rank}`,
-          photoCount: count,
-          pageSide: 'spread',
-          isBuiltIn: true,
-          createdAt: new Date(0).toISOString(),
-          thumbnailColor: '#5e6368',
-          placeholders: readingOrder(boxes).map(({ b: [x, y, width, height] }, i): PlaceholderRect => ({
-            id: `${id}-p${i}`, x, y, width, height, preferredOrientation: 'any',
-          })),
-        })
-      }
-    }
-  }
+  for (let landscapes = 0; landscapes <= count; landscapes++) out.push(...mixTemplates(count, landscapes, 0, aspectKey, false))
   cache.set(cacheKey, out)
   return out
 }
 
 const mixCache = new Map<string, Candidate[]>()
-function layoutsFor(count: number, landscapes: number, aspectKey: number): Candidate[] {
-  const key = `${count}|${landscapes}|${aspectKey}`
+function layoutsFor(count: number, landscapes: number, squares: number, aspectKey: number, keep: number): Candidate[] {
+  const key = `${count}|${landscapes}|${squares}|${aspectKey}|${keep}`
   let hit = mixCache.get(key)
-  if (!hit) mixCache.set(key, hit = mixLayouts(count, landscapes, aspectKey / KEY_SCALE, aspectKey))
+  if (!hit) {
+    mixCache.set(key, hit = mixLayouts(count, landscapes, squares, aspectKey / KEY_SCALE, aspectKey, keep))
+    // Squares are drawn only for the albums that hold them, so there is no bound on how many mixes can be asked for.
+    if (mixCache.size > 400) mixCache.delete(mixCache.keys().next().value!)
+  }
+  return hit
+}
+
+const compositionCache = new Map<string, TemplateDefinition[]>()
+/** The deep shelf for photographs of exactly this mix: `wide` landscapes, `tall` portraits and `square`
+ *  squares, in any order. This is what the template browser draws on once it knows the photographs. */
+export function balancedForMix(wide: number, tall: number, square: number, aspect: number): TemplateDefinition[] {
+  const count = wide + tall + square
+  if (count < 2 || count > MAX_PHOTOS_PER_SPREAD || !Number.isFinite(aspect) || aspect <= 0) return []
+  const aspectKey = keyFor(aspect), cacheKey = `${count}|${wide}|${square}|${aspectKey}`
+  let hit = compositionCache.get(cacheKey)
+  if (!hit) {
+    compositionCache.set(cacheKey, hit = mixTemplates(count, wide, square, aspectKey, true))
+    if (compositionCache.size > 200) compositionCache.delete(compositionCache.keys().next().value!)
+  }
   return hit
 }
 
@@ -318,11 +409,12 @@ export function balancedFromId(id: string): TemplateDefinition | undefined {
     // An id from an earlier build names its layout by rank; the layouts for that order are the nearest there is.
     return three ? list.find(t => t.id === id) : list[Number(rank)]
   }
-  const m = id.match(/^mix-(\d+)-(\d+)-(\d+)l-(\d+)$/)
+  const m = id.match(/^mix-(\d+)-(\d+)-(\d+)l(?:(\d+)s)?-(d?)(\d+)$/)
   if (!m) return undefined
   // Ids from earlier builds carry the shape in hundredths; they are small enough to tell apart.
-  const key = Number(m[1])
-  return balancedTemplates(Number(m[2]), key < 1000 ? key / 100 : key / KEY_SCALE).find(t => t.id === id)
+  const key = Number(m[1]), count = Number(m[2]), wide = Number(m[3]), square = Number(m[4] ?? 0), deep = m[5] === 'd', aspect = key < 1000 ? key / 100 : key / KEY_SCALE
+  if (count > MAX_PHOTOS_PER_SPREAD) return undefined
+  return (deep ? balancedForMix(wide, count - wide - square, square, aspect) : balancedTemplates(count, aspect)).find(t => t.id === id)
 }
 
 /** Layouts for photographs in one particular order.
@@ -341,6 +433,59 @@ export function sequenceKinds(photos: { width: number; height: number }[]): numb
 const codeOf = (kinds: number[]) => kinds.reduce((sum, k, i) => sum + k * 3 ** i, 0)
 const kindsOfCode = (code: number, count: number, base = 3) => Array.from({ length: count }, (_, i) => (Math.floor(code / base ** i) % base))
 
+/** Whether the matcher, which takes frames by left edge then top edge, hands every photograph a frame of its own shape. */
+const inOrder = (boxes: Box[], kinds: number[]) => boxes.map((_, i) => i)
+  .sort((p, q) => boxes[p][0] - boxes[q][0] || boxes[p][1] - boxes[q][1])
+  .every((frame, k) => kinds[frame] === kinds[k])
+
+/** The photographs as consecutive columns, each column a stack: the way to lay out an exact order, since the
+ *  matcher reads frames left to right and top to bottom. `cuts` says where one column ends and the next
+ *  begins. A column's width follows from what is stacked in it, and all columns share one stretch factor. */
+function columnsFor(kinds: number[], cuts: number[], random: () => number, aspect: number, equal: boolean): Box[] {
+  const ratios = kinds.map(kind => kind === 0 ? pick(WIDE_CHOICES, random) : kind === 2 ? pick(SQUARE_CHOICES, random) : pick(TALL_CHOICES, random))
+  const cols = cuts.slice(0, -1).map((from, j) => ({ from, to: cuts[j + 1] }))
+  const widths = cols.map(({ from, to }) => {
+    const rs = ratios.slice(from, to), k = rs.length
+    return equal ? rs.reduce((a, r) => a + r, 0) / k / k : 1 / rs.reduce((a, r) => a + 1 / r, 0)
+  })
+  const total = widths.reduce((a, w) => a + w, 0)
+  const out: Box[] = new Array(kinds.length)
+  let x = 0
+  cols.forEach(({ from, to }, j) => {
+    const w = j === cols.length - 1 ? 1 - x : widths[j] / total
+    const rs = ratios.slice(from, to), inv = rs.map(r => equal ? 1 : 1 / r), sum = inv.reduce((a, v) => a + v, 0)
+    let y = 0
+    for (let i = from; i < to; i++) {
+      const h = i === to - 1 ? 1 - y : inv[i - from] / sum
+      out[i] = [x, y, w, h]
+      y += h
+    }
+    x += w
+  })
+  return out
+}
+
+/** Where the columns of an order could break: every way for a short one, a spread of them for a long one. */
+function columnCuts(count: number, random: () => number, draws: number): number[][] {
+  const out: number[][] = []
+  if (count <= 11) {
+    for (let mask = 0; mask < 1 << (count - 1); mask++) {
+      const cuts = [0]
+      for (let i = 1; i < count; i++) if (mask & (1 << (i - 1))) cuts.push(i)
+      cuts.push(count)
+      out.push(cuts)
+    }
+    return out
+  }
+  for (let d = 0; d < draws; d++) {
+    // Columns of about the size the album's shape wants, give or take.
+    const cuts = [0]
+    while (cuts[cuts.length - 1] < count) cuts.push(Math.min(count, cuts[cuts.length - 1] + 1 + Math.floor(random() * 4)))
+    out.push(cuts)
+  }
+  return out
+}
+
 function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number): Candidate[] {
   const count = kinds.length
   const random = rng(codeOf(kinds) % 2147483647 * 7919 + count * 131 + aspectKey)
@@ -349,29 +494,31 @@ function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number): Ca
   const kept: Candidate[] = []
   // A draw is cheap and few fit one exact order, so far more are made than for a mix. Most flow down
   // columns, which is how the matcher reads; the rest are free-form and kept if they happen to match.
-  const max = budget(count).max * 20
+  const max = budget(count).max * 12
+  const partitions = columnCuts(count, random, 600)
   for (let round = 0; round < 3 && kept.length < KEEP_PER_MIX; round++) {
-    for (let s = 0; s < max && found.size < KEEP_PER_MIX * 2; s++) {
-      const boxes: Box[] = new Array(count)
-      if (!block(kinds, 0, count, 0, 0, 1, 1, aspect, random, boxes, 2, random() < 0.7)) continue
+    for (let s = 0; s < max + partitions.length * 2 && found.size < KEEP_PER_MIX * 2; s++) {
+      // Half of the work is columns, taken partition by partition, which covers an order far more evenly
+      // than chance does; the rest is the free-form search, for the layouts columns cannot make.
+      const drawn: Box[] = s < partitions.length * 2 ? columnsFor(kinds, partitions[s % partitions.length], random, aspect, s >= partitions.length) : new Array(count)
+      if (s >= partitions.length * 2 && !block(kinds, 0, count, 0, 0, 1, 1, aspect, random, drawn, 2, random() < 0.7)) continue
+      const boxes = snapped(drawn)
       const score = evaluate(boxes, kinds, aspect, Math.min(round, 2))
       if (score === null) continue
-      // The matcher takes frames by left edge, then top edge. Keep a layout only if that order
-      // gives every photograph a frame of its own shape.
-      const reading = boxes.map((_, i) => i).sort((p, q) => boxes[p][0] - boxes[q][0] || boxes[p][1] - boxes[q][1])
-      if (!reading.every((frame, k) => kinds[frame] === kinds[k])) continue
-      const signature = arrangement(boxes)
-      const known = found.get(signature)
-      if (!known || known.score > score) found.set(signature, { boxes, score, signature })
+      // Keep a layout only if the matcher's reading order gives every photograph a frame of its own shape.
+      if (!inOrder(boxes, kinds)) continue
+      const look = layoutLook(boxes)
+      const known = found.get(look)
+      if (!known || known.score > score) found.set(look, { boxes, score, signature: arrangement(boxes) })
     }
     kept.length = 0
+    const good: Candidate[] = []
     for (const c of [...found.values()].sort((p, q) => p.score - q.score || (p.signature < q.signature ? -1 : 1))) {
       let ok = holds.get(c)
       if (ok === undefined) holds.set(c, ok = gapHolds(c.boxes, aspect))
-      if (!ok) continue
-      kept.push(c)
-      if (kept.length === KEEP_PER_MIX) break
+      if (ok) good.push(c)
     }
+    kept.push(...diverse(good).slice(0, KEEP_PER_MIX))
   }
   return kept
 }
@@ -385,7 +532,20 @@ export function balancedForSequence(kinds: number[], aspect: number): TemplateDe
   const aspectKey = keyFor(aspect), code = codeOf(kinds), cacheKey = `${aspectKey}|${count}|${code}`
   const hit = sequenceCache.get(cacheKey)
   if (hit) return hit
-  const out = sequenceLayouts(kinds, aspectKey / KEY_SCALE, aspectKey).map((c, rank): TemplateDefinition => {
+  const aspectOf = aspectKey / KEY_SCALE
+  // Mirrored, the way the mix shelf is: a mirror that still reads in the photographs' order is another composition.
+  const boxesList: Box[][] = []
+  const seen = new Set<string>()
+  for (const c of sequenceLayouts(kinds, aspectOf, aspectKey)) {
+    for (const [flipX, flipY] of [[false, false], [true, false], [false, true], [true, true]]) {
+      const boxes = c.boxes.map(([x, y, w, h]): Box => [flipX ? 1 - x - w : x, flipY ? 1 - y - h : y, w, h])
+      const look = layoutLook(boxes)
+      if (seen.has(look) || ((flipX || flipY) && (!inOrder(boxes, kinds) || !gapHolds(boxes, aspectOf, GAP_SETTINGS.slice(0, 1))))) continue
+      seen.add(look)
+      boxesList.push(boxes)
+    }
+  }
+  const out = boxesList.map((boxes, rank): TemplateDefinition => {
     const id = `mixseq3-${aspectKey}-${count}-${code}-${rank}`
     const wide = kinds.filter(k => k === 0).length, tall = kinds.filter(k => k === 1).length, square = count - wide - tall
     return {
@@ -396,7 +556,7 @@ export function balancedForSequence(kinds: number[], aspect: number): TemplateDe
       isBuiltIn: true,
       createdAt: new Date(0).toISOString(),
       thumbnailColor: '#5e6368',
-      placeholders: readingOrder(c.boxes).map(({ b: [x, y, width, height] }, i): PlaceholderRect => ({ id: `${id}-p${i}`, x, y, width, height, preferredOrientation: 'any' })),
+      placeholders: readingOrder(boxes).map(({ b: [x, y, width, height] }, i): PlaceholderRect => ({ id: `${id}-p${i}`, x, y, width, height, preferredOrientation: 'any' })),
     }
   })
   if (sequenceCache.size > 200) sequenceCache.clear()
@@ -409,5 +569,5 @@ export function balancedForSequence(kinds: number[], aspect: number): TemplateDe
 export function balancedWarmSteps(count: number, aspect: number): (() => void)[] {
   if (count < 2 || !Number.isFinite(aspect) || aspect <= 0) return []
   const aspectKey = keyFor(aspect)
-  return Array.from({ length: count + 1 }, (_, landscapes) => () => { layoutsFor(count, landscapes, aspectKey) })
+  return Array.from({ length: count + 1 }, (_, landscapes) => () => { layoutsFor(count, landscapes, 0, aspectKey, LIBRARY_PER_MIX) })
 }
