@@ -26,7 +26,7 @@ export function onlyFittingShapes(photos: PhotoAsset[], templates: TemplateDefin
  *  between neighbouring frames. Designs that run to the trim, and the designer's own templates, are
  *  exempt. If nothing passes, the list is returned as it was rather than empty. */
 export function uniformGapLayouts(templates: TemplateDefinition[], aspect: number, marginPx: number, gapPx: number): TemplateDefinition[] {
-  const kept = templates.filter(t => templateCategory(t) !== 'reference' || runsToTheTrim(t) || supportsUniformGap(t.placeholders, aspect, marginPx, gapPx))
+  const kept = templates.filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, marginPx, gapPx))
   return kept.length ? kept : templates
 }
 

@@ -43,7 +43,25 @@ export function resolveTemplateFrames(frames: PlaceholderRect[], aspect: number,
     const bottom = p.y + p.height < 0.999 ? p.y + p.height - gy : p.y + p.height
     return { ...p, x: left, y: top, width: Math.max(0.002, right - left), height: Math.max(0.002, bottom - top) }
   }
-  return frames.map(p => p.bleed ? bleedFrame(p) : ({ ...p,
+  // An inset frame beside a bleeding one shares a seam with it. The seam is a gap, not a margin:
+  // the bleeding frame stops half a gap short of the seam line, so the inset frame starts half a
+  // gap past it. Mapping the inset frame through the album margin as well would move that edge
+  // by a fraction of the margin and leave the seam wider than every other gap on the page.
+  // Every line a bleeding frame stops at is a seam line, and any inset edge on it snaps to it, so
+  // the frames on both sides of a seam stay aligned even where one of them is not itself next to the
+  // bleeding frame (a small photograph tucked under a feature, say).
+  const bleeding = frames.filter(q => q.bleed)
+  const inside = (v: number) => v > 0.001 && v < 0.999
+  const xLines = bleeding.flatMap(q => [q.x, q.x + q.width]).filter(inside), yLines = bleeding.flatMap(q => [q.y, q.y + q.height]).filter(inside)
+  const onLine = (lines: number[], v: number) => lines.some(l => Math.abs(l - v) < 0.002)
+  const insetFrame = (p: PlaceholderRect) => {
+    const left = (onLine(xLines, p.x) ? p.x * width : marginPx + p.x * innerW) + gap / 2
+    const right = (onLine(xLines, p.x + p.width) ? (p.x + p.width) * width : marginPx + (p.x + p.width) * innerW) - gap / 2
+    const top = (onLine(yLines, p.y) ? p.y * height : marginPx + p.y * innerH) + gap / 2
+    const bottom = (onLine(yLines, p.y + p.height) ? (p.y + p.height) * height : marginPx + (p.y + p.height) * innerH) - gap / 2
+    return { ...p, x: left / width, y: top / height, width: (right - left) / width, height: (bottom - top) / height }
+  }
+  return frames.map(p => p.bleed ? bleedFrame(p) : bleeding.length ? insetFrame(p) : ({ ...p,
     x: (marginPx + p.x * innerW + gap / 2) / width,
     y: (marginPx + p.y * innerH + gap / 2) / height,
     width: (p.width * innerW - gap) / width,

@@ -34,7 +34,7 @@ for (const aspect of [1, 1.5, 0.75]) {
     const spreads = buildSpreadsFromGroups(groups, appearance, null, { ...{ aspect, frameFilter: 'all', includeFullSpreadTemplates: true, start: 'spread', end: 'spread' }, matchTimelineOrder: true })
     spreads.forEach((spread, s) => {
       const template = findTemplate(spread.templateId)
-      assert.ok(runsToTheTrim(template) || templateCategory(template) !== 'reference' || supportsUniformGap(template.placeholders, aspect, marginPx, gapPx),
+      assert.ok(templateCategory(template) !== 'reference' || supportsUniformGap(template.placeholders, aspect, marginPx, gapPx),
         `aspect ${aspect} gap ${gapPx}: spread ${s + 1} (${spread.templateId}) leaves the album's gap between frames`)
       const boxes = computePlaceholderBoxes(spread, 900, 900 / aspect)
       for (const placement of spread.placements) {

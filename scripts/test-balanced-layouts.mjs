@@ -52,7 +52,7 @@ for (const aspect of ASPECTS) {
     // What the browsers show: every photograph in a frame of its own shape, in a layout that keeps
     // the gap and an even border.
     const offered = templatesForCount(count, null, 'all', aspect).filter(t => !t.textBoxes?.length)
-      .filter(t => templateCategory(t) !== 'reference' || runsToTheTrim(t) || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
+      .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
     for (let landscapes = 0; landscapes <= count; landscapes++) {
       const photos = [...Array.from({ length: landscapes }, (_, i) => landscape(i)), ...Array.from({ length: count - landscapes }, (_, i) => upright(i))]
       const shelf = offeredLayouts(photos, offered, aspect, MARGIN, GAP)

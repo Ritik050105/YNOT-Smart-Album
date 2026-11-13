@@ -98,16 +98,17 @@ export const BLEED_FEATURE_TEMPLATES: TemplateDefinition[] = FEATURES.flatMap((f
       thumbnailColor: '#6b5f55',
       placeholders: [
         ...feature.bleed.map((box, i) => frame(`${id}-b${i}`, box, true)),
-        ...inset.map((box, i) => frame(`${id}-p${i}`, box, false)),
+        // The photograph tucked under or over the feature shares its column and runs to the trim
+        // with it. Inset from the margin it stood proud of the feature's edge, which is the uneven
+        // look the corner layouts had.
+        ...inset.map((box, i) => frame(`${id}-p${i}`, box, i >= laid.length)),
       ],
     }]
   })
 )
 
-/** The browsers gate built-in layouts on the album's gap being applicable uniformly across the
- *  sheet, which this family can never satisfy — the feature frame runs to the trim by design, so
- *  the seam beside it is a margin, not a gap. Exempted by id, the same way the full-bleed family
- *  already is, rather than loosening a check that is right for everything else. */
+/** Marks the family so the browsers can tell its layouts, which run to the trim, from the rest.
+ *  Its seams keep the album's gap like every other layout; only the even-margin preference is waived. */
 export function isBleedFeatureTemplate(id: string): boolean {
   return id.startsWith('ref-bleed-')
 }

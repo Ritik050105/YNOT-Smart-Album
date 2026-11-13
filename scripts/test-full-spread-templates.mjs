@@ -6,10 +6,10 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const result = await build({
-  stdin: { contents: `export {builtInTemplates,findTemplate,importedDesignTemplates,setUserTemplateRegistry,templatesForCount} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {isFullSpreadTemplate} from './src/engine/templates';export {cyclingTemplates} from './src/state/templateBrowsing';export {resolveTemplateFrames} from './src/engine/templateLayout'`, resolveDir: process.cwd() },
+  stdin: { contents: `export {builtInTemplates,findTemplate,importedDesignTemplates,setUserTemplateRegistry,templatesForCount} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {supportsUniformGap} from './src/engine/templateLayout';export {isFullSpreadTemplate} from './src/engine/templates';export {cyclingTemplates} from './src/state/templateBrowsing';export {resolveTemplateFrames} from './src/engine/templateLayout'`, resolveDir: process.cwd() },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { builtInTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, templateCategory, isFullSpreadTemplate, cyclingTemplates, resolveTemplateFrames } =
+const { builtInTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, templateCategory, isFullSpreadTemplate, cyclingTemplates, resolveTemplateFrames, supportsUniformGap } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const byId = id => builtInTemplates().find(t => t.id === id)
@@ -177,5 +177,11 @@ setUserTemplateRegistry([imported(1), imported(2), imported(5)])
 assert.deepEqual(importedDesignTemplates(2).map(t => t.id), ['psd-5'], 'only designs with more frames than the spread has photos are added')
 assert.ok(cyclingTemplates(project, spread, 'all', [], 'mixed').some(t => t.id === 'psd-5'), 'an imported mixed design shows in the mixed browser at a different photo count')
 setUserTemplateRegistry([])
+
+// Running to the trim is not an excuse for an uneven gap: every full-spread layout keeps the album's
+// gap between photographs, at the settings people actually use.
+for (const t of builtInTemplates().filter(isFullSpreadTemplate).filter(t => !t.textBoxes?.length && t.photoCount <= 12))
+  for (const [margin, gap, aspect] of [[10, 10, 1], [4, 8, 1.5], [20, 12, 0.678]])
+    assert.ok(supportsUniformGap(t.placeholders, aspect, margin, gap), `${t.id} keeps the gap (margin ${margin}, gap ${gap}, aspect ${aspect})`)
 
 console.log('Full-spread template checks passed: every family survives dedup, classifies into the right browser, keeps its geometry inside the spread, and imported designs show at any photo count.')

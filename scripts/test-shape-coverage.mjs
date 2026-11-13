@@ -38,7 +38,7 @@ for (const aspect of ASPECTS) {
     // spacing cannot honour the album's gap.
     const offered = templatesForCount(count, null, 'all', aspect)
       .filter(t => !t.textBoxes?.length)
-      .filter(t => templateCategory(t) !== 'reference' || runsToTheTrim(t)
+      .filter(t => templateCategory(t) !== 'reference'
         || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
     for (let landscapes = 0; landscapes <= count; landscapes++) {
       const photos = [
@@ -75,7 +75,7 @@ for (const aspect of ASPECTS) {
   for (const aspect of ASPECTS) for (let count = 2; count <= 8; count++) {
     const seq = [pano, tall, wide, upright, tall, wide, pano, upright].slice(0, count).map((p, i) => ({ ...p, id: p.id + i }))
     const offered = templatesForCount(count, null, 'all', aspect).filter(t => !t.textBoxes?.length)
-      .filter(t => templateCategory(t) !== 'reference' || runsToTheTrim(t) || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
+      .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
     const shelf = offeredLayouts(seq, offered, aspect, MARGIN, GAP, true)
     const fewest = Math.min(...offered.map(t => templateOrderMismatches(seq, t, aspect, MARGIN, GAP)))
     assert.ok(shelf.length > 0 && shelf.every(t => templateOrderMismatches(seq, t, aspect, MARGIN, GAP) === fewest),

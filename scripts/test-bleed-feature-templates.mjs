@@ -60,16 +60,16 @@ assert.equal(airy[0].x, 0, 'the feature starts on the trim at any gap')
 assert.ok(airy[0].width < tight[0].width, 'the feature gives up its interior edge to the gap, not its outer ones')
 assert.ok(airy[2].width < tight[2].width, 'the inset photographs shrink as the gap grows')
 
-// The browsers gate built-in layouts on a uniform gap, which a bleeding feature can never satisfy.
-// Without the exemption the entire family is invisible, which is exactly what shipped once.
-for (const t of family) assert.ok(runsToTheTrim(t), `${t.id} is exempted from the uniform-gap check`)
-assert.ok(family.filter(t => !supportsUniformGap(t.placeholders, ASPECT, MARGIN, GAP)).length > family.length / 2,
-  'most of the family genuinely needs that exemption — otherwise this is testing nothing')
+// Every layout in the family keeps the album's gap everywhere, the seam beside the bleeding photograph
+// included: it used to be wider than the others by a fraction of the margin, which is what made these
+// pages look uneven, and the family was exempted from the check instead of fixed.
+for (const t of family) for (const [margin, gap, aspect] of [[10, 10, ASPECT], [4, 8, 1.5], [20, 12, 0.678], [0, 0, 1]])
+  assert.ok(supportsUniformGap(t.placeholders, aspect, margin, gap), `${t.id} keeps a uniform gap (margin ${margin}, gap ${gap}, aspect ${aspect})`)
 
 // And they survive into the per-count browser, in front of the generated grids.
 for (let count = 3; count <= 11; count++) {
   const offered = uniqueTemplates(templatesForCount(count, null, 'all', ASPECT))
-    .filter(t => templateCategory(t) !== 'reference' || runsToTheTrim(t) || supportsUniformGap(t.placeholders, ASPECT, MARGIN, GAP))
+    .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, ASPECT, MARGIN, GAP))
   const bleeding = offered.filter(t => isBleedFeatureTemplate(t.id))
   assert.ok(bleeding.length >= 3, `count ${count} offers the family in the browser (got ${bleeding.length})`)
 }
