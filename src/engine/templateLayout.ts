@@ -141,7 +141,16 @@ export function geometrySignature(placeholders: PlaceholderRect[]): string {
 }
 
 /** Reference-style suggestions must preserve the chosen gap across neighboring frames. */
+/** Answers per frame list and setting. The same library templates are asked about on every browse,
+ *  cycle and Auto Build, with the album's one margin and gap, and the answer never changes. */
+const uniformGapMemo=new WeakMap<PlaceholderRect[],Map<string,boolean>>()
 export function supportsUniformGap(frames:PlaceholderRect[],aspect:number,marginPx:number,gapPx:number){
+ let known=uniformGapMemo.get(frames);if(!known)uniformGapMemo.set(frames,known=new Map())
+ const key=`${aspect}|${marginPx}|${gapPx}`,hit=known.get(key)
+ if(hit!==undefined)return hit
+ const answer=computeUniformGap(frames,aspect,marginPx,gapPx);known.set(key,answer);return answer
+}
+function computeUniformGap(frames:PlaceholderRect[],aspect:number,marginPx:number,gapPx:number){
  const resolved=resolveTemplateFrames(frames,aspect,marginPx,gapPx).map(p=>({x:p.x*900,y:p.y*900/aspect,width:p.width*900,height:p.height*900/aspect}))
  if(resolved.some(p=>p.width<=0||p.height<=0))return false
  for(const axis of ['x','y'] as const){

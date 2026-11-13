@@ -34,7 +34,9 @@ const TIMEOUT = { electron: 240_000, node: 120_000 }
 // The theme sweep checks the hover state of every button on about thirty-five screens in two
 // themes, waiting out each transition, so it runs for many minutes by design. It was being killed
 // at 240 seconds around screen eleven and recorded as hanging.
-const SLOW = new Map([['test-theme', 1_500_000]])
+// The balanced-layout and shape-coverage checks generate the layout family for several album shapes
+// and judge every photo mix at every count, which is minutes of honest work.
+const SLOW = new Map([['test-theme', 1_500_000], ['test-balanced-layouts', 600_000], ['test-shape-coverage', 600_000]])
 
 /** Not suite tests: these take a packaged app's path and architecture as arguments and check a
  *  build, so there is nothing for them to do on their own. Run by hand after packaging:

@@ -1,5 +1,5 @@
 import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
-import { balancedFromId, balancedTemplates } from './balancedLayouts'
+import { balancedForSequence, balancedFromId, balancedTemplates, balancedWarmSteps, sequenceKinds } from './balancedLayouts'
 import { TemplateDefinition, PlaceholderRect } from '@/types'
 import { GAP, placeGridInRect, geometrySignature, resolveTemplateFrames } from './templateLayout'
 import { generatedTemplates } from './templateGenerator'
@@ -967,6 +967,32 @@ export function matchesFrameFilter(t: TemplateDefinition, filter: TemplateFrameF
   return true
 }
 
+/** Balanced layouts drawn for these photographs in their own order, so the browser's "match timeline
+ *  order" row has real choices. Offered like the rest of the family: not to a hand-picked library. */
+export function sequenceCandidates(photos: { width: number; height: number }[], count: number, enabledTemplateIds: string[] | null, frameFilter: TemplateFrameFilter, aspect: number): TemplateDefinition[] {
+  if (enabledTemplateIds !== null || photos.length !== count || count < 2) return []
+  const all = balancedForSequence(sequenceKinds(photos), aspect)
+  return frameFilter === 'all' ? all : all.filter(t => matchesFrameFilter(t, frameFilter, aspect))
+}
+
+/** Builds what the template browsers and Auto Build will ask for, a little at a time in the
+ *  background, so the first one to open does not freeze while the library is assembled. The work is
+ *  cut into pieces of a few tens of milliseconds, one per tick, so typing, dragging and image loading
+ *  carry on between them. A newer album shape cancels an older warm-up. */
+let warming = 0
+export function warmTemplateLibrary(aspect: number) {
+  if (typeof setTimeout !== 'function' || !Number.isFinite(aspect) || aspect <= 0) return
+  const token = ++warming
+  const queue: (() => void)[] = []
+  for (let count = 2; count <= MAX_PHOTOS_PER_SPREAD; count++) queue.push(...balancedWarmSteps(count, aspect), () => { templatesForCount(count, null, 'all', aspect) })
+  const step = () => {
+    if (token !== warming) return
+    queue.shift()?.()
+    if (queue.length) setTimeout(step, 12)
+  }
+  setTimeout(step, 2500)
+}
+
 /** Returns every built-in template that fits a given photo count, for the "smart grid suggestions" picker. */
 /** Answers for one state of the library, thrown away whenever the user template registry changes.
  *  Auto Build asks this question for all thirty photo counts, several times over, for every
@@ -1022,16 +1048,25 @@ export function hasPhotoShapedFrames(t: TemplateDefinition, aspect: number): boo
   })
 }
 
+/** An id list as a set, once per list: the lists are thousands long and are tested against every
+ *  template, so `includes` on them was the slowest thing Auto Build did. */
+const idSets = new WeakMap<string[], Set<string>>()
+function idSet(ids: string[]): Set<string> {
+  let set = idSets.get(ids)
+  if (!set) idSets.set(ids, set = new Set(ids))
+  return set
+}
+
 function computeTemplatesForCount(
   count: number,
   enabledTemplateIds: string[] | null,
   frameFilter: TemplateFrameFilter,
   aspect: number
 ): TemplateDefinition[] {
-  // The balanced family is drawn for this album's own shape; a hand-picked library (enabledTemplateIds)
-  // is an explicit list, so it never gains layouts the user did not pick.
-  let builtins = [...legacy(), ...userTemplateRegistry, ...(enabledTemplateIds === null ? balancedTemplates(count, aspect) : [])].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
-  if (enabledTemplateIds !== null) builtins = builtins.filter((t) => enabledTemplateIds.includes(t.id))
+  // The balanced family is drawn for this album's own shape. A list of enabled ids (a hand-picked
+  // library, or Auto Build's own list of everything on offer) still decides what is allowed, by id.
+  let builtins = [...legacy(), ...userTemplateRegistry, ...balancedTemplates(count, aspect)].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
+  if (enabledTemplateIds !== null) { const allowed = idSet(enabledTemplateIds); builtins = builtins.filter((t) => allowed.has(t.id)) }
   if (frameFilter !== 'all') builtins = builtins.filter((t) => matchesFrameFilter(t, frameFilter, aspect))
   // Smart design is the curated shelf: only layouts whose frames are photo-shaped belong on it.
   // Anything stretched into a band is dropped — unless that leaves nothing at all for this photo
@@ -1127,7 +1162,7 @@ export function templateFamilyLabel(t: TemplateDefinition): string {
   if (t.id.startsWith('ref-storyboard-')) return 'Storyboard'
   if (t.id.startsWith('ref-mosaic-')) return 'Mosaic'
   if (t.id.startsWith('seamless-')) return 'Seamless'
-  if (t.id.startsWith('mix-')) return 'Balanced'
+  if (t.id.startsWith('mix-') || t.id.startsWith('mixseq-')) return 'Balanced'
   if (t.id.startsWith('gen-grid-') || t.id.startsWith('gen-gridcol-')) return 'Grid'
   if (t.id.startsWith('gen-hero-')) return 'Hero'
   if (t.id.startsWith('gen-split-')) return 'Split'

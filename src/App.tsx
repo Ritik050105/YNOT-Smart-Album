@@ -13,6 +13,7 @@ import { registerProjectFonts, ensureFontLoaded } from './engine/fonts'
 import HomeScreen from './components/HomeScreen'
 import NewProjectLoadingOverlay from './components/NewProjectLoadingOverlay'
 import { useProjectStore } from '@/state/projectStore'
+import { warmTemplateLibrary } from '@/engine/templates'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
 import { deserializeProjectFile, serializeProjectFile, openProjectFromPath, saveProjectToFile } from '@/engine/projectFile'
 import { loadOpenSession, persistRecovery, invalidateRecovery, clearOpenSession, OpenSessionMarker } from '@/engine/sessionMarker'
@@ -63,6 +64,10 @@ export default function App() {
   const setCurrentFilePath = useProjectStore((s) => s.setCurrentFilePath)
   const project = useProjectStore((s) => s.project)
   const revealLeftPanel = useProjectStore((s) => s.revealLeftPanel)
+  // The layouts for this album's shape are assembled in the background once the editor is open,
+  // so the first template browser or Auto Build does not wait for them.
+  const albumAspect = project.size.widthIn / project.size.heightIn
+  useEffect(() => { if (!showHome) warmTemplateLibrary(albumAspect) }, [albumAspect, showHome])
   const projectKind = project.kind
   useEffect(() => {
     const preventUnsavedClose = (event: BeforeUnloadEvent) => {

@@ -25,7 +25,7 @@ import {
   defaultPlacement,
   buildSpreadFromPlacements,
 } from '@/engine/autoLayout'
-import { builtInTemplates, uniqueTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
+import { builtInTemplates, uniqueTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, sequenceCandidates, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
 import { templateShapeMismatches } from '@/engine/templateMatching'
 import { respaceBoxes } from '@/engine/templateLayout'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
@@ -496,7 +496,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if(!count){set({templatePreview:null});return}
     const previewAspect = size.widthIn / size.heightIn / (scope === 'spread' ? 1 : 2)
     // Imported designs are browsable at any photo count, so they are preview-able at any count too.
-    if (![...templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...importedDesignTemplates(count, project.enabledTemplateIds, templateFrameFilter, previewAspect)].some(t => t.id === templateId)) return
+    // Layouts drawn for these photographs in their own order are offered by the browser too, so they are
+    // preview-able like the rest.
+    const spreadPhotos = selected.flatMap(p => { const photo = project.photos.find(ph => ph.id === p.photoId); return photo ? [photo] : [] })
+    if (![...sequenceCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...importedDesignTemplates(count, project.enabledTemplateIds, templateFrameFilter, previewAspect)].some(t => t.id === templateId)) return
     set({ templatePreview: applyPageTemplate(spread, templateId, project.photos, size.widthIn / size.heightIn, keepOrder, scope) })
   },
   toggleTemplateFavorite: (templateId) => {
