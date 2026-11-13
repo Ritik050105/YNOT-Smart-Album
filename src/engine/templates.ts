@@ -1,4 +1,5 @@
 import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
+import { balancedFromId, balancedTemplates } from './balancedLayouts'
 import { TemplateDefinition, PlaceholderRect } from '@/types'
 import { GAP, placeGridInRect, geometrySignature, resolveTemplateFrames } from './templateLayout'
 import { generatedTemplates } from './templateGenerator'
@@ -1027,7 +1028,9 @@ function computeTemplatesForCount(
   frameFilter: TemplateFrameFilter,
   aspect: number
 ): TemplateDefinition[] {
-  let builtins = [...legacy(), ...userTemplateRegistry].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
+  // The balanced family is drawn for this album's own shape; a hand-picked library (enabledTemplateIds)
+  // is an explicit list, so it never gains layouts the user did not pick.
+  let builtins = [...legacy(), ...userTemplateRegistry, ...(enabledTemplateIds === null ? balancedTemplates(count, aspect) : [])].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
   if (enabledTemplateIds !== null) builtins = builtins.filter((t) => enabledTemplateIds.includes(t.id))
   if (frameFilter !== 'all') builtins = builtins.filter((t) => matchesFrameFilter(t, frameFilter, aspect))
   // Smart design is the curated shelf: only layouts whose frames are photo-shaped belong on it.
@@ -1108,7 +1111,7 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
   if (hero) return generateHeroGrid(Number(hero[1]))
   const custom = id.match(/^custom-grid-(\d+)x(\d+)$/)
   if (custom) return generateCustomGrid(Number(custom[1]), Number(custom[2]))
-  return undefined
+  return balancedFromId(id)
 }
 
 /** Coarse family label derived from a template's id — used only to group the Template Gallery
@@ -1124,6 +1127,7 @@ export function templateFamilyLabel(t: TemplateDefinition): string {
   if (t.id.startsWith('ref-storyboard-')) return 'Storyboard'
   if (t.id.startsWith('ref-mosaic-')) return 'Mosaic'
   if (t.id.startsWith('seamless-')) return 'Seamless'
+  if (t.id.startsWith('mix-')) return 'Balanced'
   if (t.id.startsWith('gen-grid-') || t.id.startsWith('gen-gridcol-')) return 'Grid'
   if (t.id.startsWith('gen-hero-')) return 'Hero'
   if (t.id.startsWith('gen-split-')) return 'Split'
@@ -1140,6 +1144,7 @@ export const TEMPLATE_FAMILIES = [
   'All',
   'Classic',
   'Seamless',
+  'Balanced',
   'Modern',
   'Editorial',
   'Paired Pages',

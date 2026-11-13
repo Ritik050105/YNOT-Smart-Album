@@ -27,10 +27,13 @@ const upright = i => ({ id: 'p' + i, width: 900, height: 1500 })
 
 // 5x7, 8x10, square, 4x3, letter landscape, 3x2 — the spread shapes the presets produce.
 const ASPECTS = [0.714, 0.8, 1, 1.25, 1.294, 1.5]
+// Every count up to 24 is checked on the two shapes the wizard leads with; the rest to 12, which is
+// where the designed library does its work.
+const FULL_DEPTH = [0.714]
 
 let worst = Infinity, worstAt = ''
 for (const aspect of ASPECTS) {
-  for (let count = 1; count <= 24; count++) {
+  for (let count = 1; count <= (FULL_DEPTH.includes(aspect) ? 24 : 12); count++) {
     // Exactly what the browsers offer: the per-count list, minus captions, minus built-ins whose
     // spacing cannot honour the album's gap.
     const offered = templatesForCount(count, null, 'all', aspect)

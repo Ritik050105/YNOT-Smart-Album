@@ -131,8 +131,10 @@ export function supportsUniformGap(frames:PlaceholderRect[],aspect:number,margin
   for(const a of resolved)for(const b of resolved){
    const low=Math.max(a[cross],b[cross]),high=Math.min(a[cross]+a[crossDim],b[cross]+b[crossDim]),from=a[axis]+a[dim],gap=b[axis]-from
    if(a===b||high-low<.1||gap<-.1)continue
+   // The right gap is the common case, so test it first and only look for a frame in between when it is wrong.
+   if(Math.abs(gap-gapPx)<=.1)continue
    if(resolved.some(c=>c!==a&&c!==b&&c[axis]<b[axis]-.1&&c[axis]+c[dim]>from+.1&&c[cross]<high-.1&&c[cross]+c[crossDim]>low+.1))continue
-   if(Math.abs(gap-gapPx)>.1)return false
+   return false
   }
  }
  return true
