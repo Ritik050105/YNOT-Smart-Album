@@ -107,18 +107,41 @@ function variants(kinds: number[], aspect: number): Variant[] {
       add(`cols${k}-${pct(f)}-${pct(g)}`, 'Columns', boxes, f)
     }
   }
+  // One big picture with the others small, tucked over its corners or edges: the big one first, the rest in a column on top of it.
+  // (The column is one x, going down, so the photographs come out in order left to right, top to bottom.)
+  if (n >= 2 && n <= 7) {
+    const minis = r.slice(1), size = 0.34, widest = Math.max(...minis) * size
+    for (const key of ['tl', 'tr', 'bl', 'br']) {
+      const x = key[1] === 'l' ? 0.04 : r[0] - widest * 0.7
+      const boxes: Box[] = [[0, 0, r[0], 1]]
+      minis.forEach((v, i) => boxes.push([x, key[0] === 't' ? -0.05 + i * (size + 0.06) : 1.05 - size - (minis.length - 1 - i) * (size + 0.06), v * size, size]))
+      add(`over${key}`, 'Feature with Minis', boxes, 0.84)
+    }
+  }
+  // A feature picture with the rest in a row above or below it, the row as wide as the feature. Below, the feature is the first
+  // photograph; above, the second, which is where it falls in reading order (the first of the row, then the feature under it).
+  if (n >= 3 && n <= 8) {
+    for (const edge of ['top', 'bottom']) {
+      const heroIndex = edge === 'top' ? 1 : 0, rest = r.filter((_, i) => i !== heroIndex), width = r[heroIndex], gap = 0.04
+      const h = (width - gap * (rest.length - 1)) / rest.reduce((a, v) => a + v, 0)
+      const hero: Box = [0, edge === 'top' ? h + gap : 0, width, 1], row: Box[] = []
+      let x = 0
+      for (const v of rest) { row.push([x, edge === 'top' ? 0 : 1 + gap, v * h, h]); x += v * h + gap }
+      add(`rowof${edge}`, edge === 'top' ? 'Row over Feature' : 'Feature over Row', edge === 'top' ? [row[0], hero, ...row.slice(1)] : [hero, ...row], 0.88)
+    }
+  }
   // The tiled layouts of a block of another shape, set on the page with white space round it: a square block, a tall one, a
   // wide one, the page's own shape drawn smaller. Each block shape has its own arrangements, so these are different
   // patterns, not the full-page ones at another size.
-  if (n >= 2 && n <= 12) {
-    const shapes = [aspect, 1, 0.72, 2].filter((b, i, all) => all.findIndex(c => Math.abs(c - b) / b < 0.1) === i)
+  if (n >= 2 && n <= 8) {
+    const shapes = [aspect, 1, 0.72, 2, 1.33, 0.56, 1.75, 0.85].filter((b, i, all) => all.findIndex(c => Math.abs(c - b) / b < 0.1) === i)
     for (const b of shapes) {
-      const tiled = balancedForSequence(kinds, b)
+      const tiled = balancedForSequence(kinds, b, 16)
       // One of each kind of arrangement first, a few in all.
       const groups = new Map<string, typeof tiled>()
       for (const t of tiled) { const k = patternClass(t), g = groups.get(k); if (g) g.push(t); else groups.set(k, [t]) }
       const picks: typeof tiled = []
-      for (let depth = 0; picks.length < 5 && depth < 3; depth++) for (const g of groups.values()) if (g[depth] && picks.length < 5) picks.push(g[depth])
+      for (let depth = 0; picks.length < 10 && depth < 5; depth++) for (const g of groups.values()) if (g[depth] && picks.length < 10) picks.push(g[depth])
       const label = b === aspect ? 'Inset' : b === 1 ? 'Square Block' : b < 1 ? 'Tall Block' : 'Wide Block'
       // The template lists its frames in reading order, which is the photographs' order here.
       picks.forEach((t, i) => add(`frm${pct(b)}-${i}`, `Framed · ${label}`, t.placeholders.map((p): Box => [p.x * b, p.y, p.width * b, p.height]), 0.82))
@@ -138,17 +161,24 @@ export function showcaseForSequence(kinds: number[], aspect: number): TemplateDe
   if (hit) return hit
   const seen = new Set<string>(), out: TemplateDefinition[] = []
   for (const v of variants(kinds, aspectKey / KEY_SCALE)) {
-    // The matcher hands photographs to frames left to right, top to bottom: a layout is kept only if that is the order drawn.
-    if (!inOrder(v.boxes, kinds)) continue
-    const look = layoutLook(v.boxes)
-    if (seen.has(look)) continue
-    seen.add(look)
-    const id = `show-${aspectKey}-${count}-${code}-${v.key}`
-    const order = v.boxes.map((b, i) => ({ b, i })).sort((p, q) => p.b[0] - q.b[0] || p.b[1] - q.b[1])
-    out.push({
-      id, name: `Showcase · ${v.name}`, photoCount: count, pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString(), thumbnailColor: '#7a6a58',
-      placeholders: order.map(({ b: [x, y, width, height] }, i): PlaceholderRect => ({ id: `${id}-p${i}`, x, y, width, height, preferredOrientation: 'any' })),
-    })
+    // Each also stands mirrored, left to right and top to bottom: the feature on the other side, the row rising the other way. A
+    // mirror that no longer reads in the photographs' order is dropped.
+    let mirror = 0
+    for (const [flipX, flipY] of [[false, false], [true, false], [false, true], [true, true]]) {
+      const boxes = v.boxes.map(([x, y, w, h]): Box => [flipX ? 1 - x - w : x, flipY ? 1 - y - h : y, w, h])
+      // The matcher hands photographs to frames left to right, top to bottom: a layout is kept only if that is the order drawn.
+      if (!inOrder(boxes, kinds)) continue
+      const look = layoutLook(boxes)
+      if (seen.has(look)) continue
+      seen.add(look)
+      const id = `show-${aspectKey}-${count}-${code}-${v.key}${mirror ? `m${mirror}` : ''}`
+      mirror++
+      const order = boxes.map((b, i) => ({ b, i })).sort((p, q) => p.b[0] - q.b[0] || p.b[1] - q.b[1])
+      out.push({
+        id, name: `Showcase · ${v.name}`, photoCount: count, pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString(), thumbnailColor: '#7a6a58',
+        placeholders: order.map(({ b: [x, y, width, height] }, i): PlaceholderRect => ({ id: `${id}-p${i}`, x, y, width, height, preferredOrientation: 'any' })),
+      })
+    }
   }
   if (cache.size > 300) cache.clear()
   cache.set(cacheKey, out)

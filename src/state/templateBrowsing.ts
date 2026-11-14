@@ -48,7 +48,7 @@ export function cyclingTemplates(project:Project,spread:Spread,filter:TemplateFr
  if(hit&&hit.deps.every((v,i)=>v===deps[i])){cycleLists.delete(key);cycleLists.set(key,hit);return hit.list}
  const collections=readCollectionsShared()
  const list=[...sequenceCandidates(photos,count,project.enabledTemplateIds,filter,aspect),...templatesForCount(count,project.enabledTemplateIds,filter,aspect),...showcaseCandidates(photos,count,project.enabledTemplateIds,filter,aspect),...importedDesignTemplates(count,project.enabledTemplateIds,filter,aspect)].filter(t=>(!favoritesOnly||favorites.includes(t.id))&&(kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length)&&categories[templateCategory(t)]&&matchesCollection(t.id,collection,collections,favorites)&&(templateCategory(t)!=='reference'||supportsUniformGap(t.placeholders,aspect,spread.marginPx,spread.gapPx)))
- const offered=varyPatterns(offeredLayouts(photos.length===count?photos:[],list,aspect,spread.marginPx,spread.gapPx,true,true),t=>t)
+ const offered=varyPatterns(offeredLayouts(photos.length===count?photos:[],list,aspect,spread.marginPx,spread.gapPx,true,true),t=>t,aspect)
  cycleLists.set(key,{deps,list:offered})
  if(cycleLists.size>160)cycleLists.delete(cycleLists.keys().next().value!)
  return offered

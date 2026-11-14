@@ -3,8 +3,8 @@ import {previewSource} from '@/engine/previewImage'
 import { usePreferences } from '@/state/preferences'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Spread, PhotoAsset, AlbumSize } from '@/types'
-import { computePlaceholderBoxes } from '@/engine/layoutMath'
-import { renderSpreadToCanvas } from '@/engine/renderSpread'
+import { DESIGN_WIDTH, computePlaceholderBoxes } from '@/engine/layoutMath'
+import { drawPlacement, drawSpreadBackground, drawUnusedPage, renderSpreadToCanvas } from '@/engine/renderSpread'
 
 interface Props {
   spread: Spread
@@ -21,14 +21,6 @@ interface Props {
 /** How long photographs take to move to their places in the new layout. */
 const MOVE_MS=260
 
-/** A copy of what a canvas shows now. */
-function snapshotOf(canvas:HTMLCanvasElement){
-  const copy=document.createElement('canvas')
-  copy.width=canvas.width;copy.height=canvas.height
-  copy.getContext('2d')?.drawImage(canvas,0,0)
-  return copy
-}
-
 /** A frame as fractions of the card (0-1 each way). */
 type Rect={x:number;y:number;w:number;h:number}
 
@@ -42,38 +34,36 @@ function frameRects(spread:Spread,previewHeight:number){
   return out
 }
 
-/** `source`'s region `from`, scaled to cover `to` on the canvas (the middle is kept, the overflow cropped), at `alpha`. */
-function drawCover(ctx:CanvasRenderingContext2D,source:HTMLCanvasElement,from:Rect,to:Rect,alpha:number){
-  const W=ctx.canvas.width,H=ctx.canvas.height
-  const sx=from.x*source.width,sy=from.y*source.height,sw=from.w*source.width,sh=from.h*source.height
-  const dx=to.x*W,dy=to.y*H,dw=to.w*W,dh=to.h*H
-  if(sw<1||sh<1||dw<1||dh<1)return
-  const scale=Math.max(dw/sw,dh/sh),cw=dw/scale,ch=dh/scale
-  ctx.globalAlpha=alpha
-  ctx.save();ctx.beginPath();ctx.rect(dx,dy,dw,dh);ctx.clip()
-  ctx.drawImage(source,sx+(sw-cw)/2,sy+(sh-ch)/2,cw,ch,dx,dy,dw,dh)
-  ctx.restore();ctx.globalAlpha=1
-}
-
-/** One step of the move: every photograph that is in both layouts travels from where it was to where it goes, changing size on the
- *  way; the others fade in. `t` is 0-1 along the way, already eased. */
-function drawMove(canvas:HTMLCanvasElement,background:string,leaving:HTMLCanvasElement,arriving:HTMLCanvasElement,from:Map<string,Rect>,to:Map<string,Rect>,order:string[],t:number){
-  if(canvas.width!==arriving.width||canvas.height!==arriving.height){canvas.width=arriving.width;canvas.height=arriving.height}
+/** One step of the move: every photograph that is in both layouts is drawn, from its own picture, in the frame it has got to on
+ *  the way from its old place to its new one. The picture is cropped to the frame as it is at that moment, so a photograph
+ *  changing shape on the way keeps showing the same subject and nothing fades; photographs that were not on the spread
+ *  fade in. `t` is 0-1 along the way, already eased. Returns where each one was drawn. */
+async function drawMove(canvas:HTMLCanvasElement,base:HTMLCanvasElement,spread:Spread,photos:Map<string,PhotoAsset>,from:Map<string,Rect>,to:Map<string,Rect>,t:number){
+  if(canvas.width!==base.width||canvas.height!==base.height){canvas.width=base.width;canvas.height=base.height}
   const ctx=canvas.getContext('2d')
-  if(!ctx)return new Map<string,Rect>()
-  ctx.clearRect(0,0,canvas.width,canvas.height)
-  ctx.fillStyle=background;ctx.fillRect(0,0,canvas.width,canvas.height)
   const shown=new Map<string,Rect>()
-  for(const id of order){
-    const end=to.get(id),start=from.get(id)
-    if(!end)continue
-    if(!start){drawCover(ctx,arriving,end,end,t);shown.set(id,end);continue}
-    const here:Rect={x:start.x+(end.x-start.x)*t,y:start.y+(end.y-start.y)*t,w:start.w+(end.w-start.w)*t,h:start.h+(end.h-start.h)*t}
-    // The picture the photograph had, fading into the one it is getting, both held to the frame as it is now.
-    drawCover(ctx,leaving,start,here,1)
-    if(t>0)drawCover(ctx,arriving,end,here,t)
-    shown.set(id,here)
+  if(!ctx)return shown
+  const W=canvas.width,H=canvas.height,scale=W/DESIGN_WIDTH
+  ctx.globalAlpha=1
+  ctx.drawImage(base,0,0)
+  // In the order the spread layers them. Each photograph is drawn straight onto the card (its picture was loaded for the
+  // final render, so this never waits on the network), except one that was not there before, which fades in from its own sheet.
+  for(const pl of spread.placements){
+    const end=pl.photoId?to.get(pl.photoId):undefined,photo=pl.photoId?photos.get(pl.photoId):undefined
+    if(!pl.photoId||!end||!photo||pl.hidden)continue
+    const start=from.get(pl.photoId),here:Rect=start?{x:start.x+(end.x-start.x)*t,y:start.y+(end.y-start.y)*t,w:start.w+(end.w-start.w)*t,h:start.h+(end.h-start.h)*t}:end
+    const box={placeholderId:pl.placeholderId,x:here.x*W,y:here.y*H,width:here.w*W,height:here.h*H}
+    if(start)await drawPlacement(ctx,box,pl,photo,scale)
+    else{
+      const sheet=document.createElement('canvas')
+      sheet.width=W;sheet.height=H
+      const sheetContext=sheet.getContext('2d')
+      if(sheetContext)await drawPlacement(sheetContext,box,pl,photo,scale)
+      ctx.globalAlpha=t;ctx.drawImage(sheet,0,0);ctx.globalAlpha=1
+    }
+    shown.set(pl.photoId,here)
   }
+  drawUnusedPage(ctx,spread,W,H)
   return shown
 }
 
@@ -116,10 +106,10 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
     setFailed(false)
     const prior = lastSeen.current, priorGeometry = lastGeometry.current
     lastSeen.current = spread
-    // What the card shows right now, kept as it is: the layout it is leaving. If a slide is half done (a key held down), this is
-    // that half-done picture, so the next slide carries on from it instead of jumping back to where the last one began.
+    // Whether the card shows something to move away from. If a move is half done (a key held down), the next one carries on from
+    // where each photograph has got to (shownRects), instead of jumping back to where the last one began.
     const mayChangeLayout = !!prior && (prior.templateId !== spread.templateId || prior.customBoxes !== spread.customBoxes)
-    const leaving = mayChangeLayout && canvasRef.current && canvasRef.current.width > 0 ? snapshotOf(canvasRef.current) : null
+    const leaving = mayChangeLayout && !!canvasRef.current && canvasRef.current.width > 0
     void Promise.all([...photosById].filter(([id])=>spread.placements.some(p=>p.photoId===id)).map(async([id,p])=>[id,{...p,src:await previewSource(p.src)}] as const)).then(async entries=>{
       const geometry=JSON.stringify([spread.templateId,spread.customBoxes,spread.placements.map(p=>p.photoId)])
       lastGeometry.current=geometry
@@ -138,13 +128,20 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
         const previewHeight=100*size.heightIn/size.widthIn
         const to=frameRects(spread,previewHeight)
         const from=new Map(frameRects(prior,previewHeight));for(const [id,rect] of shownRects.current??[])if(to.has(id))from.set(id,rect)
-        const order=spread.placements.flatMap(p=>p.photoId?[p.photoId]:[]),background=spread.backgroundHidden?'#fff':spread.backgroundColor
+        // The background (and anything drawn behind the photographs) is made once; the photographs are drawn over it every step.
+        const base=document.createElement('canvas')
+        base.width=rendered.width;base.height=rendered.height
+        const baseContext=base.getContext('2d')
+        if(baseContext)await drawSpreadBackground(baseContext,spread,base.width,base.height)
+        const photos=new Map(entries.map(([id,p])=>[id,p as PhotoAsset]))
         const start=performance.now()
         while(!cancelled){
           const canvas=canvasRef.current
           if(!canvas)return null
           const k=Math.min(1,(performance.now()-start)/MOVE_MS),t=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2
-          shownRects.current=drawMove(canvas,background,leaving,rendered,from,to,order,t)
+          const shown=await drawMove(canvas,base,spread,photos,from,to,t)
+          if(cancelled)return null
+          shownRects.current=shown
           if(k===1)break
           await new Promise(requestAnimationFrame)
         }

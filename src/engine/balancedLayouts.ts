@@ -486,7 +486,7 @@ function columnCuts(count: number, random: () => number, draws: number): number[
   return out
 }
 
-function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number): Candidate[] {
+function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number, keep: number): Candidate[] {
   const count = kinds.length
   const random = rng(codeOf(kinds) % 2147483647 * 7919 + count * 131 + aspectKey)
   const found = new Map<string, Candidate>()
@@ -496,8 +496,8 @@ function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number): Ca
   // columns, which is how the matcher reads; the rest are free-form and kept if they happen to match.
   const max = budget(count).max * 12
   const partitions = columnCuts(count, random, 600)
-  for (let round = 0; round < 3 && kept.length < KEEP_PER_MIX; round++) {
-    for (let s = 0; s < max + partitions.length * 2 && found.size < KEEP_PER_MIX * 2; s++) {
+  for (let round = 0; round < 3 && kept.length < keep; round++) {
+    for (let s = 0; s < max + partitions.length * 2 && found.size < keep * 2; s++) {
       // Half of the work is columns, taken partition by partition, which covers an order far more evenly
       // than chance does; the rest is the free-form search, for the layouts columns cannot make.
       const drawn: Box[] = s < partitions.length * 2 ? columnsFor(kinds, partitions[s % partitions.length], random, aspect, s >= partitions.length) : new Array(count)
@@ -518,7 +518,7 @@ function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number): Ca
       if (ok === undefined) holds.set(c, ok = gapHolds(c.boxes, aspect))
       if (ok) good.push(c)
     }
-    kept.push(...diverse(good).slice(0, KEEP_PER_MIX))
+    kept.push(...diverse(good).slice(0, keep))
   }
   return kept
 }
@@ -526,17 +526,19 @@ function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number): Ca
 const sequenceCache = new Map<string, TemplateDefinition[]>()
 
 /** Balanced layouts whose frames come out in the order of these photographs' shapes. */
-export function balancedForSequence(kinds: number[], aspect: number): TemplateDefinition[] {
+/** `keep` is how many layouts to search for before stopping: the browser's own list wants plenty, a caller that only needs a handful to choose from
+ *  (the framed blocks) asks for fewer and gets them several times faster. */
+export function balancedForSequence(kinds: number[], aspect: number, keep = KEEP_PER_MIX): TemplateDefinition[] {
   const count = kinds.length
   if (count < 2 || count > MAX_PHOTOS_PER_SPREAD || !Number.isFinite(aspect) || aspect <= 0) return []
-  const aspectKey = keyFor(aspect), code = codeOf(kinds), cacheKey = `${aspectKey}|${count}|${code}`
+  const aspectKey = keyFor(aspect), code = codeOf(kinds), cacheKey = `${aspectKey}|${count}|${code}|${keep}`
   const hit = sequenceCache.get(cacheKey)
   if (hit) return hit
   const aspectOf = aspectKey / KEY_SCALE
   // Mirrored, the way the mix shelf is: a mirror that still reads in the photographs' order is another composition.
   const boxesList: Box[][] = []
   const seen = new Set<string>()
-  for (const c of sequenceLayouts(kinds, aspectOf, aspectKey)) {
+  for (const c of sequenceLayouts(kinds, aspectOf, aspectKey, keep)) {
     for (const [flipX, flipY] of [[false, false], [true, false], [false, true], [true, true]]) {
       const boxes = c.boxes.map(([x, y, w, h]): Box => [flipX ? 1 - x - w : x, flipY ? 1 - y - h : y, w, h])
       const look = layoutLook(boxes)

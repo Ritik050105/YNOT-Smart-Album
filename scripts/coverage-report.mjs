@@ -3,8 +3,8 @@
 //   node scripts/coverage-report.mjs [--full]
 import { build } from 'esbuild'
 const result = await build({
-  stdin: { contents: `export {templatesForCount,sequenceCandidates,mixCandidates,uniqueTemplates} from './src/engine/templates'
-export {offeredLayouts} from './src/engine/layoutOffer'
+  stdin: { contents: `export {templatesForCount,sequenceCandidates,mixCandidates,showcaseCandidates,uniqueTemplates} from './src/engine/templates'
+export {offeredLayouts,varyPatterns} from './src/engine/layoutOffer'
 export {supportsUniformGap} from './src/engine/templateLayout'
 export {templateCategory} from './src/engine/templateTransfer'`, resolveDir: process.cwd() },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
@@ -17,9 +17,9 @@ const MARGIN = 3, GAP = 6
 const ASPECTS = [['18x12', 1.5], ['15x12', 1.25], ['15x15', 1], ['12x17.7', 12.007 / 17.717]]
 function offered(word, aspect, keepOrder) {
   const set = photos(word), n = set.length
-  const c = m.uniqueTemplates([...m.sequenceCandidates(set, n, null, 'all', aspect), ...m.mixCandidates(set, n, null, 'all', aspect), ...m.templatesForCount(n, null, 'all', aspect)])
+  const c = m.uniqueTemplates([...m.sequenceCandidates(set, n, null, 'all', aspect), ...m.mixCandidates(set, n, null, 'all', aspect), ...m.showcaseCandidates(set, n, null, 'all', aspect), ...m.templatesForCount(n, null, 'all', aspect)])
     .filter(t => !t.textBoxes?.length && (m.templateCategory(t) !== 'reference' || m.supportsUniformGap(t.placeholders, aspect, MARGIN, GAP)))
-  return m.offeredLayouts(set, c, aspect, MARGIN, GAP, keepOrder, true).length
+  return m.varyPatterns(m.offeredLayouts(set, c, aspect, MARGIN, GAP, keepOrder, true), t => t, aspect).length
 }
 // A representative set of mixes per count; --full tries every mix (slow).
 function mixes(n) {
@@ -48,7 +48,7 @@ for (const [name, aspect] of ASPECTS) {
     if (counts.length && !counts.includes(n)) continue
     const rows = mixes(n).map(w => [w, offered(w, aspect, false), offered(w, aspect, true)])
     const free = rows.map(r => r[1]).sort((a, b) => a - b), ordered = rows.map(r => r[2]).sort((a, b) => a - b)
-    const thin = rows.filter(r => Math.min(r[1], r[2]) < 30).map(r => `${r[0].length > 10 ? r[0].slice(0, 10) + '…' : r[0]}:${r[1]}/${r[2]}`)
-    console.log(`n=${String(n).padStart(2)} mixes ${String(rows.length).padStart(3)} | free min ${String(free[0]).padStart(3)} med ${String(free[free.length >> 1]).padStart(3)} | ordered min ${String(ordered[0]).padStart(3)} med ${String(ordered[ordered.length >> 1]).padStart(3)} | either under 30: ${thin.length}${thin.length ? ' (' + thin.slice(0, 5).join(' ') + (thin.length > 5 ? ' …' : '') + ')' : ''}`)
+    const thin = rows.filter(r => Math.min(r[1], r[2]) < 50).map(r => `${r[0].length > 10 ? r[0].slice(0, 10) + '…' : r[0]}:${r[1]}/${r[2]}`)
+    console.log(`n=${String(n).padStart(2)} mixes ${String(rows.length).padStart(3)} | free min ${String(free[0]).padStart(3)} med ${String(free[free.length >> 1]).padStart(3)} | ordered min ${String(ordered[0]).padStart(3)} med ${String(ordered[ordered.length >> 1]).padStart(3)} | either under 50: ${thin.length}${thin.length ? ' (' + thin.slice(0, 5).join(' ') + (thin.length > 5 ? ' …' : '') + ')' : ''}`)
   }
 }

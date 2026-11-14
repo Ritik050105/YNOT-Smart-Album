@@ -35,6 +35,13 @@ export function uniformGapLayouts(templates: TemplateDefinition[], aspect: numbe
   return kept.length ? kept : templates
 }
 
+/** The widest or tallest a built-in frame may be: past about two to one a frame stops being a photograph and becomes a
+ *  strip, and a photograph cropped into one loses most of itself. Designers can still draw one by hand. */
+const NORMAL_RATIO = 2.5
+export function normalFrames(t: TemplateDefinition, aspect: number) {
+  return t.placeholders.every(p => { const ratio = (p.width * aspect) / p.height; return ratio <= NORMAL_RATIO && ratio >= 1 / NORMAL_RATIO })
+}
+
 /** Layouts with an even border all round and frames of comparable size, which is what the album's
  *  margin and gap settings promise. Full-bleed designs are exempt, since running to the trim is
  *  their point. Kept only while enough of them remain to choose from. */
@@ -59,7 +66,9 @@ const extent = (t: TemplateDefinition) => {
  *  order given), then the second best of each, and so on. And drops layouts that are only a slightly different size
  *  of one already on the shelf: the same arrangement of frames, in the same block of the page, is one layout; what
  *  differs between two such is a cut a few percent one way or the other, which nobody picks between. */
-export function varyPatterns<T>(items: T[], templateOf: (item: T) => TemplateDefinition): T[] {
+export function varyPatterns<T>(items: T[], templateOf: (item: T) => TemplateDefinition, aspect?: number): T[] {
+  // The browsers do not offer a strip (Auto Build, which must find a fit for every photograph, still may use one).
+  if (aspect) { const normal = items.filter(item => { const t = templateOf(item); return !t.isBuiltIn || normalFrames(t, aspect) }); if (normal.length >= MIN_EVEN_LAYOUTS) items = normal }
   const groups = new Map<string, T[]>()
   const seen = new Set<string>()
   for (const item of items) {
