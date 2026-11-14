@@ -4,7 +4,7 @@ import { usePreferences } from '@/state/preferences'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Spread, PhotoAsset, AlbumSize } from '@/types'
 import { DESIGN_WIDTH, computePlaceholderBoxes } from '@/engine/layoutMath'
-import { drawPlacement, drawSpreadBackground, drawUnusedPage, renderSpreadToCanvas } from '@/engine/renderSpread'
+import { drawPlacement, drawSpreadBackground, drawTextBox, drawUnusedPage, renderSpreadToCanvas } from '@/engine/renderSpread'
 
 interface Props {
   spread: Spread
@@ -38,12 +38,14 @@ function frameRects(spread:Spread,previewHeight:number){
  *  the way from its old place to its new one. The picture is cropped to the frame as it is at that moment, so a photograph
  *  changing shape on the way keeps showing the same subject and nothing fades; photographs that were not on the spread
  *  fade in. `t` is 0-1 along the way, already eased. Returns where each one was drawn. */
-async function drawMove(canvas:HTMLCanvasElement,base:HTMLCanvasElement,spread:Spread,photos:Map<string,PhotoAsset>,from:Map<string,Rect>,to:Map<string,Rect>,t:number){
-  if(canvas.width!==base.width||canvas.height!==base.height){canvas.width=base.width;canvas.height=base.height}
-  const ctx=canvas.getContext('2d')
+async function drawMove(canvas:HTMLCanvasElement,stage:HTMLCanvasElement,base:HTMLCanvasElement,spread:Spread,photos:Map<string,PhotoAsset>,from:Map<string,Rect>,to:Map<string,Rect>,t:number){
+  if(stage.width!==base.width||stage.height!==base.height){stage.width=base.width;stage.height=base.height}
+  const ctx=stage.getContext('2d')
   const shown=new Map<string,Rect>()
   if(!ctx)return shown
-  const W=canvas.width,H=canvas.height,scale=W/DESIGN_WIDTH
+  // As the final render is drawn, so the last step of the move and the finished picture match.
+  ctx.imageSmoothingQuality='high'
+  const W=stage.width,H=stage.height,scale=W/DESIGN_WIDTH
   ctx.globalAlpha=1
   ctx.drawImage(base,0,0)
   // In the order the spread layers them. Each photograph is drawn straight onto the card (its picture was loaded for the
@@ -63,7 +65,13 @@ async function drawMove(canvas:HTMLCanvasElement,base:HTMLCanvasElement,spread:S
     }
     shown.set(pl.photoId,here)
   }
+  // Captions and other text do not travel, but they are there throughout, so they do not appear at the end.
+  for(const box of spread.textBoxes??[])if(!box.hidden)await drawTextBox(ctx,box,W,H)
   drawUnusedPage(ctx,spread,W,H)
+  // The whole frame goes to the card at once: whatever was waited for while drawing it, the card never shows a half-drawn one.
+  if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H}
+  const visible=canvas.getContext('2d')
+  if(visible){visible.clearRect(0,0,W,H);visible.drawImage(stage,0,0)}
   return shown
 }
 
@@ -84,9 +92,12 @@ function drawFrame(canvas:HTMLCanvasElement,frame:HTMLCanvasElement){
  *  maps, so an unchanged spread costs nothing. */
 function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, selectedPlaceholderId, dropPlaceholderId, dropRefused }: Props) {
   const animations=usePreferences(s=>s.values.animations)
-  const lastGeometry=useRef<string>()
-  const previousSpread=useRef<Spread>()
-  const lastSeen=useRef<Spread>()
+  /** The layout the card last finished drawing. A move is measured from this, not from whichever spread object came just before:
+   *  a layout change is often followed at once by a second update to the spread (a crop settling, a flag set), and measured from
+   *  that one the card would see "no change of layout", drop the move in progress and jump to the end. */
+  const settled=useRef<{spread:Spread;geometry:string}>()
+  const photosRef=useRef(photosById)
+  photosRef.current=photosById
   /** Where each photograph is drawn on the card right now, so a move begun mid-move carries on from there. */
   const shownRects=useRef<Map<string,Rect>>()
   const highResolution=usePreferences(s=>s.values.highResolution)
@@ -101,18 +112,23 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
     observer.observe(element)
     return () => observer.disconnect()
   }, [responsive, width])
+  // What this card draws depends on the photographs it shows, not on the rest of the project's: a change to any other photograph
+  // (one more finished importing, a subject found) used to restart every card's drawing, and cut short a move in progress.
+  const usedPhotos = spread.placements.map(p => p.photoId ? `${p.photoId}:${photosById.get(p.photoId)?.src ?? ''}` : '').join('|')
   useEffect(() => {
     let cancelled = false
     setFailed(false)
-    const prior = lastSeen.current, priorGeometry = lastGeometry.current
-    lastSeen.current = spread
+    const photosById = photosRef.current
+    const prior = settled.current?.spread, priorGeometry = settled.current?.geometry
+    const geometry = JSON.stringify([spread.templateId, spread.customBoxes, spread.placements.map(p => p.photoId)])
     // Whether the card shows something to move away from. If a move is half done (a key held down), the next one carries on from
     // where each photograph has got to (shownRects), instead of jumping back to where the last one began.
-    const mayChangeLayout = !!prior && (prior.templateId !== spread.templateId || prior.customBoxes !== spread.customBoxes)
-    const leaving = mayChangeLayout && !!canvasRef.current && canvasRef.current.width > 0
+    const inMotion = !!shownRects.current
+    const layoutDiffers = !!prior && (prior.templateId !== spread.templateId || prior.customBoxes !== spread.customBoxes) && priorGeometry !== geometry
+    // Also when a move is under way and is asked to go back to where it began (Next then Previous quickly): the layout then equals the
+    // settled one, but the photographs are somewhere between, and must travel back rather than jump.
+    const leaving = (layoutDiffers || inMotion) && !!canvasRef.current && canvasRef.current.width > 0
     void Promise.all([...photosById].filter(([id])=>spread.placements.some(p=>p.photoId===id)).map(async([id,p])=>[id,{...p,src:await previewSource(p.src)}] as const)).then(async entries=>{
-      const geometry=JSON.stringify([spread.templateId,spread.customBoxes,spread.placements.map(p=>p.photoId)])
-      lastGeometry.current=geometry
       const dpi=(highResolution?renderWidth:Math.min(420,renderWidth))/size.widthIn
       // Presses that arrive faster than the screen redraws would each render a picture nobody sees: wait for the next frame, and
       // the effect of every press but the last has been cancelled by then. (A window that is not being drawn does not run
@@ -123,8 +139,7 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
       if(cancelled)return null
       // A change of layout moves the photographs: each one that is in both layouts glides from its old frame to its new one,
       // growing or shrinking on the way, as the pictures take their new places on the spread.
-      const layoutChanged=prior&&(prior.templateId!==spread.templateId||prior.customBoxes!==spread.customBoxes)
-      if(animations&&leaving&&layoutChanged&&priorGeometry!==geometry&&!canvasRef.current?.parentElement?.hasAttribute('data-overview-dragging')){
+      if(animations&&leaving&&prior&&!canvasRef.current?.parentElement?.hasAttribute('data-overview-dragging')){
         const previewHeight=100*size.heightIn/size.widthIn
         const to=frameRects(spread,previewHeight)
         const from=new Map(frameRects(prior,previewHeight));for(const [id,rect] of shownRects.current??[])if(to.has(id))from.set(id,rect)
@@ -134,12 +149,13 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
         const baseContext=base.getContext('2d')
         if(baseContext)await drawSpreadBackground(baseContext,spread,base.width,base.height)
         const photos=new Map(entries.map(([id,p])=>[id,p as PhotoAsset]))
+        const stage=document.createElement('canvas')
         const start=performance.now()
         while(!cancelled){
           const canvas=canvasRef.current
           if(!canvas)return null
           const k=Math.min(1,(performance.now()-start)/MOVE_MS),t=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2
-          const shown=await drawMove(canvas,base,spread,photos,from,to,t)
+          const shown=await drawMove(canvas,stage,base,spread,photos,from,to,t)
           if(cancelled)return null
           shownRects.current=shown
           if(k===1)break
@@ -150,12 +166,12 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
     }).then((rendered) => {
       const canvas = canvasRef.current
       if (cancelled || !canvas || !rendered) return
-      previousSpread.current=spread
+      settled.current={spread,geometry}
       shownRects.current=undefined
       drawFrame(canvas,rendered)
     }).catch(() => { if (!cancelled) setFailed(true) })
     return () => { cancelled = true }
-  }, [spread, photosById, size, renderWidth, highResolution])
+  }, [spread, usedPhotos, size, renderWidth, highResolution])
 
   const previewHeight = 100 * size.heightIn / size.widthIn
   // Once per card, not twice per render. Every card in the overview runs this, and resolving a
