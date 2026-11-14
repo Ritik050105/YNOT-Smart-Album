@@ -3,7 +3,7 @@ import {useTemplateBrowsing} from '@/state/templateBrowsing'
 import {askTemplateCategory} from './ClassifyTemplate'
 import ContextMenu from './ContextMenu'
 import {classifyTemplates,useTemplateCollections,matchesCollection} from '@/engine/templateCollections'
-import {offeredLayouts} from '@/engine/layoutOffer'
+import {offeredLayouts,varyPatterns} from '@/engine/layoutOffer'
 import {supportsUniformGap} from '@/engine/templateLayout'
 import TemplateTransfer from './TemplateTransfer'
 import {templateCategory} from '@/engine/templateTransfer'
@@ -103,8 +103,8 @@ export default function MatchingTemplatesPanel() {
       const missed = new Map(fitting.map(t => [t.id, photos.length === count ? mismatches(photos, t, aspect, marginPx, gapPx) : 0]))
       return { fitting, missed }
     }
-    return (count > 1 ? [false, true] : [true]).map(keepOrder => { const rowKeep = !autoRearrange || keepOrder, { fitting, missed } = shelf(rowKeep); return (rankTemplates(photos, fitting, aspect, rowKeep, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
-      .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(b.template.id)) - Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))) })
+    return (count > 1 ? [false, true] : [true]).map(keepOrder => { const rowKeep = !autoRearrange || keepOrder, { fitting, missed } = shelf(rowKeep); return varyPatterns((rankTemplates(photos, fitting, aspect, rowKeep, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
+      .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(b.template.id)) - Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))), r => r.template) })
   }, [kind,collection,collections,userTemplates, categories, open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
   useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [kind,collection, categories, userTemplates, open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
   useEffect(() => {

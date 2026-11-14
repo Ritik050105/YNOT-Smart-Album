@@ -8,7 +8,9 @@ const result = await build({
   stdin: {
     contents: `export {cyclingTemplates,cyclingCount} from './src/state/templateBrowsing'
 export {createBlankSpread,defaultPlacement} from './src/engine/autoLayout'
-export {setUserTemplateRegistry,templatesForCount} from './src/engine/templates'
+export {setUserTemplateRegistry,templatesForCount,isStaircase,arrangementSignature,findTemplate} from './src/engine/templates'
+export {varyPatterns,patternClass} from './src/engine/layoutOffer'
+export {balancedTemplates} from './src/engine/balancedLayouts'
 export {templateFramesInReadingOrder} from './src/engine/templateMatching'
 export {resolveTemplateFramesShared} from './src/engine/templateLayout'
 export {readCollectionsShared} from './src/engine/templateCollections'`,
@@ -55,4 +57,23 @@ assert.equal(m.resolveTemplateFramesShared(t.placeholders, 1.5, 3, 6), m.resolve
 assert.notEqual(m.resolveTemplateFramesShared(t.placeholders, 1.5, 3, 6), m.resolveTemplateFramesShared(t.placeholders, 1.5, 3, 12))
 assert.equal(m.readCollectionsShared(), m.readCollectionsShared(), 'saved collections are parsed once per change')
 
+// Patterns: Next walks through different arrangements, not one cut at five sizes, and the rising staircase is gone.
+{
+  const frame = (x, y, width, height) => ({ id: `f${x}${y}`, x, y, width, height, preferredOrientation: 'any' })
+  const rising = { placeholders: [frame(0, 0, 0.16, 1), frame(0.16, 0.18, 0.16, 0.82), frame(0.32, 0.36, 0.16, 0.64), frame(0.5, 0, 0.5, 1)], id: 'x' }
+  assert.ok(m.isStaircase(rising), 'frames stepping down from a shared bottom edge are a staircase')
+  const grid = { placeholders: [frame(0, 0, 0.33, 0.5), frame(0.33, 0, 0.33, 0.5), frame(0.66, 0, 0.34, 0.5), frame(0, 0.5, 1, 0.5)], id: 'y' }
+  assert.ok(!m.isStaircase(grid), 'a grid is not')
+  for (const n of [2, 3, 4, 13]) for (const side of ['left', 'right']) assert.ok(m.findTemplate(`gen-full-${side}-cascade-${n}`) && m.isStaircase(m.findTemplate(`gen-full-${side}-cascade-${n}`)), `cascade ${n} resolves for old albums and counts as a staircase`)
+  for (let n = 2; n <= 24; n++) for (const t of m.balancedTemplates(n, 1.5)) assert.ok(!m.isStaircase(t), `${t.id} is a tiling, not a staircase`)
+  for (const count of [4, 6, 9]) {
+    const { project, spread } = make(count)
+    const list = m.cyclingTemplates(project, spread, 'all', none)
+    const keys = list.map(t => `${t.pageSide}:${t.placeholders.length}:${t.textBoxes?.length ?? 0}:${m.patternClass(t)}`)
+    const distinct = new Set(keys).size
+    assert.ok(distinct >= 2, `${count} photos have arrangements to cycle through (got ${distinct} of ${list.length})`)
+    // The first run of presses never repeats an arrangement until every arrangement has been shown once.
+    assert.equal(new Set(keys.slice(0, distinct)).size, distinct, `${count} photos: the first ${distinct} presses are ${distinct} different pattern classes`)
+  }
+}
 console.log(`Cycling speed checks passed: a repeated press is a lookup (${perPress.toFixed(3)} ms), and the answer is recomputed only when the photographs, album shape, margin, gap, filters or template library change.`)

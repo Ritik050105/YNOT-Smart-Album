@@ -851,7 +851,7 @@ function withoutAuthoredMargin(frames: PlaceholderRect[]): PlaceholderRect[] {
     width: p.width / width, height: p.height / height }))
 }
 
-function arrangementSignature(authored: PlaceholderRect[]): string {
+export function arrangementSignature(authored: PlaceholderRect[]): string {
   const cached = arrangementCache.get(authored)
   if (cached !== undefined) return cached
   // Authored gutters are not part of the arrangement. The same pair of photographs side by side is
@@ -886,6 +886,40 @@ function arrangementSignature(authored: PlaceholderRect[]): string {
   return signature
 }
 
+/** A run of three or more frames side by side that step down (or up) in height from a shared top or bottom edge,
+ *  or the same stacked with stepping widths: the "rising" staircase. It leaves a ragged blank wedge on the page
+ *  and every frame but one is a different size for no reason but the effect, so the library does not offer it. */
+export function isStaircase(t: TemplateDefinition): boolean {
+  // The family built to be one, whatever its step size works out to at this photo count.
+  if (/^gen-full-(left|right)-cascade-/.test(t.id)) return true
+  const f = t.placeholders
+  if (f.length < 3) return false
+  const near = (a: number, b: number) => Math.abs(a - b) < 0.02
+  for (const horizontal of [true, false]) {
+    const [pos, size, cross, crossSize] = horizontal ? (['x', 'width', 'y', 'height'] as const) : (['y', 'height', 'x', 'width'] as const)
+    const sorted = [...f].sort((a, b) => a[pos] - b[pos])
+    let run = [sorted[0]]
+    // Any three or more neighbours inside a run, so a full-page photo sitting beside the steps does not hide them.
+    const flush = () => {
+      for (let from = 0; from + 2 < run.length; from++) for (let to = from + 3; to <= run.length; to++) {
+        const part = run.slice(from, to), sizes = part.map(p => p[crossSize])
+        const steps = sizes.slice(1).map((v, i) => v - sizes[i])
+        const monotone = steps.every(d => d <= -0.04) || steps.every(d => d >= 0.04)
+        const sharedStart = part.every(p => near(p[cross], part[0][cross])), sharedEnd = part.every(p => near(p[cross] + p[crossSize], part[0][cross] + part[0][crossSize]))
+        if (monotone && (sharedStart || sharedEnd)) return true
+      }
+      return false
+    }
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = run[run.length - 1], p = sorted[i]
+      if (Math.abs(p[pos] - (prev[pos] + prev[size])) < 0.03) run.push(p)
+      else { if (flush()) return true; run = [p] }
+    }
+    if (flush()) return true
+  }
+  return false
+}
+
 export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefinition[] {
   const seen = new Set<string>()
   return templates.filter(t => {
@@ -914,7 +948,7 @@ export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefini
  *  reading it. */
 let builtIn: TemplateDefinition[] | null = null
 export function builtInTemplates(): TemplateDefinition[] {
-  if (!builtIn) builtIn = uniqueTemplates(legacy().filter((t) => t.photoCount <= MAX_PHOTOS_PER_SPREAD))
+  if (!builtIn) builtIn = uniqueTemplates(legacy().filter((t) => t.photoCount <= MAX_PHOTOS_PER_SPREAD && !isStaircase(t)))
   return builtIn
 }
 
@@ -1091,6 +1125,8 @@ function computeTemplatesForCount(
   let builtins = [...legacy(), ...userTemplateRegistry, ...balancedTemplates(count, aspect)].filter((t) => t.photoCount === count && t.id !== 'cover-front-spine-back')
   if (enabledTemplateIds !== null) { const allowed = idSet(enabledTemplateIds); builtins = builtins.filter((t) => allowed.has(t.id)) }
   if (frameFilter !== 'all') builtins = builtins.filter((t) => matchesFrameFilter(t, frameFilter, aspect))
+  // The rising staircase is not offered; albums that already use one still open, since lookups go by id.
+  builtins = builtins.filter((t) => !isStaircase(t))
   // Smart design is the curated shelf: only layouts whose frames are photo-shaped belong on it.
   // Anything stretched into a band is dropped — unless that leaves nothing at all for this photo
   // count, in which case a strip beats refusing to build the album.

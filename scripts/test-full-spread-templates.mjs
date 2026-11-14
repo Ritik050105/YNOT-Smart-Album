@@ -24,8 +24,7 @@ const mixedIds = [
   'gen-mixed-full-left-caption-3', 'gen-mixed-full-right-overlay-3',
   'gen-mixed-band-top-2', 'gen-mixed-band-bottom-6',
 ]
-const imageIds = ['gen-full-right-4',
-  'gen-full-left-cascade-3', 'gen-full-right-cascade-3', 'gen-full-left-hero-4']
+const imageIds = ['gen-full-right-4', 'gen-full-left-hero-4']
 // Three of this family now lose the dedup pass to an edge-to-edge layout of the same arrangement,
 // which is the same design drawn flush to the trim. Saved albums still resolve them by id; they
 // are simply no longer the copy shown in the browser.
@@ -50,17 +49,13 @@ for (const id of imageIds) {
   assert.ok(isFullSpreadTemplate(byId(id)), `${id} is exempt from the uniform-gap check`)
 }
 
-// The cascade family: one page full-bleed, the facing photos on a common baseline, each a step
-// shorter as it moves away from that page. Both pages then read as one descending run.
+// The cascade (a run of photos stepping down from a shared baseline, leaving a ragged wedge above) is no longer
+// offered anywhere; albums that already use one still resolve it by id.
 for (const side of ['left', 'right']) {
-  const t = byId(`gen-full-${side}-cascade-3`)
-  const [page, ...row] = t.placeholders
-  assert.deepEqual([page.x, page.y, page.width, page.height], [side === 'left' ? 0 : 0.5, 0, 0.5, 1], `${side} cascade keeps one page full-bleed`)
-  const baseline = row.map(p => +(p.y + p.height).toFixed(4))
-  assert.equal(new Set(baseline).size, 1, `${side} cascade sits the facing photos on one baseline`)
-  const heights = row.map(p => p.height)
-  const stepping = side === 'left' ? heights : [...heights].reverse()
-  for (let i = 1; i < stepping.length; i++) assert.ok(stepping[i] < stepping[i - 1], `${side} cascade steps down away from the full page`)
+  const id = `gen-full-${side}-cascade-3`, risingId = `gen-full-${side}-cascade-up-3`
+  assert.ok(findTemplate(id) && findTemplate(risingId), `${id} still resolves for saved albums`)
+  for (const n of [2, 3, 4, 13]) assert.ok(!templatesForCount(n, null, 'all', 1.5).some(t => /-cascade-/.test(t.id)), `no cascade is offered at ${n} photos`)
+  assert.ok(!builtInTemplates().some(t => /-cascade-/.test(t.id)), 'the gallery lists no cascade')
 }
 
 // No white border anywhere: the facing page's photos reach the gutter, the outer edge, the top and
@@ -82,8 +77,6 @@ for (const side of ['left', 'right']) {
       assert.ok(near(area, 0.5), `${t.id} tiles the facing page with no gaps (covered ${area})`)
     }
   }
-  const cascade = byId(`gen-full-${side}-cascade-4`)
-  assert.ok(cascade.placeholders.slice(1).every(p => Math.abs(p.y + p.height - 1) < 1e-6), `${cascade.id} sits flush on the bottom edge`)
 }
 
 // The album's own margin and image gap must not put a white border back round this family: its
@@ -152,7 +145,8 @@ for (let n = 1; n <= 24; n++) {
   assert.ok(image.length >= 10, `count ${n} offers 10+ image templates (got ${image.length})`)
   assert.ok(mixed.length >= 1, `count ${n} offers a mixed template (got ${mixed.length})`)
   if (n === 1) continue
-  const full = builtInTemplates().filter(t => t.photoCount === n && isFullSpreadTemplate(t))
+  // The edge-to-edge family stands in where a generated full-bleed layout was the same arrangement or a cascade.
+  const full = [...builtInTemplates().filter(t => t.photoCount === n && isFullSpreadTemplate(t)), ...all.filter(t => t.photoCount === n && /^ref-(edge|bleed)-/.test(t.id))]
   assert.ok(full.some(t => !t.textBoxes?.length), `count ${n} offers a full-bleed image template`)
   assert.ok(full.some(t => t.textBoxes?.length), `count ${n} offers a full-bleed mixed template`)
 }
