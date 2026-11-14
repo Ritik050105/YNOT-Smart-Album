@@ -61,7 +61,7 @@ async function drawMove(canvas:HTMLCanvasElement,stage:HTMLCanvasElement,base:HT
       sheet.width=W;sheet.height=H
       const sheetContext=sheet.getContext('2d')
       if(sheetContext)await drawPlacement(sheetContext,box,pl,photo,scale)
-      ctx.globalAlpha=t;ctx.drawImage(sheet,0,0);ctx.globalAlpha=1
+      ctx.globalAlpha=Math.min(1,t*3);ctx.drawImage(sheet,0,0);ctx.globalAlpha=1
     }
     shown.set(pl.photoId,here)
   }
@@ -143,6 +143,10 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
         const previewHeight=100*size.heightIn/size.widthIn
         const to=frameRects(spread,previewHeight)
         const from=new Map(frameRects(prior,previewHeight));for(const [id,rect] of shownRects.current??[])if(to.has(id))from.set(id,rect)
+        // Adding or taking away photographs is not a change of layout: most of what is now on the card was not there a moment ago, so
+        // there is nothing to carry across, and the picture is simply the new one (not two photographs travelling, the rest fading in).
+        const carried=[...to.keys()].filter(id=>from.has(id)).length
+        if(to.size&&carried<to.size*0.8)return rendered
         // The background (and anything drawn behind the photographs) is made once; the photographs are drawn over it every step.
         const base=document.createElement('canvas')
         base.width=rendered.width;base.height=rendered.height

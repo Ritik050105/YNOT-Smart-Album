@@ -14,10 +14,18 @@ export function templateFramesInReadingOrder(template: TemplateDefinition) {
 /** Minimum crop loss, with timeline order fixed or an optimal one-to-one frame assignment. */
 export function matchTemplatePhotos(photos: PhotoAsset[], template: TemplateDefinition, aspect = 1, keepOrder = true, marginPx = 0, gapPx = 0) {
   const ratios = resolveTemplateFrames(template.placeholders, aspect, marginPx, gapPx).map(frame => frame.width > 0 && frame.height > 0 ? frame.width * aspect / frame.height : NaN)
-  const costs = ratios.map((ratio) => photos.map((photo) => {
+  const crops = ratios.map((ratio) => photos.map((photo) => {
     if (!(ratio > 0) || !Number.isFinite(ratio)) return 1000
     const photoRatio = photo.width > 0 && photo.height > 0 ? photo.width / photo.height : photo.orientation === 'portrait' ? 2 / 3 : photo.orientation === 'landscape' ? 1.5 : 1
     return 1 - Math.min(ratio / photoRatio, photoRatio / ratio)
+  }))
+  // The assignment is chosen on these costs, which add to the crop loss a heavy charge for a photograph in a frame of the opposite
+  // shape: a wrong-shaped frame is worth far more than any crop saving elsewhere, so the assignment gives every photograph a frame
+  // of its own shape whenever there is a way to. The score reported is still the crop loss alone.
+  const costs = crops.map((row, f) => row.map((crop, p) => {
+    if (crop >= 1000) return crop
+    const photo = photos[p], photoRatio = photo.width > 0 && photo.height > 0 ? photo.width / photo.height : photo.orientation === 'portrait' ? 2 / 3 : photo.orientation === 'landscape' ? 1.5 : 1
+    return shapeFitsStrictly(shapeOf(photoRatio, 1), ratios[f], 1) ? crop : crop + 4
   }))
   if (ratios.length !== photos.length) return { photos, score: Infinity }
   let assignment = photos.map((_, index) => index)
@@ -46,7 +54,7 @@ export function matchTemplatePhotos(photos: PhotoAsset[], template: TemplateDefi
     assignment = Array(n).fill(0)
     for (let j = 1; j <= n; j++) assignment[p[j] - 1] = j - 1
   }
-  return { photos: assignment.map((index) => photos[index]), score: assignment.reduce((sum, index, frame) => sum + costs[frame][index], 0) / Math.max(1, photos.length) }
+  return { photos: assignment.map((index) => photos[index]), score: assignment.reduce((sum, index, frame) => sum + crops[frame][index], 0) / Math.max(1, photos.length) }
 }
 
 /** The shape of each photo, using its real pixels and falling back to the orientation recorded at

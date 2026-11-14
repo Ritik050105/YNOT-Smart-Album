@@ -34,6 +34,11 @@ for (const aspect of [1.5, 1.25, 1, 12.007 / 17.717]) {
       assert.ok(m.runsToTheTrim(t), `${t.id} is exempt from the even-margin and gap checks`)
       assert.equal(m.templateFamilyLabel(t), 'Showcase')
       assert.ok(!m.isStaircase(t), `${t.id} is not a rising staircase`)
+      // Nothing postage-stamp small, and the block of pictures is a good part of the page.
+      const x0 = Math.min(...t.placeholders.map(p => p.x)), x1 = Math.max(...t.placeholders.map(p => p.x + p.width)), y0 = Math.min(...t.placeholders.map(p => p.y)), y1 = Math.max(...t.placeholders.map(p => p.y + p.height))
+      assert.ok(Math.max(x1 - x0, y1 - y0) >= 0.59, `${t.id} spans most of the page one way`)
+      for (const p of t.placeholders) assert.ok(Math.min(p.width * aspect, p.height) >= 0.12, `${t.id} has no tiny frame`)
+      for (const p of t.placeholders) { const ratio = (p.width * aspect) / p.height; assert.ok(ratio <= 2.5 && ratio >= 0.4, `${t.id} has no strip`) }
       assert.equal(m.findTemplate(t.id)?.id, t.id, `${t.id} resolves from its id`)
     }
     // Strict, in order: every one is offered.

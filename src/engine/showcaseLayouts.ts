@@ -15,7 +15,9 @@ import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
 
 const RATIO = [1.5, 2 / 3, 1]
 /** A frame shorter than this fraction of the page stops reading as a photograph. */
-const MIN_SIDE = 0.07
+const MIN_SIDE = 0.12
+/** The block of pictures spans at least this share of the page, across or down. */
+const MIN_SPAN = 0.6
 
 interface Variant { key: string; name: string; boxes: Box[] }
 
@@ -28,7 +30,11 @@ function place(boxes: Box[], aspect: number, fill: number): Box[] | null {
   const ox = (aspect - (x1 - x0) * k) / 2 - x0 * k
   const oy = (1 - (y1 - y0) * k) / 2 - y0 * k
   const out = boxes.map(([x, y, w, h]): Box => [(x * k + ox) / aspect, y * k + oy, (w * k) / aspect, h * k])
-  return out.every(([, , w, h]) => h >= MIN_SIDE && w * aspect >= MIN_SIDE * 0.6) ? out : null
+  // A layout whose pictures come out postage-stamp small is not offered: every picture at least an eighth of the page's height on
+  // its short side, and the block spanning most of the page one way or the other (a band across it, or a column down it).
+  const smallest = Math.min(...out.map(([, , w, h]) => Math.min(w * aspect, h)))
+  const span = Math.max(((x1 - x0) * k) / aspect, (y1 - y0) * k)
+  return smallest >= MIN_SIDE && span >= MIN_SPAN ? out : null
 }
 
 /** Photographs side by side at one height. `rise` lifts every other one and drops the rest, `overlap` tucks each under the last. */
@@ -136,7 +142,8 @@ function variants(kinds: number[], aspect: number): Variant[] {
   if (n >= 2 && n <= 8) {
     const shapes = [aspect, 1, 0.72, 2, 1.33, 0.56, 1.75, 0.85].filter((b, i, all) => all.findIndex(c => Math.abs(c - b) / b < 0.1) === i)
     for (const b of shapes) {
-      const tiled = balancedForSequence(kinds, b, 16)
+      // Ordinary proportions only: no frame past two and a half to one either way.
+      const tiled = balancedForSequence(kinds, b, 16).filter(t => t.placeholders.every(p => { const ratio = (p.width * b) / p.height; return ratio <= 2.4 && ratio >= 1 / 2.4 }))
       // One of each kind of arrangement first, a few in all.
       const groups = new Map<string, typeof tiled>()
       for (const t of tiled) { const k = patternClass(t), g = groups.get(k); if (g) g.push(t); else groups.set(k, [t]) }

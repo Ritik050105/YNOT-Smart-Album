@@ -46,6 +46,9 @@ export function normalFrames(t: TemplateDefinition, aspect: number) {
  *  margin and gap settings promise. Full-bleed designs are exempt, since running to the trim is
  *  their point. Kept only while enough of them remain to choose from. */
 export function preferEvenLayouts(templates: TemplateDefinition[], aspect: number, marginPx: number, gapPx: number): TemplateDefinition[] {
+  // No strips, anywhere a layout is chosen (Auto Build included), while there are enough ordinary ones to choose from.
+  const normal = templates.filter(t => !t.isBuiltIn || normalFrames(t, aspect))
+  templates = normal.length >= MIN_EVEN_LAYOUTS ? normal : templates
   const even = templates.filter(t => runsToTheTrim(t) || (hasEvenMargins(t.placeholders, aspect, marginPx, gapPx) && frameSizeSpread(t.placeholders) <= 6))
   return even.length >= MIN_EVEN_LAYOUTS ? even : templates
 }
