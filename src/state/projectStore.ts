@@ -26,7 +26,7 @@ import {
   defaultPlacement,
   buildSpreadFromPlacements,
 } from '@/engine/autoLayout'
-import { builtInTemplates, uniqueTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, sequenceCandidates, mixCandidates, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
+import { builtInTemplates, uniqueTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, sequenceCandidates, mixCandidates, showcaseCandidates, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
 import { templateShapeMismatches } from '@/engine/templateMatching'
 import { respaceBoxes } from '@/engine/templateLayout'
 import { DEFAULT_ALBUM_SIZE, uniformInset } from '@/engine/albumSizes'
@@ -500,7 +500,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     // Layouts drawn for these photographs in their own order are offered by the browser too, so they are
     // preview-able like the rest.
     const spreadPhotos = selected.flatMap(p => { const photo = project.photos.find(ph => ph.id === p.photoId); return photo ? [photo] : [] })
-    if (![...sequenceCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...mixCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...importedDesignTemplates(count, project.enabledTemplateIds, templateFrameFilter, previewAspect)].some(t => t.id === templateId)) return
+    if (![...sequenceCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...mixCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...showcaseCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...importedDesignTemplates(count, project.enabledTemplateIds, templateFrameFilter, previewAspect)].some(t => t.id === templateId)) return
     set({ templatePreview: applyPageTemplate(spread, templateId, project.photos, size.widthIn / size.heightIn, keepOrder, scope) })
   },
   toggleTemplateFavorite: (templateId) => {
@@ -886,7 +886,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (!validIds.length) return p
     const at = beforeFrameId ? placements.findIndex((pl) => pl.placeholderId === beforeFrameId) : placements.length
     placements.splice(at < 0 ? placements.length : at, 0, ...validIds.map((id) => defaultPlacement(uuid(), id, { width: p.defaultBorderWidth, color: p.defaultBorderColor }, p.photos.find(photo => photo.id === id))))
-    const candidates=cyclingTemplates({...p,spreads:[]},{...target,placements},get().templateFrameFilter,get().favoriteTemplateIds)
+    // Photographs dropped on a spread get a layout that fills it; the showcase layouts (white space, floating pictures) are for browsing to. A copy: the list is shared, and the sort below must not reorder it for everyone else.
+    const candidates=cyclingTemplates({...p,spreads:[]},{...target,placements},get().templateFrameFilter,get().favoriteTemplateIds).filter(t=>!t.id.startsWith('show-'))
     // Dropping photographs onto a spread used to take whichever layout came first in the library,
     // which is why a landscape photograph kept landing in an upright frame: the choice never
     // looked at the photographs at all. Auto-build has always ranked by shape; this is the same

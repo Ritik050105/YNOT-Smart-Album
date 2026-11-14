@@ -1,4 +1,5 @@
 import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
+import { showcaseForSequence, showcaseFromId } from './showcaseLayouts'
 import { balancedForMix, balancedForSequence, balancedFromId, balancedTemplates, balancedWarmSteps, lookOfFrames, sequenceKinds } from './balancedLayouts'
 import { TemplateDefinition, PlaceholderRect } from '@/types'
 import { GAP, placeGridInRect, geometrySignature, resolveTemplateFrames } from './templateLayout'
@@ -974,7 +975,8 @@ export function templateSwatchStyle(t: Pick<TemplateDefinition, 'thumbnailColor'
 /** Layouts the browsers must not test for a uniform gap: one of their frames runs to the trim by
  *  design, so the seam beside it is a margin rather than a gap and the check can never pass. */
 export function runsToTheTrim(t: TemplateDefinition): boolean {
-  return isFullSpreadTemplate(t) || isBleedFeatureTemplate(t.id)
+  // Showcase layouts float on the page; their white space is the design, not an uneven margin.
+  return isFullSpreadTemplate(t) || isBleedFeatureTemplate(t.id) || t.id.startsWith('show-')
 }
 
 export function isFullSpreadTemplate(t: TemplateDefinition): boolean {
@@ -1029,6 +1031,14 @@ export function mixCandidates(photos: { width: number; height: number }[], count
   if (photos.length !== count || count < 2 || !allowsBalanced(enabledTemplateIds)) return []
   const kinds = sequenceKinds(photos), wide = kinds.filter(k => k === 0).length, tall = kinds.filter(k => k === 1).length
   const all = balancedForMix(wide, tall, count - wide - tall, aspect)
+  return frameFilter === 'all' ? all : all.filter(t => matchesFrameFilter(t, frameFilter, aspect))
+}
+
+/** Showcase layouts (pictures floated on the page, with white space and overlaps) for these photographs in their own
+ *  order. Offered like the rest of the generated family: not to a hand-picked library. */
+export function showcaseCandidates(photos: { width: number; height: number }[], count: number, enabledTemplateIds: string[] | null, frameFilter: TemplateFrameFilter, aspect: number): TemplateDefinition[] {
+  if (photos.length !== count || count < 1 || !allowsBalanced(enabledTemplateIds)) return []
+  const all = showcaseForSequence(sequenceKinds(photos), aspect)
   return frameFilter === 'all' ? all : all.filter(t => matchesFrameFilter(t, frameFilter, aspect))
 }
 
@@ -1210,7 +1220,7 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
   if (hero) return generateHeroGrid(Number(hero[1]))
   const custom = id.match(/^custom-grid-(\d+)x(\d+)$/)
   if (custom) return generateCustomGrid(Number(custom[1]), Number(custom[2]))
-  return balancedFromId(id)
+  return balancedFromId(id) ?? showcaseFromId(id)
 }
 
 /** Coarse family label derived from a template's id — used only to group the Template Gallery
@@ -1226,6 +1236,7 @@ export function templateFamilyLabel(t: TemplateDefinition): string {
   if (t.id.startsWith('ref-storyboard-')) return 'Storyboard'
   if (t.id.startsWith('ref-mosaic-')) return 'Mosaic'
   if (t.id.startsWith('seamless-')) return 'Seamless'
+  if (t.id.startsWith('show-')) return 'Showcase'
   if (t.id.startsWith('mix-') || /^mixseq3?-/.test(t.id)) return 'Balanced'
   if (t.id.startsWith('gen-grid-') || t.id.startsWith('gen-gridcol-')) return 'Grid'
   if (t.id.startsWith('gen-hero-')) return 'Hero'
@@ -1244,6 +1255,7 @@ export const TEMPLATE_FAMILIES = [
   'Classic',
   'Seamless',
   'Balanced',
+  'Showcase',
   'Modern',
   'Editorial',
   'Paired Pages',

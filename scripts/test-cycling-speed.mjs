@@ -70,6 +70,9 @@ assert.equal(m.readCollectionsShared(), m.readCollectionsShared(), 'saved collec
     const { project, spread } = make(count)
     const list = m.cyclingTemplates(project, spread, 'all', none)
     const keys = list.map(t => `${t.pageSide}:${t.placeholders.length}:${t.textBoxes?.length ?? 0}:${m.patternClass(t)}`)
+    // No two on the list are one arrangement in one block of the page at slightly different sizes.
+    const fine = list.map(t => `${m.arrangementSignature(t.placeholders)}:${[Math.min(...t.placeholders.map(p => p.x)), Math.min(...t.placeholders.map(p => p.y)), Math.max(...t.placeholders.map(p => p.x + p.width)), Math.max(...t.placeholders.map(p => p.y + p.height))].map(v => Math.round(v * 10)).join(',')}`)
+    assert.equal(new Set(fine).size, fine.length, `${count} photos: no layout is another one at a slightly different size`)
     const distinct = new Set(keys).size
     assert.ok(distinct >= 2, `${count} photos have arrangements to cycle through (got ${distinct} of ${list.length})`)
     // The first run of presses never repeats an arrangement until every arrangement has been shown once.

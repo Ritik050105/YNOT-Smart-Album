@@ -35,7 +35,7 @@ const KEEP_PER_MIX = 40
  *  grows with it and big sets are rarer. A mix that is hard to tile simply gets fewer layouts. */
 const budget = (count: number) => ({ min: 120, max: count <= 6 ? 1200 : count <= 12 ? 700 : 480 })
 
-type Box = [x: number, y: number, w: number, h: number]
+export type Box = [x: number, y: number, w: number, h: number]
 
 function rng(seed: number) {
   let a = seed >>> 0
@@ -316,8 +316,8 @@ const cache = new Map<string, TemplateDefinition[]>()
 /** Album shapes are bucketed to a ten-thousandth. The gap check works in pixels, so a layout drawn for
  *  an album a fraction of a percent off its real shape can fail it at a sliver; this keeps the drawn
  *  shape within a twentieth of a pixel of the real one. */
-const KEY_SCALE = 10000
-const keyFor = (aspect: number) => Math.max(2000, Math.min(50000, Math.round(aspect * KEY_SCALE)))
+export const KEY_SCALE = 10000
+export const keyFor = (aspect: number) => Math.max(2000, Math.min(50000, Math.round(aspect * KEY_SCALE)))
 
 /** How many layouts per mix the general library holds. The photographs' own mix is served deeper (up
  *  to KEEP_PER_MIX) by `balancedForMix`, so the library every count shares stays the size it was. */
@@ -430,11 +430,11 @@ export function sequenceKinds(photos: { width: number; height: number }[]): numb
 }
 /** The order of shapes as one number: base 3 here. Earlier builds wrote it in base 2 (landscape and
  *  portrait only) under the id prefix `mixseq-`, which still decodes the way it was written. */
-const codeOf = (kinds: number[]) => kinds.reduce((sum, k, i) => sum + k * 3 ** i, 0)
-const kindsOfCode = (code: number, count: number, base = 3) => Array.from({ length: count }, (_, i) => (Math.floor(code / base ** i) % base))
+export const codeOf = (kinds: number[]) => kinds.reduce((sum, k, i) => sum + k * 3 ** i, 0)
+export const kindsOfCode = (code: number, count: number, base = 3) => Array.from({ length: count }, (_, i) => (Math.floor(code / base ** i) % base))
 
 /** Whether the matcher, which takes frames by left edge then top edge, hands every photograph a frame of its own shape. */
-const inOrder = (boxes: Box[], kinds: number[]) => boxes.map((_, i) => i)
+export const inOrder = (boxes: Box[], kinds: number[]) => boxes.map((_, i) => i)
   .sort((p, q) => boxes[p][0] - boxes[q][0] || boxes[p][1] - boxes[q][1])
   .every((frame, k) => kinds[frame] === kinds[k])
 

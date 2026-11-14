@@ -5,7 +5,6 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Spread, PhotoAsset, AlbumSize } from '@/types'
 import { computePlaceholderBoxes } from '@/engine/layoutMath'
 import { renderSpreadToCanvas } from '@/engine/renderSpread'
-import { slideDirection } from '@/engine/slideDirection'
 
 interface Props {
   spread: Spread
@@ -19,8 +18,8 @@ interface Props {
   selectedPlaceholderId?: string | null
 }
 
-/** How long a slide takes. Short, so holding the button down keeps up with the key. */
-const SLIDE_MS=170
+/** How long photographs take to move to their places in the new layout. */
+const MOVE_MS=260
 
 /** A copy of what a canvas shows now. */
 function snapshotOf(canvas:HTMLCanvasElement){
@@ -30,15 +29,52 @@ function snapshotOf(canvas:HTMLCanvasElement){
   return copy
 }
 
-/** One step of a slide: the leaving picture and the arriving one side by side, shifted by `progress` (0-1) of the card's width. */
-function drawSlide(canvas:HTMLCanvasElement,leaving:HTMLCanvasElement,arriving:HTMLCanvasElement,direction:1|-1,progress:number){
+/** A frame as fractions of the card (0-1 each way). */
+type Rect={x:number;y:number;w:number;h:number}
+
+/** Where each photograph's frame sits on the card, by photo id, as fractions of the card. */
+function frameRects(spread:Spread,previewHeight:number){
+  const out=new Map<string,Rect>()
+  for(const box of computePlaceholderBoxes(spread,100,previewHeight)){
+    const photoId=spread.placements.find(p=>p.placeholderId===box.placeholderId)?.photoId
+    if(photoId&&!out.has(photoId))out.set(photoId,{x:box.x/100,y:box.y/previewHeight,w:box.width/100,h:box.height/previewHeight})
+  }
+  return out
+}
+
+/** `source`'s region `from`, scaled to cover `to` on the canvas (the middle is kept, the overflow cropped), at `alpha`. */
+function drawCover(ctx:CanvasRenderingContext2D,source:HTMLCanvasElement,from:Rect,to:Rect,alpha:number){
+  const W=ctx.canvas.width,H=ctx.canvas.height
+  const sx=from.x*source.width,sy=from.y*source.height,sw=from.w*source.width,sh=from.h*source.height
+  const dx=to.x*W,dy=to.y*H,dw=to.w*W,dh=to.h*H
+  if(sw<1||sh<1||dw<1||dh<1)return
+  const scale=Math.max(dw/sw,dh/sh),cw=dw/scale,ch=dh/scale
+  ctx.globalAlpha=alpha
+  ctx.save();ctx.beginPath();ctx.rect(dx,dy,dw,dh);ctx.clip()
+  ctx.drawImage(source,sx+(sw-cw)/2,sy+(sh-ch)/2,cw,ch,dx,dy,dw,dh)
+  ctx.restore();ctx.globalAlpha=1
+}
+
+/** One step of the move: every photograph that is in both layouts travels from where it was to where it goes, changing size on the
+ *  way; the others fade in. `t` is 0-1 along the way, already eased. */
+function drawMove(canvas:HTMLCanvasElement,background:string,leaving:HTMLCanvasElement,arriving:HTMLCanvasElement,from:Map<string,Rect>,to:Map<string,Rect>,order:string[],t:number){
   if(canvas.width!==arriving.width||canvas.height!==arriving.height){canvas.width=arriving.width;canvas.height=arriving.height}
   const ctx=canvas.getContext('2d')
-  if(!ctx)return
-  const w=canvas.width,h=canvas.height,shift=Math.round(w*progress)
-  ctx.clearRect(0,0,w,h)
-  ctx.drawImage(leaving,-direction*shift,0,w,h)
-  ctx.drawImage(arriving,direction*(w-shift),0,w,h)
+  if(!ctx)return new Map<string,Rect>()
+  ctx.clearRect(0,0,canvas.width,canvas.height)
+  ctx.fillStyle=background;ctx.fillRect(0,0,canvas.width,canvas.height)
+  const shown=new Map<string,Rect>()
+  for(const id of order){
+    const end=to.get(id),start=from.get(id)
+    if(!end)continue
+    if(!start){drawCover(ctx,arriving,end,end,t);shown.set(id,end);continue}
+    const here:Rect={x:start.x+(end.x-start.x)*t,y:start.y+(end.y-start.y)*t,w:start.w+(end.w-start.w)*t,h:start.h+(end.h-start.h)*t}
+    // The picture the photograph had, fading into the one it is getting, both held to the frame as it is now.
+    drawCover(ctx,leaving,start,here,1)
+    if(t>0)drawCover(ctx,arriving,end,here,t)
+    shown.set(id,here)
+  }
+  return shown
 }
 
 /** Puts a rendered frame on the card's canvas. The canvas is only resized when the frame's size really differs:
@@ -61,6 +97,8 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
   const lastGeometry=useRef<string>()
   const previousSpread=useRef<Spread>()
   const lastSeen=useRef<Spread>()
+  /** Where each photograph is drawn on the card right now, so a move begun mid-move carries on from there. */
+  const shownRects=useRef<Map<string,Rect>>()
   const highResolution=usePreferences(s=>s.values.highResolution)
   size = spread.size ?? size
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -93,17 +131,21 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
       if(cancelled)return null
       const rendered=await renderSpreadToCanvas(spread,new Map(entries),size,dpi,true)
       if(cancelled)return null
-      // A change of layout slides: the old picture moves out one side and the new one in from the other, each keeping its own
-      // size. (Frames that grew out of a point, or shrank into one, to reach their new places are gone: nothing is scaled.)
+      // A change of layout moves the photographs: each one that is in both layouts glides from its old frame to its new one,
+      // growing or shrinking on the way, as the pictures take their new places on the spread.
       const layoutChanged=prior&&(prior.templateId!==spread.templateId||prior.customBoxes!==spread.customBoxes)
       if(animations&&leaving&&layoutChanged&&priorGeometry!==geometry&&!canvasRef.current?.parentElement?.hasAttribute('data-overview-dragging')){
-        const direction=slideDirection(),start=performance.now()
+        const previewHeight=100*size.heightIn/size.widthIn
+        const to=frameRects(spread,previewHeight)
+        const from=new Map(frameRects(prior,previewHeight));for(const [id,rect] of shownRects.current??[])if(to.has(id))from.set(id,rect)
+        const order=spread.placements.flatMap(p=>p.photoId?[p.photoId]:[]),background=spread.backgroundHidden?'#fff':spread.backgroundColor
+        const start=performance.now()
         while(!cancelled){
           const canvas=canvasRef.current
           if(!canvas)return null
-          const t=Math.min(1,(performance.now()-start)/SLIDE_MS)
-          drawSlide(canvas,leaving,rendered,direction,1-Math.pow(1-t,3))
-          if(t===1)break
+          const k=Math.min(1,(performance.now()-start)/MOVE_MS),t=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2
+          shownRects.current=drawMove(canvas,background,leaving,rendered,from,to,order,t)
+          if(k===1)break
           await new Promise(requestAnimationFrame)
         }
       }
@@ -112,6 +154,7 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
       const canvas = canvasRef.current
       if (cancelled || !canvas || !rendered) return
       previousSpread.current=spread
+      shownRects.current=undefined
       drawFrame(canvas,rendered)
     }).catch(() => { if (!cancelled) setFailed(true) })
     return () => { cancelled = true }

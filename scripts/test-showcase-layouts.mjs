@@ -1,0 +1,51 @@
+// Showcase layouts: pictures floated on the page with white space, in the photographs' own order, each frame the shape of
+// its photograph. They are creative designs (the album gap rule does not apply), resolve from their ids, stay on the page,
+// and are never a rising staircase.
+import assert from 'node:assert/strict'
+import { build } from 'esbuild'
+
+const result = await build({
+  stdin: {
+    contents: `export {showcaseCandidates,findTemplate,isStaircase,runsToTheTrim,templateFamilyLabel} from './src/engine/templates'
+export {templateOrderMismatches} from './src/engine/templateMatching'
+export {templateCategory} from './src/engine/templateTransfer'
+export {offeredLayouts} from './src/engine/layoutOffer'`,
+    resolveDir: process.cwd(),
+  },
+  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+})
+const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
+
+const dims = { L: [1500, 1000], P: [1000, 1500], S: [1000, 1000] }
+const photos = word => [...word].map((c, i) => ({ id: c + i, width: dims[c][0], height: dims[c][1] }))
+let total = 0
+for (const aspect of [1.5, 1.25, 1, 12.007 / 17.717]) {
+  for (const word of ['L', 'P', 'LL', 'LP', 'LLL', 'LPL', 'PPP', 'LPLP', 'LLPPS', 'LLLLLL', 'LPLPLPLP', 'LLLLLLLLLLLL', 'LPLPLPLPLPLPLPLPLPLPLPLP']) {
+    const ph = photos(word), found = m.showcaseCandidates(ph, ph.length, null, 'all', aspect)
+    assert.deepEqual(found.map(t => t.id), m.showcaseCandidates(ph, ph.length, null, 'all', aspect).map(t => t.id), 'the same photographs give the same layouts')
+    total += found.length
+    const ids = new Set()
+    for (const t of found) {
+      assert.ok(!ids.has(t.id), `${t.id} is unique`); ids.add(t.id)
+      assert.equal(t.placeholders.length, ph.length)
+      for (const p of t.placeholders) assert.ok(p.x >= -1e-9 && p.y >= -1e-9 && p.x + p.width <= 1 + 1e-9 && p.y + p.height <= 1 + 1e-9, `${t.id} stays on the page`)
+      assert.equal(m.templateOrderMismatches(ph, t, aspect, 3, 6), 0, `${t.id} gives every photograph a frame of its own shape, in order`)
+      assert.equal(m.templateCategory(t), 'creative', `${t.id} is a creative design`)
+      assert.ok(m.runsToTheTrim(t), `${t.id} is exempt from the even-margin and gap checks`)
+      assert.equal(m.templateFamilyLabel(t), 'Showcase')
+      assert.ok(!m.isStaircase(t), `${t.id} is not a rising staircase`)
+      assert.equal(m.findTemplate(t.id)?.id, t.id, `${t.id} resolves from its id`)
+    }
+    // Strict, in order: every one is offered.
+    assert.equal(m.offeredLayouts(ph, found, aspect, 3, 6, true, true).length, found.length, `${word}: all are offered`)
+  }
+}
+// Three photographs of a mix have plenty of different patterns, and a hand-picked library gets none.
+const three = photos('LPL')
+assert.ok(m.showcaseCandidates(three, 3, null, 'all', 1.5).length >= 10, 'three photographs have ten or more showcase layouts')
+assert.deepEqual(m.showcaseCandidates(three, 3, ['some-hand-picked-id'], 'all', 1.5), [])
+assert.deepEqual(m.showcaseCandidates(three, 4, null, 'all', 1.5), [])
+// Several different kinds of pattern, not one pattern at many sizes.
+assert.ok(new Set(m.showcaseCandidates(three, 3, null, 'all', 1.5).map(t => t.name)).size >= 6, 'at least six kinds of pattern, framed blocks among them')
+assert.ok(m.showcaseCandidates(three, 3, null, 'all', 1.5).some(t => t.name.startsWith('Showcase · Framed') || t.name.startsWith('Framed')), 'framed blocks are offered')
+console.log(`Showcase layout checks passed: ${total} layouts, each in order with its photograph's shape, creative, on the page, none a staircase.`)

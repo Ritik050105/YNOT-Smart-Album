@@ -159,7 +159,8 @@ app.whenReady().then(async()=>{
  assert.equal(await evaluate('store.getState().project.spreads[0].backgroundPattern.mode'),'cover')
  assert.deepEqual(await evaluate('(()=>{const p=store.getState().project.spreads[0].backgroundPattern.edits;return [p.zoom,p.rotationDeg,p.opacity,p.brightness,p.flipHorizontal]})()'),[1.7,25,.65,18,true],'Setting a background preserves every image adjustment')
  const background=await evaluate('JSON.stringify(store.getState().project.spreads[0].backgroundPattern)')
- await evaluate(`const s=store.getState().project.spreads[0];store.getState().insertTimelinePhotos(['c'],s.id);store.getState().cycleSpreadTemplate(s.id,1)`)
+ // Next can land on a showcase layout (floating pictures); the checks below are about a layout that fills the page, so step past those.
+ await evaluate(`const s=store.getState().project.spreads[0];store.getState().insertTimelinePhotos(['c'],s.id);store.getState().cycleSpreadTemplate(s.id,1);for(let i=0;i<60&&store.getState().project.spreads[0].templateId?.startsWith('show-');i++)store.getState().cycleSpreadTemplate(s.id,1)`)
  await new Promise(r=>setTimeout(r,100))
  assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0].backgroundPattern)'),background,'Adding and retemplating foreground images keeps the background fixed')
  assert.deepEqual(await evaluate('store.getState().project.spreads[0].placements.filter(p=>p.photoId).map(p=>p.photoId).sort()'),['a','c'])
