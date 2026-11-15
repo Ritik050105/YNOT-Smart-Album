@@ -4,6 +4,7 @@ import { usePreferences } from '@/state/preferences'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Spread, PhotoAsset, AlbumSize } from '@/types'
 import { DESIGN_WIDTH, computePlaceholderBoxes } from '@/engine/layoutMath'
+import { Rect, frameRects, placementKeys } from '@/engine/moveRects'
 import { drawPlacement, drawSpreadBackground, drawTextBox, drawUnusedPage, renderSpreadToCanvas } from '@/engine/renderSpread'
 
 interface Props {
@@ -21,19 +22,6 @@ interface Props {
 /** How long photographs take to move to their places in the new layout. */
 const MOVE_MS=260
 
-/** A frame as fractions of the card (0-1 each way). */
-type Rect={x:number;y:number;w:number;h:number}
-
-/** Where each photograph's frame sits on the card, by photo id, as fractions of the card. */
-function frameRects(spread:Spread,previewHeight:number){
-  const out=new Map<string,Rect>()
-  for(const box of computePlaceholderBoxes(spread,100,previewHeight)){
-    const photoId=spread.placements.find(p=>p.placeholderId===box.placeholderId)?.photoId
-    if(photoId&&!out.has(photoId))out.set(photoId,{x:box.x/100,y:box.y/previewHeight,w:box.width/100,h:box.height/previewHeight})
-  }
-  return out
-}
-
 /** One step of the move: every photograph that is in both layouts is drawn, from its own picture, in the frame it has got to on
  *  the way from its old place to its new one. The picture is cropped to the frame as it is at that moment, so a photograph
  *  changing shape on the way keeps showing the same subject and nothing fades; photographs that were not on the spread
@@ -45,15 +33,15 @@ async function drawMove(canvas:HTMLCanvasElement,stage:HTMLCanvasElement,base:HT
   if(!ctx)return shown
   // As the final render is drawn, so the last step of the move and the finished picture match.
   ctx.imageSmoothingQuality='high'
-  const W=stage.width,H=stage.height,scale=W/DESIGN_WIDTH
+  const W=stage.width,H=stage.height,scale=W/DESIGN_WIDTH,keys=placementKeys(spread)
   ctx.globalAlpha=1
   ctx.drawImage(base,0,0)
   // In the order the spread layers them. Each photograph is drawn straight onto the card (its picture was loaded for the
   // final render, so this never waits on the network), except one that was not there before, which fades in from its own sheet.
   for(const pl of spread.placements){
-    const end=pl.photoId?to.get(pl.photoId):undefined,photo=pl.photoId?photos.get(pl.photoId):undefined
-    if(!pl.photoId||!end||!photo||pl.hidden)continue
-    const start=from.get(pl.photoId),here:Rect=start?{x:start.x+(end.x-start.x)*t,y:start.y+(end.y-start.y)*t,w:start.w+(end.w-start.w)*t,h:start.h+(end.h-start.h)*t}:end
+    const key=keys.get(pl.placeholderId),end=key?to.get(key):undefined,photo=pl.photoId?photos.get(pl.photoId):undefined
+    if(!key||!end||!photo||pl.hidden)continue
+    const start=from.get(key),here:Rect=start?{x:start.x+(end.x-start.x)*t,y:start.y+(end.y-start.y)*t,w:start.w+(end.w-start.w)*t,h:start.h+(end.h-start.h)*t}:end
     const box={placeholderId:pl.placeholderId,x:here.x*W,y:here.y*H,width:here.w*W,height:here.h*H}
     if(start)await drawPlacement(ctx,box,pl,photo,scale)
     else{
@@ -63,7 +51,7 @@ async function drawMove(canvas:HTMLCanvasElement,stage:HTMLCanvasElement,base:HT
       if(sheetContext)await drawPlacement(sheetContext,box,pl,photo,scale)
       ctx.globalAlpha=Math.min(1,t*3);ctx.drawImage(sheet,0,0);ctx.globalAlpha=1
     }
-    shown.set(pl.photoId,here)
+    shown.set(key,here)
   }
   // Captions and other text do not travel, but they are there throughout, so they do not appear at the end.
   for(const box of spread.textBoxes??[])if(!box.hidden)await drawTextBox(ctx,box,W,H)
