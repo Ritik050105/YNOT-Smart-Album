@@ -55,18 +55,22 @@ export function orientationFits(photo: { width: number; height: number }, frame:
   return p === target || p === 'square' || target === 'square'
 }
 
-/** The rule for choosing a template, stricter than the one for dropping a photo by hand: a landscape
- *  photo only goes into a landscape or square frame, a portrait photo only into a portrait or square
- *  frame, and a square photo only into a frame that is square or close to it. A frame of the opposite
- *  shape is never picked for the photograph; changing one is the designer's call, made by hand in
- *  Designer View. "Close to square" is a frame up to a quarter wider or taller than it is long: it
- *  trims a square photograph by a fifth at most, where a 2:3 frame would throw away a third. */
+/** The rule for choosing a template, stricter than the one for dropping a photo by hand: a landscape photo only goes into a
+ *  landscape or square frame, a portrait photo only into a portrait or square frame, and a square photo only into a frame that is
+ *  square or close to it. A frame of the opposite shape is never picked for the photograph; changing one is the designer's call,
+ *  made by hand in Designer View.
+ *
+ *  "Square" is measured on the frame itself, not on a wide deadband: a frame up to 8% taller than wide still counts as upright for
+ *  a portrait photograph, and one down to 7% narrower than tall as wide for a landscape one. A frame 1.14 wide for a portrait
+ *  photograph used to pass as "square", and cut a tall picture to a squat window. "Close to square" for a square photograph is a
+ *  frame up to a quarter wider or taller than it is long: it trims a square photograph by a fifth at most, where a 2:3 frame
+ *  would throw away a third. */
 export const SQUARISH_MIN = 0.8, SQUARISH_MAX = 1.25
+export const PORTRAIT_FRAME_MAX = 1.08, LANDSCAPE_FRAME_MIN = 0.93
 export function shapeFitsStrictly(photo: 'landscape' | 'portrait' | 'square', frameWidth: number, frameHeight: number) {
-  const shape = shapeOf(frameWidth, frameHeight)
-  if (shape === 'square') return true
-  if (photo === 'square') { const ratio = frameWidth / frameHeight; return ratio >= SQUARISH_MIN && ratio <= SQUARISH_MAX }
-  return photo === shape
+  const ratio = frameWidth / frameHeight
+  if (photo === 'square') return ratio >= SQUARISH_MIN && ratio <= SQUARISH_MAX
+  return photo === 'landscape' ? ratio >= LANDSCAPE_FRAME_MIN : ratio <= PORTRAIT_FRAME_MAX
 }
 
 export function boundedFrameRect(rect: { x: number; y: number; width: number; height: number }) {

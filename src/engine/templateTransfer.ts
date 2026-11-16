@@ -26,4 +26,4 @@ export function parseTemplateTransfer(contents:string):TemplateDefinition[]{
 // permutations — but a generated grid is simply one of the layouts the app offers, and splitting
 // them out left a category that named a mechanism rather than anything a designer would look for.
 /** Showcase layouts float pictures on the page, so the album's gap rule does not apply: they are creative designs, not Smart design. */
-export function templateCategory(t:TemplateDefinition):'reference'|'creative'{return t.isBuiltIn&&!t.id.startsWith('show-')?'reference':'creative'}
+export function templateCategory(t:TemplateDefinition):'reference'|'creative'{return t.isBuiltIn&&!/^show2?-/.test(t.id)?'reference':'creative'}

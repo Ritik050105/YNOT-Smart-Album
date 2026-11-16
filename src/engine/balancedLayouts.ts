@@ -33,11 +33,11 @@ const MAX_SPREAD = 3.6
 const KEEP_PER_MIX = 40
 /** Draws per mix: enough to find the good ones, fewer as the count grows since the cost of a draw
  *  grows with it and big sets are rarer. A mix that is hard to tile simply gets fewer layouts. */
-const budget = (count: number) => ({ min: 120, max: count <= 6 ? 1200 : count <= 12 ? 700 : 480 })
+export const budget = (count: number) => ({ min: 120, max: count <= 6 ? 1200 : count <= 12 ? 700 : 480 })
 
 export type Box = [x: number, y: number, w: number, h: number]
 
-function rng(seed: number) {
+export function rng(seed: number) {
   let a = seed >>> 0
   return () => {
     a = (a + 0x6d2b79f5) >>> 0
@@ -82,18 +82,21 @@ function order(landscapes: number, uprights: number, pattern: number, random: ()
 }
 
 const WIDE_CHOICES = [1.3, 1.4, 1.5, 1.6, 1.75], TALL_CHOICES = [0.58, 0.62, 1 / 1.5, 0.72, 0.77], SQUARE_CHOICES = [0.92, 0.96, 1, 1.04, 1.09]
-const pick = (list: number[], random: () => number) => list[Math.floor(random() * list.length)]
+/** A frame is drawn a little wider or narrower than its photograph, so that a row can fill its width. */
+const FIT_JITTER = [0.94, 1, 1.06]
+export const pick = (list: number[], random: () => number) => list[Math.floor(random() * list.length)]
 
 /** Photographs in rows, every row as wide as the block. A row's height follows from the shapes in
  *  it, so one holding few photographs is taller. Rows share one stretch factor, which is what
  *  keeps every frame close to the shape it started as; if it strays too far the draw is dropped.
  *  Columns are the same thing turned on its side. */
 function justified(kinds: number[], from: number, to: number, x: number, y: number, w: number, h: number,
-  aspect: number, random: () => number, out: Box[], columns: boolean): boolean {
+  aspect: number, random: () => number, out: Box[], columns: boolean, fit?: number[]): boolean {
   const n = to - from
   // Work in the orientation where the block is rows; flip afterwards for columns.
   const ratios = Array.from({ length: n }, (_, i) => {
-    const kind = kinds[from + i], r = kind === 0 ? pick(WIDE_CHOICES, random) : kind === 2 ? pick(SQUARE_CHOICES, random) : pick(TALL_CHOICES, random)
+    // With `fit`, each frame starts from its own photograph's real proportion (give or take a few percent), not from a typical one.
+    const kind = kinds[from + i], r = fit ? fit[from + i] * pick(FIT_JITTER, random) : kind === 0 ? pick(WIDE_CHOICES, random) : kind === 2 ? pick(SQUARE_CHOICES, random) : pick(TALL_CHOICES, random)
     return columns ? 1 / r : r
   })
   const region = columns ? (h / (w * aspect)) : (w * aspect) / h
@@ -150,7 +153,7 @@ function justified(kinds: number[], from: number, to: number, x: number, y: numb
 /** A block of photographs in a region: a straight cut into two smaller blocks, or rows, or columns.
  *  Cuts hand each side area in proportion to its photographs, nudged so layouts differ. */
 function block(kinds: number[], from: number, to: number, x: number, y: number, w: number, h: number,
-  aspect: number, random: () => number, out: Box[], depth: number, flow = false): boolean {
+  aspect: number, random: () => number, out: Box[], depth: number, flow = false, fit?: number[]): boolean {
   const n = to - from
   if (n === 1) { out[from] = [x, y, w, h]; return true }
   if (depth > 0 && n >= 3 && random() < 0.5) {
@@ -160,24 +163,24 @@ function block(kinds: number[], from: number, to: number, x: number, y: number, 
     const side = flow || random() < Math.max(0.15, Math.min(0.85, 0.5 + 0.45 * Math.log((w * aspect) / h)))
     if (side) {
       const xs = x + w * share
-      return block(kinds, from, from + k, x, y, xs - x, h, aspect, random, out, depth - 1, flow)
-        && block(kinds, from + k, to, xs, y, x + w - xs, h, aspect, random, out, depth - 1, flow)
+      return block(kinds, from, from + k, x, y, xs - x, h, aspect, random, out, depth - 1, flow, fit)
+        && block(kinds, from + k, to, xs, y, x + w - xs, h, aspect, random, out, depth - 1, flow, fit)
     }
     const ys = y + h * share
-    return block(kinds, from, from + k, x, y, w, ys - y, aspect, random, out, depth - 1)
-      && block(kinds, from + k, to, x, ys, w, y + h - ys, aspect, random, out, depth - 1)
+    return block(kinds, from, from + k, x, y, w, ys - y, aspect, random, out, depth - 1, false, fit)
+      && block(kinds, from + k, to, x, ys, w, y + h - ys, aspect, random, out, depth - 1, false, fit)
   }
-  return justified(kinds, from, to, x, y, w, h, aspect, random, out, flow || random() < 0.4)
+  return justified(kinds, from, to, x, y, w, h, aspect, random, out, flow || random() < 0.4, fit)
 }
 
-interface Candidate { boxes: Box[]; score: number; signature: string }
+export interface Candidate { boxes: Box[]; score: number; signature: string }
 
 /** Pulls seams that nearly line up onto one line (within 3% of the page). Independent cuts in
  *  neighbouring blocks land a hair apart, and a hair is enough to give the gap between them a
  *  different width from the rest — those layouts used to be thrown away; lined up they are kept and
  *  read tidier. Every edge goes through the same mapping, so the tiling stays a tiling. */
 const SNAP = 0.03
-function snapped(boxes: Box[]): Box[] {
+export function snapped(boxes: Box[]): Box[] {
   const maps = [0, 1].map(axis => {
     const edges = [...new Set(boxes.flatMap(b => [b[axis], b[axis] + b[axis + 2]].map(v => Math.round(v * 1e6) / 1e6)))].sort((p, q) => p - q)
     const to = new Map<number, number>()
@@ -201,13 +204,16 @@ function snapped(boxes: Box[]): Box[] {
  *  the new-album wizard offers gaps of 0, 6, 16 and 28 and sets the margin to half the gap. A layout
  *  that holds at one and breaks at another would silently vanish from the browsers at that setting,
  *  so it is kept only if it holds at all of them. The widest is tried first, since it fails most. */
-const GAP_SETTINGS: [margin: number, gap: number][] = [[14, 28], [8, 16], [3, 6]]
-const gapHolds = (boxes: Box[], aspect: number, settings = GAP_SETTINGS) => {
+export const GAP_SETTINGS: [margin: number, gap: number][] = [[14, 28], [8, 16], [3, 6]]
+export const gapHolds = (boxes: Box[], aspect: number, settings = GAP_SETTINGS) => {
   const frames = boxes.map(([x, y, width, height], i): PlaceholderRect => ({ id: String(i), x, y, width, height, preferredOrientation: 'any' }))
   return settings.every(([margin, gap]) => supportsUniformGap(frames, aspect, margin, gap))
 }
 
-function evaluate(boxes: Box[], kinds: number[], aspect: number, round: number): number | null {
+/** How far a frame may stray from its photograph's proportion (a ratio, either way), by round: a fifth of the picture lost at most,
+ *  then a little more when nothing fits. */
+const FIT_TOLERANCE = [1.25, 1.4, 1.55]
+function evaluate(boxes: Box[], kinds: number[], aspect: number, round: number, fit?: number[]): number | null {
   // Later rounds widen what a frame may be. The shape rule takes a squarish frame (0.87 to 1.15) for a photograph of
   // either orientation, so the last round lets those in, which is what gives two or three photographs more than a
   // couple of ways to sit on a page.
@@ -217,8 +223,17 @@ function evaluate(boxes: Box[], kinds: number[], aspect: number, round: number):
   for (let i = 0; i < boxes.length; i++) {
     const [x, y, w, h] = boxes[i]
     const ratio = (w * aspect) / h, kind = kinds[i], shape = kind === 0 ? LANDSCAPE : kind === 2 ? SQUARE : UPRIGHT
-    if (ratio < (kind === 0 ? wideMin : shape.min) || ratio > (kind === 1 ? tallMax : shape.max)) return null
-    dev += Math.abs(Math.log(ratio / shape.ideal))
+    if (fit) {
+      const off = Math.abs(Math.log(ratio / fit[i]))
+      if (off > Math.log(FIT_TOLERANCE[Math.min(round, 2)])) return null
+      // Whatever the tolerance, a photograph keeps a frame of its own shape: a landscape one never a portrait frame, a portrait one never a
+      // landscape frame, a square one a near-square frame (with a little room for the gap to nibble at the proportions).
+      if (!frameSuits(fit[i], ratio)) return null
+      dev += off
+    } else {
+      if (ratio < (kind === 0 ? wideMin : shape.min) || ratio > (kind === 1 ? tallMax : shape.max)) return null
+      dev += Math.abs(Math.log(ratio / shape.ideal))
+    }
     const area = w * h
     minArea = Math.min(minArea, area); maxArea = Math.max(maxArea, area)
     xs.add(Math.round(x * 200)); xs.add(Math.round((x + w) * 200))
@@ -234,14 +249,14 @@ function evaluate(boxes: Box[], kinds: number[], aspect: number, round: number):
 /** Frames in the order the template matcher reads them: by left edge, then top edge. The browser
  *  previews a template by handing photographs to its frames in array order and applies it in this
  *  order, so a template whose frames are listed any other way shows one photograph and applies another. */
-const readingOrder = (boxes: Box[]) => boxes
+export const readingOrder = (boxes: Box[]) => boxes
   .map((b, i) => ({ b, i }))
   .sort((p, q) => p.b[0] - q.b[0] || p.b[1] - q.b[1])
 
 /** The arrangement a layout makes, ignoring proportions: which grid lines each frame sits between,
  *  with lines closer than a twenty-fifth of the page counted as one. The library's own duplicate check
  *  reads layouts the same way, so what is kept here survives it. */
-function arrangement(boxes: Box[]): string {
+export function arrangement(boxes: Box[]): string {
   const lines = (values: number[]) => {
     const out: number[] = []
     for (const v of [...values].sort((p, q) => p - q)) if (!out.length || v - out[out.length - 1] > 0.04) out.push(v)
@@ -263,7 +278,7 @@ export function layoutLook(boxes: Box[]): string {
  *  shelf are different from each other rather than the same cut in six proportions. */
 export const lookOfFrames = (frames: PlaceholderRect[]) => layoutLook(frames.map((f): Box => [f.x, f.y, f.width, f.height]))
 
-function diverse(sorted: Candidate[]): Candidate[] {
+export function diverse(sorted: Candidate[]): Candidate[] {
   const groups = new Map<string, Candidate[]>()
   for (const c of sorted) { const g = groups.get(c.signature); if (g) g.push(c); else groups.set(c.signature, [c]) }
   const out: Candidate[] = []
@@ -402,6 +417,7 @@ export function balancedForMix(wide: number, tall: number, square: number, aspec
 
 /** Rebuilds a balanced layout from its id, so albums saved with one still resolve it. */
 export function balancedFromId(id: string): TemplateDefinition | undefined {
+  if (id.startsWith('fit-')) return fitFromId(id)
   const ordered = id.match(/^mixseq(3?)-(\d+)-(\d+)-(\d+)-(\d+)$/)
   if (ordered) {
     const [, three, key, count, code, rank] = ordered
@@ -441,8 +457,8 @@ export const inOrder = (boxes: Box[], kinds: number[]) => boxes.map((_, i) => i)
 /** The photographs as consecutive columns, each column a stack: the way to lay out an exact order, since the
  *  matcher reads frames left to right and top to bottom. `cuts` says where one column ends and the next
  *  begins. A column's width follows from what is stacked in it, and all columns share one stretch factor. */
-function columnsFor(kinds: number[], cuts: number[], random: () => number, aspect: number, equal: boolean): Box[] {
-  const ratios = kinds.map(kind => kind === 0 ? pick(WIDE_CHOICES, random) : kind === 2 ? pick(SQUARE_CHOICES, random) : pick(TALL_CHOICES, random))
+function columnsFor(kinds: number[], cuts: number[], random: () => number, aspect: number, equal: boolean, fit?: number[]): Box[] {
+  const ratios = kinds.map((kind, i) => fit ? fit[i] * pick(FIT_JITTER, random) : kind === 0 ? pick(WIDE_CHOICES, random) : kind === 2 ? pick(SQUARE_CHOICES, random) : pick(TALL_CHOICES, random))
   const cols = cuts.slice(0, -1).map((from, j) => ({ from, to: cuts[j + 1] }))
   const widths = cols.map(({ from, to }) => {
     const rs = ratios.slice(from, to), k = rs.length
@@ -466,7 +482,7 @@ function columnsFor(kinds: number[], cuts: number[], random: () => number, aspec
 }
 
 /** Where the columns of an order could break: every way for a short one, a spread of them for a long one. */
-function columnCuts(count: number, random: () => number, draws: number): number[][] {
+export function columnCuts(count: number, random: () => number, draws: number): number[][] {
   const out: number[][] = []
   if (count <= 11) {
     for (let mask = 0; mask < 1 << (count - 1); mask++) {
@@ -486,9 +502,9 @@ function columnCuts(count: number, random: () => number, draws: number): number[
   return out
 }
 
-function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number, keep: number): Candidate[] {
+function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number, keep: number, fit?: number[]): Candidate[] {
   const count = kinds.length
-  const random = rng(codeOf(kinds) % 2147483647 * 7919 + count * 131 + aspectKey)
+  const random = rng((fit ? ratioHash(fit) : codeOf(kinds)) % 2147483647 * 7919 + count * 131 + aspectKey)
   const found = new Map<string, Candidate>()
   const holds = new WeakMap<Candidate, boolean>()
   const kept: Candidate[] = []
@@ -500,13 +516,13 @@ function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number, kee
     for (let s = 0; s < max + partitions.length * 2 && found.size < keep * 2; s++) {
       // Half of the work is columns, taken partition by partition, which covers an order far more evenly
       // than chance does; the rest is the free-form search, for the layouts columns cannot make.
-      const drawn: Box[] = s < partitions.length * 2 ? columnsFor(kinds, partitions[s % partitions.length], random, aspect, s >= partitions.length) : new Array(count)
-      if (s >= partitions.length * 2 && !block(kinds, 0, count, 0, 0, 1, 1, aspect, random, drawn, 2, random() < 0.7)) continue
+      const drawn: Box[] = s < partitions.length * 2 ? columnsFor(kinds, partitions[s % partitions.length], random, aspect, s >= partitions.length, fit) : new Array(count)
+      if (s >= partitions.length * 2 && !block(kinds, 0, count, 0, 0, 1, 1, aspect, random, drawn, 2, random() < 0.7, fit)) continue
       const boxes = snapped(drawn)
-      const score = evaluate(boxes, kinds, aspect, Math.min(round, 2))
+      const score = evaluate(boxes, kinds, aspect, Math.min(round, 2), fit)
       if (score === null) continue
       // Keep a layout only if the matcher's reading order gives every photograph a frame of its own shape.
-      if (!inOrder(boxes, kinds)) continue
+      if (fit ? !inOrderFit(boxes, fit, aspect) || !inOrderShapes(boxes, fit, aspect) : !inOrder(boxes, kinds)) continue
       const look = layoutLook(boxes)
       const known = found.get(look)
       if (!known || known.score > score) found.set(look, { boxes, score, signature: arrangement(boxes) })
@@ -572,4 +588,79 @@ export function balancedWarmSteps(count: number, aspect: number): (() => void)[]
   if (count < 2 || !Number.isFinite(aspect) || aspect <= 0) return []
   const aspectKey = keyFor(aspect)
   return Array.from({ length: count + 1 }, (_, landscapes) => () => { layoutsFor(count, landscapes, 0, aspectKey, LIBRARY_PER_MIX) })
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Fitted layouts: drawn for the photographs' real proportions, not for "landscape", "portrait" and "square".
+//
+// A set of photographs is rarely all 3:2 and 2:3. A 4:5 portrait, a 16:9 or a panorama put into a frame drawn for a typical one
+// loses a good part of the picture, or leaves the subject cut. These layouts take each photograph's own proportion (to within
+// 4%) and make each frame that shape, give or take a fifth of the picture at most, so nothing important is cropped away.
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+const RATIO_STEP = Math.log(1.04), RATIO_ORIGIN = 27, RATIO_STEPS = 56
+/** A proportion as a whole number of 4% steps (0 to 55, 0.35 to 3.0), so that a photograph's shape fits in two characters of an id. */
+export const ratioIndex = (ratio: number) => Math.max(0, Math.min(RATIO_STEPS - 1, Math.round(Math.log(Math.max(0.01, ratio)) / RATIO_STEP) + RATIO_ORIGIN))
+export const ratioOfIndex = (index: number) => Math.exp((index - RATIO_ORIGIN) * RATIO_STEP)
+/** The proportion of each photograph, to the nearest 4%. */
+export const ratiosOf = (photos: { width: number; height: number }[]) => photos.map(p => ratioOfIndex(ratioIndex(p.width > 0 && p.height > 0 ? p.width / p.height : 1)))
+export const ratioCode = (ratios: number[]) => ratios.map(r => ratioIndex(r).toString(36).padStart(2, '0')).join('')
+export const ratiosFromCode = (code: string) => (code.match(/../g) ?? []).map(c => ratioOfIndex(parseInt(c, 36)))
+const ratioHash = (ratios: number[]) => ratios.reduce((h, r) => (Math.imul(h, 31) + ratioIndex(r)) >>> 0, 7)
+
+/** Whether the matcher's reading order (left edge, then top) gives photograph k a frame of about its own proportion. */
+export function inOrderFit(boxes: Box[], fit: number[], aspect: number, tolerance = 1.6): boolean {
+  const reading = boxes.map((_, i) => i).sort((p, q) => boxes[p][0] - boxes[q][0] || boxes[p][1] - boxes[q][1])
+  return reading.every((frame, k) => { const [, , w, h] = boxes[frame]; return Math.abs(Math.log(((w * aspect) / h) / fit[k])) <= Math.log(tolerance) })
+}
+
+/** Whether a frame of this proportion suits a photograph of that one by the app's shape rule (a landscape photograph never a portrait
+ *  frame, a portrait one never a landscape frame, a square one a near-square frame), with room for the gap to move it a little. */
+export const frameSuits = (photo: number, frame: number) => photo > 1.15 ? frame >= 0.95 : photo < 1 / 1.15 ? frame <= 1.05 : frame >= 0.85 && frame <= 1.18
+/** Whether the matcher's reading order gives every photograph a frame its shape suits. */
+export function inOrderShapes(boxes: Box[], photos: number[], aspect: number): boolean {
+  const reading = boxes.map((_, i) => i).sort((p, q) => boxes[p][0] - boxes[q][0] || boxes[p][1] - boxes[q][1])
+  return reading.every((frame, k) => frameSuits(photos[k], (boxes[frame][2] * aspect) / boxes[frame][3]))
+}
+
+const fitCache = new Map<string, TemplateDefinition[]>()
+
+/** Layouts for photographs of these proportions, in this order, on an album of this shape: tilings of the whole sheet, every frame the
+ *  proportion of its photograph. `keep` is how many to search for. */
+export function fitForRatios(ratios: number[], aspect: number, keep = KEEP_PER_MIX): TemplateDefinition[] {
+  const count = ratios.length
+  if (count < 2 || count > MAX_PHOTOS_PER_SPREAD || !Number.isFinite(aspect) || aspect <= 0) return []
+  const quantised = ratios.map(r => ratioOfIndex(ratioIndex(r))), aspectKey = keyFor(aspect), code = ratioCode(quantised), cacheKey = `${aspectKey}|${code}|${keep}`
+  const hit = fitCache.get(cacheKey)
+  if (hit) return hit
+  const aspectOf = aspectKey / KEY_SCALE, kinds = quantised.map(() => 0)
+  const boxesList: Box[][] = [], seen = new Set<string>()
+  for (const c of sequenceLayouts(kinds, aspectOf, aspectKey, keep, quantised)) {
+    for (const [flipX, flipY] of [[false, false], [true, false], [false, true], [true, true]]) {
+      const boxes = c.boxes.map(([x, y, w, h]): Box => [flipX ? 1 - x - w : x, flipY ? 1 - y - h : y, w, h])
+      const look = layoutLook(boxes)
+      if (seen.has(look) || ((flipX || flipY) && (!inOrderFit(boxes, quantised, aspectOf) || !inOrderShapes(boxes, quantised, aspectOf) || !gapHolds(boxes, aspectOf, GAP_SETTINGS.slice(0, 1))))) continue
+      seen.add(look)
+      boxesList.push(boxes)
+    }
+  }
+  const out = boxesList.map((boxes, rank): TemplateDefinition => {
+    const id = `fit-${aspectKey}-${count}-${code}-${rank}`
+    return {
+      id, name: `Fitted · ${count} photographs · ${rank + 1}`, photoCount: count, pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString(), thumbnailColor: '#5e6368',
+      placeholders: readingOrder(boxes).map(({ b: [x, y, width, height] }, i): PlaceholderRect => ({ id: `${id}-p${i}`, x, y, width, height, preferredOrientation: 'any' })),
+    }
+  })
+  if (fitCache.size > 200) fitCache.clear()
+  fitCache.set(cacheKey, out)
+  return out
+}
+
+/** Rebuilds a fitted layout from its id. */
+export function fitFromId(id: string): TemplateDefinition | undefined {
+  const m = id.match(/^fit-(\d+)-(\d+)-([0-9a-z]+)-(\d+)$/)
+  if (!m) return undefined
+  const ratios = ratiosFromCode(m[3])
+  if (ratios.length !== Number(m[2])) return undefined
+  return fitForRatios(ratios, Number(m[1]) / KEY_SCALE).find(t => t.id === id)
 }

@@ -62,7 +62,7 @@ app.whenReady().then(async()=>{
   await new Promise(r=>setTimeout(r,150))
   const dimensions=await evaluate('(()=>{const r=document.querySelector("[data-spread-drag]").getBoundingClientRect();return [r.width,r.height]})()')
   assert.ok(Math.abs(dimensions[0]/dimensions[1]-ratio)<0.01)
-  assert.equal(await evaluate('document.querySelectorAll(".spread-thumb__fold").length'),1)
+  assert.equal(await evaluate(`document.querySelectorAll(".spread-thumb__fold").length`),0,"the fold line is drawn under the photographs, not as a layer over the card")
   assert.ok(await evaluate(`(()=>{const card=document.querySelector('[data-spread-drag]').getBoundingClientRect();const icon=document.querySelector('.spread-card-controls__center').getBoundingClientRect();return Math.abs(icon.left+icon.width/2-card.left-card.width/2)<1})()`),'Combined template controls stay centered over the fold')
   await evaluate('store.setState({bottomPanelOpen:true})');await new Promise(r=>setTimeout(r,150))
   assert.ok(await evaluate('document.querySelector("[data-spread-drag]").getBoundingClientRect().height')<dimensions[1])
@@ -160,7 +160,7 @@ app.whenReady().then(async()=>{
  assert.deepEqual(await evaluate('(()=>{const p=store.getState().project.spreads[0].backgroundPattern.edits;return [p.zoom,p.rotationDeg,p.opacity,p.brightness,p.flipHorizontal]})()'),[1.7,25,.65,18,true],'Setting a background preserves every image adjustment')
  const background=await evaluate('JSON.stringify(store.getState().project.spreads[0].backgroundPattern)')
  // Next can land on a showcase layout (floating pictures); the checks below are about a layout that fills the page, so step past those.
- await evaluate(`const s=store.getState().project.spreads[0];store.getState().insertTimelinePhotos(['c'],s.id);store.getState().cycleSpreadTemplate(s.id,1);for(let i=0;i<60&&store.getState().project.spreads[0].templateId?.startsWith('show-');i++)store.getState().cycleSpreadTemplate(s.id,1)`)
+ await evaluate(`const s=store.getState().project.spreads[0];store.getState().insertTimelinePhotos(['c'],s.id);store.getState().cycleSpreadTemplate(s.id,1);for(let i=0;i<60&&store.getState().project.spreads[0].templateId?.startsWith('show');i++)store.getState().cycleSpreadTemplate(s.id,1)`)
  await new Promise(r=>setTimeout(r,100))
  assert.equal(await evaluate('JSON.stringify(store.getState().project.spreads[0].backgroundPattern)'),background,'Adding and retemplating foreground images keeps the background fixed')
  assert.deepEqual(await evaluate('store.getState().project.spreads[0].placements.filter(p=>p.photoId).map(p=>p.photoId).sort()'),['a','c'])

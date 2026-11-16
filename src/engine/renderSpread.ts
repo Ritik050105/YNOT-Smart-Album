@@ -95,6 +95,8 @@ export async function renderSpreadToCanvas(
   ctx.imageSmoothingQuality = 'high'
 
   await drawSpreadBackground(ctx, spread, widthPx, heightPx)
+  // The line down the middle is part of the background, drawn before the photographs, so a photograph is never marked by it.
+  if (preview) drawFoldLine(ctx, spread, widthPx, heightPx)
 
   const scale = widthPx / DESIGN_WIDTH
   const boxes = computePlaceholderBoxes(spread, widthPx, heightPx)
@@ -125,6 +127,16 @@ export async function renderSpreadToCanvas(
  *  sheet there — the other page is simply not part of the design. So the spread keeps its full
  *  size and that page is held back instead: greyed on screen and in every thumbnail, and out of
  *  reach of every drag and resize. */
+/** The faint line down the middle of a two-page spread on screen. Drawn under the photographs (it used to be a layer over the card,
+ *  which put a line across every photograph that sat on the fold). */
+export function drawFoldLine(ctx: CanvasRenderingContext2D, spread: Pick<Spread, 'pageSide' | 'isCover'>, width: number, height: number) {
+  if (spread.isCover || spread.pageSide !== 'spread') return
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.16)'
+  ctx.fillRect(Math.round(width / 2), 0, 1, height)
+  ctx.restore()
+}
+
 export function spreadPageBand(spread: Pick<Spread, 'pageSide' | 'isCover'>): { start: number; end: number } {
   if (spread.isCover || spread.pageSide === 'spread' || spread.pageSide === 'single') return { start: 0, end: 1 }
   return spread.pageSide === 'right' ? { start: 0.5, end: 1 } : { start: 0, end: 0.5 }

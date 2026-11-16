@@ -85,34 +85,22 @@ export function templateShapeMismatches(photos: PhotoAsset[], template: Template
   const frames = resolveTemplateFrames(template.placeholders, aspect, marginPx, gapPx)
   if (frames.length !== photos.length) return photos.length
   const shapes = photoShapes(photos)
-  const count = (list: string[], shape: string) => list.filter((value) => value === shape).length
-  // Frames by kind. A square frame takes any photograph. A landscape or portrait frame takes its own
-  // shape, and also a square photograph when it is close to square.
-  let square = 0, nearLandscape = 0, farLandscape = 0, nearPortrait = 0, farPortrait = 0
-  for (const frame of frames) {
-    const w = frame.width * aspect, h = frame.height, shape = shapeOf(w, h), ratio = w / h
-    if (shape === 'square') square++
-    else if (shape === 'landscape') ratio <= SQUARISH_MAX ? nearLandscape++ : farLandscape++
-    else ratio >= SQUARISH_MIN ? nearPortrait++ : farPortrait++
+  // Which frames each photograph may take, by the strict rule, and the most photographs that can be given a frame at once (a
+  // maximum matching: a photograph that fits several frames must not take the only one another fits).
+  const takes = shapes.map(shape => frames.map((frame, f) => (frame.width > 0 && frame.height > 0 && shapeFitsStrictly(shape, frame.width * aspect, frame.height) ? f : -1)).filter(f => f >= 0))
+  const owner = new Array<number>(frames.length).fill(-1)
+  const place = (photo: number, seen: boolean[]): boolean => {
+    for (const f of takes[photo]) {
+      if (seen[f]) continue
+      seen[f] = true
+      if (owner[f] < 0 || place(owner[f], seen)) { owner[f] = photo; return true }
+    }
+    return false
   }
-  // How many photographs can be framed: a small matching, worked greedily from the photographs that
-  // have the fewest choices. Landscapes and portraits take their own frames first and the square
-  // frames last; squares take the near-square frames first, then whatever square frames are left.
-  const L = count(shapes, 'landscape'), P = count(shapes, 'portrait'), Q = count(shapes, 'square')
-  const landscapeOwn = Math.min(L, farLandscape), portraitOwn = Math.min(P, farPortrait)
-  let landscapeLeft = L - landscapeOwn, portraitLeft = P - portraitOwn
-  // The near-square frames are shared between square photos and the landscapes and portraits left over.
-  // Square photographs have few other choices, so they claim them only as far as they need to; the rest go to the leftovers.
-  let nearL = nearLandscape, nearP = nearPortrait, spare = square
-  // Square photographs: square frames are the most flexible, so spend the near-square frames on them first.
-  let squaresLeft = Q
-  const useNearL = Math.min(squaresLeft, nearL); squaresLeft -= useNearL; nearL -= useNearL
-  const useNearP = Math.min(squaresLeft, nearP); squaresLeft -= useNearP; nearP -= useNearP
-  const useSquare = Math.min(squaresLeft, spare); squaresLeft -= useSquare; spare -= useSquare
-  const takeL = Math.min(landscapeLeft, nearL); landscapeLeft -= takeL
-  const takeP = Math.min(portraitLeft, nearP); portraitLeft -= takeP
-  const takeSpare = Math.min(landscapeLeft + portraitLeft, spare); const unframed = landscapeLeft + portraitLeft - takeSpare
-  return squaresLeft + unframed
+  let framed = 0
+  // The photographs with the fewest choices first.
+  for (const photo of shapes.map((_, i) => i).sort((a, b) => takes[a].length - takes[b].length)) if (place(photo, new Array(frames.length).fill(false))) framed++
+  return photos.length - framed
 }
 
 /** The same count as templateShapeMismatches, for when the photographs keep their order: photo k

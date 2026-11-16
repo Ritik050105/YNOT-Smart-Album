@@ -1,6 +1,6 @@
 import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
-import { showcaseForSequence, showcaseFromId } from './showcaseLayouts'
-import { balancedForMix, balancedForSequence, balancedFromId, balancedTemplates, balancedWarmSteps, lookOfFrames, sequenceKinds } from './balancedLayouts'
+import { showcaseForRatios, showcaseFromId } from './showcaseLayouts'
+import { balancedForMix, balancedForSequence, balancedFromId, balancedTemplates, balancedWarmSteps, fitForRatios, lookOfFrames, ratiosOf, sequenceKinds } from './balancedLayouts'
 import { TemplateDefinition, PlaceholderRect } from '@/types'
 import { GAP, placeGridInRect, geometrySignature, resolveTemplateFrames } from './templateLayout'
 import { generatedTemplates } from './templateGenerator'
@@ -926,7 +926,7 @@ export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefini
   return templates.filter(t => {
     // A balanced layout cut the same way at a visibly different place is a different composition, so
     // those are told apart by where their edges fall, to the nearest twelfth, not by topology alone.
-    const frames = t.id.startsWith('mix') ? `look:${lookOfFrames(t.placeholders)}` : arrangementSignature(t.placeholders)
+    const frames = /^show2?-/.test(t.id) ? `finer:${t.placeholders.map(p => [p.x, p.y, p.x + p.width, p.y + p.height].map(v => Math.round(v * 40)).join(',')).sort().join('|')}` : t.id.startsWith('mix') || t.id.startsWith('fit-') ? `look:${lookOfFrames(t.placeholders)}` : arrangementSignature(t.placeholders)
     // Captions are part of the design: the same photo grid with and without a text box, or with the
     // caption in a different place, are different templates and both belong in the browser.
     const text = (t.textBoxes ?? []).map(b => [b.x, b.y, b.width, b.height].map(v => Math.round(v * 20)).join(',')).sort().join('|')
@@ -976,7 +976,7 @@ export function templateSwatchStyle(t: Pick<TemplateDefinition, 'thumbnailColor'
  *  design, so the seam beside it is a margin rather than a gap and the check can never pass. */
 export function runsToTheTrim(t: TemplateDefinition): boolean {
   // Showcase layouts float on the page; their white space is the design, not an uneven margin.
-  return isFullSpreadTemplate(t) || isBleedFeatureTemplate(t.id) || t.id.startsWith('show-')
+  return isFullSpreadTemplate(t) || isBleedFeatureTemplate(t.id) || /^show2?-/.test(t.id)
 }
 
 export function isFullSpreadTemplate(t: TemplateDefinition): boolean {
@@ -1019,7 +1019,8 @@ function allowsBalanced(ids: string[] | null): boolean {
  *  order" row has real choices. Offered like the rest of the family: not to a hand-picked library. */
 export function sequenceCandidates(photos: { width: number; height: number }[], count: number, enabledTemplateIds: string[] | null, frameFilter: TemplateFrameFilter, aspect: number): TemplateDefinition[] {
   if (photos.length !== count || count < 2 || !allowsBalanced(enabledTemplateIds)) return []
-  const all = balancedForSequence(sequenceKinds(photos), aspect)
+  // Layouts drawn for the photographs' real proportions first, then those drawn for their shapes.
+  const all = [...fitForRatios(ratiosOf(photos), aspect), ...balancedForSequence(sequenceKinds(photos), aspect)]
   return frameFilter === 'all' ? all : all.filter(t => matchesFrameFilter(t, frameFilter, aspect))
 }
 
@@ -1038,7 +1039,7 @@ export function mixCandidates(photos: { width: number; height: number }[], count
  *  order. Offered like the rest of the generated family: not to a hand-picked library. */
 export function showcaseCandidates(photos: { width: number; height: number }[], count: number, enabledTemplateIds: string[] | null, frameFilter: TemplateFrameFilter, aspect: number): TemplateDefinition[] {
   if (photos.length !== count || count < 1 || !allowsBalanced(enabledTemplateIds)) return []
-  const all = showcaseForSequence(sequenceKinds(photos), aspect)
+  const all = showcaseForRatios(ratiosOf(photos), aspect)
   return frameFilter === 'all' ? all : all.filter(t => matchesFrameFilter(t, frameFilter, aspect))
 }
 
@@ -1236,7 +1237,7 @@ export function templateFamilyLabel(t: TemplateDefinition): string {
   if (t.id.startsWith('ref-storyboard-')) return 'Storyboard'
   if (t.id.startsWith('ref-mosaic-')) return 'Mosaic'
   if (t.id.startsWith('seamless-')) return 'Seamless'
-  if (t.id.startsWith('show-')) return 'Showcase'
+  if (/^show2?-/.test(t.id)) return 'Showcase'
   if (t.id.startsWith('mix-') || /^mixseq3?-/.test(t.id)) return 'Balanced'
   if (t.id.startsWith('gen-grid-') || t.id.startsWith('gen-gridcol-')) return 'Grid'
   if (t.id.startsWith('gen-hero-')) return 'Hero'

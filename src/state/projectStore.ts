@@ -1,5 +1,5 @@
 import { MAX_PHOTOS_PER_SPREAD } from '@/engine/spreadLimits'
-import {cyclingTemplates} from './templateBrowsing'
+import {cyclingTemplates,useTemplateBrowsing} from './templateBrowsing'
 import {setSlideDirection} from '@/engine/slideDirection'
 import {EditedPsdLayer} from '@/engine/importEditedPsd'
 import {askTemplateCategory} from '@/components/ClassifyTemplate'
@@ -25,6 +25,8 @@ import {
   createCoverSpread,
   defaultPlacement,
   buildSpreadFromPlacements,
+  defaultLayouts,
+  DefaultLayoutContext,
 } from '@/engine/autoLayout'
 import { builtInTemplates, uniqueTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, sequenceCandidates, mixCandidates, showcaseCandidates, templatesForCount, TemplateFrameFilter } from '@/engine/templates'
 import { templateShapeMismatches } from '@/engine/templateMatching'
@@ -44,6 +46,12 @@ function migrateAlbumSize(raw: AlbumSize & { bleedIn?: number; safeZoneIn?: numb
   const trim: EdgeInset = raw.trim ?? uniformInset(raw.bleedIn ?? 0.125)
   const safeZone: EdgeInset = raw.safeZone ?? uniformInset(raw.safeZoneIn ?? 0.25)
   return { ...raw, trim, safeZone }
+}
+
+/** What the engine needs to pick a rule-following layout for a spread's photographs. */
+function layoutContext(p: Project, s: Spread): DefaultLayoutContext {
+  const size = s.size ?? p.size
+  return { photos: p.photos, aspect: size.widthIn / size.heightIn, enabledTemplateIds: p.enabledTemplateIds }
 }
 
 export function skippedTextViewKey(projectId: string, spreadId: string): string {
@@ -825,7 +833,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const index = interior.findIndex((s) => s.id === spreadId)
       if (index === -1) return p
       if (cutIndex !== undefined && (!Number.isInteger(cutIndex) || cutIndex < 1 || cutIndex >= interior[index].placements.length)) return p
-      const [left, right] = splitSpreadIntoPages(interior[index], cutIndex)
+      const [left, right] = splitSpreadIntoPages(interior[index], cutIndex, layoutContext(p, interior[index]))
       interior.splice(index, 1, left, right)
       const reordered = interior.map((s, i) => ({ ...s, order: i }))
       return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
@@ -851,7 +859,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }
       if (next.length === s.placements.length && next.every((pl, i) => pl === s.placements[i])) return s
       changed = true
-      const updated={ ...buildSpreadFromPlacements(next, s.pageSide, s), id: s.id, textBoxes: s.textBoxes, order: s.order }
+      const updated={ ...buildSpreadFromPlacements(next, s.pageSide, s, layoutContext(p, s)), id: s.id, textBoxes: s.textBoxes, order: s.order }
       if(s.id===target.id)movedSelection={spreadId:s.id,frameId:updated.placements[next.indexOf(placement)].placeholderId}
       return updated
     })
@@ -869,7 +877,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       if(!s.placements.some(pl=>!!pl.photoId&&ids.has(pl.photoId)))return s
       const remaining=s.placements.filter(pl=>!pl.photoId||!ids.has(pl.photoId))
       if(s.isCover||s.placements.some(pl=>pl.hidden||pl.locked))return {...s,placements:s.placements.map(pl=>!!pl.photoId&&ids.has(pl.photoId)?{...pl,photoId:null}:pl)}
-      return {...buildSpreadFromPlacements(remaining,s.pageSide,s),id:s.id,order:s.order,textBoxes:s.textBoxes}
+      return {...buildSpreadFromPlacements(remaining,s.pageSide,s,layoutContext(p,s)),id:s.id,order:s.order,textBoxes:s.textBoxes}
     })}
   }),
   insertTimelinePhotos: (photoIds, targetSpreadId, beforeFrameId) => withHistory(set, (p) => {
@@ -887,7 +895,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const at = beforeFrameId ? placements.findIndex((pl) => pl.placeholderId === beforeFrameId) : placements.length
     placements.splice(at < 0 ? placements.length : at, 0, ...validIds.map((id) => defaultPlacement(uuid(), id, { width: p.defaultBorderWidth, color: p.defaultBorderColor }, p.photos.find(photo => photo.id === id))))
     // Photographs dropped on a spread get a layout that fills it; the showcase layouts (white space, floating pictures) are for browsing to. A copy: the list is shared, and the sort below must not reorder it for everyone else.
-    const candidates=cyclingTemplates({...p,spreads:[]},{...target,placements},get().templateFrameFilter,get().favoriteTemplateIds).filter(t=>!t.id.startsWith('show-'))
+    const candidates=cyclingTemplates({...p,spreads:[]},{...target,placements},get().templateFrameFilter,get().favoriteTemplateIds).filter(t=>!/^show2?-/.test(t.id))
     // Dropping photographs onto a spread used to take whichever layout came first in the library,
     // which is why a landscape photograph kept landing in an upright frame: the choice never
     // looked at the photographs at all. Auto-build has always ranked by shape; this is the same
@@ -902,7 +910,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const height=DESIGN_WIDTH/(target.size??p.size).widthIn*(target.size??p.size).heightIn
     const oldBoxes=computePlaceholderBoxes(target,DESIGN_WIDTH,height)
     const stacked={...target,placements,customBoxes:placements.map((pl,i)=>{const old=oldBoxes.find(b=>b.placeholderId===pl.placeholderId);return {id:pl.placeholderId,...(old?{x:old.x/DESIGN_WIDTH,y:old.y/height,width:old.width/DESIGN_WIDTH,height:old.height/height}:{x:.1+(i%8)*.025,y:.1+(i%8)*.025,width:.6,height:.6}),preferredOrientation:'any' as const}}),flipped:false}
-    const base=candidates.length?applyPageTemplate({...target,placements},candidates[0].id,p.photos,p.size.widthIn/p.size.heightIn,true,'spread'):stacked
+    // Nothing on the browsers' shelf (the photographs are few or oddly shaped for it): the layouts any spread may start with, which keep the same rules. Only
+    // while some kind of template is switched on, since switching them all off is how a designer asks for the plain stack.
+    const anyKind=Object.values(useTemplateBrowsing.getState().categories).some(Boolean)
+    const starts=candidates.length||!anyKind||dropped.length!==placements.length?candidates:defaultLayouts(dropped,target.pageSide,spreadAspect,target.marginPx,target.gapPx,p.enabledTemplateIds)
+    const base=starts.length?applyPageTemplate({...target,placements},starts[0].id,p.photos,p.size.widthIn/p.size.heightIn,true,'spread'):stacked
     const updated = {...base,id:target.id,order:target.order,textBoxes:target.textBoxes}
     return { ...p, spreads: targetSpreadId === null ? [...p.spreads, updated] : p.spreads.map((s) => s.id === target.id ? updated : s) }
   }),
@@ -914,7 +926,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const index = interior.findIndex((s) => s.id === spreadId)
       if (index === -1 || index === interior.length - 1) return p
       if (interior[index].placements.length + interior[index + 1].placements.length > MAX_PHOTOS_PER_SPREAD) return p
-      const merged = mergeSpreads(interior[index], interior[index + 1])
+      const merged = mergeSpreads(interior[index], interior[index + 1], layoutContext(p, interior[index]))
       interior.splice(index, 2, merged)
       const reordered = interior.map((s, i) => ({ ...s, order: i }))
       return { ...p, spreads: cover ? [cover, ...reordered] : reordered }
@@ -1392,7 +1404,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   updateMultiplePlacements: (spreadId, placeholderIds, patch) => withHistory(set,p=>({...p,spreads:p.spreads.map(s=>{
     if(s.id!==spreadId)return s
     const placements=s.placements.map(pl=>placeholderIds.includes(pl.placeholderId)&&!pl.locked?{...pl,...patch}:pl)
-    if(patch.photoId===null&&!get().designerViewSpreadId&&!s.isCover&&!s.placements.some(pl=>pl.locked||pl.hidden))return {...buildSpreadFromPlacements(placements.filter(pl=>pl.photoId),s.pageSide,s),id:s.id,order:s.order,textBoxes:s.textBoxes}
+    if(patch.photoId===null&&!get().designerViewSpreadId&&!s.isCover&&!s.placements.some(pl=>pl.locked||pl.hidden))return {...buildSpreadFromPlacements(placements.filter(pl=>pl.photoId),s.pageSide,s,layoutContext(p,s)),id:s.id,order:s.order,textBoxes:s.textBoxes}
     return {...s,placements}
   })})),
 

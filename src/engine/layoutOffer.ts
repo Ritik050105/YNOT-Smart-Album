@@ -1,11 +1,14 @@
 import { PhotoAsset, TemplateDefinition } from '@/types'
 import { frameSizeSpread, hasEvenMargins, supportsUniformGap } from './templateLayout'
 import { templateCategory } from './templateTransfer'
-import { templateOrderMismatches, templateShapeMismatches } from './templateMatching'
+import { templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches } from './templateMatching'
 import { arrangementSignature, runsToTheTrim } from './templates'
 import { patternClass } from './patternClass'
 import { crossesFold } from './showcaseLayouts'
 export { patternClass }
+
+/** A built-in layout with a photograph across the fold, where the two pages meet. No exception: not even a single photograph given the whole spread, which hides the line. */
+export const crossesTheFold = (t: TemplateDefinition) => !!t.isBuiltIn && crossesFold(t.placeholders)
 
 /** Fewer even layouts than this and the shelf is too thin to be useful, so uneven ones come back. */
 const MIN_EVEN_LAYOUTS = 3
@@ -50,24 +53,49 @@ export function preferEvenLayouts(templates: TemplateDefinition[], aspect: numbe
   // No strips, anywhere a layout is chosen (Auto Build included), while there are enough ordinary ones to choose from.
   const normal = templates.filter(t => !t.isBuiltIn || normalFrames(t, aspect))
   templates = normal.length >= MIN_EVEN_LAYOUTS ? normal : templates
-  // A photograph across the fold, where the two pages meet, is not chosen from the generated tilings while there are plenty
-  // that keep each page to itself (the page layouts are drawn for exactly that).
-  const tidy = templates.filter(t => !t.id.startsWith('mix') || !crossesFold(t.placeholders))
-  templates = tidy.length >= 10 ? tidy : templates
+  // No photograph across the fold, where the two pages meet: a layout with one is never offered, whatever its family. If every candidate
+  // crosses, the list stays as it was.
+  const tidy = templates.filter(t => !crossesTheFold(t))
+  templates = tidy.length ? tidy : templates
   const even = templates.filter(t => runsToTheTrim(t) || (hasEvenMargins(t.placeholders, aspect, marginPx, gapPx) && frameSizeSpread(t.placeholders) <= 6))
   return even.length >= MIN_EVEN_LAYOUTS ? even : templates
 }
 
 /** The one rule every browser applies after its own category and collection filters. */
 export function offeredLayouts(photos: PhotoAsset[], templates: TemplateDefinition[], aspect: number, marginPx: number, gapPx: number, keepOrder = false, strict = false): TemplateDefinition[] {
-  return preferEvenLayouts(onlyFittingShapes(photos, templates, aspect, marginPx, gapPx, keepOrder, strict), aspect, marginPx, gapPx)
+  return preferEvenLayouts(wellCovered(photos, onlyFittingShapes(photos, templates, aspect, marginPx, gapPx, keepOrder, strict), aspect, keepOrder), aspect, marginPx, gapPx)
+}
+
+/** How much of each photograph a layout throws away, one number per photograph (0 to 1): the share of its area outside the frame it
+ *  would get. With the photographs in order each takes the frame in reading order; otherwise the frames and the photographs are
+ *  both put in order of proportion and matched along, which is the pairing that keeps the worst crop smallest. */
+function cropLosses(photos: PhotoAsset[], t: TemplateDefinition, aspect: number, keepOrder: boolean): number[] {
+  const frames = keepOrder ? templateFramesInReadingOrder(t) : [...t.placeholders]
+  let ratios = frames.map(f => (f.width * aspect) / f.height), wanted = photos.map(p => (p.width > 0 && p.height > 0 ? p.width / p.height : 1))
+  if (!keepOrder) { ratios = ratios.sort((a, b) => a - b); wanted = wanted.sort((a, b) => a - b) }
+  return wanted.map((r, i) => 1 - Math.min(ratios[i] / r, r / ratios[i]))
+}
+
+/** Layouts that keep most of every photograph. A frame of another proportion than its photograph cuts the picture to fit, and the
+ *  subject goes with it, so layouts are kept only while no photograph loses more than a third (and the set loses a fifth on
+ *  average); when fewer than sixty pass, the allowance is widened a little at a time, and as a last resort the best of the rest are kept. Layouts drawn for
+ *  the photographs' own proportions pass at once. Designers' own templates are left as they are. */
+export function wellCovered(photos: PhotoAsset[], templates: TemplateDefinition[], aspect: number, keepOrder = false): TemplateDefinition[] {
+  if (!photos.length) return templates
+  const judged = templates.filter(t => t.isBuiltIn && t.placeholders.length === photos.length)
+  if (judged.length < 2) return templates
+  const losses = new Map(judged.map(t => { const l = cropLosses(photos, t, aspect, keepOrder); return [t.id, { max: Math.max(...l), mean: l.reduce((a, v) => a + v, 0) / l.length }] as const }))
+  const keep = (maxLoss: number, meanLoss: number) => templates.filter(t => !losses.has(t.id) || (losses.get(t.id)!.max <= maxLoss && losses.get(t.id)!.mean <= meanLoss))
+  for (const [maxLoss, meanLoss] of [[0.34, 0.2], [0.4, 0.26], [0.46, 0.32], [0.52, 0.38]]) { const kept = keep(maxLoss, meanLoss); if (kept.filter(t => losses.has(t.id)).length >= 60) return kept }
+  const best = new Set([...judged].sort((a, b) => losses.get(a.id)!.max - losses.get(b.id)!.max).slice(0, Math.max(12, Math.ceil(judged.length * 0.5))).map(t => t.id))
+  return templates.filter(t => !losses.has(t.id) || best.has(t.id))
 }
 
 /** Where a layout's frames, taken together, sit on the page: the bounding box to a tenth, so a layout that fills the page
  *  and the same arrangement set in a smaller block with white space round it are told apart. */
 const extent = (t: TemplateDefinition) => {
   const f = t.placeholders
-  return [Math.min(...f.map(p => p.x)), Math.min(...f.map(p => p.y)), Math.max(...f.map(p => p.x + p.width)), Math.max(...f.map(p => p.y + p.height))].map(v => Math.round(v * 10)).join(',')
+  return [Math.min(...f.map(p => p.x)), Math.min(...f.map(p => p.y)), Math.max(...f.map(p => p.x + p.width)), Math.max(...f.map(p => p.y + p.height))].map(v => Math.round(v * 20)).join(',')
 }
 
 /** Reorders a shelf so neighbours are different patterns: the best layout of every pattern class first (in the
@@ -78,17 +106,53 @@ export function varyPatterns<T>(items: T[], templateOf: (item: T) => TemplateDef
   // The browsers do not offer a strip (Auto Build, which must find a fit for every photograph, still may use one).
   if (aspect) { const normal = items.filter(item => { const t = templateOf(item); return !t.isBuiltIn || normalFrames(t, aspect) }); if (normal.length >= MIN_EVEN_LAYOUTS) items = normal }
   const groups = new Map<string, T[]>()
-  const seen = new Set<string>()
+  const seen = new Set<string>(), looks = new Set<string>(), copies = new Map<string, T[]>()
   for (const item of items) {
     const t = templateOf(item), head = `${t.pageSide}:${t.placeholders.length}:${t.textBoxes?.length ?? 0}`
     const fine = `${head}:${arrangementSignature(t.placeholders)}:${extent(t)}`
     if (seen.has(fine)) continue
     seen.add(fine)
+    // The same arrangement mirrored, or drawn in a smaller or moved block, is not another template: it only moves the pictures about.
+    // Those wait at the end of the shelf, and only to bring a short one up to a useful length.
+    const look = lookKey(t)
+    if (look) { const id = `${head}:${look}`; if (looks.has(id)) { const c = copies.get(id); if (c) c.push(item); else copies.set(id, [item]); continue } looks.add(id) }
     const key = `${head}:${patternClass(t)}`, g = groups.get(key)
     if (g) g.push(item); else groups.set(key, [item])
   }
   const out: T[] = []
   const total = [...groups.values()].reduce((a, g) => a + g.length, 0)
   for (let depth = 0; out.length < total; depth++) for (const g of groups.values()) if (g[depth]) out.push(g[depth])
-  return out
+  if (out.length >= WANTED_TEMPLATES) return out
+  // The copies come after, one of each arrangement in turn (not all of one together), so every step is still another arrangement.
+  const extra: T[] = [], lists = [...copies.values()]
+  for (let depth = 0; extra.length < WANTED_TEMPLATES - out.length && lists.some(l => l[depth]); depth++) for (const l of lists) if (l[depth] && extra.length < WANTED_TEMPLATES - out.length) extra.push(l[depth])
+  return [...out, ...extra]
+}
+
+/** How many layouts a shelf is brought up to with mirrored or moved copies when it has fewer distinct ones. */
+const WANTED_TEMPLATES = 30
+
+/** What a layout looks like with mirroring and block size taken out: each page's frames as a share of the block they fill (so a page filled
+ *  edge to edge and the same page set smaller or moved are one look), the same whichever way the layout is mirrored, with which pages
+ *  or one it uses. Empty for a single frame (where it sits is the point) and for text designs. */
+export function lookKey(t: TemplateDefinition): string {
+  const f = t.placeholders
+  if (f.length < 2 || t.textBoxes?.length) return ''
+  const crossing = f.some(p => p.x < 0.4999 && p.x + p.width > 0.5001)
+  // Each side of the fold on its own; a design that straddles it is read whole.
+  const sides = crossing ? [f] : [f.filter(p => p.x + p.width <= 0.5001), f.filter(p => p.x >= 0.4999)]
+  // A page's frames as a share of the block they fill, flipped one way or another, read by how the frames meet (which edges they share), not
+  // by where exactly the cuts fall: two layouts that cut the same way at slightly different places are one arrangement at two sizes.
+  const topology = (list: typeof f, fx: number, fy: number) => {
+    if (!list.length) return ''
+    const x0 = Math.min(...list.map(p => p.x)), y0 = Math.min(...list.map(p => p.y)), x1 = Math.max(...list.map(p => p.x + p.width)), y1 = Math.max(...list.map(p => p.y + p.height))
+    const w = x1 - x0 || 1, h = y1 - y0 || 1
+    return arrangementSignature(list.map((p, i) => {
+      const x = (p.x - x0) / w, y = (p.y - y0) / h, ww = p.width / w, hh = p.height / h
+      return { id: String(i), x: fx ? 1 - x - ww : x, y: fy ? 1 - y - hh : y, width: ww, height: hh, preferredOrientation: 'any' as const }
+    }))
+  }
+  const variants = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([fx, fy]) => (fx ? [...sides].reverse() : sides).map(list => topology(list, fx, fy)).join('/'))
+  // (A layout on the left page and its mirror on the right are one look: the right-hand copy is only where the same design sits.)
+  return (crossing ? 'X' : sides[0].length && sides[1].length ? 'B' : 'S') + variants.sort()[0]
 }

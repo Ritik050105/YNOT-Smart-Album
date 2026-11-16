@@ -5,7 +5,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Spread, PhotoAsset, AlbumSize } from '@/types'
 import { DESIGN_WIDTH, computePlaceholderBoxes } from '@/engine/layoutMath'
 import { Rect, frameRects, placementKeys } from '@/engine/moveRects'
-import { drawPlacement, drawSpreadBackground, drawTextBox, drawUnusedPage, renderSpreadToCanvas } from '@/engine/renderSpread'
+import { drawFoldLine, drawPlacement, drawSpreadBackground, drawTextBox, drawUnusedPage, renderSpreadToCanvas } from '@/engine/renderSpread'
 
 interface Props {
   spread: Spread
@@ -139,7 +139,7 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
         const base=document.createElement('canvas')
         base.width=rendered.width;base.height=rendered.height
         const baseContext=base.getContext('2d')
-        if(baseContext)await drawSpreadBackground(baseContext,spread,base.width,base.height)
+        if(baseContext){await drawSpreadBackground(baseContext,spread,base.width,base.height);drawFoldLine(baseContext,spread,base.width,base.height)}
         const photos=new Map(entries.map(([id,p])=>[id,p as PhotoAsset]))
         const stage=document.createElement('canvas')
         const start=performance.now()
@@ -177,7 +177,6 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
   return (
     <div className="spread-thumb" style={{ width: responsive ? '100%' : width, aspectRatio: size.widthIn / size.heightIn, background: spread.backgroundHidden ? '#fff' : spread.backgroundColor }}>
       <canvas ref={canvasRef} role="img" aria-label="Spread preview" style={{ width: '100%', height: '100%', display: 'block' }} />
-      {!spread.isCover && spread.pageSide === 'spread' && <span className="spread-thumb__fold" aria-hidden="true" />}
       {selectedBox && !selectedPlacement?.hidden && <span className="spread-thumb__selection" aria-hidden="true" style={{ left: `${selectedBox.x}%`, top: `${selectedBox.y / previewHeight * 100}%`, width: `${selectedBox.width}%`, height: `${selectedBox.height / previewHeight * 100}%`, transform: `rotate(${selectedPlacement?.rotationDeg ?? 0}deg)` }} />}
       {dropBox&&<span className={`spread-drop-replace${dropRefused?' is-refused':''}`} style={{position:'absolute',pointerEvents:'none',background:dropRefused?'#d4452f55':'#7779',outline:`3px solid ${dropRefused?'#d4452f':'var(--accent)'}`,left:dropBox.x+'%',top:dropBox.y/previewHeight*100+'%',width:dropBox.width+'%',height:dropBox.height/previewHeight*100+'%'}}/>}
       {responsive&&<OverviewTextControls spread={spread}/>}

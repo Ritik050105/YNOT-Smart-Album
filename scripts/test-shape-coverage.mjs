@@ -7,7 +7,7 @@ import { build } from 'esbuild'
 
 const result = await build({
   stdin: {
-    contents: `export {templatesForCount,runsToTheTrim} from './src/engine/templates'
+    contents: `export {templatesForCount,runsToTheTrim,mixCandidates,showcaseCandidates,uniqueTemplates} from './src/engine/templates'
 export {templateShapeMismatches} from './src/engine/templateMatching'
 export {supportsUniformGap} from './src/engine/templateLayout'
 export {templateCategory} from './src/engine/templateTransfer'
@@ -18,7 +18,7 @@ export {hasEvenMargins,frameSizeSpread} from './src/engine/templateLayout'`,
   },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { templatesForCount, runsToTheTrim, templateShapeMismatches, supportsUniformGap, templateCategory, offeredLayouts, hasEvenMargins, frameSizeSpread, templateOrderMismatches } =
+const { templatesForCount, runsToTheTrim, mixCandidates, showcaseCandidates, uniqueTemplates, templateShapeMismatches, supportsUniformGap, templateCategory, offeredLayouts, hasEvenMargins, frameSizeSpread, templateOrderMismatches } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const MARGIN = 10, GAP = 10
@@ -34,17 +34,19 @@ const FULL_DEPTH = [0.714]
 let worst = Infinity, worstAt = ''
 for (const aspect of ASPECTS) {
   for (let count = 1; count <= (FULL_DEPTH.includes(aspect) ? 24 : 12); count++) {
-    // Exactly what the browsers offer: the per-count list, minus captions, minus built-ins whose
-    // spacing cannot honour the album's gap.
-    const offered = templatesForCount(count, null, 'all', aspect)
-      .filter(t => !t.textBoxes?.length)
-      .filter(t => templateCategory(t) !== 'reference'
-        || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
+    const library = templatesForCount(count, null, 'all', aspect)
     for (let landscapes = 0; landscapes <= count; landscapes++) {
       const photos = [
         ...Array.from({ length: landscapes }, (_, i) => landscape(i)),
         ...Array.from({ length: count - landscapes }, (_, i) => upright(i)),
       ]
+      // Exactly what the browsers offer: the library, the layouts drawn for this mix, and the page layouts (whose frames keep every photograph
+      // off the fold, which with the strict shape rule is the only way some mixes on a squarish spread fit), minus captions and built-ins whose
+      // spacing cannot honour the album's gap.
+      // (The drawn layouts are worked out for up to eight photographs here; longer sets rely on the library as before.)
+      const offered = uniqueTemplates([...library, ...(count <= 8 ? [...mixCandidates(photos, count, null, 'all', aspect), ...showcaseCandidates(photos, count, null, 'all', aspect)] : [])])
+        .filter(t => !t.textBoxes?.length)
+        .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
       const fit = offered.filter(t => templateShapeMismatches(photos, t, aspect, MARGIN, GAP) === 0).length
       // What the browser actually shows: only layouts whose frames suit the photographs' shapes
       // (landscape photos meet landscape or square frames, uprights meet upright or square), and

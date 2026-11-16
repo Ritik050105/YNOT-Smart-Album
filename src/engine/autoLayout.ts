@@ -1,8 +1,10 @@
 import { v4 as uuid } from 'uuid'
 import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
-import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TextBox } from '@/types'
-import { suggestTemplate, findTemplate, templatesForCount, sequenceCandidates, TemplateFrameFilter } from './templates'
-import { preferEvenLayouts, uniformGapLayouts } from './layoutOffer'
+import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TemplateDefinition, TextBox } from '@/types'
+import { suggestTemplate, findTemplate, templatesForCount, sequenceCandidates, mixCandidates, showcaseCandidates, TemplateFrameFilter } from './templates'
+import { supportsUniformGap } from './templateLayout'
+import { templateCategory } from './templateTransfer'
+import { crossesTheFold, offeredLayouts, preferEvenLayouts, uniformGapLayouts, varyPatterns } from './layoutOffer'
 import { rankTemplates, templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches } from './templateMatching'
 
 export interface AutoLayoutOptions {
@@ -299,6 +301,20 @@ export function buildSpreadsFromGroups(
     if (!candidates.length) throw new Error(`No enabled template matches ${group.length} images with the current frame and layout filters. Change the filters or images per spread.`)
     // Layouts that leave the album's own gap between photos come first, ahead of the reuse rules below.
     candidates = uniformGapLayouts(candidates, layout.aspect ?? 1, appearance.marginPx, appearance.gapPx)
+    // No photograph across the fold. Where that leaves no layout that gives every photograph a frame of its own shape (a mixed
+    // handful on a squarish spread often has none among the library's), the layouts drawn for this very mix, and the page layouts that
+    // fill both pages, join the choice.
+    const aspectOf = layout.aspect ?? 1
+    const original = candidates, offFold = candidates.filter(t => !crossesTheFold(t))
+    candidates = offFold
+    if (!side && !candidates.some(t => templateShapeMismatches(group, t, aspectOf, appearance.marginPx, appearance.gapPx) === 0)) {
+      const ids = groupDesigns?.[index]?.templateIds ?? enabledTemplateIds, filter = layout.frameFilter ?? 'all'
+      const extra = [...mixCandidates(group, group.length, ids, filter, aspectOf), ...showcaseCandidates(group, group.length, ids, filter, aspectOf).filter(t => /Two Pages/.test(t.name))]
+        .filter(t => !t.textBoxes?.length && !crossesTheFold(t) && (templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspectOf, appearance.marginPx, appearance.gapPx)))
+      candidates = [...candidates, ...extra]
+    }
+    // (Only when nothing at all is left off the fold does one across it stand in, rather than no layout.)
+    if (!candidates.length) candidates = original
     if ((templateReuse === 'never' || templateReuse === 'low') && candidates.length) {
       // "Never" drops every template already used. If that leaves nothing — more spreads at this
       // photo count than there are templates for it — fall back to the least-used, because
@@ -416,13 +432,52 @@ export function retemplateSpread(spread: Spread, templateId: string, photos?: Ph
   return { ...spread, templateId: template.id, backgroundColor: template.backgroundColor ?? spread.backgroundColor, customBoxes: template.absoluteFrames?template.placeholders:undefined, placements, textBoxes: template.textBoxes ? [...spread.textBoxes.filter(t=>!t.fromTemplate),...template.textBoxes.map(t=>({...t,id:uuid(),fromTemplate:true}))] : spread.textBoxes }
 }
 
-export function buildSpreadFromPlacements(source: PlacedPhoto[], pageSide: Spread['pageSide'], like: Spread): Spread {
-  const template = suggestTemplate(Math.max(source.length, 1))
+/** What the chooser below needs to know to judge layouts against the photographs: their files, the spread's shape and the
+ *  designs the album allows. Without it a spread falls back to a library layout that is only kept off the fold. */
+export interface DefaultLayoutContext { photos: PhotoAsset[]; aspect: number; enabledTemplateIds?: string[] | null }
+
+/** The layouts a spread may start with once its photographs are set: the same rule every browser applies (each photograph in a frame of
+ *  its own shape, in order; most of every picture kept; no strips; even margins; nothing across the fold). A single page takes
+ *  only designs that sit on its half; a two-page spread leaves the page layouts (white space round a block) to the browsers. */
+export function defaultLayouts(photos: PhotoAsset[], pageSide: Spread['pageSide'], aspect: number, marginPx: number, gapPx: number, enabledTemplateIds: string[] | null = null): TemplateDefinition[] {
+  const count = photos.length
+  if (!count || count > MAX_PHOTOS_PER_SPREAD || !Number.isFinite(aspect) || aspect <= 0) return []
+  const half = pageSide === 'left' || pageSide === 'right'
+  const usable = (t: TemplateDefinition) => !t.textBoxes?.length && !crossesTheFold(t)
+  const kind = (p: PhotoAsset) => { const r = p.width / p.height; return r > 1.15 ? 0 : r < 1 / 1.15 ? 1 : 2 }
+  // The photographs as they are, then grouped by shape (some mixes have no layout in their own order on a narrow page; the matcher then
+  // seats each photograph in a frame of its own shape, which is what Auto Build does when it rearranges a spread).
+  const orders = [photos, ...[[0, 1, 2], [1, 0, 2]].map(rank => [...photos].sort((x, y) => rank.indexOf(kind(x)) - rank.indexOf(kind(y))))]
+  const shelf = (ordered: PhotoAsset[], strict: boolean, withPages: boolean) => {
+    const library = [...sequenceCandidates(ordered, count, enabledTemplateIds, 'all', aspect), ...templatesForCount(count, enabledTemplateIds, 'all', aspect)]
+    const pages = showcaseCandidates(ordered, count, enabledTemplateIds, 'all', aspect)
+    // A spread normally starts with a library layout; a mix none suits may take the page layouts that fill both pages. A single page takes what sits on its half.
+    const pool = (half ? [...library, ...pages].filter(t => !!templateHalf(t)) : withPages ? [...library, ...pages.filter(t => count === 1 ? /-pg[LR](FullPage|InsetPage)$/.test(t.id) : /Two Pages/.test(t.name) && /-(F\d+|FullPage)-(F\d+|FullPage)$/.test(t.id))] : library).filter(usable)
+    return varyPatterns(offeredLayouts(ordered, pool, aspect, marginPx, gapPx, true, strict), t => t, aspect)
+  }
+  for (const ordered of orders) for (const withPages of half ? [true] : [false, true]) { const offered = shelf(ordered, true, withPages); if (offered.length) return offered }
+  return shelf(photos, false, true)
+}
+
+export function buildSpreadFromPlacements(source: PlacedPhoto[], pageSide: Spread['pageSide'], like: Spread, context?: DefaultLayoutContext): Spread {
+  const assets = context ? source.flatMap(pl => { const photo = pl.photoId ? context.photos.find(p => p.id === pl.photoId) : undefined; return photo ? [{ ...photo }] : [] }) : []
+  const offered = context && source.length && assets.length === source.length ? defaultLayouts(assets, pageSide, context.aspect, like.marginPx, like.gapPx, context.enabledTemplateIds ?? null) : []
+  // Spreads next to each other take different ones of the layouts that suit, by their place in the album.
+  const chosen = offered.length ? offered[like.order % Math.min(offered.length, 6)] : undefined
+  const count = Math.max(source.length, 1)
+  const fallback = () => { const onPage = pageSide === 'left' || pageSide === 'right', safe = templatesForCount(Math.min(count, MAX_PHOTOS_PER_SPREAD)).filter(t => !crossesTheFold(t) && (!onPage || !!templateHalf(t))); return safe.length ? safe[Math.floor(Math.random() * safe.length)] : suggestTemplate(count) }
+  const template = chosen ?? fallback()
   const columns = Math.max(1, Math.ceil(Math.sqrt(source.length)))
   const rows = Math.ceil(source.length / columns)
   const customBoxes = source.length > MAX_PHOTOS_PER_SPREAD ? source.map((_, i) => ({ id: uuid(), x: (i % columns) / columns, y: Math.floor(i / columns) / rows, width: 1 / columns, height: 1 / rows, preferredOrientation: 'any' as const })) : undefined
-  const frames = customBoxes ?? template.placeholders
-  const placements = frames.map((ph, i) => source[i] ? { ...source[i], placeholderId: ph.id } : defaultPlacement(ph.id, null))
+  const frames = customBoxes ?? (chosen ? templateFramesInReadingOrder(template) : template.placeholders)
+  // A layout drawn for these photographs grouped by shape seats each in a frame of its own shape, whatever order they came in.
+  let ordered = source
+  if (chosen && context && templateOrderMismatches(assets, chosen, context.aspect, like.marginPx, like.gapPx) > 0) {
+    const match = rankTemplates(assets, [chosen], context.aspect, false, like.marginPx, like.gapPx)[0]
+    ordered = frames.map(ph => source[assets.indexOf(match.photos[chosen.placeholders.indexOf(ph)])])
+  }
+  const placements = frames.map((ph, i) => ordered[i] ? { ...ordered[i], placeholderId: ph.id } : defaultPlacement(ph.id, null))
   return {
     id: uuid(),
     order: like.order,
@@ -435,7 +490,8 @@ export function buildSpreadFromPlacements(source: PlacedPhoto[], pageSide: Sprea
     backgroundPattern: like.backgroundPattern,
     gapPx: like.gapPx,
     marginPx: like.marginPx,
-    flipped: false,
+    // A design that sits on the other half is mirrored onto this page.
+    flipped: chosen && (pageSide === 'left' || pageSide === 'right') ? templateHalf(chosen) !== pageSide : false,
     isCover: false,
     guides: { horizontal: [], vertical: [] },
   }
@@ -491,18 +547,18 @@ export function createCoverSpread(appearance: SpreadAppearanceDefaults): Spread 
 
 /** Splits one spread into two independent pages (left/right), dividing its photos between them.
  *  Any text boxes on the original spread stay with the left page. */
-export function splitSpreadIntoPages(spread: Spread, cutIndex?: number): [Spread, Spread] {
+export function splitSpreadIntoPages(spread: Spread, cutIndex?: number, context?: DefaultLayoutContext): [Spread, Spread] {
   const mid = cutIndex ?? Math.ceil(spread.placements.length / 2)
-  const left = buildSpreadFromPlacements(spread.placements.slice(0, mid), cutIndex === undefined ? 'left' : 'spread', spread)
+  const left = buildSpreadFromPlacements(spread.placements.slice(0, mid), cutIndex === undefined ? 'left' : 'spread', spread, context)
   left.id = spread.id
-  const right = buildSpreadFromPlacements(spread.placements.slice(mid), cutIndex === undefined ? 'right' : 'spread', spread)
+  const right = buildSpreadFromPlacements(spread.placements.slice(mid), cutIndex === undefined ? 'right' : 'spread', spread, context)
   left.textBoxes = spread.textBoxes
   return [left, right]
 }
 
 /** Merges two adjacent spreads/pages back into a single full spread, combining their photos and text. */
-export function mergeSpreads(a: Spread, b: Spread): Spread {
-  const merged = buildSpreadFromPlacements([...a.placements, ...b.placements], 'spread', a)
+export function mergeSpreads(a: Spread, b: Spread, context?: DefaultLayoutContext): Spread {
+  const merged = buildSpreadFromPlacements([...a.placements, ...b.placements], 'spread', a, context)
   merged.id = a.id
   merged.textBoxes = [...a.textBoxes, ...b.textBoxes]
   return merged
