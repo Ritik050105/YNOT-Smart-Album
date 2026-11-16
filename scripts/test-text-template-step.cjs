@@ -40,14 +40,14 @@ app.whenReady().then(async () => {
   const groups = () => evaluate(`const s=store.getState();const sp=s.project.spreads.find(x=>x.id===s.selectedSpreadId);return [...new Set(sp.textBoxes.map(b=>b.groupId).filter(Boolean))]`)
   const press = (name) => evaluate(`const want=${JSON.stringify(name.replace(/[^a-z]/gi,''))};const b=[...document.querySelectorAll('.spreads-panel__column.is-selected button')].find(x=>(x.getAttribute('aria-label')||'').split('').filter(c=>/[a-z]/i.test(c)).join('')===want);b.click();return !!b`)
   assert.deepEqual(await groups(), [], 'no text template to begin with')
-  assert.ok(await press('Next text template preview')); await wait(500)
+  assert.ok(await press('Next text template')); await wait(500)
   const first = await groups()
   assert.equal(first.length, 1, 'Next puts a text template on the spread')
-  assert.ok(await press('Next text template preview')); await wait(500)
+  assert.ok(await press('Next text template')); await wait(500)
   const second = await groups()
   assert.equal(second.length, 1, 'Next replaces it, it does not stack')
   assert.notEqual(second[0], first[0], 'Next moved to a different template')
-  assert.ok(await press('Previous text template preview')); await wait(500)
+  assert.ok(await press('Previous text template')); await wait(500)
   assert.deepEqual(await groups(), first, 'Previous goes back to the one before')
 
   // A photograph dragged out of the dock and dropped back on the window is not an import.

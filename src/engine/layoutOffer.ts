@@ -4,6 +4,7 @@ import { templateCategory } from './templateTransfer'
 import { templateOrderMismatches, templateShapeMismatches } from './templateMatching'
 import { arrangementSignature, runsToTheTrim } from './templates'
 import { patternClass } from './patternClass'
+import { crossesFold } from './showcaseLayouts'
 export { patternClass }
 
 /** Fewer even layouts than this and the shelf is too thin to be useful, so uneven ones come back. */
@@ -49,6 +50,10 @@ export function preferEvenLayouts(templates: TemplateDefinition[], aspect: numbe
   // No strips, anywhere a layout is chosen (Auto Build included), while there are enough ordinary ones to choose from.
   const normal = templates.filter(t => !t.isBuiltIn || normalFrames(t, aspect))
   templates = normal.length >= MIN_EVEN_LAYOUTS ? normal : templates
+  // A photograph across the fold, where the two pages meet, is not chosen from the generated tilings while there are plenty
+  // that keep each page to itself (the page layouts are drawn for exactly that).
+  const tidy = templates.filter(t => !t.id.startsWith('mix') || !crossesFold(t.placeholders))
+  templates = tidy.length >= 10 ? tidy : templates
   const even = templates.filter(t => runsToTheTrim(t) || (hasEvenMargins(t.placeholders, aspect, marginPx, gapPx) && frameSizeSpread(t.placeholders) <= 6))
   return even.length >= MIN_EVEN_LAYOUTS ? even : templates
 }

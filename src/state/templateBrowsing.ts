@@ -28,16 +28,29 @@ function cycleContext(project:Project,spread:Spread,filter:TemplateFrameFilter,k
  *  render for every spread. The first answer for a set of photographs can take a second to work out (the shelf is
  *  drawn for those photographs), so a spread not worked out yet reads as "has some" and is worked out one at a
  *  time when the page is idle; the buttons settle on the next render. A press never waits on this: it asks for the list itself. */
-const pending=new Set<string>()
+const pending=new Map<string,()=>void>()
+let drainTimer:ReturnType<typeof setTimeout>|undefined
+/** Works the waiting spreads out one at a time, and only once the page has been quiet for a moment: each one can take a
+ *  good part of a second, and run straight after a change they landed in the middle of whatever the user did next (a drag
+ *  between spreads lost pointer moves to them). Every new request pushes the start back. */
+function drainLater(delay:number){
+ if(drainTimer)clearTimeout(drainTimer)
+ drainTimer=setTimeout(()=>{
+  drainTimer=undefined
+  const next=pending.entries().next().value
+  if(!next)return
+  pending.delete(next[0])
+  try{next[1]()}catch{/* The buttons simply stay enabled for this spread. */}
+  if(pending.size)drainLater(250)
+ },delay)
+}
 export function cyclingCount(project:Project,spread:Spread,filter:TemplateFrameFilter,favorites:string[],kind:'image'|'mixed'='image'){
  const {key}=cycleContext(project,spread,filter,kind),hit=cycleLists.get(key)
  if(hit&&hit.deps.every((v,i)=>v===[project.enabledTemplateIds,favorites,useTemplateBrowsing.getState().categories,templateLibraryVersion()][i]))return hit.list.length
  if(typeof setTimeout!=='function')return cyclingTemplates(project,spread,filter,favorites,kind).length
  if(!pending.has(key)){
-  pending.add(key)
-  setTimeout(function run(){
-   try{cyclingTemplates(project,spread,filter,favorites,kind)}finally{pending.delete(key)}
-  },20+pending.size*15)
+  pending.set(key,()=>{cyclingTemplates(project,spread,filter,favorites,kind)})
+  drainLater(1200)
  }
  return 2
 }

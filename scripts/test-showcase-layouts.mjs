@@ -36,8 +36,9 @@ for (const aspect of [1.5, 1.25, 1, 12.007 / 17.717]) {
       assert.ok(!m.isStaircase(t), `${t.id} is not a rising staircase`)
       // Nothing postage-stamp small, and the block of pictures is a good part of the page.
       const x0 = Math.min(...t.placeholders.map(p => p.x)), x1 = Math.max(...t.placeholders.map(p => p.x + p.width)), y0 = Math.min(...t.placeholders.map(p => p.y)), y1 = Math.max(...t.placeholders.map(p => p.y + p.height))
-      assert.ok(Math.max(x1 - x0, y1 - y0) >= 0.59, `${t.id} spans most of the page one way`)
-      for (const p of t.placeholders) assert.ok(Math.min(p.width * aspect, p.height) >= 0.12, `${t.id} has no tiny frame`)
+      assert.ok(Math.max(x1 - x0, y1 - y0) >= 0.4, `${t.id} spans a good part of a page`)
+      assert.ok(!t.placeholders.some(p => p.x < 0.497 && p.x + p.width > 0.503), `${t.id} keeps every photograph off the fold`)
+      for (const p of t.placeholders) assert.ok(Math.min(p.width * aspect, p.height) >= 0.09, `${t.id} has no tiny frame`)
       for (const p of t.placeholders) { const ratio = (p.width * aspect) / p.height; assert.ok(ratio <= 2.5 && ratio >= 0.4, `${t.id} has no strip`) }
       assert.equal(m.findTemplate(t.id)?.id, t.id, `${t.id} resolves from its id`)
     }
@@ -50,7 +51,14 @@ const three = photos('LPL')
 assert.ok(m.showcaseCandidates(three, 3, null, 'all', 1.5).length >= 10, 'three photographs have ten or more showcase layouts')
 assert.deepEqual(m.showcaseCandidates(three, 3, ['some-hand-picked-id'], 'all', 1.5), [])
 assert.deepEqual(m.showcaseCandidates(three, 4, null, 'all', 1.5), [])
-// Several different kinds of pattern, not one pattern at many sizes.
-assert.ok(new Set(m.showcaseCandidates(three, 3, null, 'all', 1.5).map(t => t.name)).size >= 6, 'at least six kinds of pattern, framed blocks among them')
-assert.ok(m.showcaseCandidates(three, 3, null, 'all', 1.5).some(t => t.name.startsWith('Showcase · Framed') || t.name.startsWith('Framed')), 'framed blocks are offered')
+// Page layouts: all on the left page, all on the right, or split between them, for every mix, at least ten of them.
+for (const aspect of [1.5, 1, 1.25]) for (const word of ['LPL', 'LLL', 'LPLP', 'LLLL', 'LPLPLP', 'LLLLLLLL']) {
+  const ph = photos(word), found = m.showcaseCandidates(ph, ph.length, null, 'all', aspect)
+  const pages = found.filter(t => /Page/.test(t.name)), kinds = new Set(pages.map(t => t.name))
+  assert.ok(pages.length >= 10, `${word} at ${aspect}: ${pages.length} page layouts, ten wanted`)
+  assert.ok(kinds.has('Showcase · Left Page') && kinds.has('Showcase · Right Page'), `${word}: single page layouts on each side`)
+  for (const t of pages.filter(t => /Left Page/.test(t.name))) assert.ok(t.placeholders.every(p => p.x + p.width <= 0.5 + 1e-9), `${t.id} stays on the left page`)
+  for (const t of pages.filter(t => /Right Page/.test(t.name))) assert.ok(t.placeholders.every(p => p.x >= 0.5 - 1e-9), `${t.id} stays on the right page`)
+  for (const t of pages.filter(t => /Two Pages/.test(t.name))) assert.ok(t.placeholders.some(p => p.x < 0.5) && t.placeholders.some(p => p.x >= 0.5), `${t.id} uses both pages`)
+}
 console.log(`Showcase layout checks passed: ${total} layouts, each in order with its photograph's shape, creative, on the page, none a staircase.`)

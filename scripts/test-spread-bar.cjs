@@ -54,14 +54,15 @@ app.whenReady().then(async()=>{
  await click('.font-template-browser header button');
  await evaluate('store.getState().undo()');await wait();
  assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes.length`),0);
- await click('[aria-label="Next text template preview"]');
+ await click('[aria-label="Next text template"]');
  // Next places a template; undoing that is what takes it off again.
  assert.equal(await evaluate(`store.getState().project.spreads[0].textBoxes.length>0`),true,'Next places a text template');
+ // The arrows change the template and nothing else: only the middle button opens the browser.
+ assert.equal(await evaluate(`!!document.querySelector('.font-template-browser')`),false,'Next does not open the font template browser');
  await evaluate('store.getState().undo()');await wait();
  // Undo took the composition off the spread, so no card may still read as placed: a card's state
  // comes from the spread itself, not from a list the browser keeps on the side.
  assert.equal(await evaluate(`!!document.querySelector('.quote-template-grid .quote-template-card[aria-pressed="true"]')`),false,'Undo clears the placed marks');
- await click('.font-template-browser header button');
  assert.equal(await evaluate(`store.getState().templatePreview`),null);
  await click('[aria-label="Delete spread 1"]');
  assert.equal(await evaluate(`store.getState().project.spreads.length`),0);

@@ -19,7 +19,8 @@ const MIN_SIDE = 0.12
 /** The block of pictures spans at least this share of the page, across or down. */
 const MIN_SPAN = 0.6
 
-interface Variant { key: string; name: string; boxes: Box[] }
+/** `fixed` layouts are already drawn for each side, so they are not also mirrored left to right (the left page would become the right). */
+interface Variant { key: string; name: string; boxes: Box[]; fixed?: boolean }
 
 /** Fits a layout drawn at any size inside `fill` of the page and centres it. Page units are width = aspect, height = 1;
  *  the result is normalised to 0-1 each way. */
@@ -64,8 +65,6 @@ function variants(kinds: number[], aspect: number): Variant[] {
   if (n <= 8) {
     // One size of each pattern: a layout that is the same arrangement a little larger or smaller is not another choice.
     add('row', 'Row', row(r, 0.06), 0.84)
-    for (const flip of [1, -1]) add(`zig${flip > 0 ? 'u' : 'd'}`, 'Rise and Dip', row(r, 0.06, 0.22 * flip), 0.84)
-    add('fan', 'Overlapping Fan', row(r, 0, 0.12, 0.27), 0.84)
   }
   // A feature photograph with the others on either side, level with its middle, its top or its bottom, or alternating.
   if (n >= 3) {
@@ -113,17 +112,6 @@ function variants(kinds: number[], aspect: number): Variant[] {
       add(`cols${k}-${pct(f)}-${pct(g)}`, 'Columns', boxes, f)
     }
   }
-  // One big picture with the others small, tucked over its corners or edges: the big one first, the rest in a column on top of it.
-  // (The column is one x, going down, so the photographs come out in order left to right, top to bottom.)
-  if (n >= 2 && n <= 7) {
-    const minis = r.slice(1), size = 0.34, widest = Math.max(...minis) * size
-    for (const key of ['tl', 'tr', 'bl', 'br']) {
-      const x = key[1] === 'l' ? 0.04 : r[0] - widest * 0.7
-      const boxes: Box[] = [[0, 0, r[0], 1]]
-      minis.forEach((v, i) => boxes.push([x, key[0] === 't' ? -0.05 + i * (size + 0.06) : 1.05 - size - (minis.length - 1 - i) * (size + 0.06), v * size, size]))
-      add(`over${key}`, 'Feature with Minis', boxes, 0.84)
-    }
-  }
   // A feature picture with the rest in a row above or below it, the row as wide as the feature. Below, the feature is the first
   // photograph; above, the second, which is where it falls in reading order (the first of the row, then the feature under it).
   if (n >= 3 && n <= 8) {
@@ -136,22 +124,63 @@ function variants(kinds: number[], aspect: number): Variant[] {
       add(`rowof${edge}`, edge === 'top' ? 'Row over Feature' : 'Feature over Row', edge === 'top' ? [row[0], hero, ...row.slice(1)] : [hero, ...row], 0.88)
     }
   }
-  // The tiled layouts of a block of another shape, set on the page with white space round it: a square block, a tall one, a
-  // wide one, the page's own shape drawn smaller. Each block shape has its own arrangements, so these are different
-  // patterns, not the full-page ones at another size.
-  if (n >= 2 && n <= 8) {
-    const shapes = [aspect, 1, 0.72, 2, 1.33, 0.56, 1.75, 0.85].filter((b, i, all) => all.findIndex(c => Math.abs(c - b) / b < 0.1) === i)
-    for (const b of shapes) {
-      // Ordinary proportions only: no frame past two and a half to one either way.
-      const tiled = balancedForSequence(kinds, b, 16).filter(t => t.placeholders.every(p => { const ratio = (p.width * b) / p.height; return ratio <= 2.4 && ratio >= 1 / 2.4 }))
-      // One of each kind of arrangement first, a few in all.
-      const groups = new Map<string, typeof tiled>()
-      for (const t of tiled) { const k = patternClass(t), g = groups.get(k); if (g) g.push(t); else groups.set(k, [t]) }
-      const picks: typeof tiled = []
-      for (let depth = 0; picks.length < 10 && depth < 5; depth++) for (const g of groups.values()) if (g[depth] && picks.length < 10) picks.push(g[depth])
-      const label = b === aspect ? 'Inset' : b === 1 ? 'Square Block' : b < 1 ? 'Tall Block' : 'Wide Block'
-      // The template lists its frames in reading order, which is the photographs' order here.
-      picks.forEach((t, i) => add(`frm${pct(b)}-${i}`, `Framed · ${label}`, t.placeholders.map((p): Box => [p.x * b, p.y, p.width * b, p.height]), 0.82))
+  return out
+}
+
+/** Whether any frame lies across the fold (the line down the middle of the spread, where the two pages meet). */
+export const crossesFold = (frames: { x: number; width: number }[]) => frames.some(f => f.x < 0.497 && f.x + f.width > 0.503)
+
+/** One block of pictures set on a single page: how much of the page it takes across and down. Equal fractions are a block as
+ *  wide as it is tall, narrower ones a column, wider ones a band; `1, 1` fills the page to the album's margin. */
+const PAGE_BLOCKS: [name: string, across: number, down: number][] = [['Page', 0.86, 0.86], ['Narrow Page', 0.62, 0.86], ['Wide Page', 0.86, 0.6], ['Full Page', 1, 1]]
+
+/** The ways to lay these photographs (in order) out in a block of this shape, as boxes in the block (0-1 each way), one of each
+ *  kind of arrangement first. One photograph is the frame of its own shape, as large as the block allows. */
+function blockLayouts(kinds: number[], blockAspect: number, limit: number): Box[][] {
+  if (kinds.length === 1) {
+    const r = RATIO[kinds[0]], w = r >= blockAspect ? 1 : r / blockAspect, h = r >= blockAspect ? blockAspect / r : 1
+    return [[[(1 - w) / 2, (1 - h) / 2, w, h]]]
+  }
+  const tiled = balancedForSequence(kinds, blockAspect, 12).filter(t => t.placeholders.every(p => { const ratio = (p.width * blockAspect) / p.height; return ratio <= 2.4 && ratio >= 1 / 2.4 }))
+  const groups = new Map<string, typeof tiled>()
+  for (const t of tiled) { const k = patternClass(t), g = groups.get(k); if (g) g.push(t); else groups.set(k, [t]) }
+  const picks: typeof tiled = []
+  for (let depth = 0; picks.length < limit && depth < 6; depth++) for (const g of groups.values()) if (g[depth] && picks.length < limit) picks.push(g[depth])
+  return picks.map(t => t.placeholders.map((p): Box => [p.x, p.y, p.width, p.height]))
+}
+
+/** Layouts that keep each page to itself: all the photographs on the left page, all on the right, or split between them, every
+ *  page its own tiling with the album's gap between the frames, and nothing across the fold. Set as a block with white round it,
+ *  or filling the page. Photographs go to the left page first, in order, then the right. */
+function pageVariants(kinds: number[], aspect: number): Variant[] {
+  const n = kinds.length, out: Variant[] = []
+  const place = (page: 0 | 1, sub: Box[], across: number, down: number): Box[] =>
+    sub.map(([x, y, w, h]): Box => [page * 0.5 + (0.5 - 0.5 * across) / 2 + x * 0.5 * across, (1 - down) / 2 + y * down, w * 0.5 * across, h * down])
+  const fits = (boxes: Box[]) => boxes.every(([, , w, h]) => Math.min(w * aspect, h) >= 0.1 && (w * aspect) / h <= 2.5 && (w * aspect) / h >= 0.4)
+  // One photograph on a page takes the whole block (a narrow or wide one would only make it small).
+  const blocks = n > 8 ? [PAGE_BLOCKS[0], PAGE_BLOCKS[3]] : n === 1 ? [PAGE_BLOCKS[0], PAGE_BLOCKS[3]] : PAGE_BLOCKS
+  // Everything on one page.
+  for (const [name, across, down] of blocks) {
+    const blockAspect = (0.5 * across * aspect) / down
+    const layouts = blockLayouts(kinds, blockAspect, n > 8 ? 4 : 6)
+    layouts.forEach((l, i) => {
+      for (const page of [0, 1] as const) {
+        const boxes = place(page, l, across, down)
+        if (fits(boxes)) out.push({ key: `pg${page ? 'R' : 'L'}${name[0]}${i}`, name: page ? 'Right Page' : 'Left Page', boxes, fixed: true })
+      }
+    })
+  }
+  // Split between the two pages, near the middle first.
+  const splits = [...new Set([Math.floor(n / 2), Math.ceil(n / 2), 1, n - 1])].filter(k => k >= 1 && k <= n - 1).slice(0, n > 8 ? 2 : 4)
+  for (const k of splits) for (const [name, across, down] of blocks) {
+    const left = blockLayouts(kinds.slice(0, k), (0.5 * across * aspect) / down, 3), right = blockLayouts(kinds.slice(k), (0.5 * across * aspect) / down, 3)
+    for (let i = 0; i < Math.min(3, Math.max(left.length, right.length)); i++) {
+      for (const [a, b] of [[i, i], [i, i + 1]]) {
+        const l = left[a % Math.max(1, left.length)], r = right[b % Math.max(1, right.length)]
+        if (!l || !r) continue
+        const boxes = [...place(0, l, across, down), ...place(1, r, across, down)]
+        if (fits(boxes)) out.push({ key: `pg${k}${name[0]}${a}-${b}`, name: 'Two Pages', boxes, fixed: true })
+      }
     }
   }
   return out
@@ -167,14 +196,16 @@ export function showcaseForSequence(kinds: number[], aspect: number): TemplateDe
   const hit = cache.get(cacheKey)
   if (hit) return hit
   const seen = new Set<string>(), out: TemplateDefinition[] = []
-  for (const v of variants(kinds, aspectKey / KEY_SCALE)) {
+  for (const v of [...pageVariants(kinds, aspectKey / KEY_SCALE), ...variants(kinds, aspectKey / KEY_SCALE)]) {
     // Each also stands mirrored, left to right and top to bottom: the feature on the other side, the row rising the other way. A
     // mirror that no longer reads in the photographs' order is dropped.
     let mirror = 0
-    for (const [flipX, flipY] of [[false, false], [true, false], [false, true], [true, true]]) {
+    for (const [flipX, flipY] of [[false, false], [true, false], [false, true], [true, true]].filter(([fx]) => !(v.fixed && fx))) {
       const boxes = v.boxes.map(([x, y, w, h]): Box => [flipX ? 1 - x - w : x, flipY ? 1 - y - h : y, w, h])
       // The matcher hands photographs to frames left to right, top to bottom: a layout is kept only if that is the order drawn.
       if (!inOrder(boxes, kinds)) continue
+      // Nothing across the fold: a photograph split by the line between the pages is not offered.
+      if (crossesFold(boxes.map(([x, , w]) => ({ x, width: w })))) continue
       const look = layoutLook(boxes)
       if (seen.has(look)) continue
       seen.add(look)

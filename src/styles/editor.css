@@ -667,7 +667,12 @@ html[data-animations=false] *,html[data-animations=false] *::before,html[data-an
 .font-template-browser > header { display:flex; align-items:center; justify-content:space-between; }
 .font-template-browser .quote-template-grid { display:flex; gap:12px; overflow-x:auto; padding:6px; }
 .font-template-browser .quote-template-grid > button { flex:0 0 160px; font-size:11px; }
-.font-template-browser .quote-template-card img { max-height:74px; }
+/* The preview fills its card: the sample takes all the room above the name, instead of sitting small at the top with a gap under it. */
+.quote-preview { display:block; min-height:100px; }
+.font-template-browser .quote-template-card { align-items:stretch; }
+.font-template-browser .quote-preview { flex:1 1 0; min-height:0; display:flex; overflow:hidden; border-radius:4px; }
+.font-template-browser .quote-template-card img { width:100%; height:100%; max-height:none; object-fit:cover; }
+.font-template-browser .quote-template-card > span:last-child { flex:0 0 auto; }
 .font-template-browser p { font-size:11px; margin:2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 .font-template-browser { position:relative; max-height:min(30vh,260px); }
@@ -1170,3 +1175,36 @@ body.has-effect-panel .designer-canvas-wrap { margin-right: min(342px, calc(100v
   filter: drop-shadow(0 0 1px #000);
 }
 .image-design__center { width: 100%; justify-content: center; margin: -10px 0 14px; height: 28px; padding-block: 0; font-size: 12px; }
+
+/* The effect editor shows everything at once, with no scrolling: the same controls, set more tightly, and the groups side by
+   side when an effect has more than one (Structure beside Shading, say). The hints that are not controls are left out of the
+   panel. If the window is too short even for this, the panel scrolls rather than hide a control. */
+.layer-effect-panel { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; row-gap: 0; align-items: center; align-content: start; bottom: auto; height: auto; max-height: calc(100vh - 122px); padding: 8px 12px; overflow-x: hidden; overflow-y: auto; max-width: calc(100vw - var(--inspector-width, 320px) - 24px); }
+.layer-effect-panel > header { grid-column: 1 / -1; position: static; margin: 0 0 6px; padding: 0 0 6px; }
+.layer-effect-panel > footer { grid-column: 1 / -1; position: static; margin: 6px 0 0; padding: 6px 0 0; }
+.layer-effect-panel > p.muted { display: none; }
+.layer-effect-panel > label.effect-check { grid-column: 1; margin: 0; white-space: nowrap; }
+.layer-effect-panel .effect-preview { grid-column: 2; height: 44px; margin: 0; border-radius: 6px; }
+.layer-effect-panel .effect-controls { grid-column: 1 / -1; margin-top: 6px; gap: 6px 8px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.layer-effect-panel .effect-controls fieldset { padding: 2px 8px 6px; gap: 3px; align-content: start; }
+.layer-effect-panel .effect-controls legend { font-size: 10px; }
+.layer-effect-panel .effect-controls p.muted:not([role=status]) { display: none; }
+.layer-effect-panel .effect-controls p[role=status] { margin: 0; font-size: 11px; }
+.layer-effect-panel .effect-controls p[role=status]:empty { display: none; }
+.layer-effect-panel .effect-controls > .effect-check, .layer-effect-panel .effect-controls > .effect-defaults, .layer-effect-panel .effect-controls > p { grid-column: 1 / -1; }
+.layer-effect-panel .effect-defaults { margin-top: 0; gap: 6px; }
+.layer-effect-panel .effect-control, .layer-effect-panel .slider-field { min-height: 24px; }
+.layer-effect-panel .effect-check { min-height: 20px; }
+.layer-effect-panel select, .layer-effect-panel input[type=number], .layer-effect-panel input[type=text], .layer-effect-panel .btn { height: 24px; min-height: 24px; }
+.layer-effect-panel .slider-field__input { min-height: 24px; }
+.layer-effect-panel input[type=color] { height: 22px; min-height: 22px; }
+.layer-effect-panel .slider-field { grid-template-columns: 100px minmax(0, 1fr) 52px; gap: 6px; }
+.layer-effect-panel .slider-field .row > span:first-child, .layer-effect-panel .effect-control { font-size: 11.5px; }
+.layer-effect-panel .effect-control select { width: 132px; max-width: 56%; }
+.layer-effect-panel .effect-control input[type=file] { width: 150px; max-width: 56%; height: 22px; font-size: 10.5px; }
+@media (min-width: 1101px) {
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) { width: 610px; }
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .effect-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  /* The canvas still gives up the editor's width, so the wider editor sits beside the design, not on it. */
+  body.has-effect-panel:has(.layer-effect-panel .effect-controls > fieldset + fieldset) .designer-canvas-wrap { margin-right: min(622px, calc(100vw - var(--inspector-width, 320px) - 80px)); }
+}
