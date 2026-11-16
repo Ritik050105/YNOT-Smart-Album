@@ -21,6 +21,10 @@ const shapeKind = (ratio: number) => ratio > 1.15 ? 0 : ratio < 1 / 1.15 ? 1 : 2
  *  page), which only the rearranging browser row can use. */
 interface Variant { key: string; name: string; boxes: Box[]; bleed?: number[]; moved?: boolean }
 
+/** Up to this many photographs a layout may lay one across the fold (a big picture running over the middle of the spread, with the line
+ *  drawn through it): with so few pictures the fold is part of the composition. More than this and nothing may cross it. */
+export const FOLD_FREE_COUNT = 4
+
 /** Whether any frame lies across the fold (the line down the middle of the spread, where the two pages meet). */
 export const crossesFold = (frames: { x: number; width: number }[]) => frames.some(f => f.x < 0.497 && f.x + f.width > 0.503)
 
@@ -136,6 +140,14 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
       }
     }
   }
+  // The whole set tiled in one block across the spread, as tall as the spread or a band of it (nine tenths, four fifths...): each height is a
+  // different shape to tile, so these are different arrangements, not the same one resized, and the spread is used to near its edges.
+  if (n >= 2 && n <= 12) {
+    for (const h of [0.92, 0.82, 0.72, 0.62, 0.52]) {
+      const b = { x: 0.03, y: (1 - h) / 2, w: 0.94, h }
+      blockLayouts(ratios, aspectOf(b), 4).forEach((l, i) => out.push({ key: `sb${Math.round(h * 100)}-${i}`, name: 'Spread Block', boxes: into(b, l) }))
+    }
+  }
   // The whole set in one row at the photographs' own proportions, as wide as the spread allows (or as tall as a good band can be), centred
   // or set high or low. Every frame is its photograph's own shape, whatever the album's, so mixes that no tiling suits still have layouts.
   if (n >= 2 && n <= 6) {
@@ -188,8 +200,8 @@ export function showcaseForRatios(ratios: number[], aspect: number): TemplateDef
     const boxes = v.boxes
     // The matcher hands photographs to frames left to right, top to bottom, so the left page's photographs come first.
     if (!v.moved && !inOrderShapes(boxes, quantised, aspectKey / KEY_SCALE)) continue
-    // (With three photographs or fewer a picture may run across the fold.)
-    if (count > 3 && crossesFold(boxes.map(([x, , w]) => ({ x, width: w })))) continue
+    // (With a few photographs a picture may run across the fold.)
+    if (count > FOLD_FREE_COUNT && crossesFold(boxes.map(([x, , w]) => ({ x, width: w })))) continue
     // (A bleed layout and the same frame held to the album's margin are two layouts.)
     const look = finerLook(boxes) + (v.bleed?.length ? 'b' + v.bleed.join('') : '')
     if (seen.has(look)) continue

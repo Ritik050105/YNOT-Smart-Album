@@ -4,12 +4,9 @@ import { templateCategory } from './templateTransfer'
 import { templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches } from './templateMatching'
 import { arrangementSignature, runsToTheTrim } from './templates'
 import { patternClass } from './patternClass'
-import { crossesFold } from './showcaseLayouts'
+import { FOLD_FREE_COUNT, crossesFold } from './showcaseLayouts'
+export { FOLD_FREE_COUNT }
 export { patternClass }
-
-/** Up to this many photographs a layout may lay one across the fold (a big picture running over the middle of the spread, with the line
- *  drawn through it): with so few pictures the fold is part of the composition. More than this and nothing may cross it. */
-export const FOLD_FREE_COUNT = 3
 
 /** A built-in layout with a photograph across the fold, where the two pages meet, which is only refused once there are more than a few
  *  photographs on the spread. */
@@ -110,6 +107,21 @@ const extent = (t: TemplateDefinition) => {
  *  of one already on the shelf: the same arrangement of frames, in the same block of the page, is one layout; what
  *  differs between two such is a cut a few percent one way or the other, which nobody picks between. */
 export function varyPatterns<T>(items: T[], templateOf: (item: T) => TemplateDefinition, aspect?: number): T[] {
+  // Layouts that use the spread come first: a design whose frames cover under half the spread leaves most of it white. They are kept to the
+  // end of the shelf, and only used at all when the fuller ones are too few to make a shelf.
+  const rich = items.filter(item => coverage(templateOf(item)) >= MIN_COVERAGE)
+  if (rich.length === items.length || rich.length < 4) return varyCore(items, templateOf, aspect)
+  const fuller = varyCore(rich, templateOf, aspect)
+  if (fuller.length >= WANTED_TEMPLATES) return fuller
+  const sparse = items.filter(item => !rich.includes(item)).sort((p, q) => coverage(templateOf(q)) - coverage(templateOf(p)))
+  return varyCore([...rich, ...sparse], templateOf, aspect)
+}
+
+/** The share of the spread the frames cover. */
+export const coverage = (t: TemplateDefinition) => t.placeholders.reduce((sum, p) => sum + p.width * p.height, 0)
+const MIN_COVERAGE = 0.5
+
+function varyCore<T>(items: T[], templateOf: (item: T) => TemplateDefinition, aspect?: number): T[] {
   // The browsers do not offer a strip (Auto Build, which must find a fit for every photograph, still may use one).
   if (aspect) { const normal = items.filter(item => { const t = templateOf(item); return !t.isBuiltIn || normalFrames(t, aspect) }); if (normal.length >= MIN_EVEN_LAYOUTS) items = normal }
   const groups = new Map<string, T[]>()

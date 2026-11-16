@@ -39,7 +39,7 @@ for (const aspect of [1.5, 1.25, 1, 12.007 / 17.717]) {
       const x0 = Math.min(...t.placeholders.map(p => p.x)), x1 = Math.max(...t.placeholders.map(p => p.x + p.width)), y0 = Math.min(...t.placeholders.map(p => p.y)), y1 = Math.max(...t.placeholders.map(p => p.y + p.height))
       assert.ok(Math.max(x1 - x0, y1 - y0) >= 0.12, `${t.id} spans a good part of a page`)
       // (With three photographs or fewer a picture may run across the fold; with more, none may.)
-      const wholeSpread = t.placeholders.length <= 3 // (up to three photographs may run across the fold)
+      const wholeSpread = t.placeholders.length <= 4 // (up to four photographs may run across the fold)
       assert.ok(wholeSpread || !t.placeholders.some(p => p.x < 0.497 && p.x + p.width > 0.503), `${t.id} keeps every photograph off the fold`)
       // (A big set on one spread has small frames; the floor falls with the count, as it does in the generator.)
       const floor = (ph.length > 12 ? 0.045 : ph.length > 8 ? 0.07 : 0.09) - 1e-9
