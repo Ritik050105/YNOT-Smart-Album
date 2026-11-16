@@ -19,7 +19,7 @@ import ContextMenu, { ContextMenuItem } from './ContextMenu'
 import Icon from './Icon'
 import QuoteTemplates from './QuoteTemplates'
 import PhotoContextMenu from './PhotoContextMenu'
-import { computePlaceholderBoxes, orientationFits, shapeOf } from '@/engine/layoutMath'
+import { computePlaceholderBoxes, orientationFits, shapeOf, swapMismatch } from '@/engine/layoutMath'
 
 /** The album's main view — the reference app's own "all spreads" screen: a row of real,
  *  proportioned spread cards (not a zoomed single-spread canvas, no ruler or tool rail here),
@@ -160,7 +160,8 @@ export default function SpreadsPanel() {
   const { drag, target, setDragHint } = useTimelineDrag((source, destination) => {
     if (destination.bin) { if (source.photoIds.length) useProjectStore.getState().addPhotosToBin(source.photoIds, destination.bin); return }
     if(destination.replace && destination.spreadId && destination.beforeFrameId && source.photoIds[0]){
-      if(source.spreadId===destination.spreadId&&source.frameId)useProjectStore.getState().swapPlacements(source.spreadId,source.frameId,destination.beforeFrameId)
+      // A swap puts each photograph in the other's frame, so both must suit (or Ctrl is held); otherwise nothing moves.
+      if(source.spreadId===destination.spreadId&&source.frameId){if(swapAccepted(source.spreadId,source.frameId,destination.beforeFrameId,destination.override))useProjectStore.getState().swapPlacements(source.spreadId,source.frameId,destination.beforeFrameId)}
       else if(frameAcceptsPhoto(destination.spreadId,destination.beforeFrameId,source.photoIds[0],destination.override))useProjectStore.getState().setPlacementPhoto(destination.spreadId,destination.beforeFrameId,source.photoIds[0])
       return}
     if (source.spreadId && !source.frameId) {
@@ -233,6 +234,20 @@ export default function SpreadsPanel() {
   }
 
   /** A photo only goes into a frame of its own shape, unless Ctrl says otherwise. */
+  function swapAccepted(spreadId: string, frameA: string, frameB: string, override?: boolean) {
+    if (override || frameA === frameB) return true
+    const state = useProjectStore.getState(), spread = state.project.spreads.find((s) => s.id === spreadId)
+    if (!spread) return true
+    const size = spread.size ?? state.project.size, boxes = computePlaceholderBoxes(spread, 900, 900 * size.heightIn / size.widthIn)
+    const boxA = boxes.find((b) => b.placeholderId === frameA), boxB = boxes.find((b) => b.placeholderId === frameB)
+    const photoOf = (frame: string) => state.project.photos.find((p) => p.id === spread.placements.find((pl) => pl.placeholderId === frame)?.photoId)
+    if (!boxA || !boxB) return true
+    const bad = swapMismatch(photoOf(frameA), boxA, photoOf(frameB), boxB)
+    if (!bad) return true
+    const photo = photoOf(bad === 'a' ? frameA : frameB)!, frame = bad === 'a' ? boxB : boxA
+    window.dispatchEvent(new CustomEvent('album-studio:preference-notice', { detail: `This frame is ${shapeOf(frame.width, frame.height)} and the photo is ${shapeOf(photo.width, photo.height)}. Hold Ctrl while dropping to swap them anyway — it will be cropped to the frame.` }))
+    return false
+  }
   function frameAcceptsPhoto(spreadId: string, placeholderId: string, photoId: string, override?: boolean) {
     if (override) return true
     const state = useProjectStore.getState()

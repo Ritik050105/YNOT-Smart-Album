@@ -17,7 +17,9 @@ import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
 const RATIO = [1.5, 2 / 3, 1]
 const shapeKind = (ratio: number) => ratio > 1.15 ? 0 : ratio < 1 / 1.15 ? 1 : 2
 
-interface Variant { key: string; name: string; boxes: Box[] }
+/** `bleed` lists the frames that run to the trim; `moved` marks a layout drawn for the photographs in another order (one picked out to fill a
+ *  page), which only the rearranging browser row can use. */
+interface Variant { key: string; name: string; boxes: Box[]; bleed?: number[]; moved?: boolean }
 
 /** Whether any frame lies across the fold (the line down the middle of the spread, where the two pages meet). */
 export const crossesFold = (frames: { x: number; width: number }[]) => frames.some(f => f.x < 0.497 && f.x + f.width > 0.503)
@@ -28,7 +30,21 @@ const PAGE_MARGINS: [name: string, margin: number][] = [['Full Page', 0], ['Inse
 
 /** The ways to lay these photographs (in order) out in a block of this shape, as boxes in the block (0-1 each way), one of each kind
  *  of arrangement first. Layouts drawn for the photographs' own proportions come first, then those drawn for their shapes. */
+const blockCache = new Map<string, Box[][]>()
 function blockLayouts(ratios: number[], blockAspect: number, limit: number): Box[][] {
+  // The same photographs in a block of the same shape come up again for the other page, the other margins and the other splits.
+  // The block's shape to a twentieth: a few per cent of shape does not change what a tiling looks like, and a margin of a few more per cent would
+  // otherwise be a whole new search.
+  if (ratios.length === 1) return makeBlockLayouts(ratios, blockAspect, limit)
+  blockAspect = Math.max(0.05, Math.round(blockAspect * 20) / 20)
+  const key = `${ratios.map(r => r.toFixed(3)).join(',')}|${blockAspect.toFixed(4)}|${limit}`, hit = blockCache.get(key)
+  if (hit) return hit
+  const made = makeBlockLayouts(ratios, blockAspect, limit)
+  if (blockCache.size > 4000) blockCache.clear()
+  blockCache.set(key, made)
+  return made
+}
+function makeBlockLayouts(ratios: number[], blockAspect: number, limit: number): Box[][] {
   if (ratios.length === 1) {
     const r = ratios[0], w = r >= blockAspect ? 1 : r / blockAspect, h = r >= blockAspect ? blockAspect / r : 1
     return [[[(1 - w) / 2, (1 - h) / 2, w, h]]]
@@ -36,7 +52,7 @@ function blockLayouts(ratios: number[], blockAspect: number, limit: number): Box
   const ordinary = (t: TemplateDefinition) => t.placeholders.every(p => { const ratio = (p.width * blockAspect) / p.height; return ratio <= 2.4 && ratio >= 1 / 2.4 })
   const fitted = fitForRatios(ratios, blockAspect, 8).filter(ordinary)
   // The shape-based search is only for when the fitted one found too few to choose from (it costs about as much again).
-  const shaped = fitted.length >= limit * 2 ? [] : balancedForSequence(ratios.map(shapeKind), blockAspect, 8).filter(ordinary)
+  const shaped = fitted.length >= Math.min(limit, 4) ? [] : balancedForSequence(ratios.map(shapeKind), blockAspect, 8).filter(ordinary)
   const groups = new Map<string, TemplateDefinition[]>()
   for (const t of [...fitted, ...shaped]) { const k = patternClass(t), g = groups.get(k); if (g) g.push(t); else groups.set(k, [t]) }
   const picks: TemplateDefinition[] = []
@@ -54,14 +70,18 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
   const block = (page: 0 | 1, margin: number) => ({ x: page * 0.5 + margin / aspect, y: margin, w: 0.5 - (2 * margin) / aspect, h: 1 - 2 * margin })
   const aspectOf = (b: { w: number; h: number }) => (b.w * aspect) / b.h
   const into = (b: { x: number; y: number; w: number; h: number }, sub: Box[]): Box[] => sub.map(([x, y, w, h]): Box => [b.x + x * b.w, b.y + y * b.h, w * b.w, h * b.h])
-  const fits = (boxes: Box[], smallest = 0.1) => boxes.every(([, , w, h]) => Math.min(w * aspect, h) >= smallest && (w * aspect) / h <= 2.4 && (w * aspect) / h >= 0.42)
+  // The smallest frame a layout may have: a big set on one spread has small frames, and is judged by what its frames can be.
+  const floor = n > 12 ? 0.045 : n > 8 ? 0.07 : 0.1
+  const fits = (boxes: Box[], smallest = floor) => boxes.every(([, , w, h]) => Math.min(w * aspect, h) >= smallest && (w * aspect) / h <= 2.4 && (w * aspect) / h >= 0.42)
   /** Every way to set these photographs on one page, as boxes in the spread. One photograph can fill the page, be held inset, or be smaller
    *  (two sizes) and set in the middle, at an edge or in a corner of the inset page (anchors run from the inner edge to the outer one and from the
    *  top to the bottom); more than one are tiled, filling the page or held inset. */
-  const options = (sub: number[], page: 0 | 1, limit: number): { key: string; boxes: Box[] }[] => {
-    const list: { key: string; boxes: Box[] }[] = []
+  const options = (sub: number[], page: 0 | 1, limit: number): { key: string; boxes: Box[]; bleed?: boolean }[] => {
+    const list: { key: string; boxes: Box[]; bleed?: boolean }[] = []
     if (sub.length === 1) {
       for (const [name, margin] of PAGE_MARGINS.filter(([, m]) => 0.5 - (2 * m) / aspect >= 0.2)) { const b = block(page, margin); list.push({ key: name.replace(/ /g, ''), boxes: into(b, blockLayouts(sub, aspectOf(b), 1)[0]) }) }
+      // The page edge to edge, to the trim.
+      if (0.5 * aspect >= 0.42) list.push({ key: 'Bleed', boxes: [[page * 0.5, 0, 0.5, 1]], bleed: true })
       const inner = block(page, PAGE_MARGINS[1][1]), outer = page === 0 ? -1 : 1
       // (The middle of the page first, then the same smaller block nearer an edge or a corner.)
       for (const size of [0.85, 0.7, 0.6, 0.5]) for (const ax of size === 0.7 || size === 0.5 ? [0, -1, 1] : [0]) for (const ay of size === 0.7 || size === 0.5 ? [0, -1, 1] : [0]) {
@@ -91,23 +111,64 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
   }
   // One photograph can also run to the trim: the whole spread, or a whole page, edge to edge, or the spread held to the album's margin.
   if (n === 1) {
-    out.push({ key: 'spreadBleed', name: 'Full Spread Bleed', boxes: [[0, 0, 1, 1]] }, { key: 'spreadMargin', name: 'Full Spread', boxes: [[0, 0, 1, 1]] })
+    out.push({ key: 'spreadBleed', name: 'Full Spread Bleed', boxes: [[0, 0, 1, 1]], bleed: [0] }, { key: 'spreadMargin', name: 'Full Spread', boxes: [[0, 0, 1, 1]] })
     // (A page this narrow is a strip, which no layout is.)
-    if (0.5 * aspect >= 0.42) for (const page of [0, 1] as const) out.push({ key: `pg${page ? 'R' : 'L'}Bleed`, name: page ? 'Full Right Page Bleed' : 'Full Left Page Bleed', boxes: [[page * 0.5, 0, 0.5, 1]] })
+    if (0.5 * aspect >= 0.42) for (const page of [0, 1] as const) out.push({ key: `pg${page ? 'R' : 'L'}Bleed`, name: page ? 'Full Right Page Bleed' : 'Full Left Page Bleed', boxes: [[page * 0.5, 0, 0.5, 1]], bleed: [0] })
   }
   // Everything on one page, either page.
-  for (const page of [0, 1] as const) for (const o of options(ratios, page, n > 8 ? 4 : 8)) out.push({ key: `pg${page ? 'R' : 'L'}${o.key}`, name: page ? 'Right Page' : 'Left Page', boxes: o.boxes })
+  for (const page of [0, 1] as const) for (const o of options(ratios, page, n > 8 ? 6 : 8)) { if (n === 1 && o.bleed) continue; out.push({ key: `pg${page ? 'R' : 'L'}${o.key}`, name: page ? 'Right Page' : 'Left Page', boxes: o.boxes }) }
   if (n === 1) return out
   // Split between the two pages, near the middle first (every split for a short set, a few for a long one).
   const mid = Math.floor(n / 2), order = Array.from({ length: n - 1 }, (_, i) => i + 1).sort((p, q) => Math.abs(p - mid) - Math.abs(q - mid) || p - q)
-  for (const k of order.slice(0, n > 8 ? 2 : n > 5 ? 4 : n - 1)) {
-    const left = options(ratios.slice(0, k), 0, 5), right = options(ratios.slice(k), 1, 5)
+  const splits = new Set(order.slice(0, n > 8 ? 6 : n > 5 ? 4 : n - 1))
+  // A whole page given to the first photograph, or to the last, is always among them.
+  splits.add(1); splits.add(n - 1)
+  for (const k of splits) {
+    const left = options(ratios.slice(0, k), 0, n > 8 ? 6 : 5), right = options(ratios.slice(k), 1, n > 8 ? 6 : 5)
     if (!left.length || !right.length) continue
     // Each left arrangement with a few of the right ones, so the two pages differ from each other as well as from other splits.
     let made = 0
     for (let i = 0; i < left.length && made < 90; i++) for (const j of [i, i + 1, i + 3, i + 5]) {
       const r = right[j % right.length], boxes = [...left[i].boxes, ...r.boxes]
-      if (made < 90 && fits(boxes)) { out.push({ key: `pg${k}-${left[i].key}-${r.key}`, name: 'Two Pages', boxes }); made++ }
+      if (made < 90 && fits(boxes)) {
+        const bleed = [...(left[i].bleed ? Array.from({ length: left[i].boxes.length }, (_, q) => q) : []), ...(r.bleed ? Array.from({ length: r.boxes.length }, (_, q) => left[i].boxes.length + q) : [])]
+        out.push({ key: `pg${k}-${left[i].key}-${r.key}`, name: bleed.length ? 'Feature Page' : 'Two Pages', boxes, ...(bleed.length ? { bleed } : {}) }); made++
+      }
+    }
+  }
+  // The whole set in one row at the photographs' own proportions, as wide as the spread allows (or as tall as a good band can be), centred
+  // or set high or low. Every frame is its photograph's own shape, whatever the album's, so mixes that no tiling suits still have layouts.
+  if (n >= 2 && n <= 6) {
+    const total = ratios.reduce((sum, r) => sum + r, 0)
+    for (const width of [0.92, 0.86, 0.8, 0.73, 0.66, 0.58]) {
+      const h = Math.min(0.72, (width * aspect) / total), rowW = (h * total) / aspect
+      if (h < 0.18 || rowW < 0.3) continue
+      for (const [where, y] of [['Mid', (1 - h) / 2], ['High', 0.1], ['Low', 0.9 - h], ['AboveMid', (1 - h) / 2 - 0.08], ['BelowMid', (1 - h) / 2 + 0.08]] as const) {
+        if (y < 0.02 || y + h > 0.98) continue
+        let x = (1 - rowW) / 2
+        const boxes = ratios.map((r): Box => { const w = (r * h) / aspect, box: Box = [x, y, w, h]; x += w; return box })
+        out.push({ key: `band${Math.round(width * 100)}${where}`, name: 'Filmstrip Band', boxes })
+      }
+    }
+  }
+  // One photograph picked out of the middle of the set to fill a page (a whole upright page, say), the rest tiled on the other page. The
+  // photographs are then in another order than the timeline's, so these are for the rearranging row only.
+  if (n >= 3 && n <= 8) {
+    const seenKinds = new Set<string>()
+    for (let j = 1; j < n - 1; j++) for (const page of [0, 1] as const) {
+      const kindKey = `${page}${shapeKind(ratios[j])}`
+      if (seenKinds.has(kindKey)) continue
+      seenKinds.add(kindKey)
+      const others = ratios.filter((_, q) => q !== j)
+      const feature = options([ratios[j]], page, 1), rest = options(others, page === 0 ? 1 : 0, 5)
+      if (!feature.length || !rest.length) continue
+      let made = 0
+      for (let i = 0; i < feature.length && made < 24; i++) for (const q of [i, i + 2]) {
+        const r = rest[q % rest.length], boxes = page === 0 ? [...feature[i].boxes, ...r.boxes] : [...r.boxes, ...feature[i].boxes]
+        if (made >= 24 || !fits(boxes, 0.07)) continue
+        const at = page === 0 ? 0 : r.boxes.length
+        out.push({ key: `f${j}${page ? 'R' : 'L'}-${feature[i].key}-${r.key}`, name: feature[i].bleed ? 'Feature Page' : 'Two Pages', boxes, moved: true, ...(feature[i].bleed ? { bleed: [at] } : {}) }); made++
+      }
     }
   }
   return out
@@ -126,18 +187,18 @@ export function showcaseForRatios(ratios: number[], aspect: number): TemplateDef
   for (const v of pageVariants(quantised, aspectKey / KEY_SCALE)) {
     const boxes = v.boxes
     // The matcher hands photographs to frames left to right, top to bottom, so the left page's photographs come first.
-    if (!inOrderShapes(boxes, quantised, aspectKey / KEY_SCALE)) continue
-    // (One photograph given the whole spread is the one thing allowed across the fold.)
-    if (crossesFold(boxes.map(([x, , w]) => ({ x, width: w }))) && !(count === 1 && boxes[0][2] >= 0.9)) continue
+    if (!v.moved && !inOrderShapes(boxes, quantised, aspectKey / KEY_SCALE)) continue
+    // (With three photographs or fewer a picture may run across the fold.)
+    if (count > 3 && crossesFold(boxes.map(([x, , w]) => ({ x, width: w })))) continue
     // (A bleed layout and the same frame held to the album's margin are two layouts.)
-    const look = finerLook(boxes) + (/Bleed/.test(v.key) ? 'b' : '')
+    const look = finerLook(boxes) + (v.bleed?.length ? 'b' + v.bleed.join('') : '')
     if (seen.has(look)) continue
     seen.add(look)
     const id = `show2-${aspectKey}-${count}-${code}-${v.key}`
     const order = boxes.map((b, i) => ({ b, i })).sort((p, q) => p.b[0] - q.b[0] || p.b[1] - q.b[1])
     out.push({
       id, name: `Showcase · ${v.name}`, photoCount: count, pageSide: 'spread', isBuiltIn: true, createdAt: new Date(0).toISOString(), thumbnailColor: '#7a6a58',
-      placeholders: order.map(({ b: [x, y, width, height] }, i): PlaceholderRect => ({ id: `${id}-p${i}`, x, y, width, height, preferredOrientation: 'any', ...(/Bleed/.test(v.key) ? { bleed: true } : {}) })),
+      placeholders: order.map(({ b: [x, y, width, height], i: from }, i): PlaceholderRect => ({ id: `${id}-p${i}`, x, y, width, height, preferredOrientation: 'any', ...(v.bleed?.includes(from) ? { bleed: true } : {}) })),
     })
   }
   if (cache.size > 300) cache.clear()

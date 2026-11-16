@@ -1277,3 +1277,10 @@ body.has-effect-panel .designer-canvas-wrap { margin-right: min(342px, calc(100v
 
 /* The browse button of a spread reads as pressed while that spread's template browser is open (press again to put it away). */
 .spread-card-controls__templates button[aria-pressed="true"], .spread-card-controls__quotes button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+
+/* Designer View's toggle buttons (the three Browse buttons, Inspector panel, Image gallery) are lit the way the album bar's tool buttons are
+   while they are on: accent ring, accent text, soft accent fill. */
+.album-editor .designer-view__topbar .btn[aria-pressed="true"] {
+  background: var(--accent-soft); color: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
+}
+.album-editor .designer-view__topbar .btn[aria-pressed="true"]:hover { background: var(--accent-soft); filter: brightness(1.08); }

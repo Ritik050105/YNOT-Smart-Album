@@ -7,8 +7,13 @@ import { patternClass } from './patternClass'
 import { crossesFold } from './showcaseLayouts'
 export { patternClass }
 
-/** A built-in layout with a photograph across the fold, where the two pages meet. The one exception is a single photograph given the whole spread (full spread, full bleed), which is what that layout is for. */
-export const crossesTheFold = (t: TemplateDefinition) => !!t.isBuiltIn && crossesFold(t.placeholders) && !(t.placeholders.length === 1 && t.placeholders[0].width >= 0.9)
+/** Up to this many photographs a layout may lay one across the fold (a big picture running over the middle of the spread, with the line
+ *  drawn through it): with so few pictures the fold is part of the composition. More than this and nothing may cross it. */
+export const FOLD_FREE_COUNT = 3
+
+/** A built-in layout with a photograph across the fold, where the two pages meet, which is only refused once there are more than a few
+ *  photographs on the spread. */
+export const crossesTheFold = (t: TemplateDefinition) => !!t.isBuiltIn && t.placeholders.length > FOLD_FREE_COUNT && crossesFold(t.placeholders)
 
 /** Fewer even layouts than this and the shelf is too thin to be useful, so uneven ones come back. */
 const MIN_EVEN_LAYOUTS = 3

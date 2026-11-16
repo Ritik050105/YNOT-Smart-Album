@@ -55,6 +55,14 @@ export function orientationFits(photo: { width: number; height: number }, frame:
   return p === target || p === 'square' || target === 'square'
 }
 
+/** Which photograph of a swap does not suit the frame it would move to: 'a' (the first, into the second's frame), 'b', or null when
+ *  both suit. An empty frame takes anything. */
+export function swapMismatch(a: { width: number; height: number } | undefined, frameA: { width: number; height: number }, b: { width: number; height: number } | undefined, frameB: { width: number; height: number }): 'a' | 'b' | null {
+  if (a && !orientationFits(a, frameB)) return 'a'
+  if (b && !orientationFits(b, frameA)) return 'b'
+  return null
+}
+
 /** The rule for choosing a template, stricter than the one for dropping a photo by hand: a landscape photo only goes into a
  *  landscape or square frame, a portrait photo only into a portrait or square frame, and a square photo only into a frame that is
  *  square or close to it. A frame of the opposite shape is never picked for the photograph; changing one is the designer's call,

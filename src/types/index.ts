@@ -28,6 +28,10 @@ export interface PhotoAsset {
    *  of dead centre, which is what used to cut the top off a group shot. */
   focusX?: number
   focusY?: number
+  /** How large the subject's face is, as a share of the photograph's width and height (when one was found). Frames use it
+   *  to keep the whole head in the crop. */
+  focusW?: number
+  focusH?: number
 }
 
 export interface PlaceholderRect {

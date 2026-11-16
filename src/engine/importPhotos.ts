@@ -5,7 +5,7 @@ import { v4 as uuid } from 'uuid'
 import { PhotoAsset } from '@/types'
 import { imageFileSource, isImageFile } from './imageSource'
 import { hasColorProfile } from './colorProfile'
-import { SubjectFocus, samplePixels, subjectFocusFromImage } from './subjectFocus'
+import { SubjectFocus, samplePixels, subjectBoxFromImage, subjectFocusFromImage } from './subjectFocus'
 
 const CONCURRENCY = 3
 
@@ -22,14 +22,15 @@ function blackAndWhiteFromPixels(data: Uint8ClampedArray): boolean | undefined {
 /** Both of the things the importer measures from the pixels, from a single decode of the cached
  *  512px thumbnail rather than of the 1600px preview. Neither answer is worth failing an
  *  import over, so an unreadable preview gives nothing back instead of throwing. */
-async function analysePreview(src: string): Promise<{ blackAndWhite?: boolean; focus?: SubjectFocus }> {
+async function analysePreview(src: string): Promise<{ blackAndWhite?: boolean; focus?: SubjectFocus; face?: { width: number; height: number } }> {
   try {
     const thumbnail = await previewSource(src, 512)
     const image = new Image()
     await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = reject; image.src = thumbnail })
     const pixels = samplePixels(image)
     if (!pixels) return {}
-    return { blackAndWhite: blackAndWhiteFromPixels(pixels), focus: subjectFocusFromImage(image) ?? undefined }
+    const box = subjectBoxFromImage(image)
+    return { blackAndWhite: blackAndWhiteFromPixels(pixels), focus: subjectFocusFromImage(image) ?? undefined, face: box ? { width: box.width, height: box.height } : undefined }
   } catch { return {} }
 }
 
@@ -112,6 +113,8 @@ async function importOneFile(file: File, fallbackOrder: number): Promise<PhotoAs
     mimeType: /\.(psd|tiff?)$/i.test(file.name) ? 'image/png' : isRaw ? 'image/jpeg' : file.type || 'image/jpeg',
     focusX: focus?.focusX,
     focusY: focus?.focusY,
+    focusW: analysed.face?.width,
+    focusH: analysed.face?.height,
     bins: getPreferences().autoBins && (file.webkitRelativePath ?? '').includes('/') ? [file.webkitRelativePath.split('/').slice(-2,-1)[0]] : [],
     favorite: false,
   }

@@ -29,7 +29,8 @@ for (const aspect of [1.5, 1.25, 1, 12.007 / 17.717]) {
       assert.ok(!ids.has(t.id), `${t.id} is unique`); ids.add(t.id)
       assert.equal(t.placeholders.length, ph.length)
       for (const p of t.placeholders) assert.ok(p.x >= -1e-9 && p.y >= -1e-9 && p.x + p.width <= 1 + 1e-9 && p.y + p.height <= 1 + 1e-9, `${t.id} stays on the page`)
-      assert.equal(m.templateOrderMismatches(ph, t, aspect, 3, 6), 0, `${t.id} gives every photograph a frame of its own shape, in order`)
+      // (A layout with one photograph picked out to fill a page, `-f<n>L-` / `-f<n>R-`, is for the rearranging row: its frames suit the photographs in another order.)
+      if (!/-f\d+[LR]-/.test(t.id)) assert.equal(m.templateOrderMismatches(ph, t, aspect, 3, 6), 0, `${t.id} gives every photograph a frame of its own shape, in order`)
       assert.equal(m.templateCategory(t), 'creative', `${t.id} is a creative design`)
       assert.ok(m.runsToTheTrim(t), `${t.id} is exempt from the even-margin and gap checks`)
       assert.equal(m.templateFamilyLabel(t), 'Showcase')
@@ -37,10 +38,12 @@ for (const aspect of [1.5, 1.25, 1, 12.007 / 17.717]) {
       // Nothing postage-stamp small, and the block of pictures is a good part of the page.
       const x0 = Math.min(...t.placeholders.map(p => p.x)), x1 = Math.max(...t.placeholders.map(p => p.x + p.width)), y0 = Math.min(...t.placeholders.map(p => p.y)), y1 = Math.max(...t.placeholders.map(p => p.y + p.height))
       assert.ok(Math.max(x1 - x0, y1 - y0) >= 0.12, `${t.id} spans a good part of a page`)
-      // (One photograph given the whole spread, full bleed or to the margin, is the one design allowed across the fold.)
-      const wholeSpread = t.placeholders.length === 1 && t.placeholders[0].width >= 0.9
+      // (With three photographs or fewer a picture may run across the fold; with more, none may.)
+      const wholeSpread = t.placeholders.length <= 3 // (up to three photographs may run across the fold)
       assert.ok(wholeSpread || !t.placeholders.some(p => p.x < 0.497 && p.x + p.width > 0.503), `${t.id} keeps every photograph off the fold`)
-      for (const p of t.placeholders) assert.ok(Math.min(p.width * aspect, p.height) >= 0.09, `${t.id} has no tiny frame`)
+      // (A big set on one spread has small frames; the floor falls with the count, as it does in the generator.)
+      const floor = (ph.length > 12 ? 0.045 : ph.length > 8 ? 0.07 : 0.09) - 1e-9
+      for (const p of t.placeholders) assert.ok(Math.min(p.width * aspect, p.height) >= floor, `${t.id} has no tiny frame`)
       for (const p of t.placeholders) { const ratio = (p.width * aspect) / p.height; assert.ok(ratio <= 2.5 && ratio >= 0.4, `${t.id} has no strip`) }
       assert.equal(m.findTemplate(t.id)?.id, t.id, `${t.id} resolves from its id`)
     }

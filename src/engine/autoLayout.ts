@@ -4,6 +4,7 @@ import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TemplateDefinition, T
 import { suggestTemplate, findTemplate, templatesForCount, sequenceCandidates, mixCandidates, showcaseCandidates, TemplateFrameFilter } from './templates'
 import { supportsUniformGap } from './templateLayout'
 import { templateCategory } from './templateTransfer'
+import { applyFaceFraming } from './faceFraming'
 import { crossesTheFold, offeredLayouts, preferEvenLayouts, uniformGapLayouts, varyPatterns } from './layoutOffer'
 import { rankTemplates, templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches } from './templateMatching'
 
@@ -363,7 +364,7 @@ export function buildSpreadsFromGroups(
     placements.sort((a, b) => readingOrder.findIndex(frame => frame.id === a.placeholderId) - readingOrder.findIndex(frame => frame.id === b.placeholderId))
     const groupId=uuid()
     const textBoxes: TextBox[] = (groupDesigns?.[index]?.textBoxes ?? template.textBoxes ?? []).map(t=>({...structuredClone(t),id:uuid(),groupId:t.groupId?groupId:undefined}))
-    return {
+    const built: Spread = {
       id: uuid(),
       order: index,
       pageSide: side ?? template.pageSide,
@@ -379,6 +380,8 @@ export function buildSpreadsFromGroups(
       isCover: false,
       guides: { horizontal: [], vertical: [] },
     }
+    // Each photograph is placed for its face in the frame its layout gives it.
+    return applyFaceFraming(built, group, layout.aspect ?? 1)
   })
 }
 
@@ -431,7 +434,8 @@ export function retemplateSpread(spread: Spread, templateId: string, photos?: Ph
   const placements = templateFramesInReadingOrder(template).map((ph, i) => frameAppearance(ph, ordered[i] ? { ...ordered[i], placeholderId: ph.id } : defaultPlacement(ph.id, null)))
   // A single page takes a design that sits on the other half mirrored onto it.
   const onPage = spread.pageSide === 'left' || spread.pageSide === 'right'
-  return { ...spread, flipped: onPage && templateHalf(template) ? templateHalf(template) !== spread.pageSide : spread.flipped, templateId: template.id, backgroundColor: template.backgroundColor ?? spread.backgroundColor, customBoxes: template.absoluteFrames?template.placeholders:undefined, placements, textBoxes: template.textBoxes ? [...spread.textBoxes.filter(t=>!t.fromTemplate),...template.textBoxes.map(t=>({...t,id:uuid(),fromTemplate:true}))] : spread.textBoxes }
+  // Every photograph is placed for its face in the frame the new layout gives it.
+  return applyFaceFraming({ ...spread, flipped: onPage && templateHalf(template) ? templateHalf(template) !== spread.pageSide : spread.flipped, templateId: template.id, backgroundColor: template.backgroundColor ?? spread.backgroundColor, customBoxes: template.absoluteFrames?template.placeholders:undefined, placements, textBoxes: template.textBoxes ? [...spread.textBoxes.filter(t=>!t.fromTemplate),...template.textBoxes.map(t=>({...t,id:uuid(),fromTemplate:true}))] : spread.textBoxes }, photos, aspect)
 }
 
 /** What the chooser below needs to know to judge layouts against the photographs: their files, the spread's shape and the
@@ -480,7 +484,7 @@ export function buildSpreadFromPlacements(source: PlacedPhoto[], pageSide: Sprea
     ordered = frames.map(ph => source[assets.indexOf(match.photos[chosen.placeholders.indexOf(ph)])])
   }
   const placements = frames.map((ph, i) => ordered[i] ? { ...ordered[i], placeholderId: ph.id } : defaultPlacement(ph.id, null))
-  return {
+  const built: Spread = {
     id: uuid(),
     order: like.order,
     pageSide,
@@ -497,6 +501,7 @@ export function buildSpreadFromPlacements(source: PlacedPhoto[], pageSide: Sprea
     isCover: false,
     guides: { horizontal: [], vertical: [] },
   }
+  return context ? applyFaceFraming(built, context.photos, context.aspect) : built
 }
 
 /** Mirrors a spread's layout horizontally — doesn't touch the template definition, just flips
