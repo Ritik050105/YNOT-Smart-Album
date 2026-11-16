@@ -19,7 +19,13 @@ const shapeKind = (ratio: number) => ratio > 1.15 ? 0 : ratio < 1 / 1.15 ? 1 : 2
 
 /** `bleed` lists the frames that run to the trim; `moved` marks a layout drawn for the photographs in another order (one picked out to fill a
  *  page), which only the rearranging browser row can use. */
+export type Mode = 'full' | 'fill' | 'loose'
 interface Variant { key: string; name: string; boxes: Box[]; bleed?: number[]; moved?: boolean }
+
+/** How a layout is named: what goes where, in the words a designer uses. A page is "full" (the photographs run to the trim), "fill" (they fill the
+ *  page to the album's margin) or neither (they sit on the page with white round them, so the page is just named). */
+export const photosWord = (m: number) => `${m} photo${m === 1 ? '' : 's'}`
+export const modeWord = (mode: Mode) => mode === 'full' ? 'full ' : mode === 'fill' ? 'fill ' : ''
 
 /** Up to this many photographs a layout may lay one across the fold (a big picture running over the middle of the spread, with the line
  *  drawn through it): with so few pictures the fold is part of the composition. More than this and nothing may cross it. */
@@ -31,6 +37,8 @@ export const crossesFold = (frames: { x: number; width: number }[]) => frames.so
 /** The white round a block of pictures on a page, in units of the spread's height, the same on all four sides: none (the page is filled
  *  to the album's own margin) or a little more. Even on every side, so the block keeps the page's proportion and sits in the middle of it. */
 const PAGE_MARGINS: [name: string, margin: number][] = [['Full Page', 0], ['Inset Page', 0.07], ['Wide Margin Page', 0.13]]
+/** The margins tried for a page of this many photographs: a big set is searched for fewer shapes of page, or generating them all would take long. */
+const marginsFor = (count: number, aspect: number) => PAGE_MARGINS.filter(([, m], i) => 0.5 - (2 * m) / aspect >= 0.2 && (count <= 6 || i < 2))
 
 /** The ways to lay these photographs (in order) out in a block of this shape, as boxes in the block (0-1 each way), one of each kind
  *  of arrangement first. Layouts drawn for the photographs' own proportions come first, then those drawn for their shapes. */
@@ -80,26 +88,33 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
   /** Every way to set these photographs on one page, as boxes in the spread. One photograph can fill the page, be held inset, or be smaller
    *  (two sizes) and set in the middle, at an edge or in a corner of the inset page (anchors run from the inner edge to the outer one and from the
    *  top to the bottom); more than one are tiled, filling the page or held inset. */
-  const options = (sub: number[], page: 0 | 1, limit: number): { key: string; boxes: Box[]; bleed?: boolean }[] => {
-    const list: { key: string; boxes: Box[]; bleed?: boolean }[] = []
+  type Option = { key: string; boxes: Box[]; bleed?: boolean; mode: Mode }
+  const options = (sub: number[], page: 0 | 1, limit: number): Option[] => {
+    const list: Option[] = []
     if (sub.length === 1) {
-      for (const [name, margin] of PAGE_MARGINS.filter(([, m]) => 0.5 - (2 * m) / aspect >= 0.2)) { const b = block(page, margin); list.push({ key: name.replace(/ /g, ''), boxes: into(b, blockLayouts(sub, aspectOf(b), 1)[0]) }) }
+      for (const [name, margin] of marginsFor(sub.length, aspect)) { const b = block(page, margin); list.push({ key: name.replace(/ /g, ''), boxes: into(b, blockLayouts(sub, aspectOf(b), 1)[0]), mode: margin === 0 ? 'fill' : 'loose' }) }
       // The page edge to edge, to the trim.
-      if (0.5 * aspect >= 0.42) list.push({ key: 'Bleed', boxes: [[page * 0.5, 0, 0.5, 1]], bleed: true })
+      if (0.5 * aspect >= 0.42) list.push({ key: 'Bleed', boxes: [[page * 0.5, 0, 0.5, 1]], bleed: true, mode: 'full' })
       const inner = block(page, PAGE_MARGINS[1][1]), outer = page === 0 ? -1 : 1
       // (The middle of the page first, then the same smaller block nearer an edge or a corner.)
       for (const size of [0.85, 0.7, 0.6, 0.5]) for (const ax of size === 0.7 || size === 0.5 ? [0, -1, 1] : [0]) for (const ay of size === 0.7 || size === 0.5 ? [0, -1, 1] : [0]) {
         const w = inner.w * size, h = inner.h * size
         const b = { x: inner.x + (inner.w - w) / 2 + ((inner.w - w) / 2) * ax * outer, y: inner.y + (inner.h - h) / 2 + ((inner.h - h) / 2) * ay, w, h }
         const where = `${ay < 0 ? 'High' : ay > 0 ? 'Low' : ''}${ax === 0 ? '' : ax * outer > 0 ? 'Outer' : 'Inner'}` || 'Centre'
-        list.push({ key: `s${Math.round(size * 10)}${where}`, boxes: into(b, blockLayouts(sub, aspectOf(b), 1)[0]) })
+        list.push({ key: `s${Math.round(size * 10)}${where}`, boxes: into(b, blockLayouts(sub, aspectOf(b), 1)[0]), mode: 'loose' })
       }
       // A single photograph on a narrow page is small whatever is done, so it is only asked not to be a stamp.
       return list.filter(o => fits(o.boxes, 0.07))
     }
-    for (const [name, margin] of PAGE_MARGINS.filter(([, m]) => 0.5 - (2 * m) / aspect >= 0.2)) {
+    for (const [name, margin] of marginsFor(sub.length, aspect)) {
       const b = block(page, margin)
-      blockLayouts(sub, aspectOf(b), limit).forEach((l, i) => { const boxes = into(b, l); if (fits(boxes)) list.push({ key: `${name[0]}${i}`, boxes }) })
+      blockLayouts(sub, aspectOf(b), limit).forEach((l, i) => {
+        const boxes = into(b, l)
+        if (!fits(boxes)) return
+        list.push({ key: `${name[0]}${i}`, boxes, mode: margin === 0 ? 'fill' : 'loose' })
+        // The same tiling run to the trim, the frames flush: the page "full".
+        if (margin === 0) list.push({ key: `B${i}`, boxes, bleed: true, mode: 'full' })
+      })
     }
     // The same kind of block, a little smaller, set high, low, toward the inner edge or toward the outer one, leaving the page's white where
     // a caption or a title can go.
@@ -109,43 +124,70 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
     for (const [where, ax, ay, scale] of [['High', 0, -1, 0.8], ['Low', 0, 1, 0.8], ['Inner', -1, 0, 0.8], ['Outer', 1, 0, 0.8], ['Mid', 0, 0, 0.65], ['HighMid', 0, -1, 0.65], ['LowMid', 0, 1, 0.65]] as const) {
       const w = inner.w * scale, h = inner.h * scale
       const b = { x: inner.x + (inner.w - w) / 2 + ((inner.w - w) / 2) * ax * outer, y: inner.y + (inner.h - h) / 2 + ((inner.h - h) / 2) * ay, w, h }
-      layouts.forEach((l, i) => { const boxes = into(b, l); if (fits(boxes)) list.push({ key: `${where}${i}`, boxes }) })
+      layouts.forEach((l, i) => { const boxes = into(b, l); if (fits(boxes)) list.push({ key: `${where}${i}`, boxes, mode: 'loose' }) })
     }
     return list
   }
   // One photograph can also run to the trim: the whole spread, or a whole page, edge to edge, or the spread held to the album's margin.
   if (n === 1) {
-    out.push({ key: 'spreadBleed', name: 'Full Spread Bleed', boxes: [[0, 0, 1, 1]], bleed: [0] }, { key: 'spreadMargin', name: 'Full Spread', boxes: [[0, 0, 1, 1]] })
+    out.push({ key: 'spreadBleed', name: '1 photo full spread', boxes: [[0, 0, 1, 1]], bleed: [0] }, { key: 'spreadMargin', name: '1 photo fill spread', boxes: [[0, 0, 1, 1]] })
+    // The photograph smaller on the spread, across the fold, with white round it.
+    for (const size of [0.9, 0.8, 0.7, 0.6]) { const w = size, h = size, x = (1 - w) / 2, y = (1 - h) / 2; out.push({ key: `spLoose${Math.round(size * 100)}`, name: '1 photo spread', boxes: [[x, y, w, h]] }) }
     // (A page this narrow is a strip, which no layout is.)
-    if (0.5 * aspect >= 0.42) for (const page of [0, 1] as const) out.push({ key: `pg${page ? 'R' : 'L'}Bleed`, name: page ? 'Full Right Page Bleed' : 'Full Left Page Bleed', boxes: [[page * 0.5, 0, 0.5, 1]], bleed: [0] })
+    if (0.5 * aspect >= 0.42) for (const page of [0, 1] as const) out.push({ key: `pg${page ? 'R' : 'L'}Bleed`, name: `1 photo full ${page ? 'right' : 'left'}`, boxes: [[page * 0.5, 0, 0.5, 1]], bleed: [0] })
   }
   // Everything on one page, either page.
-  for (const page of [0, 1] as const) for (const o of options(ratios, page, n > 8 ? 6 : 8)) { if (n === 1 && o.bleed) continue; out.push({ key: `pg${page ? 'R' : 'L'}${o.key}`, name: page ? 'Right Page' : 'Left Page', boxes: o.boxes }) }
+  const PER = n > 8 ? 2 : 3
+  for (const page of [0, 1] as const) {
+    const taken: Record<Mode, number> = { full: 0, fill: 0, loose: 0 }
+    for (const o of options(ratios, page, n > 8 ? 6 : 8)) {
+      if (n === 1 && o.bleed) continue
+      // Up to a few of each kind, but every kind (full, fill, loose); a single photograph keeps all of its spots.
+      if (n > 1 && taken[o.mode] >= (o.mode === 'loose' ? PER * 3 : PER)) continue
+      taken[o.mode]++
+      out.push({ key: `pg${page ? 'R' : 'L'}${o.key}`, name: `${photosWord(n)} ${modeWord(o.mode)}${page ? 'right' : 'left'}`, boxes: o.boxes, ...(o.bleed ? { bleed: o.boxes.map((_, q) => q) } : {}) })
+    }
+  }
   if (n === 1) return out
   // Split between the two pages, near the middle first (every split for a short set, a few for a long one).
   const mid = Math.floor(n / 2), order = Array.from({ length: n - 1 }, (_, i) => i + 1).sort((p, q) => Math.abs(p - mid) - Math.abs(q - mid) || p - q)
-  const splits = new Set(order.slice(0, n > 8 ? 6 : n > 5 ? 4 : n - 1))
+  const splits = new Set(order.slice(0, n > 12 ? 10 : n - 1))
   // A whole page given to the first photograph, or to the last, is always among them.
   splits.add(1); splits.add(n - 1)
   for (const k of splits) {
     const left = options(ratios.slice(0, k), 0, n > 8 ? 6 : 5), right = options(ratios.slice(k), 1, n > 8 ? 6 : 5)
     if (!left.length || !right.length) continue
-    // Each left arrangement with a few of the right ones, so the two pages differ from each other as well as from other splits.
-    let made = 0
-    for (let i = 0; i < left.length && made < 90; i++) for (const j of [i, i + 1, i + 3, i + 5]) {
-      const r = right[j % right.length], boxes = [...left[i].boxes, ...r.boxes]
-      if (made < 90 && fits(boxes)) {
-        const bleed = [...(left[i].bleed ? Array.from({ length: left[i].boxes.length }, (_, q) => q) : []), ...(r.bleed ? Array.from({ length: r.boxes.length }, (_, q) => left[i].boxes.length + q) : [])]
-        out.push({ key: `pg${k}-${left[i].key}-${r.key}`, name: bleed.length ? 'Feature Page' : 'Two Pages', boxes, ...(bleed.length ? { bleed } : {}) }); made++
+    // Every pairing of how the left page is set and how the right page is (full, fill or neither), a few arrangements of each.
+    for (const ml of ['full', 'fill', 'loose'] as const) for (const mr of ['full', 'fill', 'loose'] as const) {
+      const A = left.filter(o => o.mode === ml), B = right.filter(o => o.mode === mr)
+      if (!A.length || !B.length) continue
+      const seenPair = new Set<string>()
+      for (let t = 0; t < PER * (ml === 'loose' || mr === 'loose' ? 3 : 1) && seenPair.size < PER * (ml === 'loose' || mr === 'loose' ? 3 : 1); t++) {
+        const a = A[t % A.length], b = B[(t * 2 + 1) % B.length], id = `${a.key}-${b.key}`
+        if (seenPair.has(id)) continue
+        seenPair.add(id)
+        const boxes = [...a.boxes, ...b.boxes]
+        if (!fits(boxes)) continue
+        const bleed = [...(a.bleed ? a.boxes.map((_, q) => q) : []), ...(b.bleed ? b.boxes.map((_, q) => a.boxes.length + q) : [])]
+        out.push({ key: `pg${k}-${id}`, name: `${photosWord(k)} ${modeWord(ml)}left · ${photosWord(n - k)} ${modeWord(mr)}right`, boxes, ...(bleed.length ? { bleed } : {}) })
       }
     }
+  }
+  // The whole set tiled across the whole spread: to the album's margin ("fill") or run to the trim, the frames flush ("full"). Only while the
+  // fold may be crossed; with more photographs the pages are laid out one at a time above.
+  if (n >= 2 && n <= FOLD_FREE_COUNT) {
+    blockLayouts(ratios, aspect, 6).forEach((l, i) => {
+      const boxes = into({ x: 0, y: 0, w: 1, h: 1 }, l)
+      out.push({ key: `spFill${i}`, name: `${photosWord(n)} fill spread`, boxes })
+      out.push({ key: `spFull${i}`, name: `${photosWord(n)} full spread`, boxes, bleed: boxes.map((_, q) => q) })
+    })
   }
   // The whole set tiled in one block across the spread, as tall as the spread or a band of it (nine tenths, four fifths...): each height is a
   // different shape to tile, so these are different arrangements, not the same one resized, and the spread is used to near its edges.
   if (n >= 2 && n <= 12) {
     for (const h of [0.92, 0.82, 0.72, 0.62, 0.52]) {
       const b = { x: 0.03, y: (1 - h) / 2, w: 0.94, h }
-      blockLayouts(ratios, aspectOf(b), 4).forEach((l, i) => out.push({ key: `sb${Math.round(h * 100)}-${i}`, name: 'Spread Block', boxes: into(b, l) }))
+      blockLayouts(ratios, aspectOf(b), 4).forEach((l, i) => out.push({ key: `sb${Math.round(h * 100)}-${i}`, name: `${photosWord(n)} spread`, boxes: into(b, l) }))
     }
   }
   // The whole set in one row at the photographs' own proportions, as wide as the spread allows (or as tall as a good band can be), centred
@@ -159,7 +201,7 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
         if (y < 0.02 || y + h > 0.98) continue
         let x = (1 - rowW) / 2
         const boxes = ratios.map((r): Box => { const w = (r * h) / aspect, box: Box = [x, y, w, h]; x += w; return box })
-        out.push({ key: `band${Math.round(width * 100)}${where}`, name: 'Filmstrip Band', boxes })
+        out.push({ key: `band${Math.round(width * 100)}${where}`, name: `${photosWord(n)} spread`, boxes })
       }
     }
   }
@@ -179,7 +221,7 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
         const r = rest[q % rest.length], boxes = page === 0 ? [...feature[i].boxes, ...r.boxes] : [...r.boxes, ...feature[i].boxes]
         if (made >= 24 || !fits(boxes, 0.07)) continue
         const at = page === 0 ? 0 : r.boxes.length
-        out.push({ key: `f${j}${page ? 'R' : 'L'}-${feature[i].key}-${r.key}`, name: feature[i].bleed ? 'Feature Page' : 'Two Pages', boxes, moved: true, ...(feature[i].bleed ? { bleed: [at] } : {}) }); made++
+        out.push({ key: `f${j}${page ? 'R' : 'L'}-${feature[i].key}-${r.key}`, name: `${photosWord(1)} ${modeWord(feature[i].mode)}${page ? 'right' : 'left'} · ${photosWord(n - 1)} ${modeWord(r.mode)}${page ? 'left' : 'right'} (rearranged)`, boxes, moved: true, ...(feature[i].bleed ? { bleed: [at] } : {}) }); made++
       }
     }
   }

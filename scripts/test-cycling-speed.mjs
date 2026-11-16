@@ -69,7 +69,8 @@ assert.equal(m.readCollectionsShared(), m.readCollectionsShared(), 'saved collec
   for (const count of [4, 6, 9]) {
     const { project, spread } = make(count)
     const list = m.cyclingTemplates(project, spread, 'all', none)
-    const keys = list.map(t => `${t.pageSide}:${t.placeholders.length}:${t.textBoxes?.length ?? 0}:${m.patternClass(t)}`)
+    // (Page layouts rotate by structure: what goes on which page and how each page is set, so that is their class here.)
+    const keys = list.map(t => `${t.pageSide}:${t.placeholders.length}:${t.textBoxes?.length ?? 0}:${/^show2-/.test(t.id) ? t.name : m.patternClass(t)}`)
     // No two on the list are one arrangement in one block of the page at slightly different sizes.
     const fine = list.map(t => `${m.arrangementSignature(t.placeholders)}:${[Math.min(...t.placeholders.map(p => p.x)), Math.min(...t.placeholders.map(p => p.y)), Math.max(...t.placeholders.map(p => p.x + p.width)), Math.max(...t.placeholders.map(p => p.y + p.height))].map(v => Math.round(v * 10)).join(',')}`)
     // (Thirty templates are wanted for every set, so a short shelf is topped up with the same arrangement at another size or moved, after all the different ones.)

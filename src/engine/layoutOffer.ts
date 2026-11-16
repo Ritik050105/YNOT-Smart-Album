@@ -133,9 +133,13 @@ function varyCore<T>(items: T[], templateOf: (item: T) => TemplateDefinition, as
     if (seen.has(fine)) { const id = `${head}:${lookKey(t) || fine}`; const c = copies.get(id); if (c) c.push(item); else copies.set(id, [item]); continue }
     seen.add(fine)
     // The same arrangement mirrored, or drawn in a smaller or moved block, is not another template: it only moves the pictures about.
+    // A layout is only another one's copy within the same structure (what goes on which page, and how each page is set): a layout with the
+    // photographs on the other page, or a page full instead of filled, is a different template whatever it looks like.
+    const structure = /^show2-/.test(t.id) ? t.name : ''
     const look = lookKey(t)
-    if (look) { const id = `${head}:${look}`; if (looks.has(id)) { const c = copies.get(id); if (c) c.push(item); else copies.set(id, [item]); continue } looks.add(id) }
-    const key = `${head}:${patternClass(t)}`, g = groups.get(key)
+    if (look) { const id = `${head}:${structure}:${look}`; if (looks.has(id)) { const c = copies.get(id); if (c) c.push(item); else copies.set(id, [item]); continue } looks.add(id) }
+    // Page layouts rotate by structure, the rest by pattern class, so one press after another is another way of setting the photographs.
+    const key = structure ? `${head}:${structure}` : `${head}:${patternClass(t)}`, g = groups.get(key)
     if (g) g.push(item); else groups.set(key, [item])
   }
   const out: T[] = []

@@ -310,7 +310,7 @@ export function buildSpreadsFromGroups(
     candidates = offFold
     if (!side && !candidates.some(t => templateShapeMismatches(group, t, aspectOf, appearance.marginPx, appearance.gapPx) === 0)) {
       const ids = groupDesigns?.[index]?.templateIds ?? enabledTemplateIds, filter = layout.frameFilter ?? 'all'
-      const extra = [...mixCandidates(group, group.length, ids, filter, aspectOf), ...showcaseCandidates(group, group.length, ids, filter, aspectOf).filter(t => /Two Pages/.test(t.name))]
+      const extra = [...mixCandidates(group, group.length, ids, filter, aspectOf), ...showcaseCandidates(group, group.length, ids, filter, aspectOf).filter(t => /left · .*right$/.test(t.name))]
         .filter(t => !t.textBoxes?.length && !crossesTheFold(t) && (templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspectOf, appearance.marginPx, appearance.gapPx)))
       candidates = [...candidates, ...extra]
     }
@@ -458,7 +458,7 @@ export function defaultLayouts(photos: PhotoAsset[], pageSide: Spread['pageSide'
     const library = [...sequenceCandidates(ordered, count, enabledTemplateIds, 'all', aspect), ...templatesForCount(count, enabledTemplateIds, 'all', aspect)]
     const pages = showcaseCandidates(ordered, count, enabledTemplateIds, 'all', aspect)
     // A spread normally starts with a library layout; a mix none suits may take the page layouts that fill both pages. A single page takes what sits on its half.
-    const pool = (half ? [...library, ...pages].filter(t => !!templateHalf(t)) : withPages ? [...library, ...pages.filter(t => count === 1 ? /-pg[LR](FullPage|InsetPage)$/.test(t.id) : /Two Pages/.test(t.name) && /-(F\d+|FullPage)-(F\d+|FullPage)$/.test(t.id))] : library).filter(usable)
+    const pool = (half ? [...library, ...pages].filter(t => !!templateHalf(t)) : withPages ? [...library, ...pages.filter(t => count === 1 ? /-pg[LR](FullPage|InsetPage)$/.test(t.id) : /fill left · .*fill right$/.test(t.name))] : library).filter(usable)
     return varyPatterns(offeredLayouts(ordered, pool, aspect, marginPx, gapPx, true, strict), t => t, aspect)
   }
   for (const ordered of orders) for (const withPages of half ? [true] : [false, true]) { const offered = shelf(ordered, true, withPages); if (offered.length) return offered }
