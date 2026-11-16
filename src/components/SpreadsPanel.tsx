@@ -91,7 +91,8 @@ export default function SpreadsPanel() {
   const applyTemplateToAllSpreads = useProjectStore((s) => s.applyTemplateToAllSpreads)
   useTemplateBrowsing()
   const cycleSpreadTemplate = useProjectStore((s) => s.cycleSpreadTemplate)
-  const openMatchingTemplates = useProjectStore(s => s.openMatchingTemplates)
+  const toggleMatchingTemplates = useProjectStore(s => s.toggleMatchingTemplates)
+  const browseKind = useProjectStore(s => s.templateBrowseKind), browseSpreadId = useProjectStore(s => s.selectedSpreadId)
   const templatePreview = useProjectStore(s => s.templatePreview)
   const { handleFiles } = useImportPhotos()
   const [exportingId, setExportingId] = useState<string | null>(null)
@@ -173,6 +174,7 @@ export default function SpreadsPanel() {
   })
 
   const matchingTemplatesOpen = useProjectStore((s) => s.matchingTemplatesOpen)
+  const browsing = (id: string, kind: 'image' | 'mixed') => matchingTemplatesOpen && browseSpreadId === id && browseKind === kind
   const photosById = useMemo(() => new Map(project.photos.map((p) => [p.id, p])), [project.photos])
 
   /** The frame the cursor is over, when dropping there would be refused for its shape. The frame
@@ -338,7 +340,8 @@ export default function SpreadsPanel() {
       { label: 'Duplicate Spread', onClick: () => duplicateSpread(spreadId) },
     ]
   }
-
+
+
   // The latest handlers, in a ref that never changes, for the memoised timeline rows.
   const timelineActions = useRef<TimelineActions>({} as TimelineActions)
   timelineActions.current = { selectSpread, enterDesignerView, openContextMenu, handleSpreadDrop, splitSpread, setPhotoMenu }
@@ -458,12 +461,12 @@ export default function SpreadsPanel() {
               </div>
               <div className="spread-card-controls__center"><div className="spread-card-controls__templates">
                 <button disabled={!spread.templateLocked&&cyclingCount(project,spread,useProjectStore.getState().templateFrameFilter,useProjectStore.getState().favoriteTemplateIds)<2} title={spread.templateLocked?'Shuffle photos backwards (layout locked)':'Previous template (Up)'} onClick={() => { selectSpread(spread.id); if(spread.templateLocked)useProjectStore.getState().cycleSpreadPhotos(spread.id,-1); else cycleSpreadTemplate(spread.id, -1) }}><Icon name="chevronLeft" size={12} /></button>
-                <button disabled={spread.templateLocked} title={spread.templateLocked?'Unlock the template to browse layouts':'Browse matching templates'} onClick={() => openMatchingTemplates(spread.id)}><Icon name="grid" size={12} /></button>
+                <button disabled={spread.templateLocked} title={spread.templateLocked?'Unlock the template to browse layouts':browsing(spread.id,'image')?'Close the template browser':'Browse matching templates'} aria-pressed={browsing(spread.id,'image')} className={browsing(spread.id,'image')?'is-active':undefined} onClick={() => toggleMatchingTemplates(spread.id)}><Icon name="grid" size={12} /></button>
                 <button disabled={!spread.templateLocked&&cyclingCount(project,spread,useProjectStore.getState().templateFrameFilter,useProjectStore.getState().favoriteTemplateIds)<2} title={spread.templateLocked?'Shuffle photos forwards (layout locked)':'Next template (Down)'} onClick={() => { selectSpread(spread.id); if(spread.templateLocked)useProjectStore.getState().cycleSpreadPhotos(spread.id,1); else cycleSpreadTemplate(spread.id, 1) }}><Icon name="chevronRight" size={12} /></button>
               </div>
               <div className="spread-card-controls__templates">
                 <button disabled={!spread.templateLocked&&cyclingCount(project,spread,useProjectStore.getState().templateFrameFilter,useProjectStore.getState().favoriteTemplateIds,'mixed')<2} title={spread.templateLocked?'Shuffle photos backwards (layout locked)':'Previous mixed template'} onClick={() => { selectSpread(spread.id); if(spread.templateLocked)useProjectStore.getState().cycleSpreadPhotos(spread.id,-1); else useProjectStore.getState().cycleSpreadMixedTemplate(spread.id, -1) }}><Icon name="chevronLeft" size={12} /></button>
-                <button disabled={spread.templateLocked} title={spread.templateLocked?'Unlock the template to browse layouts':'Browse mixed templates'} aria-label="Browse mixed templates" onClick={()=>useProjectStore.getState().openMatchingTemplates(spread.id,'mixed')}>T▦</button>
+                <button disabled={spread.templateLocked} title={spread.templateLocked?'Unlock the template to browse layouts':browsing(spread.id,'mixed')?'Close the template browser':'Browse mixed templates'} aria-label="Browse mixed templates" aria-pressed={browsing(spread.id,'mixed')} className={browsing(spread.id,'mixed')?'is-active':undefined} onClick={()=>toggleMatchingTemplates(spread.id,'mixed')}>T▦</button>
                 <button disabled={!spread.templateLocked&&cyclingCount(project,spread,useProjectStore.getState().templateFrameFilter,useProjectStore.getState().favoriteTemplateIds,'mixed')<2} title={spread.templateLocked?'Shuffle photos forwards (layout locked)':'Next mixed template'} onClick={() => { selectSpread(spread.id); if(spread.templateLocked)useProjectStore.getState().cycleSpreadPhotos(spread.id,1); else useProjectStore.getState().cycleSpreadMixedTemplate(spread.id, 1) }}><Icon name="chevronRight" size={12} /></button>
               </div>
               <QuoteTemplates spreadId={spread.id} compact /></div>

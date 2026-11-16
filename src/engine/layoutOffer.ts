@@ -7,8 +7,8 @@ import { patternClass } from './patternClass'
 import { crossesFold } from './showcaseLayouts'
 export { patternClass }
 
-/** A built-in layout with a photograph across the fold, where the two pages meet. No exception: not even a single photograph given the whole spread, which hides the line. */
-export const crossesTheFold = (t: TemplateDefinition) => !!t.isBuiltIn && crossesFold(t.placeholders)
+/** A built-in layout with a photograph across the fold, where the two pages meet. The one exception is a single photograph given the whole spread (full spread, full bleed), which is what that layout is for. */
+export const crossesTheFold = (t: TemplateDefinition) => !!t.isBuiltIn && crossesFold(t.placeholders) && !(t.placeholders.length === 1 && t.placeholders[0].width >= 0.9)
 
 /** Fewer even layouts than this and the shelf is too thin to be useful, so uneven ones come back. */
 const MIN_EVEN_LAYOUTS = 3
@@ -87,7 +87,9 @@ export function wellCovered(photos: PhotoAsset[], templates: TemplateDefinition[
   const losses = new Map(judged.map(t => { const l = cropLosses(photos, t, aspect, keepOrder); return [t.id, { max: Math.max(...l), mean: l.reduce((a, v) => a + v, 0) / l.length }] as const }))
   const keep = (maxLoss: number, meanLoss: number) => templates.filter(t => !losses.has(t.id) || (losses.get(t.id)!.max <= maxLoss && losses.get(t.id)!.mean <= meanLoss))
   for (const [maxLoss, meanLoss] of [[0.34, 0.2], [0.4, 0.26], [0.46, 0.32], [0.52, 0.38]]) { const kept = keep(maxLoss, meanLoss); if (kept.filter(t => losses.has(t.id)).length >= 60) return kept }
-  const best = new Set([...judged].sort((a, b) => losses.get(a.id)!.max - losses.get(b.id)!.max).slice(0, Math.max(12, Math.ceil(judged.length * 0.5))).map(t => t.id))
+  // (A layout and its mirror lose the same, so the cut falls between losses, never between a layout and its twin.)
+  const ranked = [...judged].sort((a, b) => losses.get(a.id)!.max - losses.get(b.id)!.max), cut = losses.get(ranked[Math.min(ranked.length, Math.max(12, Math.ceil(judged.length * 0.5))) - 1].id)!.max
+  const best = new Set(ranked.filter(t => losses.get(t.id)!.max <= cut + 1e-9).map(t => t.id))
   return templates.filter(t => !losses.has(t.id) || best.has(t.id))
 }
 
@@ -109,11 +111,11 @@ export function varyPatterns<T>(items: T[], templateOf: (item: T) => TemplateDef
   const seen = new Set<string>(), looks = new Set<string>(), copies = new Map<string, T[]>()
   for (const item of items) {
     const t = templateOf(item), head = `${t.pageSide}:${t.placeholders.length}:${t.textBoxes?.length ?? 0}`
-    const fine = `${head}:${arrangementSignature(t.placeholders)}:${extent(t)}`
-    if (seen.has(fine)) continue
+    const fine = `${head}:${arrangementSignature(t.placeholders)}:${extent(t)}${t.placeholders.some(p => p.bleed) ? ':bleed' : ''}`
+    // The same arrangement in the same block at a slightly different size is a copy too: it waits with the mirrored ones.
+    if (seen.has(fine)) { const id = `${head}:${lookKey(t) || fine}`; const c = copies.get(id); if (c) c.push(item); else copies.set(id, [item]); continue }
     seen.add(fine)
     // The same arrangement mirrored, or drawn in a smaller or moved block, is not another template: it only moves the pictures about.
-    // Those wait at the end of the shelf, and only to bring a short one up to a useful length.
     const look = lookKey(t)
     if (look) { const id = `${head}:${look}`; if (looks.has(id)) { const c = copies.get(id); if (c) c.push(item); else copies.set(id, [item]); continue } looks.add(id) }
     const key = `${head}:${patternClass(t)}`, g = groups.get(key)
@@ -123,13 +125,14 @@ export function varyPatterns<T>(items: T[], templateOf: (item: T) => TemplateDef
   const total = [...groups.values()].reduce((a, g) => a + g.length, 0)
   for (let depth = 0; out.length < total; depth++) for (const g of groups.values()) if (g[depth]) out.push(g[depth])
   if (out.length >= WANTED_TEMPLATES) return out
-  // The copies come after, one of each arrangement in turn (not all of one together), so every step is still another arrangement.
+  // A shelf with fewer than thirty different arrangements is brought up to thirty with the same arrangements mirrored, resized or moved, after
+  // all the different ones, one of each arrangement in turn, so every step is still another arrangement for as long as there is one.
   const extra: T[] = [], lists = [...copies.values()]
   for (let depth = 0; extra.length < WANTED_TEMPLATES - out.length && lists.some(l => l[depth]); depth++) for (const l of lists) if (l[depth] && extra.length < WANTED_TEMPLATES - out.length) extra.push(l[depth])
   return [...out, ...extra]
 }
 
-/** How many layouts a shelf is brought up to with mirrored or moved copies when it has fewer distinct ones. */
+/** How many layouts a shelf is brought up to. */
 const WANTED_TEMPLATES = 30
 
 /** What a layout looks like with mirroring and block size taken out: each page's frames as a share of the block they fill (so a page filled
@@ -141,16 +144,18 @@ export function lookKey(t: TemplateDefinition): string {
   const crossing = f.some(p => p.x < 0.4999 && p.x + p.width > 0.5001)
   // Each side of the fold on its own; a design that straddles it is read whole.
   const sides = crossing ? [f] : [f.filter(p => p.x + p.width <= 0.5001), f.filter(p => p.x >= 0.4999)]
-  // A page's frames as a share of the block they fill, flipped one way or another, read by how the frames meet (which edges they share), not
-  // by where exactly the cuts fall: two layouts that cut the same way at slightly different places are one arrangement at two sizes.
+  // A page's frames as a share of the block they fill, flipped one way or another, with the cuts read to a fifth of the block: two layouts
+  // that cut the same way within a few per cent of each other (or in a smaller or moved block, or mirrored) are one arrangement.
+  const q = (v: number) => Math.round(v * 5)
   const topology = (list: typeof f, fx: number, fy: number) => {
     if (!list.length) return ''
     const x0 = Math.min(...list.map(p => p.x)), y0 = Math.min(...list.map(p => p.y)), x1 = Math.max(...list.map(p => p.x + p.width)), y1 = Math.max(...list.map(p => p.y + p.height))
     const w = x1 - x0 || 1, h = y1 - y0 || 1
-    return arrangementSignature(list.map((p, i) => {
+    return list.map(p => {
       const x = (p.x - x0) / w, y = (p.y - y0) / h, ww = p.width / w, hh = p.height / h
-      return { id: String(i), x: fx ? 1 - x - ww : x, y: fy ? 1 - y - hh : y, width: ww, height: hh, preferredOrientation: 'any' as const }
-    }))
+      const left = fx ? 1 - x - ww : x, top = fy ? 1 - y - hh : y
+      return [q(left), q(top), q(left + ww), q(top + hh)].join(',')
+    }).sort().join('|')
   }
   const variants = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([fx, fy]) => (fx ? [...sides].reverse() : sides).map(list => topology(list, fx, fy)).join('/'))
   // (A layout on the left page and its mirror on the right are one look: the right-hand copy is only where the same design sits.)

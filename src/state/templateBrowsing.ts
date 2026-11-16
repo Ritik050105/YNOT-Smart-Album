@@ -5,6 +5,7 @@ import {matchesCollection,readCollectionsShared} from '@/engine/templateCollecti
 import {supportsUniformGap} from '@/engine/templateLayout'
 import {offeredLayouts,varyPatterns} from '@/engine/layoutOffer'
 import {pagePlacements} from '@/engine/pageTemplates'
+import {defaultLayouts} from '@/engine/autoLayout'
 import {photoShapeCodes} from '@/engine/templateMatching'
 import {PhotoAsset,Project,Spread,TemplateDefinition} from '@/types'
 export const useTemplateBrowsing=create<{categories:{reference:boolean;creative:boolean};collection:string;favoritesOnly:boolean;setFavoritesOnly:(value:boolean)=>void;setCategories:(value:{reference:boolean;creative:boolean})=>void;setCollection:(value:string)=>void}>(set=>({categories:{reference:true,creative:true},collection:'',favoritesOnly:false,setFavoritesOnly:favoritesOnly=>set({favoritesOnly}),setCategories:categories=>set({categories}),setCollection:collection=>set({collection})}))
@@ -59,6 +60,12 @@ export function cyclingTemplates(project:Project,spread:Spread,filter:TemplateFr
  const deps=[project.enabledTemplateIds,favorites,categories,templateLibraryVersion()]
  const hit=cycleLists.get(key)
  if(hit&&hit.deps.every((v,i)=>v===deps[i])){cycleLists.delete(key);cycleLists.set(key,hit);return hit.list}
+ // A single page (a split spread) is offered what sits on its half: the same layouts a split or a drop starts it with.
+ if(kind==='image'&&(spread.pageSide==='left'||spread.pageSide==='right')&&photos.length===count){
+  const onPage=defaultLayouts(photos,spread.pageSide,aspect,spread.marginPx,spread.gapPx,project.enabledTemplateIds).filter(t=>categories[templateCategory(t)]&&matchesCollection(t.id,collection,readCollectionsShared(),favorites)&&(!favoritesOnly||favorites.includes(t.id)))
+  cycleLists.set(key,{deps,list:onPage})
+  return onPage
+ }
  const collections=readCollectionsShared()
  const list=[...sequenceCandidates(photos,count,project.enabledTemplateIds,filter,aspect),...templatesForCount(count,project.enabledTemplateIds,filter,aspect),...showcaseCandidates(photos,count,project.enabledTemplateIds,filter,aspect),...importedDesignTemplates(count,project.enabledTemplateIds,filter,aspect)].filter(t=>(!favoritesOnly||favorites.includes(t.id))&&(kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length)&&categories[templateCategory(t)]&&matchesCollection(t.id,collection,collections,favorites)&&(templateCategory(t)!=='reference'||supportsUniformGap(t.placeholders,aspect,spread.marginPx,spread.gapPx)))
  const offered=varyPatterns(offeredLayouts(photos.length===count?photos:[],list,aspect,spread.marginPx,spread.gapPx,true,true),t=>t,aspect)

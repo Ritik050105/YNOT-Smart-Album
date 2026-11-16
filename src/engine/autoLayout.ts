@@ -226,7 +226,7 @@ export function groupPhotosForCount(photos: PhotoAsset[], count: number, options
 }
 
 /** The half of the sheet a template lives on, or null when it straddles the fold. */
-function templateHalf(template: { placeholders: PlaceholderRect[] }): 'left' | 'right' | null {
+export function templateHalf(template: { placeholders: PlaceholderRect[] }): 'left' | 'right' | null {
   if (template.placeholders.every((frame) => frame.x + frame.width <= 0.50001)) return 'left'
   if (template.placeholders.every((frame) => frame.x >= 0.49999)) return 'right'
   return null
@@ -429,7 +429,9 @@ export function retemplateSpread(spread: Spread, templateId: string, photos?: Ph
     }
   }
   const placements = templateFramesInReadingOrder(template).map((ph, i) => frameAppearance(ph, ordered[i] ? { ...ordered[i], placeholderId: ph.id } : defaultPlacement(ph.id, null)))
-  return { ...spread, templateId: template.id, backgroundColor: template.backgroundColor ?? spread.backgroundColor, customBoxes: template.absoluteFrames?template.placeholders:undefined, placements, textBoxes: template.textBoxes ? [...spread.textBoxes.filter(t=>!t.fromTemplate),...template.textBoxes.map(t=>({...t,id:uuid(),fromTemplate:true}))] : spread.textBoxes }
+  // A single page takes a design that sits on the other half mirrored onto it.
+  const onPage = spread.pageSide === 'left' || spread.pageSide === 'right'
+  return { ...spread, flipped: onPage && templateHalf(template) ? templateHalf(template) !== spread.pageSide : spread.flipped, templateId: template.id, backgroundColor: template.backgroundColor ?? spread.backgroundColor, customBoxes: template.absoluteFrames?template.placeholders:undefined, placements, textBoxes: template.textBoxes ? [...spread.textBoxes.filter(t=>!t.fromTemplate),...template.textBoxes.map(t=>({...t,id:uuid(),fromTemplate:true}))] : spread.textBoxes }
 }
 
 /** What the chooser below needs to know to judge layouts against the photographs: their files, the spread's shape and the

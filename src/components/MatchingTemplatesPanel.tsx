@@ -4,6 +4,7 @@ import {askTemplateCategory} from './ClassifyTemplate'
 import ContextMenu from './ContextMenu'
 import {classifyTemplates,useTemplateCollections,matchesCollection} from '@/engine/templateCollections'
 import {offeredLayouts,varyPatterns} from '@/engine/layoutOffer'
+import {defaultLayouts} from '@/engine/autoLayout'
 import {supportsUniformGap} from '@/engine/templateLayout'
 import TemplateTransfer from './TemplateTransfer'
 import {templateCategory} from '@/engine/templateTransfer'
@@ -83,7 +84,9 @@ export default function MatchingTemplatesPanel() {
   const rows = useMemo(() => {
     if (!open || !spread || !count) return [[], []]
     const photos = placements.flatMap(p => { const photo = project.photos.find(photo => photo.id === p.photoId); return photo ? [photo] : [] })
-    const candidates = uniqueTemplates([...sequenceCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...showcaseCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...mixCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)])
+    // A single page (a split spread) is offered what sits on its half, the layouts a split starts it with among them.
+    const halfPage = kind === 'image' && (spread.pageSide === 'left' || spread.pageSide === 'right') && photos.length === count
+    const candidates = halfPage ? defaultLayouts(photos, spread.pageSide, aspect, spread.marginPx, spread.gapPx, project.enabledTemplateIds) : uniqueTemplates([...sequenceCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...showcaseCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...mixCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)])
       .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (templateCategory(t)!=='reference'||supportsUniformGap(t.placeholders,aspect,spread.marginPx*(target==='spread'?1:2),spread.gapPx*(target==='spread'?1:2))) && categories[templateCategory(t)] && matchesCollection(t.id,collection,collections,favorites) && (!favoritesOnly || favorites.includes(t.id)))
     // Offer only layouts that can give every photo a frame of its own shape — a portrait photo in
     // a landscape frame loses its top and bottom. If nothing fits, show everything rather than an

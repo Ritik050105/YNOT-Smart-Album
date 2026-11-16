@@ -36,7 +36,7 @@ const TIMEOUT = { electron: 240_000, node: 120_000 }
 // at 240 seconds around screen eleven and recorded as hanging.
 // The balanced-layout and shape-coverage checks generate the layout family for several album shapes
 // and judge every photo mix at every count, which is minutes of honest work.
-const SLOW = new Map([['test-theme', 1_500_000], ['test-balanced-layouts', 600_000], ['test-shape-coverage', 600_000]])
+const SLOW = new Map([['test-theme', 1_500_000], ['test-balanced-layouts', 600_000], ['test-shape-coverage', 600_000], ['test-showcase-layouts', 400_000], ['test-cycling-variety', 400_000], ['test-dense-templates', 400_000]])
 
 /** Not suite tests: these take a packaged app's path and architecture as arguments and check a
  *  build, so there is nothing for them to do on their own. Run by hand after packaging:

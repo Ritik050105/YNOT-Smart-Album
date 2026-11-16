@@ -1208,3 +1208,72 @@ body.has-effect-panel .designer-canvas-wrap { margin-right: min(342px, calc(100v
   /* The canvas still gives up the editor's width, so the wider editor sits beside the design, not on it. */
   body.has-effect-panel:has(.layer-effect-panel .effect-controls > fieldset + fieldset) .designer-canvas-wrap { margin-right: min(622px, calc(100vw - var(--inspector-width, 320px) - 80px)); }
 }
+
+/* Effect editor, final pass: a narrow, quiet panel. One column for a short effect, two compact cards for a long one (Bevel & emboss,
+   shadows, glows). Same controls and behaviour as before: this block only sets how they are laid out and drawn. */
+.layer-effect-panel {
+  width: 292px; padding: 0; border-radius: var(--radius-lg, 14px); border: 1px solid var(--border-soft); background: var(--panel);
+  box-shadow: var(--shadow-lg); column-gap: 12px; font-size: 12px; overflow-x: hidden;
+}
+.layer-effect-panel > header {
+  margin: 0; padding: 11px 12px 11px 16px; border-bottom: 1px solid var(--border-soft); background: var(--panel-alt);
+}
+.layer-effect-panel > header strong { font-size: 13px; font-weight: 600; letter-spacing: .01em; }
+.layer-effect-panel > header .btn {
+  width: 24px; height: 24px; min-height: 24px; border: 0; background: transparent; color: var(--text-muted); border-radius: 50%; font-size: 15px;
+}
+.layer-effect-panel > header .btn:hover { background: var(--panel-raised); color: var(--text); }
+.layer-effect-panel > label.effect-check { margin: 10px 0 0 16px; color: var(--text-muted); font-size: 11.5px; }
+.layer-effect-panel .effect-preview { margin: 10px 16px 0 0; width: calc(100% - 16px); min-width: 0; box-sizing: border-box; height: 40px; border-radius: 8px; border: 1px solid var(--border-soft); }
+.layer-effect-panel .effect-controls { margin: 12px 16px 0; gap: 10px; }
+.layer-effect-panel .effect-controls fieldset {
+  min-width: 0; margin: 0; padding: 10px 12px 8px; gap: 2px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--panel-alt);
+}
+.layer-effect-panel .effect-controls legend {
+  padding: 0 6px; font-size: 9.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-faint);
+}
+.layer-effect-panel .effect-control, .layer-effect-panel .effect-check, .layer-effect-panel .slider-field { min-height: 28px; }
+.layer-effect-panel .effect-control { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-muted); font-size: 11.5px; }
+.layer-effect-panel .effect-check { color: var(--text); gap: 8px; }
+.layer-effect-panel .effect-check input { accent-color: var(--accent); }
+.layer-effect-panel select, .layer-effect-panel input[type=number], .layer-effect-panel input[type=text] {
+  height: 26px; min-height: 26px; border: 1px solid var(--border-soft); border-radius: 6px; background: var(--field); color: var(--text); font-size: 11.5px;
+}
+.layer-effect-panel select:focus-visible, .layer-effect-panel input:focus-visible, .layer-effect-panel .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.layer-effect-panel .effect-control select { width: 118px; max-width: 58%; }
+.layer-effect-panel input[type=color] { width: 40px; height: 24px; min-height: 24px; padding: 1px; border: 1px solid var(--border-soft); border-radius: 6px; background: var(--field); }
+.layer-effect-panel .slider-field { grid-template-columns: 76px minmax(0, 1fr) 52px; gap: 8px; }
+.layer-effect-panel .slider-field .row > span:first-child { color: var(--text-muted); font-size: 11.5px; }
+.layer-effect-panel .slider-field__input { width: 100%; font-variant-numeric: tabular-nums; }
+.layer-effect-panel .effect-defaults { padding-top: 2px; gap: 4px; }
+.layer-effect-panel .effect-defaults .btn {
+  height: 24px; min-height: 24px; padding-inline: 8px; border: 0; background: transparent; color: var(--text-muted); font-size: 11px; border-radius: 6px;
+}
+.layer-effect-panel .effect-defaults .btn:hover { background: var(--panel-raised); color: var(--text); }
+.layer-effect-panel > footer {
+  margin: 12px 0 0; padding: 10px 16px; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--border-soft); background: var(--panel-alt);
+}
+.layer-effect-panel > footer .btn { height: 28px; min-height: 28px; padding-inline: 14px; border-radius: 7px; font-size: 12px; }
+.layer-effect-panel > footer .btn:not(.btn--primary) { background: transparent; border: 1px solid var(--border-soft); color: var(--text); }
+.layer-effect-panel > footer .btn--primary { font-weight: 600; }
+@media (min-width: 1101px) {
+  /* A long effect (Bevel & emboss, shadows, glows) is two narrow cards side by side, about as wide as a phone, and short enough to need no
+     scrolling in a 650px window: labels wrap rather than push the controls out, and the three "default" buttons sit in the footer's free corner. */
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) { width: 456px; }
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .effect-controls { gap: 8px; margin-top: 10px; }
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .effect-controls fieldset { padding: 8px 10px 6px; }
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .effect-control,
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .effect-check,
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .slider-field { min-height: 26px; }
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .slider-field { grid-template-columns: 66px minmax(0, 1fr) 46px; gap: 5px; }
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .slider-field .row > span:first-child,
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .effect-control { font-size: 11px; line-height: 1.1; }
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .effect-control select { width: 100px; }
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .effect-defaults { position: absolute; left: 10px; bottom: 9px; padding: 0; gap: 0; z-index: 3; }
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) .effect-defaults .btn { padding-inline: 6px; font-size: 10.5px; }
+  .layer-effect-panel:has(.effect-controls > fieldset + fieldset) > footer { padding-block: 9px; min-height: 30px; }
+  body.has-effect-panel:has(.layer-effect-panel .effect-controls > fieldset + fieldset) .designer-canvas-wrap { margin-right: min(468px, calc(100vw - var(--inspector-width, 320px) - 80px)); }
+}
+
+/* The browse button of a spread reads as pressed while that spread's template browser is open (press again to put it away). */
+.spread-card-controls__templates button[aria-pressed="true"], .spread-card-controls__quotes button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }

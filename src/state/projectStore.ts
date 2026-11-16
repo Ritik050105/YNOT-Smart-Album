@@ -269,6 +269,8 @@ interface ProjectState {
   favoriteTemplateIds: string[]
   openMatchingTemplates: (spreadId: string, kind?: 'image' | 'mixed') => void
   closeMatchingTemplates: () => void
+  /** The browse buttons on a spread: opens the browser for it, or puts it away when it is already showing this spread's. */
+  toggleMatchingTemplates: (spreadId: string, kind?: 'image' | 'mixed') => void
   previewMatchingTemplate: (templateId: string | null, keepOrder?: boolean, scope?: TemplateScope) => void
   toggleTemplateFavorite: (templateId: string) => void
   autoLayoutOptions: AutoLayoutOptions
@@ -495,6 +497,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (spread) set({ selectedSpreadId: spreadId, selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [], matchingTemplatesOpen: true, templateBrowseKind: kind, templatePreview: null })
   },
   closeMatchingTemplates: () => set({ matchingTemplatesOpen: false, templatePreview: null }),
+  toggleMatchingTemplates: (spreadId, kind='image') => {
+    const s = get()
+    if (s.matchingTemplatesOpen && s.selectedSpreadId === spreadId && s.templateBrowseKind === kind) s.closeMatchingTemplates()
+    else s.openMatchingTemplates(spreadId, kind)
+  },
   previewMatchingTemplate: (templateId, keepOrder = true, scope = 'spread') => {
     const { project, selectedSpreadId, templateFrameFilter } = get()
     const spread = project.spreads.find(s => s.id === selectedSpreadId && !s.isCover)

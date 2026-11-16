@@ -20,7 +20,7 @@ for (const aspect of [1.5, 1.25, 1]) for (const word of ['LP', 'LL', 'LPL', 'LLP
   const ph = photos(word), n = ph.length
   const list = [...m.sequenceCandidates(ph, n, null, 'all', aspect), ...m.templatesForCount(n, null, 'all', aspect), ...m.showcaseCandidates(ph, n, null, 'all', aspect)].filter(t => !t.textBoxes?.length)
   const shelf = m.varyPatterns(m.offeredLayouts(ph, list, aspect, MARGIN, GAP, true, true), t => t, aspect)
-  assert.ok(shelf.length >= 2, `${word} at ${aspect}: a shelf to cycle (${shelf.length})`)
+  assert.ok(shelf.length >= 20, `${word} at ${aspect}: a good shelf to cycle (${shelf.length})`)
   for (const t of shelf) assert.ok(!m.crossesTheFold(t), `${word} at ${aspect}: ${t.id} puts a photograph across the fold`)
   // The distinct part of the shelf: no two the same look (mirrored or moved). Only a short shelf is topped up with copies, after all of those.
   const looks = shelf.map(t => m.lookKey(t) && `${t.pageSide}:${m.lookKey(t)}`)
@@ -50,6 +50,8 @@ for (const aspect of [1.5, 1.25, 1]) {
     // A design on the other half is mirrored onto the page.
     assert.ok(t && (side === 'left' ? (page.flipped ? onRight : onLeft) : (page.flipped ? onLeft : onRight)), `${side} page at ${aspect}: ${page.templateId} sits on its own page`)
     assert.equal(page.placements.length, sub.length)
+    // What a split starts a page with is on that page's own shelf, so the browse panel shows it.
+    assert.ok(m.defaultLayouts(sub, side, aspect, MARGIN, GAP).some(c => c.id === page.templateId), `${side} page at ${aspect}: ${page.templateId} is on the page's shelf`)
   }
   const merged = m.mergeSpreads({ ...blank, placements: place(asset.slice(0, 3)) }, { ...blank, id: 'b', placements: place(asset.slice(3)) }, ctx)
   assert.ok(!m.crossesTheFold(m.findTemplate(merged.templateId)), `merged spread at ${aspect} keeps off the fold`)

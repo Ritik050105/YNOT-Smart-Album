@@ -930,7 +930,7 @@ export function uniqueTemplates(templates: TemplateDefinition[]): TemplateDefini
     // Captions are part of the design: the same photo grid with and without a text box, or with the
     // caption in a different place, are different templates and both belong in the browser.
     const text = (t.textBoxes ?? []).map(b => [b.x, b.y, b.width, b.height].map(v => Math.round(v * 20)).join(',')).sort().join('|')
-    const signature = `${!t.isBuiltIn?t.id+':':''}${t.pageSide}:${t.id === 'cover-front-spine-back' ? 'cover' : t.photoCount}:${frames}:${text}`
+    const signature = `${t.placeholders.some(p => p.bleed) ? 'bleed:' : ''}${!t.isBuiltIn?t.id+':':''}${t.pageSide}:${t.id === 'cover-front-spine-back' ? 'cover' : t.photoCount}:${frames}:${text}`
     if (seen.has(signature)) return false
     seen.add(signature)
     return true

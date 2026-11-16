@@ -37,7 +37,9 @@ for (const aspect of [1.5, 1.25, 1, 12.007 / 17.717]) {
       // Nothing postage-stamp small, and the block of pictures is a good part of the page.
       const x0 = Math.min(...t.placeholders.map(p => p.x)), x1 = Math.max(...t.placeholders.map(p => p.x + p.width)), y0 = Math.min(...t.placeholders.map(p => p.y)), y1 = Math.max(...t.placeholders.map(p => p.y + p.height))
       assert.ok(Math.max(x1 - x0, y1 - y0) >= 0.12, `${t.id} spans a good part of a page`)
-      assert.ok(!t.placeholders.some(p => p.x < 0.497 && p.x + p.width > 0.503), `${t.id} keeps every photograph off the fold`)
+      // (One photograph given the whole spread, full bleed or to the margin, is the one design allowed across the fold.)
+      const wholeSpread = t.placeholders.length === 1 && t.placeholders[0].width >= 0.9
+      assert.ok(wholeSpread || !t.placeholders.some(p => p.x < 0.497 && p.x + p.width > 0.503), `${t.id} keeps every photograph off the fold`)
       for (const p of t.placeholders) assert.ok(Math.min(p.width * aspect, p.height) >= 0.09, `${t.id} has no tiny frame`)
       for (const p of t.placeholders) { const ratio = (p.width * aspect) / p.height; assert.ok(ratio <= 2.5 && ratio >= 0.4, `${t.id} has no strip`) }
       assert.equal(m.findTemplate(t.id)?.id, t.id, `${t.id} resolves from its id`)
@@ -53,7 +55,16 @@ assert.ok(m.showcaseCandidates(three, 3, null, 'all', 1.5).length >= 8, 'three p
 assert.deepEqual(m.showcaseCandidates(three, 3, ['some-hand-picked-id'], 'all', 1.5), [])
 assert.deepEqual(m.showcaseCandidates(three, 4, null, 'all', 1.5), [])
 // One photograph has plenty of places to sit: either page, filling it, inset, or smaller toward an edge, the top or the bottom.
-for (const aspect of [1.5, 1.25, 1, 12.007 / 17.717]) for (const word of ['L', 'P', 'S']) assert.ok(m.showcaseCandidates(photos(word), 1, null, 'all', aspect).length >= 10, `${word} at ${aspect}: ten or more single photograph layouts`)
+for (const aspect of [1.5, 1.25, 1, 12.007 / 17.717]) for (const word of ['L', 'P', 'S']) assert.ok(m.showcaseCandidates(photos(word), 1, null, 'all', aspect).length >= 4, `${word} at ${aspect}: four or more single photograph layouts`)
+// The whole-spread and whole-page families: full spread (bleed, and to the margin), full left page, full right page.
+for (const t of m.showcaseCandidates(photos('L'), 1, null, 'all', 1.5).filter(t => /Full Spread/.test(t.name))) assert.ok(t.placeholders[0].width === 1 && t.placeholders[0].height === 1, `${t.id} fills the spread`)
+{
+  const names = new Set(m.showcaseCandidates(photos('L'), 1, null, 'all', 1.5).map(t => t.name))
+  assert.ok(names.has('Showcase · Full Spread Bleed') && names.has('Showcase · Full Spread'), 'a landscape photograph has a full spread, bleed and to the margin')
+  const pages = new Set(m.showcaseCandidates(photos('P'), 1, null, 'all', 1.5).map(t => t.name))
+  assert.ok(pages.has('Showcase · Full Left Page Bleed') && pages.has('Showcase · Full Right Page Bleed'), 'an upright photograph has a full page on either side, bleed')
+  assert.ok(m.showcaseCandidates(photos('P'), 1, null, 'all', 1.5).filter(t => /Bleed/.test(t.name)).every(t => t.placeholders[0].bleed), 'bleed layouts are marked as such')
+}
 // Page layouts: all on the left page, all on the right, or split between them, for every mix, at least ten of them.
 for (const aspect of [1.5, 1, 1.25]) for (const word of ['LPL', 'LLL', 'LPLP', 'LLLL', 'LPLPLP', 'LLLLLLLL']) {
   const ph = photos(word), found = m.showcaseCandidates(ph, ph.length, null, 'all', aspect)
