@@ -50,8 +50,16 @@ export function applyFaceFraming(spread: Spread, photos: PhotoAsset[] | undefine
   let changed = false
   const placements = spread.placements.map((pl): PlacedPhoto => {
     const photo = pl.photoId ? byId.get(pl.photoId) : undefined, box = boxes.get(pl.placeholderId)
-    // Only a photograph whose face was measured is reframed; any other keeps the crop and zoom it already has.
-    if (!photo || !photo.focusW || !photo.focusH || !box || pl.locked || !(box.width > 0 && box.height > 0)) return pl
+    if (!photo || !box || pl.locked || !(box.width > 0 && box.height > 0)) return pl
+    // A photograph with no measured subject keeps the crop and zoom it has. One with only a point (no face found) is centred on the point and
+    // keeps its zoom; one with a face is framed for the head.
+    if (photo.focusX === undefined && photo.focusY === undefined) return pl
+    if (!photo.focusW || !photo.focusH) {
+      const focalX = photo.focusX ?? 0.5, focalY = photo.focusY ?? 0.5
+      if (focalX === pl.focalX && focalY === pl.focalY) return pl
+      changed = true
+      return { ...pl, focalX, focalY }
+    }
     const framing = faceFraming(photo, box.width / box.height)
     if (framing.focalX === pl.focalX && framing.focalY === pl.focalY && framing.zoom === pl.zoom) return pl
     changed = true

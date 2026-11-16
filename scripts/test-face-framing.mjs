@@ -8,7 +8,8 @@ const result = await build({
 export {computeCoverCrop} from './src/engine/cropFit'
 export {retemplateSpread,createBlankSpread,defaultPlacement} from './src/engine/autoLayout'
 export {findTemplate} from './src/engine/templates'
-export {swapMismatch} from './src/engine/layoutMath'`, resolveDir: process.cwd() },
+export {swapMismatch} from './src/engine/layoutMath'
+export {withMeasuredSubject} from './src/engine/subjectBackfill'`, resolveDir: process.cwd() },
   bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
@@ -50,6 +51,27 @@ assert.deepEqual(m.faceFraming({ width: 3000, height: 2000, focusX: 0.4, focusY:
   for (const pl of placed.placements) if (pl.photoId) assert.ok(Number.isFinite(pl.focalX) && Number.isFinite(pl.focalY) && pl.zoom >= 1, 'every photograph gets a framing')
   const locked = m.retemplateSpread({ ...spread, placements: spread.placements.map(p => ({ ...p, locked: true, focalY: 0.9 })) }, template.id, photos, 1.5, true)
   assert.ok(locked.placements.every(p => p.focalY === 0.9) || locked === spread, 'a locked frame keeps its own crop')
+}
+// A photograph with only a point (no face was found) is centred on the point when a layout is applied, and keeps its zoom; one with nothing measured is left alone.
+{
+  const blank = m.createBlankSpread(0, { backgroundColor: '#fff', gapPx: 6, marginPx: 3, borderWidth: 0, borderColor: '#000' })
+  const spread = { ...blank, placements: [{ ...blank.placements[0], photoId: 'a', zoom: 1.6, focalX: 0.5, focalY: 0.5 }] }
+  const withPoint = m.applyFaceFraming(spread, [{ id: 'a', width: 2000, height: 3000, focusX: 0.5, focusY: 0.3 }], 1.5)
+  assert.equal(withPoint.placements[0].focalY, 0.3, 'the crop goes to the measured point')
+  assert.equal(withPoint.placements[0].zoom, 1.6, 'and the zoom is kept')
+  assert.equal(m.applyFaceFraming(spread, [{ id: 'a', width: 2000, height: 3000 }], 1.5), spread, 'nothing measured: untouched')
+}
+// An older album: a photograph measured again moves the crop of the frames still at its old starting point, and no other.
+{
+  const project = { photos: [{ id: 'a', width: 2000, height: 3000, focusX: 0.5, focusY: 0.5 }], spreads: [{ placements: [
+    { photoId: 'a', focalX: 0.5, focalY: 0.5, zoom: 1 },       // untouched since import: follows
+    { photoId: 'a', focalX: 0.5, focalY: 0.5, zoom: 1.4 },     // zoomed by hand: stays
+    { photoId: 'a', focalX: 0.2, focalY: 0.6, zoom: 1 },       // placed by hand: stays
+    { photoId: 'a', focalX: 0.5, focalY: 0.5, zoom: 1, locked: true }, // locked: stays
+  ] }] }
+  const next = m.withMeasuredSubject(project, 'a', { focusX: 0.5, focusY: 0.28 })
+  assert.equal(next.photos[0].focusY, 0.28)
+  assert.deepEqual(next.spreads[0].placements.map(p => p.focalY), [0.28, 0.5, 0.6, 0.5], 'only the frame still at the old starting crop follows')
 }
 // A swap needs both photographs to suit the other's frame (empty frames take anything; squares suit all).
 {

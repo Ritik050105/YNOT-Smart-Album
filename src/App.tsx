@@ -20,7 +20,7 @@ import { loadOpenSession, persistRecovery, invalidateRecovery, clearOpenSession,
 import { ProjectFile } from '@/types'
 import ContinueSessionPrompt from './components/ContinueSessionPrompt'
 import Modal from './components/Modal'
-import { backfillSubjects } from './engine/subjectBackfill'
+import { backfillSubjects, withMeasuredSubject } from './engine/subjectBackfill'
 
 export default function App() {
   const customFonts = useProjectStore(s=>s.project.customFonts)
@@ -29,7 +29,7 @@ export default function App() {
   const photoCount = useProjectStore(s => s.project.photos.length), subjectProjectId = useProjectStore(s => s.project.id)
   useEffect(() => {
     let stop = false
-    const timer = setTimeout(() => { void backfillSubjects(() => useProjectStore.getState().project.photos, (id, patch) => useProjectStore.setState(s => ({ project: { ...s.project, photos: s.project.photos.map(p => p.id === id ? { ...p, ...patch } : p) } })), () => stop) }, 1500)
+    const timer = setTimeout(() => { void backfillSubjects(() => useProjectStore.getState().project.photos, (id, patch) => useProjectStore.setState(s => ({ project: withMeasuredSubject(s.project, id, patch) })), () => stop) }, 1500)
     return () => { stop = true; clearTimeout(timer) }
   }, [photoCount, subjectProjectId])
   const [resumePrompt, setResumePrompt] = useState<OpenSessionMarker | null>(null)

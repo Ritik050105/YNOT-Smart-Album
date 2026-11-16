@@ -130,4 +130,16 @@ for (const [fx, fy, label] of [[0.5, 0.22, 'high'], [0.22, 0.5, 'left'], [0.78, 
   assert.ok(Math.abs(box.focusX - 0.5) < 0.03 && box.focusY < 0.4, `the focal point is on the face (got ${box.focusX}, ${box.focusY})`)
 }
 
+// An upright picture with detail low down and no face the colour test can find (a person standing, the face too small or shaded): the crop is held
+// in the top third, where the head is, rather than at the middle of the legs.
+{
+  const width = 100, height = 160, pixels = new Uint8ClampedArray(width * height * 4)
+  for (let i = 0; i < width * height; i++) { pixels[i * 4] = 128; pixels[i * 4 + 1] = 128; pixels[i * 4 + 2] = 128; pixels[i * 4 + 3] = 255 }
+  // Busy detail in the lower half (a patterned floor), none above.
+  for (let y = 80; y < 160; y++) for (let x = 0; x < width; x++) { const v = ((x >> 2) + (y >> 2)) % 2 ? 235 : 25; const i = (y * width + x) * 4; pixels[i] = pixels[i + 1] = pixels[i + 2] = v }
+  globalThis.document = fakeDocument(pixels, width, height)
+  assert.equal(subjectBoxFromImage({ naturalWidth: width, naturalHeight: height }), null, 'no face is found')
+  const focus = subjectFocusFromImage({ naturalWidth: width, naturalHeight: height })
+  assert.ok(focus && focus.focusY <= 0.3 + 1e-9, `an upright picture with no face keeps its crop high (got ${focus && focus.focusY})`)
+}
 console.log('Subject focus checks passed: the crop follows the subject, stays off the edges, keeps a high subject a centred crop would cut, and reports nothing on a blank frame.')

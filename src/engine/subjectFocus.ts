@@ -60,7 +60,7 @@ export function subjectBoxFromPixels(data: Uint8ClampedArray, width = SAMPLE, he
     }
     const area = cells.length
     // A face is at least a few cells across at this resolution; anything smaller is a speck.
-    if (area < 8) continue
+    if (area < Math.max(8, width * height * 0.0009)) continue
     const bw = maxX - minX + 1, bh = maxY - minY + 1
     // A region that fills most of the picture is a backdrop or a wall the colour test let through, not a
     // face; one that is a thin strip or full of holes is not a face either. What is left is judged by
@@ -127,7 +127,11 @@ export function subjectFocusFromPixels(data: Uint8ClampedArray, width = SAMPLE, 
   // when the question is "what must stay in frame". Then held away from the very edges, so the
   // crop never clings to one side of the photo.
   const clamp = (v: number, span: number) => Math.max(0.2, Math.min(0.8, 0.5 + (v / span - 0.5) * 0.7))
-  return { focusX: clamp(sumX / totalWeight, width), focusY: clamp(sumY / totalWeight, height) }
+  const focusY = clamp(sumY / totalWeight, height)
+  // No face was found (a face too small or too shaded for the colour test) in an upright picture: a person standing or seated in one has the
+  // head in its top third, so the crop is held up there, where cutting the picture to a squarer frame loses the legs rather than the face.
+  const upright = height / width >= 1.25
+  return { focusX: clamp(sumX / totalWeight, width), focusY: upright ? Math.min(focusY, 0.3) : focusY }
 }
 
 /** The focal point for an already-decoded image. */
@@ -154,7 +158,7 @@ export function samplePixels(image: CanvasImageSource): Uint8ClampedArray | null
 
 /** The photograph at a small size with its own proportions. Faces are judged by shape, and a photograph
  *  squashed square makes every face in a landscape or portrait picture the wrong shape. */
-const LONG_SIDE = 96
+const LONG_SIDE = 160
 export function sampleKeepingShape(image: CanvasImageSource): { data: Uint8ClampedArray; width: number; height: number } | null {
   const source = image as { naturalWidth?: number; naturalHeight?: number; width?: number; height?: number }
   const iw = source.naturalWidth || source.width || 0, ih = source.naturalHeight || source.height || 0
