@@ -80,6 +80,14 @@ function cropLosses(photos: PhotoAsset[], t: TemplateDefinition, aspect: number,
   return wanted.map((r, i) => 1 - Math.min(ratios[i] / r, r / ratios[i]))
 }
 
+/** How a layout shares its frames between the pages: "2|1" is two on the left page and one on the right, "across" when one runs over the fold. */
+export function splitOf(t: TemplateDefinition): string {
+  const l = t.placeholders.filter(p => p.x + p.width <= 0.5001).length, r = t.placeholders.filter(p => p.x >= 0.4999).length
+  return l + r === t.placeholders.length ? `${l}|${r}` : 'across'
+}
+/** The fewest layouts of each split that `wellCovered` keeps, where the photographs allow them. */
+const MIN_PER_SPLIT = 12
+
 /** Layouts that keep most of every photograph. A frame of another proportion than its photograph cuts the picture to fit, and the
  *  subject goes with it, so layouts are kept only while no photograph loses more than a third (and the set loses a fifth on
  *  average); when fewer than sixty pass, the allowance is widened a little at a time, and as a last resort the best of the rest are kept. Layouts drawn for
@@ -90,7 +98,20 @@ export function wellCovered(photos: PhotoAsset[], templates: TemplateDefinition[
   if (judged.length < 2) return templates
   const losses = new Map(judged.map(t => { const l = cropLosses(photos, t, aspect, keepOrder); return [t.id, { max: Math.max(...l), mean: l.reduce((a, v) => a + v, 0) / l.length }] as const }))
   const keep = (maxLoss: number, meanLoss: number) => templates.filter(t => !losses.has(t.id) || (losses.get(t.id)!.max <= maxLoss && losses.get(t.id)!.mean <= meanLoss))
-  for (const [maxLoss, meanLoss] of [[0.34, 0.2], [0.4, 0.26], [0.46, 0.32], [0.52, 0.38]]) { const kept = keep(maxLoss, meanLoss); if (kept.filter(t => losses.has(t.id)).length >= 60) return kept }
+  // Every way of splitting the photographs between the pages keeps a few layouts (the best of that split, up to a modest crop), so a split whose tilings
+  // crop a little more than the rest (three landscapes on an upright page, say) is not lost to the sixty that crop less.
+  const rescue = (kept: TemplateDefinition[]) => {
+    const have = new Map<string, number>(), chosen = new Set(kept.map(t => t.id))
+    for (const t of kept) if (losses.has(t.id)) { const s = splitOf(t); have.set(s, (have.get(s) ?? 0) + 1) }
+    // Up to a crop of 46% (the mean 32%) while a split has few; a split with only a handful, or none, may go to 52%, the most any shelf allows.
+    for (const [maxLoss, meanLoss, enough] of [[0.46, 0.32, MIN_PER_SPLIT], [0.52, 0.38, 4]]) {
+      const extra = judged.filter(t => !chosen.has(t.id) && losses.get(t.id)!.max <= maxLoss && losses.get(t.id)!.mean <= meanLoss)
+        .sort((a, b) => losses.get(a.id)!.max - losses.get(b.id)!.max || losses.get(a.id)!.mean - losses.get(b.id)!.mean)
+      for (const t of extra) { const s = splitOf(t); if ((have.get(s) ?? 0) < enough) { have.set(s, (have.get(s) ?? 0) + 1); chosen.add(t.id) } }
+    }
+    return templates.filter(t => chosen.has(t.id) || !losses.has(t.id))
+  }
+  for (const [maxLoss, meanLoss] of [[0.34, 0.2], [0.4, 0.26], [0.46, 0.32], [0.52, 0.38]]) { const kept = keep(maxLoss, meanLoss); if (kept.filter(t => losses.has(t.id)).length >= 60) return rescue(kept) }
   // (A layout and its mirror lose the same, so the cut falls between losses, never between a layout and its twin.)
   const ranked = [...judged].sort((a, b) => losses.get(a.id)!.max - losses.get(b.id)!.max), cut = losses.get(ranked[Math.min(ranked.length, Math.max(12, Math.ceil(judged.length * 0.5))) - 1].id)!.max
   const best = new Set(ranked.filter(t => losses.get(t.id)!.max <= cut + 1e-9).map(t => t.id))
@@ -111,12 +132,16 @@ const extent = (t: TemplateDefinition) => {
 export function varyPatterns<T>(items: T[], templateOf: (item: T) => TemplateDefinition, aspect?: number, wanted = DEFAULT_TEMPLATES): T[] {
   // Layouts that use the spread come first: a design whose frames cover under half the spread leaves most of it white. They are kept to the
   // end of the shelf, and only used at all when the fuller ones are too few to make a shelf.
-  const rich = items.filter(item => coverage(templateOf(item)) >= MIN_COVERAGE)
+  // (A layout with photographs on both pages needs only a third and a half of the spread: each page is already held to 30%.)
+  const rich = items.filter(item => { const t = templateOf(item), s = splitOf(t); return !(t.placeholders.length > 1 && /^(\d+\|0|0\|\d+)$/.test(s)) && coverage(t) >= (/^[1-9]\d*\|[1-9]\d*$/.test(s) ? MIN_COVERAGE - 0.15 : MIN_COVERAGE) })
   if (rich.length === items.length || rich.length < 4) return varyCore(items, templateOf, aspect, wanted)
   const fuller = varyCore(rich, templateOf, aspect, wanted)
   if (fuller.length >= wanted) return fuller
   const sparse = items.filter(item => !rich.includes(item)).sort((p, q) => coverage(templateOf(q)) - coverage(templateOf(p)))
-  return varyCore([...rich, ...sparse], templateOf, aspect, wanted)
+  // Chosen together (so the sparse ones that are different arrangements still beat a copy of a full one), but shown last: all the photographs grouped on one
+  // page, with the other page empty, is where Next ends up after the full spreads, not where it starts.
+  const chosen = varyCore([...rich, ...sparse], templateOf, aspect, wanted), full = new Set(rich)
+  return [...chosen.filter(item => full.has(item)), ...chosen.filter(item => !full.has(item))]
 }
 
 /** The share of the spread the frames cover. */

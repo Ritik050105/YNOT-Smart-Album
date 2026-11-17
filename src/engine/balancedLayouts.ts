@@ -645,7 +645,7 @@ export function inOrderFit(boxes: Box[], fit: number[], aspect: number, toleranc
 
 /** Whether a frame of this proportion suits a photograph of that one by the app's shape rule (a landscape photograph never a portrait
  *  frame, a portrait one never a landscape frame, a square one a near-square frame), with room for the gap to move it a little. */
-export const frameSuits = (photo: number, frame: number) => photo > 1.15 ? frame >= 0.95 : photo < 1 / 1.15 ? frame <= 1.05 : frame >= 0.85 && frame <= 1.18
+export const frameSuits = (photo: number, frame: number) => photo > 1.15 ? frame >= 0.965 : photo < 1 / 1.15 ? frame <= 1.035 : frame >= 0.85 && frame <= 1.18
 /** Whether the matcher's reading order gives every photograph a frame its shape suits. */
 export function inOrderShapes(boxes: Box[], photos: number[], aspect: number): boolean {
   const reading = boxes.map((_, i) => i).sort((p, q) => boxes[p][0] - boxes[q][0] || boxes[p][1] - boxes[q][1])
