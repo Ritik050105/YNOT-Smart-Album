@@ -9,7 +9,7 @@ export {resolveTemplateFrames,supportsUniformGap} from './src/engine/templateLay
 export {templateCategory} from './src/engine/templateTransfer'`,
     resolveDir: process.cwd(),
   },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const {
   BLEED_FEATURE_TEMPLATES: family, isBleedFeatureTemplate, templatesForCount, runsToTheTrim,

@@ -7,7 +7,7 @@ app.disableHardwareAcceleration()
 app.whenReady().then(async () => {
   const output = path.join(app.getPath('temp'), 'ynot-project-wizard-qa')
   await fs.mkdir(output, {recursive:true})
-  const result = await build({stdin:{contents:`import React from 'react';import{createRoot}from'react-dom/client';import Wizard from './src/components/NewProjectWizard';createRoot(document.getElementById('root')).render(<Wizard bare onClose={()=>{}} onSubmit={opts=>window.submitted=opts}/>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,platform:'browser',write:false,loader:{'.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'}})
+  const result = await build({stdin:{contents:`import React from 'react';import{createRoot}from'react-dom/client';import Wizard from './src/components/NewProjectWizard';createRoot(document.getElementById('root')).render(<Wizard bare onClose={()=>{}} onSubmit={opts=>window.submitted=opts}/>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,platform:'browser',write:false,loader:{ '.bin':'dataurl','.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'}})
   await fs.writeFile(path.join(output,'fixture.js'),result.outputFiles[0].text)
   await fs.copyFile('src/styles/app.css',path.join(output,'app.css'))
   await fs.writeFile(path.join(output,'index.html'),'<html><head><link rel="stylesheet" href="app.css"></head><body><div id="root"></div><script src="fixture.js"></script></body></html>')

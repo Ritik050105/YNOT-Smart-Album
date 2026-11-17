@@ -12,7 +12,7 @@ globalThis.window={addEventListener(){},removeEventListener(){},albumStudio:{onS
 globalThis.MutationObserver=class {observe(){} disconnect(){}}
 const effects=[]
 globalThis.__saveEffects=effects
-const result=await build({entryPoints:['src/components/TopBar.tsx'],bundle:true,loader:{'.ttf':'dataurl'},platform:'node',format:'esm',write:false,plugins:[{name:'save-flow',setup(build){
+const result=await build({entryPoints:['src/components/TopBar.tsx'],bundle:true,loader:{ '.bin':'dataurl','.ttf':'dataurl'},platform:'node',format:'esm',write:false,plugins:[{name:'save-flow',setup(build){
   const stub=(filter,namespace,contents)=>{build.onResolve({filter},()=>({path:namespace,namespace}));build.onLoad({filter:/.*/,namespace},()=>({contents}))}
   stub(/^react-dom$/,'react-dom','export const createPortal=(children)=>children;')
   stub(/^react$/,'react','export const useRef=(value)=>({current:value});export const useState=(value)=>[typeof value==="function"?value():value,()=>{}];export const useEffect=(fn)=>globalThis.__saveEffects.push(fn);')

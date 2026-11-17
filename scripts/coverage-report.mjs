@@ -7,7 +7,7 @@ const result = await build({
 export {offeredLayouts,varyPatterns} from './src/engine/layoutOffer'
 export {supportsUniformGap} from './src/engine/templateLayout'
 export {templateCategory} from './src/engine/templateTransfer'`, resolveDir: process.cwd() },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 const dims = { L: [1500, 1000], P: [1000, 1500], S: [1000, 1000] }

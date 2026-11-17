@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { build } from 'esbuild'
 
-const result = await build({ stdin: { contents: `export * from './electron/recovery'; export * from './src/engine/sessionMarker'; export * from './src/engine/projectFile'; export {useProjectStore} from './src/state/projectStore'`, resolveDir: process.cwd() }, loader: { '.ttf': 'dataurl', '.woff2': 'dataurl', '.otf': 'dataurl' }, bundle: true, platform: 'node', format: 'esm', write: false })
+const result = await build({ stdin: { contents: `export * from './electron/recovery'; export * from './src/engine/sessionMarker'; export * from './src/engine/projectFile'; export {useProjectStore} from './src/state/projectStore'`, resolveDir: process.cwd() }, loader: { '.bin':'dataurl', '.ttf': 'dataurl', '.woff2': 'dataurl', '.otf': 'dataurl' }, bundle: true, platform: 'node', format: 'esm', write: false })
 const api = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ynot-recovery-'))
 const target = path.join(directory, 'recovery.json')

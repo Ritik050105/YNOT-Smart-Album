@@ -7,7 +7,7 @@ const check = process.argv.includes('--check')
 const result = await build({
   stdin: { contents: `export {combinationsFor,allowedAtCount} from './src/engine/templateCombinations'
 export {showcaseForRatios} from './src/engine/showcaseLayouts'`, resolveDir: process.cwd() },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 const RATIO = { L: 1.5, P: 2 / 3, S: 1 }

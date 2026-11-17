@@ -6,7 +6,7 @@ import { build } from 'esbuild'
 
 const result = await build({
   stdin: { contents: `export {drawTextBox,plainTextAlign} from './src/engine/renderSpread'`, resolveDir: process.cwd() },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 
 /** Every glyph is this wide, so a word's width is its length — which makes the expected positions

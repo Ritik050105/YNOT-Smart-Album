@@ -11,7 +11,7 @@ export {retemplateSpread,createBlankSpread,defaultPlacement} from './src/engine/
 export {templatesForCount,sequenceCandidates} from './src/engine/templates'`,
     resolveDir: process.cwd(),
   },
-  bundle: true, loader: { '.ttf': 'dataurl', '.png': 'dataurl', '.icc': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl', '.png': 'dataurl', '.icc': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 

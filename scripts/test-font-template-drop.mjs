@@ -6,7 +6,7 @@ globalThis.localStorage = { getItem: k => saved.get(k) ?? null, setItem: (k, v) 
 globalThis.window ??= { dispatchEvent: () => true, addEventListener() {}, removeEventListener() {} }
 const result = await build({
   stdin: { contents: `export {useProjectStore} from './src/state/projectStore'; export * from './src/engine/fontTemplateDrag'; export {createBlankSpread} from './src/engine/autoLayout'`, resolveDir: process.cwd() },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const { useProjectStore: store, startFontTemplateDrag, isFontTemplateDrag, dropFontTemplate, createBlankSpread } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 const spread = { ...createBlankSpread(0, { backgroundColor: '#fff', marginPx: 0, gapPx: 0, borderWidth: 0, borderColor: '#fff' }), id: 's' }

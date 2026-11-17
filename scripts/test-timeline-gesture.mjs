@@ -3,7 +3,7 @@ import { build } from 'esbuild'
 
 const effects=[]
 globalThis.__gestureEffects=effects
-const bundle=await build({stdin:{contents:`export {useTimelineDrag} from './src/engine/useTimelineDrag'; export {useProjectStore} from './src/state/projectStore'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,loader:{'.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'},plugins:[{
+const bundle=await build({stdin:{contents:`export {useTimelineDrag} from './src/engine/useTimelineDrag'; export {useProjectStore} from './src/state/projectStore'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,loader:{ '.bin':'dataurl','.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'},plugins:[{
   name:'hook-lifecycle', setup(build) {
  build.onResolve({filter:/^react\/jsx-runtime$/},()=>({path:'jsx',namespace:'jsx-test'}))
  build.onLoad({filter:/.*/,namespace:'jsx-test'},()=>({contents:'export const Fragment=Symbol();export const jsx=()=>null;export const jsxs=()=>null;'}))

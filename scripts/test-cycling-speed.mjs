@@ -16,7 +16,7 @@ export {resolveTemplateFramesShared} from './src/engine/templateLayout'
 export {readCollectionsShared} from './src/engine/templateCollections'`,
     resolveDir: process.cwd(),
   },
-  bundle: true, loader: { '.ttf': 'dataurl', '.png': 'dataurl', '.icc': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl', '.png': 'dataurl', '.icc': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 

@@ -7,7 +7,7 @@ globalThis.localStorage = { getItem: k => saved.get(k) ?? null, setItem: (k, v) 
 globalThis.window ??= { dispatchEvent: () => true, addEventListener() {}, removeEventListener() {} }
 const result = await build({
   stdin: { contents: `export {useProjectStore} from './src/state/projectStore'`, resolveDir: process.cwd() },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const { useProjectStore: store } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 const state = () => store.getState()

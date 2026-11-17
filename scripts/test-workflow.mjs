@@ -7,7 +7,7 @@ const result = await build({
     contents: `export * from './src/engine/autoLayout'; export * from './src/engine/photoDrag'; export * from './src/engine/cover'; export * from './src/engine/layoutMath'; export * from './src/engine/unsavedChanges'; export { useProjectStore } from './src/state/projectStore'`,
     resolveDir: process.cwd(),
   },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const { splitPhotosIntoGroups, spreadCountRange, draggedPhotoIds, readDraggedPhotoIds, readTimelineFrame, useProjectStore, groupPhotosIntoMoments, buildSpreadsFromGroups, mergeSpreads, splitSpreadIntoPages, validateCoverSize, computePlaceholderBoxes, retemplateSpread, confirmDiscardUnsaved } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)

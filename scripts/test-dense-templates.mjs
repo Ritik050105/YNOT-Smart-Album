@@ -2,7 +2,7 @@ import { createRequire } from 'node:module'
 const require=createRequire(import.meta.url)
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
-const bundle = await build({stdin:{contents:`export * from './src/engine/templates';export * from './src/engine/templateLayout';export * from './src/engine/templateMatching';export * from './src/engine/layoutMath';export * from './src/engine/cropFit';export * from './src/engine/autoLayout';export {createElement} from 'react';export {renderToStaticMarkup} from 'react-dom/server';export {PreviewCell} from './src/components/TemplatePreview'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'cjs',write:false,loader:{'.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'}})
+const bundle = await build({stdin:{contents:`export * from './src/engine/templates';export * from './src/engine/templateLayout';export * from './src/engine/templateMatching';export * from './src/engine/layoutMath';export * from './src/engine/cropFit';export * from './src/engine/autoLayout';export {createElement} from 'react';export {renderToStaticMarkup} from 'react-dom/server';export {PreviewCell} from './src/components/TemplatePreview'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'cjs',write:false,loader:{ '.bin':'dataurl','.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'}})
 const {builtInTemplates,resolveTemplateFrames,computePlaceholderBoxes,computeCoverCrop,rankTemplates,buildSpreadsFromGroups,PreviewCell,createElement,renderToStaticMarkup} = (()=>{const module={exports:{}};new Function('require','module','exports',bundle.outputFiles[0].text)(require,module,module.exports);return module.exports})()
 let checked = 0, worstBestCrop = 0
 for (let count=20;count<=24;count++) {

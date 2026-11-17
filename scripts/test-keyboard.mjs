@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const effects=[]
 globalThis.__keyboardEffects=effects
-const result=await build({stdin:{contents:`export {default as KeyboardShortcuts} from './src/components/KeyboardShortcuts';export {useProjectStore} from './src/state/projectStore'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,loader:{'.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'},plugins:[{name:'hooks',setup(build){
+const result=await build({stdin:{contents:`export {default as KeyboardShortcuts} from './src/components/KeyboardShortcuts';export {useProjectStore} from './src/state/projectStore'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,loader:{ '.bin':'dataurl','.ttf':'dataurl','.png':'dataurl','.icc':'dataurl'},plugins:[{name:'hooks',setup(build){
   build.onResolve({filter:/^react\/jsx-runtime$/},()=>({path:'jsx',namespace:'jsx-test'}))
   build.onLoad({filter:/.*/,namespace:'jsx-test'},()=>({contents:'export const Fragment=Symbol();export const jsx=()=>null;export const jsxs=()=>null;'}))
   build.onResolve({filter:/^react-dom$/},()=>({path:'portal',namespace:'portal'}))

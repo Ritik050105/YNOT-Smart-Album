@@ -14,7 +14,7 @@ export {supportsUniformGap} from './src/engine/templateLayout'
 export {templateCategory} from './src/engine/templateTransfer'`,
     resolveDir: process.cwd(),
   },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const { MAX_PHOTOS_PER_SPREAD, groupPhotosForCount, spreadCountRange, buildSpreadsFromGroups, computePlaceholderBoxes, orientationFits, runsToTheTrim, findTemplate, supportsUniformGap, templateCategory } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)

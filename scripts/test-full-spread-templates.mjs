@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const result = await build({
   stdin: { contents: `export {builtInTemplates,findTemplate,importedDesignTemplates,setUserTemplateRegistry,templatesForCount} from './src/engine/templates';export {templateCategory} from './src/engine/templateTransfer';export {supportsUniformGap} from './src/engine/templateLayout';export {isFullSpreadTemplate} from './src/engine/templates';export {cyclingTemplates} from './src/state/templateBrowsing';export {resolveTemplateFrames} from './src/engine/templateLayout'`, resolveDir: process.cwd() },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const { builtInTemplates, findTemplate, importedDesignTemplates, setUserTemplateRegistry, templatesForCount, templateCategory, isFullSpreadTemplate, cyclingTemplates, resolveTemplateFrames, supportsUniformGap } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)

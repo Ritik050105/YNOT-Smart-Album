@@ -5,7 +5,7 @@ import { build } from 'esbuild'
 
 const result = await build({
   stdin: { contents: `export {subjectFocusFromImage,subjectBoxFromImage} from './src/engine/subjectFocus';export {computeCoverCrop} from './src/engine/cropFit'`, resolveDir: process.cwd() },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 
 // A canvas stub: subjectFocusFromImage only needs drawImage to land the pixels and getImageData to

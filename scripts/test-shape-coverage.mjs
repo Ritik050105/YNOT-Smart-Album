@@ -16,7 +16,7 @@ export {templateOrderMismatches} from './src/engine/templateMatching'
 export {hasEvenMargins,frameSizeSpread} from './src/engine/templateLayout'`,
     resolveDir: process.cwd(),
   },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const { templatesForCount, runsToTheTrim, mixCandidates, showcaseCandidates, uniqueTemplates, templateShapeMismatches, supportsUniformGap, templateCategory, offeredLayouts, hasEvenMargins, frameSizeSpread, templateOrderMismatches } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)

@@ -14,6 +14,7 @@ import { registerImageScheme, registerImageProtocol, prepareImage, warmImages, p
 import { readSiblingImage } from './siblingImages'
 import { readRecovery, writeRecovery, clearRecovery } from './recovery'
 import { fitWindowSize } from './windowSizing'
+import { findFaces, closeFaceWindow } from './faceWindow'
 
 ipcMain.handle('images:showFile', async (_event, filePath: string, reveal: boolean) => {
   if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !/\.(jpe?g|png|webp|gif|bmp|tiff?|psd|avif|heic)$/i.test(filePath) && !RAW_EXT.test(filePath) || !fs.statSync(filePath).isFile()) throw new Error('The original image is unavailable. Replace the image to reconnect its file.')
@@ -58,6 +59,7 @@ ipcMain.handle('images:missingPaths', async (_event, paths: string[]) => {
 ipcMain.handle('images:readSibling', (_event, locatedPath: string, fileName: string) => readSiblingImage(locatedPath, fileName))
 ipcMain.handle('images:preview', (_event, data: Uint8Array) => imagePreview(data))
 ipcMain.handle('images:prepare', (_event, file: string) => prepareImage(file))
+ipcMain.handle('faces:detect', (event, dataUrl: string) => event.sender === mainWindow?.webContents ? findFaces(dataUrl, isDev, path.join(__dirname, 'preload.js')) : null)
 ipcMain.handle('images:warm', (_event, files: string[]) => { warmImages(files) })
 ipcMain.handle('text:putPreview', (_event, key: string, bytes: Uint8Array) => putTextPreview(key, bytes))
 ipcMain.handle('images:decodeTiff', (_event, data: Uint8Array) => decodeTiff(data))
@@ -130,7 +132,7 @@ function createWindow(splash?: BrowserWindow) {
     }
   })
   win.on('closed', () => {
-    if (mainWindow === win) mainWindow = null
+    if (mainWindow === win) { mainWindow = null; closeFaceWindow() }
   })
 
   win.once('ready-to-show', () => {

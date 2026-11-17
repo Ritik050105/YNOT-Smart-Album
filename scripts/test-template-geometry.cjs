@@ -67,7 +67,7 @@ window.press=label=>{const b=[...document.querySelectorAll('button')].find(b=>b.
 `;
 app.disableHardwareAcceleration();app.whenReady().then(async()=>{
  const out=await fs.mkdtemp(path.join(app.getPath('temp'),'ynot-geometry-'));
- const result=await build({stdin:{contents:fixture,resolveDir:process.cwd(),loader:'tsx',sourcefile:'fixture.tsx'},bundle:true,write:false,outdir:out,platform:'browser',jsx:'automatic',loader:{'.ttf':'dataurl','.png':'dataurl'}});
+ const result=await build({stdin:{contents:fixture,resolveDir:process.cwd(),loader:'tsx',sourcefile:'fixture.tsx'},bundle:true,write:false,outdir:out,platform:'browser',jsx:'automatic',loader:{ '.bin':'dataurl','.ttf':'dataurl','.png':'dataurl'}});
  await fs.writeFile(path.join(out,'fixture.js'),result.outputFiles.find(f=>f.path.endsWith('.js')).text);
  await fs.writeFile(path.join(out,'fixture.css'),result.outputFiles.find(f=>f.path.endsWith('.css'))?.text??'');
  await fs.writeFile(path.join(out,'index.html'),'<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="fixture.css"></head><body><script src="fixture.js"></script></body></html>');

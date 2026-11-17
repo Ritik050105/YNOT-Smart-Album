@@ -9,8 +9,8 @@ export {computeCoverCrop} from './src/engine/cropFit'
 export {retemplateSpread,createBlankSpread,defaultPlacement} from './src/engine/autoLayout'
 export {findTemplate} from './src/engine/templates'
 export {swapMismatch} from './src/engine/layoutMath'
-export {withMeasuredSubject} from './src/engine/subjectBackfill'`, resolveDir: process.cwd() },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+export {withMeasuredSubject} from './src/engine/subjectBackfill'`, resolveDir: process.cwd() }, external: ['@vladmandic/face-api*'],
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 

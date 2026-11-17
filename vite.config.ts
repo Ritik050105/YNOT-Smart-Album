@@ -19,6 +19,8 @@ const inlineCss = (): Plugin => ({
 export default defineConfig({
   plugins: [react(), inlineCss()],
   base: './',
+  // The face detector's model weights are a .bin imported with ?inline (src/engine/faceDetector.ts).
+  assetsInclude: ['**/*.bin'],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
@@ -33,5 +35,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // The model weights must travel inside the JavaScript: a packaged app is opened from file://, which cannot fetch a neighbouring file.
+    assetsInlineLimit: (file: string) => file.endsWith('.bin') ? true : undefined,
   },
 })

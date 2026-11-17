@@ -16,6 +16,8 @@ export interface NewProjectPayload {
 
 export interface AlbumStudioBridge {
   importRevocation: () => Promise<void>
+  /** Faces in a picture (a data URL), as boxes in its own pixels; null when they could not be found. Runs in a hidden window. */
+  detectFaces: (dataUrl: string) => Promise<Array<{ x: number; y: number; width: number; height: number; score: number }> | null>
   preferencesSystem: (action: 'cacheSize' | 'clearCache' | 'choosePhotoshop' | 'chooseCanva' | 'projectDirectory', value?: string) => Promise<string | number | null>
   readExternalEdit: (file: string, revision?: string) => Promise<{data: Uint8Array; revision: string; sourcePath?: string} | null>
   openExternalEditor: (args: { app: 'photoshop' | 'canva'; photoshopPath: string; canvaPath?: string; originalPath?: string; name: string; data: Uint8Array }) => Promise<string>

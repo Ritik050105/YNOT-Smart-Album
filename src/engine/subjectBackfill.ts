@@ -1,27 +1,38 @@
 import { PhotoAsset, Project } from '@/types'
 import { previewSource } from './previewImage'
 import { subjectBoxFromImage, subjectFocusFromImage } from './subjectFocus'
+import { detectFaceBox } from './faceDetector'
 
 /** Photographs imported before the face size was kept have a focal point but not the size of the face, which frames need to keep the
  *  whole head in the crop. This measures them again from the cached thumbnail, one at a time while the app is idle, so a layout change
  *  on an older album frames faces as well as a new import does. Nothing is changed but the photograph's own measurements. */
 const tried = new Set<string>()
 
-export async function measureSubject(photo: PhotoAsset): Promise<Pick<PhotoAsset, 'focusX' | 'focusY' | 'focusW' | 'focusH'> | null> {
+async function decoded(src: string): Promise<HTMLImageElement> {
+  const image = new Image()
+  await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = reject; image.src = src })
+  return image
+}
+
+export async function measureSubject(photo: PhotoAsset): Promise<Pick<PhotoAsset, 'focusX' | 'focusY' | 'focusW' | 'focusH' | 'faceChecked'> | null> {
   try {
-    const thumbnail = await previewSource(photo.src, 512)
-    const image = new Image()
-    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = reject; image.src = thumbnail })
+    const image = await decoded(await previewSource(photo.src, 512))
+    // A real face detector first; the colour guess below is only for photographs it finds no face in (or when it cannot run).
+    let seen = await detectFaceBox(image)
+    // Small faces in a wide or full-length picture can need a closer look.
+    if (seen && !seen.box) seen = await detectFaceBox(await decoded(await previewSource(photo.src, 1024)))
+    if (seen?.box) return { ...seen.box, faceChecked: true }
     const box = subjectBoxFromImage(image), focus = subjectFocusFromImage(image)
-    if (box) return { focusX: focus?.focusX ?? box.focusX, focusY: box.focusY, focusW: box.width, focusH: box.height }
+    const checked = seen ? { faceChecked: true } : {}
+    if (box) return { focusX: focus?.focusX ?? box.focusX, focusY: box.focusY, focusW: box.width, focusH: box.height, ...checked }
     // No face found: still the point to keep (the head of an upright picture sits high), measured again with today's rules.
-    return focus ? { focusX: focus.focusX, focusY: focus.focusY } : null
+    return focus ? { focusX: focus.focusX, focusY: focus.focusY, ...checked } : seen ? checked : null
   } catch { return null }
 }
 
 /** The photographs of a project that still need measuring, once each per session. */
 export function photosToMeasure(photos: PhotoAsset[]): PhotoAsset[] {
-  return photos.filter(p => p.focusW === undefined && !tried.has(p.id) && p.width > 0)
+  return photos.filter(p => !p.faceChecked && !tried.has(p.id) && p.width > 0)
 }
 
 export async function backfillSubjects(getPhotos: () => PhotoAsset[], apply: (id: string, patch: Partial<PhotoAsset>) => void, shouldStop: () => boolean) {

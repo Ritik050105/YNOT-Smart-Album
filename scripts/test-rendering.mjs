@@ -26,7 +26,7 @@ globalThis.window = { albumStudio: { isElectron: true,
 const result = await build({ stdin: {
   contents: `export * from './src/engine/autoLayout'; export * from './src/engine/layoutMath'; export * from './src/engine/renderSpread'; export * from './src/engine/exportAlbum'; export * from './src/engine/exportUtil'; export * from './src/engine/exportPreflight'; export * from './src/engine/projectFile'; export * from './src/engine/importWorkflow'; export * from './src/engine/patterns'; export { buildSpreadPsdBytes } from './src/engine/exportPsd'; export { initializeCanvas, readPsd } from 'ag-psd'`,
   resolveDir: process.cwd(),
-}, bundle: true, platform: 'node', format: 'esm', write: false, loader: { '.ttf': 'dataurl', '.png': 'dataurl', '.icc': 'dataurl' } })
+}, bundle: true, platform: 'node', format: 'esm', write: false, loader: { '.bin':'dataurl', '.ttf': 'dataurl', '.png': 'dataurl', '.icc': 'dataurl' } })
 const engine = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 engine.initializeCanvas(createCanvas)
 const catalogueBundle=await build({stdin:{contents:`export * from './src/engine/templates'; export { generatedTemplates } from './src/engine/templateGenerator'; export { geometrySignature } from './src/engine/templateLayout'`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false})

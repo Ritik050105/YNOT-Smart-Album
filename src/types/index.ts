@@ -32,6 +32,8 @@ export interface PhotoAsset {
    *  to keep the whole head in the crop. */
   focusW?: number
   focusH?: number
+  /** The face detector has looked at this photograph (so its measurements are its own, not the colour guess alone). */
+  faceChecked?: boolean
 }
 
 export interface PlaceholderRect {

@@ -13,7 +13,7 @@ export {computePlaceholderBoxes} from './src/engine/layoutMath'
 export {respaceBoxes} from './src/engine/templateLayout'`,
     resolveDir: process.cwd(),
   },
-  bundle: true, loader: { '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
+  bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const { useProjectStore: store, createBlankSpread, computePlaceholderBoxes, respaceBoxes } =
   await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
