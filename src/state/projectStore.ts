@@ -234,7 +234,7 @@ interface ProjectState {
    *  button) as an alternative to holding Space, matching the reference app's Select/Pan toolbar
    *  icons. */
   drawingShape: 'rectangle' | 'circle' | 'triangle'
-  canvasTool: 'select' | 'pan' | 'frame' | 'shape' | 'shape-outline' | 'line' | 'text' | 'zoom'
+  canvasTool: 'select' | 'pan' | 'frame' | 'shape' | 'shape-outline' | 'line' | 'text' | 'zoom' | 'round'
   /** The Templates menu's frame-ratio filter (All/no-square/only-3x2) — shared between the menu
    *  bar and the Inspector's "Smart Grid Suggestions" picker so both reflect the same choice. */
   templateFrameFilter: TemplateFrameFilter
@@ -313,7 +313,7 @@ interface ProjectState {
    *  project (which starts clean relative to its own just-loaded/just-created state). */
   markSaved: () => void
   setCurrentFilePath: (path: string | null) => void
-  setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'shape' | 'shape-outline' | 'line' | 'text' | 'zoom') => void
+  setCanvasTool: (tool: 'select' | 'pan' | 'frame' | 'shape' | 'shape-outline' | 'line' | 'text' | 'zoom' | 'round') => void
   setTemplateFrameFilter: (f: TemplateFrameFilter) => void
   toggleShowPhotoFileNames: () => void
   enterDesignerView: (spreadId: string) => void

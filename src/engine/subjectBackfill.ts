@@ -32,7 +32,10 @@ export async function measureSubject(photo: PhotoAsset): Promise<Pick<PhotoAsset
 
 /** The photographs of a project that still need measuring, once each per session. */
 export function photosToMeasure(photos: PhotoAsset[]): PhotoAsset[] {
-  return photos.filter(p => !p.faceChecked && !tried.has(p.id) && p.width > 0)
+  // With the desktop app's face detector every photograph it has not looked at yet is measured (older albums included). Without it (a browser, the
+  // tests) only a photograph never measured at all is, since the colour guess would only move crops about for no better answer.
+  const detector = typeof window !== 'undefined' && !!window.albumStudio?.detectFaces
+  return photos.filter(p => (detector ? !p.faceChecked : p.focusW === undefined) && !tried.has(p.id) && p.width > 0)
 }
 
 export async function backfillSubjects(getPhotos: () => PhotoAsset[], apply: (id: string, patch: Partial<PhotoAsset>) => void, shouldStop: () => boolean) {

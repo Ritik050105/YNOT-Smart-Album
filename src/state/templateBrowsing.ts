@@ -1,12 +1,13 @@
 import {create} from 'zustand'
 import {importedDesignTemplates,sequenceCandidates,showcaseCandidates,templateLibraryVersion,templatesForCount,TemplateFrameFilter} from '@/engine/templates'
-import {templateCategory} from '@/engine/templateTransfer'
+import {templateCategory,mustHoldGap} from '@/engine/templateTransfer'
 import {matchesCollection,readCollectionsShared} from '@/engine/templateCollections'
 import {supportsUniformGap} from '@/engine/templateLayout'
 import {offeredLayouts,varyPatterns} from '@/engine/layoutOffer'
 import {pagePlacements} from '@/engine/pageTemplates'
 import {defaultLayouts} from '@/engine/autoLayout'
 import {photoShapeCodes} from '@/engine/templateMatching'
+import {wantedTemplates} from '@/engine/templateCounts'
 import {PhotoAsset,Project,Spread,TemplateDefinition} from '@/types'
 export const useTemplateBrowsing=create<{categories:{reference:boolean;creative:boolean};collection:string;favoritesOnly:boolean;setFavoritesOnly:(value:boolean)=>void;setCategories:(value:{reference:boolean;creative:boolean})=>void;setCollection:(value:string)=>void}>(set=>({categories:{reference:true,creative:true},collection:'',favoritesOnly:false,setFavoritesOnly:favoritesOnly=>set({favoritesOnly}),setCategories:categories=>set({categories}),setCollection:collection=>set({collection})}))
 /** The layouts cycling offers a spread, remembered.
@@ -67,8 +68,8 @@ export function cyclingTemplates(project:Project,spread:Spread,filter:TemplateFr
   return onPage
  }
  const collections=readCollectionsShared()
- const list=[...sequenceCandidates(photos,count,project.enabledTemplateIds,filter,aspect),...templatesForCount(count,project.enabledTemplateIds,filter,aspect),...showcaseCandidates(photos,count,project.enabledTemplateIds,filter,aspect),...importedDesignTemplates(count,project.enabledTemplateIds,filter,aspect)].filter(t=>(!favoritesOnly||favorites.includes(t.id))&&(kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length)&&categories[templateCategory(t)]&&matchesCollection(t.id,collection,collections,favorites)&&(templateCategory(t)!=='reference'||supportsUniformGap(t.placeholders,aspect,spread.marginPx,spread.gapPx)))
- const offered=varyPatterns(offeredLayouts(photos.length===count?photos:[],list,aspect,spread.marginPx,spread.gapPx,true,true),t=>t,aspect)
+ const list=[...sequenceCandidates(photos,count,project.enabledTemplateIds,filter,aspect),...templatesForCount(count,project.enabledTemplateIds,filter,aspect),...showcaseCandidates(photos,count,project.enabledTemplateIds,filter,aspect),...importedDesignTemplates(count,project.enabledTemplateIds,filter,aspect)].filter(t=>(!favoritesOnly||favorites.includes(t.id))&&(kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length)&&categories[templateCategory(t)]&&matchesCollection(t.id,collection,collections,favorites)&&(!mustHoldGap(t)||supportsUniformGap(t.placeholders,aspect,spread.marginPx,spread.gapPx)))
+ const offered=varyPatterns(offeredLayouts(photos.length===count?photos:[],list,aspect,spread.marginPx,spread.gapPx,true,true),t=>t,aspect,photos.length===count?wantedTemplates(photos):undefined)
  cycleLists.set(key,{deps,list:offered})
  if(cycleLists.size>160)cycleLists.delete(cycleLists.keys().next().value!)
  return offered

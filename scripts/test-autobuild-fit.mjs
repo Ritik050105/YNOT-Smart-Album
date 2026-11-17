@@ -11,12 +11,12 @@ export {MAX_PHOTOS_PER_SPREAD} from './src/engine/spreadLimits'
 export {computePlaceholderBoxes,orientationFits} from './src/engine/layoutMath'
 export {runsToTheTrim,findTemplate} from './src/engine/templates'
 export {supportsUniformGap} from './src/engine/templateLayout'
-export {templateCategory} from './src/engine/templateTransfer'`,
+export {templateCategory,mustHoldGap} from './src/engine/templateTransfer'`,
     resolveDir: process.cwd(),
   },
   bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { MAX_PHOTOS_PER_SPREAD, groupPhotosForCount, spreadCountRange, buildSpreadsFromGroups, computePlaceholderBoxes, orientationFits, runsToTheTrim, findTemplate, supportsUniformGap, templateCategory } =
+const { MAX_PHOTOS_PER_SPREAD, groupPhotosForCount, spreadCountRange, buildSpreadsFromGroups, computePlaceholderBoxes, orientationFits, runsToTheTrim, findTemplate, supportsUniformGap, templateCategory, mustHoldGap } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const shapes = [[900, 600], [600, 900], [700, 700], [1200, 400], [400, 1000], [900, 600]]
@@ -34,7 +34,7 @@ for (const aspect of [1, 1.5, 0.75]) {
     const spreads = buildSpreadsFromGroups(groups, appearance, null, { ...{ aspect, frameFilter: 'all', includeFullSpreadTemplates: true, start: 'spread', end: 'spread' }, matchTimelineOrder: true })
     spreads.forEach((spread, s) => {
       const template = findTemplate(spread.templateId)
-      assert.ok(templateCategory(template) !== 'reference' || supportsUniformGap(template.placeholders, aspect, marginPx, gapPx),
+      assert.ok(!mustHoldGap(template) || supportsUniformGap(template.placeholders, aspect, marginPx, gapPx),
         `aspect ${aspect} gap ${gapPx}: spread ${s + 1} (${spread.templateId}) leaves the album's gap between frames`)
       const boxes = computePlaceholderBoxes(spread, 900, 900 / aspect)
       for (const placement of spread.placements) {

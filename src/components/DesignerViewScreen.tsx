@@ -168,6 +168,7 @@ export default function DesignerViewScreen() {
             { tool: 'text', icon: 'type', title: 'Text Tool (T)' },
             { tool: 'pan', icon: 'hand', title: 'Hand Tool (H)' },
             { tool: 'zoom', icon: 'search', title: 'Zoom Tool (Z)' },
+            { tool: 'round', icon: 'roundCorner', title: 'Rounded Edge Tool · select an image, then drag one of its corner handles to round only that corner' },
           ] as const).map((t) => (
             <button
               key={t.tool}

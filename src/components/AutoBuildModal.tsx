@@ -2,7 +2,7 @@ import { MAX_PHOTOS_PER_SPREAD } from '@/engine/spreadLimits'
 import {templatesForCount} from '@/engine/templates'
 import {useTemplateCollections,matchesCollection} from '@/engine/templateCollections'
 import {templateCategory} from '@/engine/templateTransfer'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
 import { suggestAutoBuildSpreadCount, groupPhotosForCount, spreadCountRange, buildSpreadsFromGroups, autoBuildGroupFilter, autoBuildSpreadCounts, sortPhotosByCapturedAt } from '@/engine/autoLayout'
 import { PhotoAsset, TemplateDefinition } from '@/types'
@@ -44,7 +44,35 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
   // Every template the project allows, in one pass over the 1-24 photo counts. A bin narrows it
   // further by design family, by category and, with the heart, to the ones marked as favourites.
   const userTemplates=useProjectStore(s=>s.userTemplates)
-  const library=useMemo(()=>Array.from({length:MAX_PHOTOS_PER_SPREAD},(_,i)=>templatesForCount(i+1,project.enabledTemplateIds,frameFilter,project.size.widthIn/project.size.heightIn)).flat(),[project.enabledTemplateIds,frameFilter,project.size.widthIn,project.size.heightIn,userTemplates])
+  // The library is worked out within a small time budget when the window opens (instant once the background warm-up has built it), and in
+  // small steps, one tick apart, when it has not: building every count's library in one go froze the window for seconds before it could draw.
+  const albumAspect=project.size.widthIn/project.size.heightIn
+  const libraryDeps=[project.enabledTemplateIds,frameFilter,albumAspect,userTemplates]
+  const buildFrom=(parts:TemplateDefinition[][],from:number)=>{
+    const started=performance.now()
+    let count=from
+    while(count<=MAX_PHOTOS_PER_SPREAD&&(count===from||performance.now()-started<40))parts.push(templatesForCount(count++,project.enabledTemplateIds,frameFilter,albumAspect))
+    return count
+  }
+  const quick=useMemo(()=>{const parts:TemplateDefinition[][]=[];return buildFrom(parts,1)>MAX_PHOTOS_PER_SPREAD?parts.flat():null},libraryDeps) // eslint-disable-line react-hooks/exhaustive-deps
+  const [stepped,setStepped]=useState<{deps:unknown[];list:TemplateDefinition[]}|null>(null)
+  useEffect(()=>{
+    if(quick)return
+    let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined
+    const parts:TemplateDefinition[][]=[]
+    const step=(from:number)=>{
+      if(cancelled)return
+      const next=buildFrom(parts,from)
+      if(next>MAX_PHOTOS_PER_SPREAD)setStepped({deps:libraryDeps,list:parts.flat()})
+      else timer=setTimeout(()=>step(next),0)
+    }
+    step(1)
+    return()=>{cancelled=true;if(timer)clearTimeout(timer)}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[quick,...libraryDeps])
+  const built=quick??(stepped&&stepped.deps.every((v,i)=>v===libraryDeps[i])?stepped.list:null)
+  const ready=built!==null
+  const library=useMemo(()=>built??[],[built])
   const enabledIds=useMemo(()=>library.map(t=>t.id),[library])
   const binRule=(bin:string):BinRule=>binRules[bin]??{kind:'reference',category:'',subcategory:'',favorites:false}
   const records=useCallback((rule:BinRule):TemplateDefinition[]=>{
@@ -117,6 +145,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
       aspect: project.size.widthIn / project.size.heightIn, frameFilter }
     const min = mode === 'range' ? rangeMin : 1, max = mode === 'range' ? rangeSize : MAX_PHOTOS_PER_SPREAD
     try {
+      if(!ready)return {groups:[] as PhotoAsset[][],count:requestedCount,error:''}
       if(!enabledIds.length)throw new Error('Select a template design category with available templates.')
       if(binMode){
         const assigned=new Set<string>(),groups:PhotoAsset[][]=[]
@@ -150,7 +179,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
       }
       throw lastError
     } catch (error) { return { groups: [], count: requestedCount, error: error instanceof Error ? error.message : String(error) } }
-  }, [binRules, chosenBins, enabledIds, binMode, followBins, requestedCount, touchedSlider, targetPhotos, autoLayoutOptions, mode, blocksOfTime, blackAndWhite, metadata, rangeMin, rangeSize, project.enabledTemplateIds, appending, startRight, endLeft, restrictCount, project.includeFullSpreadTemplates, project.size, frameFilter])
+  }, [ready, binRules, chosenBins, enabledIds, binMode, followBins, requestedCount, touchedSlider, targetPhotos, autoLayoutOptions, mode, blocksOfTime, blackAndWhite, metadata, rangeMin, rangeSize, project.enabledTemplateIds, appending, startRight, endLeft, restrictCount, project.includeFullSpreadTemplates, project.size, frameFilter])
   const effectiveCount = grouping.count
   const effectiveGroups = grouping.groups
   const groupDesigns=binMode?effectiveGroups.map(group=>designForBin((followBins?[...chosenBins].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})):chosenBins).find(bin=>group[0]?.bins.includes(bin))??'')):undefined
@@ -160,6 +189,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
 
   const preview = useMemo(() => {
     try {
+      if (!ready) return { pages: 0, error: '' }
       if (grouping.error) return { pages: 0, error: grouping.error }
       const spreads = buildSpreadsFromGroups(effectiveGroups, {
         backgroundColor: project.defaultBackgroundColor, gapPx: project.defaultGapPx, marginPx: project.defaultMarginPx,
@@ -169,7 +199,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
         aspect: project.size.widthIn / project.size.heightIn, frameFilter }, autoLayoutOptions.matchTimelineOrder, false, TEMPLATE_REUSE,groupDesigns)
       return { pages: spreads.reduce((sum, spread) => sum + (spread.pageSide === 'spread' ? 2 : 1), 0), error: '' }
     } catch (error) { return { pages: 0, error: error instanceof Error ? error.message : String(error) } }
-  }, [binRules, enabledIds, effectiveGroups, grouping.error, project, frameFilter, autoLayoutOptions.matchTimelineOrder])
+  }, [ready, binRules, enabledIds, effectiveGroups, grouping.error, project, frameFilter, autoLayoutOptions.matchTimelineOrder])
 
   function handleBuild() {
     if (noGroupingCriteria) return
@@ -191,7 +221,8 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
             Cancel
           </button>
           <div className="footer-spacer" />
-          <button className="btn btn--primary" disabled={targetPhotos.length === 0 || noGroupingCriteria || !!preview.error} onClick={handleBuild}>
+          {!ready && <span className="muted" role="status">Preparing templates…</span>}
+          <button className="btn btn--primary" disabled={!ready || targetPhotos.length === 0 || noGroupingCriteria || !!preview.error} onClick={handleBuild}>
             <Icon name="sparkles" size={14} />
             Auto Build
           </button>

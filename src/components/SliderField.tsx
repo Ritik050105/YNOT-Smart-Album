@@ -1,4 +1,10 @@
-/** Exact numeric entry with either a slider or compact adjustment buttons. */
+import { useRef } from 'react'
+
+/** Exact numeric entry with either a slider or compact adjustment buttons.
+ *
+ *  `onPreview`, when given, is called for every movement of the slider and `onChange` once when it is let go (pointer up, key up or leaving
+ *  it): a drag is then one edit with one undo step, and the caller can draw the movement cheaply in between. Without it every movement
+ *  goes to `onChange`, as before. */
 export default function SliderField({
   label,
   value,
@@ -9,6 +15,7 @@ export default function SliderField({
   buttons = false,
   resetValue,
   onChange,
+  onPreview,
 }: {
   label: string
   value: number
@@ -19,7 +26,10 @@ export default function SliderField({
   buttons?: boolean
   resetValue?: number
   onChange: (value: number) => void
+  onPreview?: (value: number) => void
 }) {
+  const moving = useRef<number | null>(null)
+  function release() { if (moving.current !== null) { const v = moving.current; moving.current = null; onChange(v) } }
   function clamp(v: number) {
     if (Number.isNaN(v)) return min
     return Math.min(max, Math.max(min, v))
@@ -57,7 +67,11 @@ export default function SliderField({
         max={max}
         step={step}
         value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => { const v = Number(e.target.value); if (onPreview) { moving.current = v; onPreview(v) } else onChange(v) }}
+        onPointerUp={release}
+        onPointerCancel={release}
+        onKeyUp={release}
+        onBlur={release}
       />}
     </div>
   )

@@ -414,13 +414,7 @@ export default function NewProjectWizard({
                 <div className="field-section">
                   <div className="field-section__title">Layout Type</div>
                   <label className="checkbox-row"><input type="checkbox" checked={layoutStart==='single'} onChange={e=>setLayoutStart(e.target.checked?'single':'spread')}/>Start with right-hand page only (RHS)</label>
-                  <label className="field">
-                    Ends with
-                    <select value={layoutEnd} onChange={(e) => setLayoutEnd(e.target.value as 'spread' | 'single')}>
-                      <option value="spread">Full spread</option>
-                      <option value="single">Single page/side</option>
-                    </select>
-                  </label>
+                  <label className="checkbox-row"><input type="checkbox" checked={layoutEnd==='single'} onChange={e=>setLayoutEnd(e.target.checked?'single':'spread')}/>End with left-hand page only (LHS)</label>
                   <label className="checkbox-row">
                     <input
                       type="checkbox"

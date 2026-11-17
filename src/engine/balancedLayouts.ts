@@ -93,14 +93,18 @@ export const pick = (list: number[], random: () => number) => list[Math.floor(ra
 function justified(kinds: number[], from: number, to: number, x: number, y: number, w: number, h: number,
   aspect: number, random: () => number, out: Box[], columns: boolean, fit?: number[]): boolean {
   const n = to - from
-  // Work in the orientation where the block is rows; flip afterwards for columns.
-  const ratios = Array.from({ length: n }, (_, i) => {
+  // Work in the orientation where the block is rows; flip afterwards for columns. (Plain loops: this runs for every random draw, thousands
+  // of times, and the closures and slices it used to build made it the slowest thing in the app to open a template shelf.)
+  const ratios = new Array<number>(n)
+  let total = 0
+  for (let i = 0; i < n; i++) {
     // With `fit`, each frame starts from its own photograph's real proportion (give or take a few percent), not from a typical one.
     const kind = kinds[from + i], r = fit ? fit[from + i] * pick(FIT_JITTER, random) : kind === 0 ? pick(WIDE_CHOICES, random) : kind === 2 ? pick(SQUARE_CHOICES, random) : pick(TALL_CHOICES, random)
-    return columns ? 1 / r : r
-  })
+    ratios[i] = columns ? 1 / r : r
+    total += ratios[i]
+  }
   const region = columns ? (h / (w * aspect)) : (w * aspect) / h
-  const rowsGuess = Math.sqrt(ratios.reduce((a, r) => a + r, 0) / region)
+  const rowsGuess = Math.sqrt(total / region)
   const rows = Math.max(1, Math.min(n, Math.round(rowsGuess + (random() < 0.5 ? 0 : random() < 0.5 ? -1 : 1))))
   // Rows of equal height are the tidiest; rows sharing one stretch factor are the most faithful to
   // each photograph's shape. Half the draws take each.
@@ -108,7 +112,7 @@ function justified(kinds: number[], from: number, to: number, x: number, y: numb
   const cuts = [0]
   if (equal) {
     // Fill each row to the width its share of the height calls for, stopping at the closer side.
-    const target = ratios.reduce((a, r) => a + r, 0) / rows
+    const target = total / rows
     for (let j = 1; j < rows; j++) {
       let at = cuts[j - 1], sum = 0
       const last = n - (rows - j)
@@ -126,8 +130,16 @@ function justified(kinds: number[], from: number, to: number, x: number, y: numb
     }
   }
   cuts.push(n)
-  const sums = Array.from({ length: rows }, (_, j) => ratios.slice(cuts[j], cuts[j + 1]).reduce((a, r) => a + r, 0))
-  const heights = equal ? sums.map(() => 1 / rows) : (() => { const t = sums.reduce((a, S) => a + 1 / S, 0); return sums.map(S => 1 / S / t) })()
+  const sums = new Array<number>(rows)
+  let inverse = 0
+  for (let j = 0; j < rows; j++) {
+    let sum = 0
+    for (let i = cuts[j]; i < cuts[j + 1]; i++) sum += ratios[i]
+    sums[j] = sum
+    inverse += 1 / sum
+  }
+  const heights = new Array<number>(rows)
+  for (let j = 0; j < rows; j++) heights[j] = equal ? 1 / rows : 1 / sums[j] / inverse
   // A row's stretch: how far its photographs are widened or narrowed to fill it.
   for (let j = 0; j < rows; j++) {
     const stretch = region / (heights[j] * sums[j])
@@ -182,7 +194,11 @@ export interface Candidate { boxes: Box[]; score: number; signature: string }
 const SNAP = 0.03
 export function snapped(boxes: Box[]): Box[] {
   const maps = [0, 1].map(axis => {
-    const edges = [...new Set(boxes.flatMap(b => [b[axis], b[axis] + b[axis + 2]].map(v => Math.round(v * 1e6) / 1e6)))].sort((p, q) => p - q)
+    const raw = new Float64Array(boxes.length * 2)
+    for (let i = 0; i < boxes.length; i++) { const b = boxes[i]; raw[2 * i] = Math.round(b[axis] * 1e6) / 1e6; raw[2 * i + 1] = Math.round((b[axis] + b[axis + 2]) * 1e6) / 1e6 }
+    raw.sort()
+    const edges: number[] = []
+    for (let i = 0; i < raw.length; i++) if (i === 0 || raw[i] !== raw[i - 1]) edges.push(raw[i])
     const to = new Map<number, number>()
     for (let i = 0; i < edges.length;) {
       let j = i
@@ -298,7 +314,10 @@ function mixLayouts(count: number, landscapes: number, squares: number, aspect: 
   // Most mixes are done in the first round. One that is hard to tile gets up to four more, so a
   // shelf is not left thin just because the first draws were unlucky.
   for (let round = 0; round < 5 && kept.length < keep; round++) {
+    let lastNew = 0
     for (let s = 0; s < max && (s < min || found.size < keep * 2); s++, draw++) {
+      // A mix with few arrangements has found them all well before the budget is spent (see STALL).
+      if (s >= min && s - lastNew > STALL) break
       const items = order(landscapes, uprights, draw, random, squares)
       const drawn: Box[] = new Array(count)
       if (!block(items, 0, count, 0, 0, 1, 1, aspect, random, drawn, 2)) continue
@@ -310,6 +329,7 @@ function mixLayouts(count: number, landscapes: number, squares: number, aspect: 
       // made of different arrangements, each in its best proportions.
       const look = layoutLook(boxes)
       const known = found.get(look)
+      if (!known) lastNew = s
       if (!known || known.score > score) found.set(look, { boxes, score, signature: arrangement(boxes) })
     }
     // A layout is only worth keeping if the album's gap comes out the same everywhere in it; a
@@ -513,7 +533,12 @@ function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number, kee
   const max = budget(count).max * 12
   const partitions = columnCuts(count, random, 600)
   for (let round = 0; round < 3 && kept.length < keep; round++) {
+    let lastNew = 0
     for (let s = 0; s < max + partitions.length * 2 && found.size < keep * 2; s++) {
+      // A small set has only a few arrangements and has found them all long before the budget is spent: once the free-form draws have
+      // gone a good while without turning up a new look, the round is over (without this a two-photograph block spent most of a second
+      // drawing the same two layouts again and again).
+      if (s > partitions.length * 2 && s - lastNew > STALL) break
       // Half of the work is columns, taken partition by partition, which covers an order far more evenly
       // than chance does; the rest is the free-form search, for the layouts columns cannot make.
       const drawn: Box[] = s < partitions.length * 2 ? columnsFor(kinds, partitions[s % partitions.length], random, aspect, s >= partitions.length, fit) : new Array(count)
@@ -525,6 +550,7 @@ function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number, kee
       if (fit ? !inOrderFit(boxes, fit, aspect) || !inOrderShapes(boxes, fit, aspect) : !inOrder(boxes, kinds)) continue
       const look = layoutLook(boxes)
       const known = found.get(look)
+      if (!known) lastNew = s
       if (!known || known.score > score) found.set(look, { boxes, score, signature: arrangement(boxes) })
     }
     kept.length = 0
@@ -538,6 +564,9 @@ function sequenceLayouts(kinds: number[], aspect: number, aspectKey: number, kee
   }
   return kept
 }
+
+/** How many draws in a row without a new look end a round of the search (see sequenceLayouts). */
+const STALL = 1000
 
 const sequenceCache = new Map<string, TemplateDefinition[]>()
 

@@ -7,7 +7,8 @@ import {offeredLayouts,varyPatterns} from '@/engine/layoutOffer'
 import {defaultLayouts} from '@/engine/autoLayout'
 import {supportsUniformGap} from '@/engine/templateLayout'
 import TemplateTransfer from './TemplateTransfer'
-import {templateCategory} from '@/engine/templateTransfer'
+import {templateCategory,mustHoldGap} from '@/engine/templateTransfer'
+import {wantedTemplates} from '@/engine/templateCounts'
 import QuoteTemplates from './QuoteTemplates'
 import { usePreferences } from '@/state/preferences'
 import { pagePlacements, TemplateScope } from '@/engine/pageTemplates'
@@ -87,7 +88,7 @@ export default function MatchingTemplatesPanel() {
     // A single page (a split spread) is offered what sits on its half, the layouts a split starts it with among them.
     const halfPage = kind === 'image' && (spread.pageSide === 'left' || spread.pageSide === 'right') && photos.length === count
     const candidates = halfPage ? defaultLayouts(photos, spread.pageSide, aspect, spread.marginPx, spread.gapPx, project.enabledTemplateIds) : uniqueTemplates([...sequenceCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...showcaseCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...mixCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)])
-      .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (templateCategory(t)!=='reference'||supportsUniformGap(t.placeholders,aspect,spread.marginPx*(target==='spread'?1:2),spread.gapPx*(target==='spread'?1:2))) && categories[templateCategory(t)] && matchesCollection(t.id,collection,collections,favorites) && (!favoritesOnly || favorites.includes(t.id)))
+      .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (!mustHoldGap(t)||supportsUniformGap(t.placeholders,aspect,spread.marginPx*(target==='spread'?1:2),spread.gapPx*(target==='spread'?1:2))) && categories[templateCategory(t)] && matchesCollection(t.id,collection,collections,favorites) && (!favoritesOnly || favorites.includes(t.id)))
     // Offer only layouts that can give every photo a frame of its own shape — a portrait photo in
     // a landscape frame loses its top and bottom. If nothing fits, show everything rather than an
     // empty browser, since the designer may want to crop deliberately.
@@ -107,7 +108,7 @@ export default function MatchingTemplatesPanel() {
       return { fitting, missed }
     }
     return (count > 1 ? [false, true] : [true]).map(keepOrder => { const rowKeep = !autoRearrange || keepOrder, { fitting, missed } = shelf(rowKeep); return varyPatterns((rankTemplates(photos, fitting, aspect, rowKeep, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
-      .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(b.template.id)) - Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))), r => r.template, aspect) })
+      .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(b.template.id)) - Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))), r => r.template, aspect, photos.length === count ? wantedTemplates(photos) : undefined) })
   }, [kind,collection,collections,userTemplates, categories, open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
   useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [kind,collection, categories, userTemplates, open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
   useEffect(() => {

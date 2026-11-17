@@ -1,5 +1,5 @@
 // Showcase layouts: pictures floated on the page with white space, in the photographs' own order, each frame the shape of
-// its photograph. They are creative designs (the album gap rule does not apply), resolve from their ids, stay on the page,
+// its photograph. They are Smart designs, though the album gap rule is not asked of them, resolve from their ids, stay on the page,
 // and are never a rising staircase.
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
@@ -32,16 +32,14 @@ for (const aspect of [1.5, 1.25, 1, 12.007 / 17.717]) {
       // (A layout with one photograph picked out to fill a page, `-f<n>L-` / `-f<n>R-`, is for the rearranging row: its frames suit the photographs in another order.)
       // (With many photographs the frames are small enough for the album's margin and gap to change their shapes, and the browsers judge those against the real margin and gap.)
       if (!/-f\d+[LR]-/.test(t.id) && ph.length <= 12) assert.equal(m.templateOrderMismatches(ph, t, aspect, 3, 6), 0, `${t.id} gives every photograph a frame of its own shape, in order`)
-      assert.equal(m.templateCategory(t), 'creative', `${t.id} is a creative design`)
+      assert.equal(m.templateCategory(t), 'reference', `${t.id} is a Smart design`)
       assert.ok(m.runsToTheTrim(t), `${t.id} is exempt from the even-margin and gap checks`)
       assert.equal(m.templateFamilyLabel(t), 'Showcase')
       assert.ok(!m.isStaircase(t), `${t.id} is not a rising staircase`)
       // Nothing postage-stamp small, and the block of pictures is a good part of the page.
       const x0 = Math.min(...t.placeholders.map(p => p.x)), x1 = Math.max(...t.placeholders.map(p => p.x + p.width)), y0 = Math.min(...t.placeholders.map(p => p.y)), y1 = Math.max(...t.placeholders.map(p => p.y + p.height))
       assert.ok(Math.max(x1 - x0, y1 - y0) >= 0.12, `${t.id} spans a good part of a page`)
-      // (With three photographs or fewer a picture may run across the fold; with more, none may.)
-      const wholeSpread = t.placeholders.length <= 4 // (up to four photographs may run across the fold)
-      assert.ok(wholeSpread || !t.placeholders.some(p => p.x < 0.497 && p.x + p.width > 0.503), `${t.id} keeps every photograph off the fold`)
+      // (A full-spread layout may run a picture across the fold, whatever the count, as long as the gaps are equal and the edges line up.)
       // (A big set on one spread has small frames; the floor falls with the count, as it does in the generator.)
       const floor = (ph.length > 12 ? 0.045 : ph.length > 8 ? 0.07 : 0.09) - 1e-9
       for (const p of t.placeholders) assert.ok(Math.min(p.width * aspect, p.height) >= floor, `${t.id} has no tiny frame`)

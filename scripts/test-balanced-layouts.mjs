@@ -13,13 +13,13 @@ export {templateShapeMismatches,templateOrderMismatches} from './src/engine/temp
 export {balancedForSequence,sequenceKinds} from './src/engine/balancedLayouts'
 export {sequenceCandidates} from './src/engine/templates'
 export {supportsUniformGap,hasEvenMargins,frameSizeSpread} from './src/engine/templateLayout'
-export {templateCategory} from './src/engine/templateTransfer'
+export {templateCategory,mustHoldGap} from './src/engine/templateTransfer'
 export {offeredLayouts} from './src/engine/layoutOffer'`,
     resolveDir: process.cwd(),
   },
   bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { balancedForMix, uniqueTemplates, mixCandidates, balancedForSequence, sequenceKinds, sequenceCandidates, templateOrderMismatches, balancedTemplates, templatesForCount, findTemplate, runsToTheTrim, templateFamilyLabel, templateShapeMismatches, supportsUniformGap, hasEvenMargins, frameSizeSpread, templateCategory, offeredLayouts } =
+const { balancedForMix, uniqueTemplates, mixCandidates, balancedForSequence, sequenceKinds, sequenceCandidates, templateOrderMismatches, balancedTemplates, templatesForCount, findTemplate, runsToTheTrim, templateFamilyLabel, templateShapeMismatches, supportsUniformGap, hasEvenMargins, frameSizeSpread, templateCategory, mustHoldGap, offeredLayouts } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 // The wizard's default: a 6px gap with the margin at half of it.
@@ -58,7 +58,7 @@ for (const aspect of ASPECTS) {
     // What the browsers show: every photograph in a frame of its own shape, in a layout that keeps
     // the gap and an even border.
     const offered = templatesForCount(count, null, 'all', aspect).filter(t => !t.textBoxes?.length)
-      .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
+      .filter(t => !mustHoldGap(t) || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
     for (let landscapes = 0; landscapes <= count; landscapes++) {
       const photos = [...Array.from({ length: landscapes }, (_, i) => landscape(i)), ...Array.from({ length: count - landscapes }, (_, i) => upright(i))]
       const shelf = offeredLayouts(photos, offered, aspect, MARGIN, GAP)
@@ -96,7 +96,7 @@ for (const aspect of ASPECTS) {
 // The deep shelf holds at the wider presets too, which is where layouts used to vanish.
 for (const gap of [16, 28]) for (const count of [8, 12, 16]) {
   const aspect = 1.5, offered = templatesForCount(count, null, 'all', aspect).filter(t => !t.textBoxes?.length)
-    .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, gap / 2, gap))
+    .filter(t => !mustHoldGap(t) || supportsUniformGap(t.placeholders, aspect, gap / 2, gap))
   for (const landscapes of [Math.round(count / 2), 1]) {
     const photos = [...Array.from({ length: landscapes }, (_, i) => landscape(i)), ...Array.from({ length: count - landscapes }, (_, i) => upright(i))]
     const shelf = offeredLayouts(photos, offered, aspect, gap / 2, gap)
@@ -125,7 +125,7 @@ for (const gap of [16, 28]) for (const count of [8, 12, 16]) {
     }
     assert.equal(new Set(deep.map(t => t.id)).size, deep.length, 'ids are unique')
     const shelf = offeredLayouts(photos, uniqueTemplates([...sequenceCandidates(photos, count, null, 'all', aspect), ...mixCandidates(photos, count, null, 'all', aspect), ...templatesForCount(count, null, 'all', aspect)]).filter(t => !t.textBoxes?.length)
-      .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP)), aspect, MARGIN, GAP, false, true)
+      .filter(t => !mustHoldGap(t) || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP)), aspect, MARGIN, GAP, false, true)
     if (shelf.length < floor) { floor = shelf.length; floorAt = `aspect ${aspect}, ${l}L ${p}P ${q}S` }
     // Six or more landscapes and portraits have room for a good shelf on any album shape (tilings with a photograph across the fold are left out). Squares are fussier: a
     // square photograph wants a near-square frame, and the page has to be tiled with those, so a set with many of them

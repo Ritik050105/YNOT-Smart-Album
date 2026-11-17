@@ -10,7 +10,7 @@ const result = await build({
     contents: `export {templatesForCount,runsToTheTrim,mixCandidates,showcaseCandidates,uniqueTemplates} from './src/engine/templates'
 export {templateShapeMismatches} from './src/engine/templateMatching'
 export {supportsUniformGap} from './src/engine/templateLayout'
-export {templateCategory} from './src/engine/templateTransfer'
+export {templateCategory,mustHoldGap} from './src/engine/templateTransfer'
 export {offeredLayouts} from './src/engine/layoutOffer'
 export {templateOrderMismatches} from './src/engine/templateMatching'
 export {hasEvenMargins,frameSizeSpread} from './src/engine/templateLayout'`,
@@ -18,7 +18,7 @@ export {hasEvenMargins,frameSizeSpread} from './src/engine/templateLayout'`,
   },
   bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { templatesForCount, runsToTheTrim, mixCandidates, showcaseCandidates, uniqueTemplates, templateShapeMismatches, supportsUniformGap, templateCategory, offeredLayouts, hasEvenMargins, frameSizeSpread, templateOrderMismatches } =
+const { templatesForCount, runsToTheTrim, mixCandidates, showcaseCandidates, uniqueTemplates, templateShapeMismatches, supportsUniformGap, templateCategory, mustHoldGap, offeredLayouts, hasEvenMargins, frameSizeSpread, templateOrderMismatches } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const MARGIN = 10, GAP = 10
@@ -46,7 +46,7 @@ for (const aspect of ASPECTS) {
       // (The drawn layouts are worked out for up to eight photographs here; longer sets rely on the library as before.)
       const offered = uniqueTemplates([...library, ...(count <= 8 ? [...mixCandidates(photos, count, null, 'all', aspect), ...showcaseCandidates(photos, count, null, 'all', aspect)] : [])])
         .filter(t => !t.textBoxes?.length)
-        .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
+        .filter(t => !mustHoldGap(t) || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
       const fit = offered.filter(t => templateShapeMismatches(photos, t, aspect, MARGIN, GAP) === 0).length
       // What the browser actually shows: only layouts whose frames suit the photographs' shapes
       // (landscape photos meet landscape or square frames, uprights meet upright or square), and
@@ -77,7 +77,7 @@ for (const aspect of ASPECTS) {
   for (const aspect of ASPECTS) for (let count = 2; count <= 8; count++) {
     const seq = [pano, tall, wide, upright, tall, wide, pano, upright].slice(0, count).map((p, i) => ({ ...p, id: p.id + i }))
     const offered = templatesForCount(count, null, 'all', aspect).filter(t => !t.textBoxes?.length)
-      .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
+      .filter(t => !mustHoldGap(t) || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
     const shelf = offeredLayouts(seq, offered, aspect, MARGIN, GAP, true)
     const fewest = Math.min(...offered.map(t => templateOrderMismatches(seq, t, aspect, MARGIN, GAP)))
     assert.ok(shelf.length > 0 && shelf.every(t => templateOrderMismatches(seq, t, aspect, MARGIN, GAP) === fewest),

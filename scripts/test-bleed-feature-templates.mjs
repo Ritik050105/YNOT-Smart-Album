@@ -6,14 +6,14 @@ const bundle = await build({
     contents: `export {BLEED_FEATURE_TEMPLATES,isBleedFeatureTemplate} from './src/engine/bleedFeatureTemplates'
 export {templatesForCount,runsToTheTrim,hasPhotoShapedFrames,hasSeparateFrames,uniqueTemplates} from './src/engine/templates'
 export {resolveTemplateFrames,supportsUniformGap} from './src/engine/templateLayout'
-export {templateCategory} from './src/engine/templateTransfer'`,
+export {templateCategory,mustHoldGap} from './src/engine/templateTransfer'`,
     resolveDir: process.cwd(),
   },
   bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const {
   BLEED_FEATURE_TEMPLATES: family, isBleedFeatureTemplate, templatesForCount, runsToTheTrim,
-  hasPhotoShapedFrames, hasSeparateFrames, uniqueTemplates, resolveTemplateFrames, supportsUniformGap, templateCategory,
+  hasPhotoShapedFrames, hasSeparateFrames, uniqueTemplates, resolveTemplateFrames, supportsUniformGap, templateCategory, mustHoldGap,
 } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 
 // A square album: its `size` is the whole open spread, so the template's 0-1 box is a square.
@@ -69,7 +69,7 @@ for (const t of family) for (const [margin, gap, aspect] of [[10, 10, ASPECT], [
 // And they survive into the per-count browser, in front of the generated grids.
 for (let count = 3; count <= 11; count++) {
   const offered = uniqueTemplates(templatesForCount(count, null, 'all', ASPECT))
-    .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, ASPECT, MARGIN, GAP))
+    .filter(t => !mustHoldGap(t) || supportsUniformGap(t.placeholders, ASPECT, MARGIN, GAP))
   const bleeding = offered.filter(t => isBleedFeatureTemplate(t.id))
   assert.ok(bleeding.length >= 3, `count ${count} offers the family in the browser (got ${bleeding.length})`)
 }

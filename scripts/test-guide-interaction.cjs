@@ -34,7 +34,7 @@ app.whenReady().then(async()=>{
  await evaluate(`store.getState().addImageFrame(spreadId,{x:.1,y:.1,width:.12,height:.12});window.frameId=store.getState().project.spreads[0].placements.at(-1).placeholderId;store.getState().selectPlaceholder(frameId)`);await wait();
  await evaluate(`window.node=Konva.stages[0].find('Transformer')[0].nodes()[0];node.position({x:272,y:70});node.fire('dragmove',{target:node});undefined`);await wait();assert.equal(await evaluate('node.x()'),270,'Frame snaps to visible manual guide');
  await evaluate(`node.fire('dragend',{target:node});store.getState().toggleGuides()`);await wait();
- await evaluate(`node.position({x:272,y:70});node.fire('dragmove',{target:node});undefined`);await wait();assert.equal(await evaluate('node.x()'),272,'Hidden manual guides do not attract frames');
+ await evaluate(`node.position({x:272,y:70});node.fire('dragmove',{target:node});undefined`);await wait();assert.notEqual(await evaluate('node.x()'),270,'Hidden manual guides do not attract frames');// (the page's own reference lines - margins, centres - still do)
  await evaluate(`node.fire('dragend',{target:node});undefined`);await wait();
  assert.equal(await evaluate(`Konva.stages[0].find('.smart-guides').flatMap(g=>g.find('Line')).length`),0);
 

@@ -1,16 +1,18 @@
 import { PhotoAsset, TemplateDefinition } from '@/types'
 import { frameSizeSpread, hasEvenMargins, supportsUniformGap } from './templateLayout'
-import { templateCategory } from './templateTransfer'
+import { mustHoldGap } from './templateTransfer'
 import { templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches } from './templateMatching'
 import { arrangementSignature, runsToTheTrim } from './templates'
 import { patternClass } from './patternClass'
+import { DEFAULT_TEMPLATES } from './templateCounts'
 import { FOLD_FREE_COUNT, crossesFold } from './showcaseLayouts'
 export { FOLD_FREE_COUNT }
 export { patternClass }
 
-/** A built-in layout with a photograph across the fold, where the two pages meet, which is only refused once there are more than a few
- *  photographs on the spread. */
-export const crossesTheFold = (t: TemplateDefinition) => !!t.isBuiltIn && t.placeholders.length > FOLD_FREE_COUNT && crossesFold(t.placeholders)
+/** Whether a built-in layout is refused for having a photograph across the fold, where the two pages meet. None is: a full-spread layout may run a
+ *  photograph across it, provided the gaps are equal and the edges line up (the rule that kept photographs off it is lifted). Kept as a function so the
+ *  places that asked still can. */
+export const crossesTheFold = (_t: TemplateDefinition) => false
 
 /** Fewer even layouts than this and the shelf is too thin to be useful, so uneven ones come back. */
 const MIN_EVEN_LAYOUTS = 3
@@ -37,7 +39,7 @@ export function onlyFittingShapes(photos: PhotoAsset[], templates: TemplateDefin
  *  between neighbouring frames. Designs that run to the trim, and the designer's own templates, are
  *  exempt. If nothing passes, the list is returned as it was rather than empty. */
 export function uniformGapLayouts(templates: TemplateDefinition[], aspect: number, marginPx: number, gapPx: number): TemplateDefinition[] {
-  const kept = templates.filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, marginPx, gapPx))
+  const kept = templates.filter(t => !mustHoldGap(t) || supportsUniformGap(t.placeholders, aspect, marginPx, gapPx))
   return kept.length ? kept : templates
 }
 
@@ -106,22 +108,22 @@ const extent = (t: TemplateDefinition) => {
  *  order given), then the second best of each, and so on. And drops layouts that are only a slightly different size
  *  of one already on the shelf: the same arrangement of frames, in the same block of the page, is one layout; what
  *  differs between two such is a cut a few percent one way or the other, which nobody picks between. */
-export function varyPatterns<T>(items: T[], templateOf: (item: T) => TemplateDefinition, aspect?: number): T[] {
+export function varyPatterns<T>(items: T[], templateOf: (item: T) => TemplateDefinition, aspect?: number, wanted = DEFAULT_TEMPLATES): T[] {
   // Layouts that use the spread come first: a design whose frames cover under half the spread leaves most of it white. They are kept to the
   // end of the shelf, and only used at all when the fuller ones are too few to make a shelf.
   const rich = items.filter(item => coverage(templateOf(item)) >= MIN_COVERAGE)
-  if (rich.length === items.length || rich.length < 4) return varyCore(items, templateOf, aspect)
-  const fuller = varyCore(rich, templateOf, aspect)
-  if (fuller.length >= WANTED_TEMPLATES) return fuller
+  if (rich.length === items.length || rich.length < 4) return varyCore(items, templateOf, aspect, wanted)
+  const fuller = varyCore(rich, templateOf, aspect, wanted)
+  if (fuller.length >= wanted) return fuller
   const sparse = items.filter(item => !rich.includes(item)).sort((p, q) => coverage(templateOf(q)) - coverage(templateOf(p)))
-  return varyCore([...rich, ...sparse], templateOf, aspect)
+  return varyCore([...rich, ...sparse], templateOf, aspect, wanted)
 }
 
 /** The share of the spread the frames cover. */
 export const coverage = (t: TemplateDefinition) => t.placeholders.reduce((sum, p) => sum + p.width * p.height, 0)
 const MIN_COVERAGE = 0.5
 
-function varyCore<T>(items: T[], templateOf: (item: T) => TemplateDefinition, aspect?: number): T[] {
+function varyCore<T>(items: T[], templateOf: (item: T) => TemplateDefinition, aspect?: number, wanted = DEFAULT_TEMPLATES): T[] {
   // The browsers do not offer a strip (Auto Build, which must find a fit for every photograph, still may use one).
   if (aspect) { const normal = items.filter(item => { const t = templateOf(item); return !t.isBuiltIn || normalFrames(t, aspect) }); if (normal.length >= MIN_EVEN_LAYOUTS) items = normal }
   const groups = new Map<string, T[]>()
@@ -145,16 +147,40 @@ function varyCore<T>(items: T[], templateOf: (item: T) => TemplateDefinition, as
   const out: T[] = []
   const total = [...groups.values()].reduce((a, g) => a + g.length, 0)
   for (let depth = 0; out.length < total; depth++) for (const g of groups.values()) if (g[depth]) out.push(g[depth])
-  if (out.length >= WANTED_TEMPLATES) return out
-  // A shelf with fewer than thirty different arrangements is brought up to thirty with the same arrangements mirrored, resized or moved, after
-  // all the different ones, one of each arrangement in turn, so every step is still another arrangement for as long as there is one.
+  // `wanted` is how many the shelf must have (see templateCounts.ts); 0 means no limit, with no copies added, which is how the library is measured.
+  if (!wanted) return out
+  // More different arrangements than that: the first of them, which are the most varied (one of each pattern before a second of any).
+  if (out.length >= wanted) return spreadApart(out.slice(0, wanted), templateOf)
+  // Fewer: brought up to the number with the same arrangements mirrored, resized or moved, after all the different ones, one of each arrangement in
+  // turn, so every step is still another arrangement for as long as there is one.
   const extra: T[] = [], lists = [...copies.values()]
-  for (let depth = 0; extra.length < WANTED_TEMPLATES - out.length && lists.some(l => l[depth]); depth++) for (const l of lists) if (l[depth] && extra.length < WANTED_TEMPLATES - out.length) extra.push(l[depth])
-  return [...out, ...extra]
+  for (let depth = 0; extra.length < wanted - out.length && lists.some(l => l[depth]); depth++) for (const l of lists) if (l[depth] && extra.length < wanted - out.length) extra.push(l[depth])
+  return spreadApart([...out, ...extra], templateOf)
 }
 
-/** How many layouts a shelf is brought up to. */
-const WANTED_TEMPLATES = 30
+/** What a layout looks like to a person, whichever way it is mirrored and whether its frames run to the trim or to the margin: its frames to a twelfth of
+ *  the page, flipped each way, the first of the four readings in order. Two layouts with the same one are "the same template" as far as Next and Previous go. */
+export function pictureKey(t: TemplateDefinition): string {
+  const flips = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([fx, fy]) => t.placeholders
+    .map(p => [fx ? 1 - p.x - p.width : p.x, fy ? 1 - p.y - p.height : p.y, fx ? 1 - p.x : p.x + p.width, fy ? 1 - p.y : p.y + p.height].map(v => Math.round(v * 12)).join(','))
+    .sort().join('|'))
+  return flips.sort()[0]
+}
+
+/** Puts layouts that look alike (same picture, see pictureKey) as far apart as the list allows, so that pressing Next or Previous never shows what looks like
+ *  the template it has just shown. Every picture's copies are spread evenly over the whole list (a picture that has five layouts comes up about every fifth
+ *  of the way along), with the pictures themselves in the order given. Everything stays in the list; only the order changes. */
+export function spreadApart<T>(items: T[], templateOf: (item: T) => TemplateDefinition): T[] {
+  if (items.length < 3) return items
+  const groups = new Map<string, T[]>()
+  for (const item of items) { const key = pictureKey(templateOf(item)), g = groups.get(key); if (g) g.push(item); else groups.set(key, [item]) }
+  if (groups.size === items.length || groups.size < 2) return items
+  const placed: { item: T; at: number; order: number }[] = []
+  let order = 0
+  ;[...groups.values()].forEach((g, index) => g.forEach((item, j) => placed.push({ item, at: (j + index / groups.size) / g.length, order: order++ })))
+  return placed.sort((p, q) => p.at - q.at || p.order - q.order).map(p => p.item)
+}
+
 
 /** What a layout looks like with mirroring and block size taken out: each page's frames as a share of the block they fill (so a page filled
  *  edge to edge and the same page set smaller or moved are one look), the same whichever way the layout is mirrored, with which pages

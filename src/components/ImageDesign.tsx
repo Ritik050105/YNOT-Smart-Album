@@ -31,6 +31,25 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
     useProjectStore.setState(state=>({project:{...state.project,spreads:state.project.spreads.map(s=>s.id!==spreadId?s:
       {...s,placements:s.placements.map(p=>p.placeholderId===placement.placeholderId?{...p,...patch}:p)})}}))
   }
+  /** A slider drag: every movement is drawn straight into the project on the next animation frame, with no history entry (an edit through
+   *  `update` takes the whole undo path - the image-use count, the layer-lock check, a snapshot of the album - and did so on every tick, which is
+   *  what made the sliders lag); letting go puts the original back and makes the one real edit. */
+  const slide=useRef<{frame:number;original:Partial<PlacedPhoto>;pending:Partial<PlacedPhoto>}|null>(null)
+  const [sliding,setSliding]=useState(false)
+  const preview=(patch:Partial<PlacedPhoto>)=>{
+    if(!spreadId||placement.locked){update(patch);return}
+    const edit=slide.current??={frame:0,original:{},pending:{}}
+    for(const key of Object.keys(patch) as (keyof PlacedPhoto)[])if(!(key in edit.original))(edit.original as Record<string,unknown>)[key]=placement[key]
+    Object.assign(edit.pending,patch)
+    if(!sliding)setSliding(true)
+    if(!edit.frame)edit.frame=requestAnimationFrame(()=>{edit.frame=0;live(edit.pending)})
+  }
+  const commit=(patch:Partial<PlacedPhoto>)=>{
+    const edit=slide.current;slide.current=null
+    if(edit){cancelAnimationFrame(edit.frame);live(edit.original);setSliding(false)}
+    update(patch)
+  }
+  useEffect(()=>()=>{const edit=slide.current;if(edit){cancelAnimationFrame(edit.frame);live(edit.original);slide.current=null}},[]) // eslint-disable-line react-hooks/exhaustive-deps
   // A drag fires a pointermove per frame, and redrawing the preview on each one leaves several
   // full re-renders in flight at once, so it lags a frame or two behind the pointer. Coalescing
   // them onto animation frames keeps the preview live under the cursor.
@@ -39,7 +58,7 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
     // mix, border, the lot - on a 600x420 canvas, started afresh on every animation frame and
     // finishing whenever it finishes. That is what put the preview a few frames behind the
     // pointer. The window below shows the same pixels for free until the drag ends.
-    if (dragging) return
+    if (dragging || sliding) return
     let current = true
     const frame = requestAnimationFrame(() => {
       const preview = document.createElement('canvas')
@@ -54,11 +73,11 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
       }).catch(() => { if (current) setError('Image preview unavailable. Locate the original image to reconnect it.') })
     })
     return () => { current = false; cancelAnimationFrame(frame) }
-  }, [placement, photo, previewSrc, width, height, dragging])
+  }, [placement, photo, previewSrc, width, height, dragging, sliding])
   const cropPreview=photo?computeCoverCrop(photo.width,photo.height,width,height,placement.focalX,placement.focalY,placement.zoom):null
   function slider(label: string, key: keyof PlacedPhoto, min: number, max: number, reset = 0, suffix = '', factor = 1) {
     const value = Number(placement[key] ?? reset) * factor
-    return <div className="image-adjustment" key={key}><SliderField label={label} resetValue={reset*factor} value={Math.round(value * 100) / 100} min={min} max={max} suffix={suffix} onChange={v => update({ [key]: v / factor })}/><button className="adjustment-reset" aria-label={`Reset ${label}`} title={`Reset ${label}`} disabled={value === reset * factor} onClick={() => update({ [key]: reset })}>×</button></div>
+    return <div className="image-adjustment" key={key}><SliderField label={label} resetValue={reset*factor} value={Math.round(value * 100) / 100} min={min} max={max} suffix={suffix} onChange={v => commit({ [key]: v / factor })} onPreview={v => preview({ [key]: v / factor })}/><button className="adjustment-reset" aria-label={`Reset ${label}`} title={`Reset ${label}`} disabled={value === reset * factor} onClick={() => update({ [key]: reset })}>×</button></div>
   }
   /** Centres the frame on the subject's head and sizes it to the subject: tight enough that the
    *  head and shoulders fill it, never zoomed past the photograph's own resolution or out of its
@@ -129,7 +148,7 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
       {slider('Opacity', 'opacity', 0, 100, 1, '%', 100)}
       {slider('Border', 'borderWidth', 0, 60, 0, 'px')}
       <label>Border color<ColorField value={placement.borderColor} onChange={borderColor => update({borderColor})}/></label>
-      <div className="image-adjustment"><SliderField label="Radius" value={placement.frameStyle === 'rounded' ? placement.cornerRadiusPx : 0} min={0} max={200} suffix="px" onChange={cornerRadiusPx => update({cornerRadiiPx:undefined,cornerRadiusPx, frameStyle:'rounded'})}/><button className="adjustment-reset" aria-label="Reset Radius" title="Reset Radius" disabled={placement.frameStyle!=='rounded'||!placement.cornerRadiusPx} onClick={() => update({cornerRadiusPx:0, frameStyle:placement.frameStyle === 'rounded' ? 'none' : placement.frameStyle})}>×</button></div>
+      <div className="image-adjustment"><SliderField label="Radius" value={placement.frameStyle === 'rounded' ? placement.cornerRadiusPx : 0} min={0} max={200} suffix="px" onChange={cornerRadiusPx => commit({cornerRadiiPx:undefined,cornerRadiusPx, frameStyle:'rounded'})} onPreview={cornerRadiusPx => preview({cornerRadiiPx:undefined,cornerRadiusPx, frameStyle:'rounded'})}/><button className="adjustment-reset" aria-label="Reset Radius" title="Reset Radius" disabled={placement.frameStyle!=='rounded'||!placement.cornerRadiusPx} onClick={() => update({cornerRadiusPx:0, frameStyle:placement.frameStyle === 'rounded' ? 'none' : placement.frameStyle})}>×</button></div>
       <label>Frame<select value={placement.frameStyle} onChange={e => update({frameStyle:e.target.value as PlacedPhoto['frameStyle']})}><option value="none">None</option><option value="rounded">Rounded</option><option value="polaroid">Polaroid</option><option value="shadow">Drop Shadow</option></select></label>
     </details>
     {photo && <details className="inspector-group" open><summary>Tone Adjustments</summary>

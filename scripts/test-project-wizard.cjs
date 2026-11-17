@@ -36,8 +36,10 @@ app.whenReady().then(async () => {
     await evaluate(`Array.from(document.querySelectorAll('button')).find(e=>e.textContent==='Back').click()`)
     await new Promise(r=>setTimeout(r,100))
   }
-  const choices=await evaluate(`Array.from(document.querySelectorAll('select')).filter(s=>s.parentElement.textContent.includes('Starts with')||s.parentElement.textContent.includes('Ends with')).map(s=>Array.from(s.options,o=>o.textContent))`)
-  assert.deepEqual(choices,[['Full spread','Single page/side']]) // "Starts with" is now a checkbox
+  // Both ends of the album are check boxes: no drop-down is left under Layout Type.
+  const layoutBoxes=await evaluate(`Array.from(document.querySelectorAll('label.checkbox-row')).filter(l=>/page only/.test(l.textContent)).map(l=>[l.textContent.trim(),l.querySelector('input').type])`)
+  assert.deepEqual(layoutBoxes,[['Start with right-hand page only (RHS)','checkbox'],['End with left-hand page only (LHS)','checkbox']])
+  assert.equal(await evaluate(`Array.from(document.querySelectorAll('select')).some(s=>/Ends with/.test(s.parentElement.textContent))`),false)
   await evaluate(`const input=Array.from(document.querySelectorAll('label')).find(e=>e.textContent.includes('Spread width')).querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'15');input.dispatchEvent(new Event('input',{bubbles:true}))`)
   await new Promise(r=>setTimeout(r,100))
   await evaluate(`Array.from(document.querySelectorAll('button')).find(e=>e.textContent==='Next').click()`)

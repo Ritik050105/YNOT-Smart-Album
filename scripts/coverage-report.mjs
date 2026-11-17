@@ -6,7 +6,7 @@ const result = await build({
   stdin: { contents: `export {templatesForCount,sequenceCandidates,mixCandidates,showcaseCandidates,uniqueTemplates} from './src/engine/templates'
 export {offeredLayouts,varyPatterns} from './src/engine/layoutOffer'
 export {supportsUniformGap} from './src/engine/templateLayout'
-export {templateCategory} from './src/engine/templateTransfer'`, resolveDir: process.cwd() },
+export {templateCategory,mustHoldGap} from './src/engine/templateTransfer'`, resolveDir: process.cwd() },
   bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
 const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
@@ -18,7 +18,7 @@ const ASPECTS = [['18x12', 1.5], ['15x12', 1.25], ['15x15', 1], ['12x17.7', 12.0
 function offered(word, aspect, keepOrder) {
   const set = photos(word), n = set.length
   const c = m.uniqueTemplates([...m.sequenceCandidates(set, n, null, 'all', aspect), ...m.mixCandidates(set, n, null, 'all', aspect), ...m.showcaseCandidates(set, n, null, 'all', aspect), ...m.templatesForCount(n, null, 'all', aspect)])
-    .filter(t => !t.textBoxes?.length && (m.templateCategory(t) !== 'reference' || m.supportsUniformGap(t.placeholders, aspect, MARGIN, GAP)))
+    .filter(t => !t.textBoxes?.length && (!m.mustHoldGap(t) || m.supportsUniformGap(t.placeholders, aspect, MARGIN, GAP)))
   return m.varyPatterns(m.offeredLayouts(set, c, aspect, MARGIN, GAP, keepOrder, true), t => t, aspect).length
 }
 // A representative set of mixes per count; --full tries every mix (slow).

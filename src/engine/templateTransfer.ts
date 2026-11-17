@@ -25,5 +25,11 @@ export function parseTemplateTransfer(contents:string):TemplateDefinition[]{
 // or imports is a Creative design. There used to be a third, "Random generation", for the grid
 // permutations — but a generated grid is simply one of the layouts the app offers, and splitting
 // them out left a category that named a mechanism rather than anything a designer would look for.
-/** Showcase layouts float pictures on the page, so the album's gap rule does not apply: they are creative designs, not Smart design. */
-export function templateCategory(t:TemplateDefinition):'reference'|'creative'{return t.isBuiltIn&&!/^show2?-/.test(t.id)?'reference':'creative'}
+/** Every layout the app ships with is Smart design: the library's, the balanced and fitted ones drawn for the photographs, and the page
+ *  layouts (full, fill and loose pages). Creative design is only what a designer saved or imported. (The page layouts used to be filed as
+ *  creative designs, which left Smart design with a handful of layouts per photograph count: with only it ticked, Next template had little
+ *  or nothing to step through for most spreads.) */
+export function templateCategory(t:TemplateDefinition):'reference'|'creative'{return t.isBuiltIn?'reference':'creative'}
+/** Page layouts (ids `show-` and `show2-`) may run to the trim or sit on a page with white round them, so the album's even-gap rule is not
+ *  asked of them; every other built-in layout must hold the album's gap. This is the rule that used to ride on the creative category. */
+export function mustHoldGap(t:TemplateDefinition):boolean{return t.isBuiltIn&&!/^show2?-/.test(t.id)}

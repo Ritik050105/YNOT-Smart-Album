@@ -12,12 +12,12 @@ export {offeredLayouts} from './src/engine/layoutOffer'
 export {templateOrderMismatches,templateShapeMismatches,templateFramesInReadingOrder} from './src/engine/templateMatching'
 export {resolveTemplateFrames,supportsUniformGap} from './src/engine/templateLayout'
 export {shapeOf} from './src/engine/layoutMath'
-export {templateCategory} from './src/engine/templateTransfer'`,
+export {templateCategory,mustHoldGap} from './src/engine/templateTransfer'`,
     resolveDir: process.cwd(),
   },
   bundle: true, loader: { '.bin':'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
 })
-const { templatesForCount, sequenceCandidates, uniqueTemplates, offeredLayouts, templateOrderMismatches, templateShapeMismatches, templateFramesInReadingOrder, resolveTemplateFrames, supportsUniformGap, shapeOf, templateCategory } =
+const { templatesForCount, sequenceCandidates, uniqueTemplates, offeredLayouts, templateOrderMismatches, templateShapeMismatches, templateFramesInReadingOrder, resolveTemplateFrames, supportsUniformGap, shapeOf, templateCategory, mustHoldGap } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
 const dims = { L: [1500, 1000], U: [1000, 1500], S: [1000, 1000] }
@@ -33,7 +33,7 @@ for (const aspect of [1.5, 1, 12.007 / 17.717]) {
     const set = photos(word), count = set.length
     const candidates = uniqueTemplates([...sequenceCandidates(set, count, null, 'all', aspect), ...templatesForCount(count, null, 'all', aspect)])
       .filter(t => !t.textBoxes?.length)
-      .filter(t => templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
+      .filter(t => !mustHoldGap(t) || supportsUniformGap(t.placeholders, aspect, MARGIN, GAP))
     for (const keepOrder of [false, true]) {
       const offered = offeredLayouts(set, candidates, aspect, MARGIN, GAP, keepOrder, true)
       for (const t of offered.filter(t => t.placeholders.length === count)) {

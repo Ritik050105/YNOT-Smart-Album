@@ -26,7 +26,7 @@ import { isEditableTarget } from '@/engine/keyboard'
 import { importAndDedupe } from '@/engine/importWorkflow'
 import { readDraggedPattern } from '@/engine/patterns'
 import { imageToneFilter, applyBlackWhiteMix } from '@/engine/imageTone'
-import { Spread, FrameStyle } from '@/types'
+import { Spread, FrameStyle, PlacedPhoto } from '@/types'
 import Icon from './Icon'
 import GapPresetImportPreview from './GapPresetImportPreview'
 import PhotoContextMenu from './PhotoContextMenu'
@@ -34,6 +34,7 @@ import ContextMenu from './ContextMenu'
 import TextAutoFitStatus from './TextAutoFitStatus'
 import { drawSpreadBackground, plainTextAlign, spreadPageBand, spreadPageColors } from '@/engine/renderSpread'
 import { readDraggedPhotoIds } from '@/engine/photoDrag'
+import { draggedPhotos } from '@/engine/internalDrag'
 import { isFontTemplateDrag, dropFontTemplate } from '@/engine/fontTemplateDrag'
 
 export const STAGE_WIDTH = DESIGN_WIDTH
@@ -422,7 +423,7 @@ export default function DesignerCanvas() {
   const [draftFrame, setDraftFrame] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   useEffect(() => {
     const cancel = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || (canvasTool !== 'frame' && canvasTool !== 'text')) return
+      if (event.key !== 'Escape' || (canvasTool !== 'frame' && canvasTool !== 'text' && canvasTool !== 'round')) return
       drawStartRef.current = null
       setDraftFrame(null)
       setCanvasTool('select')
@@ -685,6 +686,11 @@ export default function DesignerCanvas() {
   const selectedGapUnits=guideTargets([]).filter(t=>t.keys?.length&&t.keys.every(k=>activeGuideKeys.includes(k)))
   const sharedGapGuides=selectedSpacingGuides(selectedGapUnits)
   const guideInteraction=Konva.isDragging()||transformerRef.current?.isTransforming()||textTransformerRef.current?.isTransforming()||groupTransformerRef.current?.isTransforming()
+  /** The page's own reference lines, both ways: its edges and margins and its centre, the fold, and (for the whole spread) the centre of each page.
+   *  They are what a frame snaps to and what is drawn, faintly, while one is being dragged or resized, so the guides run down the page as well as
+   *  across it, for the left page, the right page and the full spread alike. */
+  const pageReferenceX=[...new Set([pageLeft,(pageLeft+pageRight)/2,pageRight,pageLeft+(spread?.marginPx??0),pageRight-(spread?.marginPx??0),...(band.start===0&&band.end===1?[STAGE_WIDTH*.25,STAGE_WIDTH*.5,STAGE_WIDTH*.75]:[STAGE_WIDTH*.5])].map(v=>Math.round(v*100)/100))]
+  const pageReferenceY=[...new Set([0,stageHeight/2,stageHeight,spread?.marginPx??0,stageHeight-(spread?.marginPx??0)].map(v=>Math.round(v*100)/100))]
   // At rest the canvas shows the selection's own spacing — the gaps shared by a multi-selection, or
   // else the measurements of the one selected frame. That last branch had ended up nested inside
   // the "while interacting" case with [] as the alternative, so nothing was ever shown at rest:
@@ -739,7 +745,7 @@ export default function DesignerCanvas() {
   const hasVisibleContent = !!spread && (spread.placements.some(p=>p.photoId&&!p.hidden) || spread.textBoxes.some(t=>!t.hidden&&t.text.trim()) || !!spread.backgroundPattern)
   function alignRect(rect:GuideRect, id?:string, anchor?:string, threshold=6/stageScale) {
     const keys=transformKeys.length?transformKeys:id?spreadLayers(spread!).filter(l=>l.id===id).map(l=>l.kind+':'+l.id):[]
-    const result=snapRect({...rect,keys},guideTargets(keys),STAGE_WIDTH,stageHeight,threshold,anchor,[...(showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH)??[] : []),...guideTargets(keys).flatMap(t=>[t.x-(spread?.gapPx??0),t.x+t.width+(spread?.gapPx??0)])],[...(showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight)??[] : []),...guideTargets(keys).flatMap(t=>[t.y-(spread?.gapPx??0),t.y+t.height+(spread?.gapPx??0)])],spread?.gapPx??0)
+    const result=snapRect({...rect,keys},guideTargets(keys),STAGE_WIDTH,stageHeight,threshold,anchor,[...pageReferenceX,...(showGuides ? spread?.guides.vertical.map(v=>v*STAGE_WIDTH)??[] : []),...guideTargets(keys).flatMap(t=>[t.x-(spread?.gapPx??0),t.x+t.width+(spread?.gapPx??0)])],[...pageReferenceY,...(showGuides ? spread?.guides.horizontal.map(v=>v*stageHeight)??[] : []),...guideTargets(keys).flatMap(t=>[t.y-(spread?.gapPx??0),t.y+t.height+(spread?.gapPx??0)])],spread?.gapPx??0)
     setSmartGuides(result.guides)
     // Nothing leaves the spread. Every frame, photo and text drag and every unrotated transform
     // comes through here, so this is the one wall they all hit — but a move and a resize have to
@@ -794,6 +800,7 @@ export default function DesignerCanvas() {
   const marqueeStart=useRef<{x:number;y:number;base:string[]} | null>(null)
   const marqueeRect=useRef<GuideRect|null>(null)
   const [marquee,setMarquee]=useState<GuideRect|null>(null)
+  const [dropGhost,setDropGhost]=useState<{x:number;y:number;width:number;height:number}|null>(null)
   function currentLayerSelection() {
     const state=useProjectStore.getState()
     if(state.selectedLayerKeys.length)return state.selectedLayerKeys
@@ -948,6 +955,69 @@ export default function DesignerCanvas() {
     setPhotoContextMenu({ openedAt: Date.now(), x: mouseEvt.clientX, y: mouseEvt.clientY, placeholderId })
   }
 
+  // The Rounded Edge tool: with an image selected, each corner has a handle; dragging one rounds that corner alone. Nothing is written to the
+  // history until the handle is let go (a drag is one undo step), and the other three corners keep the radius they had.
+  const roundDragRef = useRef<{ index: number; original: Partial<PlacedPhoto>; latest: [number, number, number, number]; frame: number } | null>(null)
+  const roundedRadii = (pl: PlacedPhoto): [number, number, number, number] => pl.frameStyle === 'rounded' ? (pl.cornerRadiiPx ?? [pl.cornerRadiusPx, pl.cornerRadiusPx, pl.cornerRadiusPx, pl.cornerRadiusPx]) : [0, 0, 0, 0]
+  function startRounding(index: number, box: { placeholderId: string; x: number; y: number; width: number; height: number }, placement: PlacedPhoto, event: Konva.KonvaEventObject<MouseEvent>) {
+    if (event.evt.button !== 0 || !spread || placement.locked) return
+    event.cancelBubble = true
+    const spreadId = spread.id, rotation = (placement.rotationDeg ?? 0) * Math.PI / 180
+    const original: Partial<PlacedPhoto> = { frameStyle: placement.frameStyle, cornerRadiusPx: placement.cornerRadiusPx, cornerRadiiPx: placement.cornerRadiiPx }
+    const drag = { index, original, latest: roundedRadii(placement), frame: 0 }
+    roundDragRef.current = drag
+    const live = (patch: Partial<PlacedPhoto>) => useProjectStore.setState(state => ({ project: { ...state.project, spreads: state.project.spreads.map(sp => sp.id !== spreadId ? sp : { ...sp, placements: sp.placements.map(pl => pl.placeholderId === box.placeholderId ? { ...pl, ...patch } : pl) }) } }))
+    const patchFor = (radii: [number, number, number, number]): Partial<PlacedPhoto> => radii.every(r => r === radii[0]) ? { frameStyle: radii[0] > 0 ? 'rounded' : placement.frameStyle, cornerRadiusPx: radii[0], cornerRadiiPx: undefined } : { frameStyle: 'rounded', cornerRadiusPx: Math.max(...radii), cornerRadiiPx: radii }
+    const move = (e: PointerEvent) => {
+      const rect = containerRef.current?.getBoundingClientRect(); if (!rect) return
+      // The pointer in the frame's own turned space, measured in from the corner being dragged along both edges.
+      const px = (e.clientX - rect.left - stagePos.x) / stageScale - (box.x + box.width / 2), py = (e.clientY - rect.top - stagePos.y) / stageScale - (box.y + box.height / 2)
+      const lx = px * Math.cos(-rotation) - py * Math.sin(-rotation), ly = px * Math.sin(-rotation) + py * Math.cos(-rotation)
+      const sx = index === 0 || index === 3 ? -1 : 1, sy = index < 2 ? -1 : 1
+      const inward = ((lx - sx * box.width / 2) * -sx + (ly - sy * box.height / 2) * -sy) / 2
+      const radius = Math.round(Math.max(0, Math.min(inward, box.width / 2, box.height / 2)))
+      const next = [...drag.latest] as [number, number, number, number]; next[index] = radius
+      drag.latest = next
+      if (!drag.frame) drag.frame = requestAnimationFrame(() => { drag.frame = 0; live(patchFor(drag.latest)) })
+    }
+    const finish = (commit: boolean) => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel)
+      if (drag.frame) cancelAnimationFrame(drag.frame); drag.frame = 0
+      roundDragRef.current = null
+      live(original)
+      if (commit && drag.latest.some((r, i) => r !== roundedRadii(placement)[i])) useProjectStore.getState().updatePlacement(spreadId, box.placeholderId, patchFor(drag.latest))
+    }
+    const up = () => finish(true), cancel = () => finish(false)
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel)
+  }
+  /** A frame of this photograph's own proportions, about a point of the canvas, kept inside it; as stage units turned into the fractions the store takes. */
+  function exactFrameRect(photo: { width: number; height: number } | undefined, cx: number, cy: number) {
+    const ratio = photo && photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1
+    const h = Math.min(0.45 * stageHeight, (0.4 * STAGE_WIDTH) / ratio), w = h * ratio
+    const x = Math.max(w / 2, Math.min(STAGE_WIDTH - w / 2, cx)), y = Math.max(h / 2, Math.min(stageHeight - h / 2, cy))
+    return { x: (x - w / 2) / STAGE_WIDTH, y: (y - h / 2) / stageHeight, width: w / STAGE_WIDTH, height: h / stageHeight }
+  }
+  /** The frame of a photograph of another shape: its proportions, the old frame's centre and area (shrunk only as far as the canvas needs). */
+  function reshapedFrameRect(box: { x: number; y: number; width: number; height: number }, photo: { width: number; height: number }) {
+    const ratio = photo.width / photo.height
+    let h = Math.sqrt((box.width * box.height) / ratio), w = h * ratio
+    const k = Math.min(1, STAGE_WIDTH / w, stageHeight / h); w *= k; h *= k
+    const x = Math.max(w / 2, Math.min(STAGE_WIDTH - w / 2, box.x + box.width / 2)), y = Math.max(h / 2, Math.min(stageHeight - h / 2, box.y + box.height / 2))
+    return { x: (x - w / 2) / STAGE_WIDTH, y: (y - h / 2) / stageHeight, width: w / STAGE_WIDTH, height: h / stageHeight }
+  }
+  /** What a photograph being dragged over the canvas is about to become: the frame it would fill, or the new frame it would make. */
+  function updateDropGhost(e: React.DragEvent) {
+    const rect = containerRef.current?.getBoundingClientRect(), id = draggedPhotos()[0]
+    const photo = id ? project.photos.find(p => p.id === id) : undefined
+    if (!rect || !photo || !spread) { if (dropGhost) setDropGhost(null); return }
+    const x = (e.clientX - rect.left - stagePos.x) / stageScale, y = (e.clientY - rect.top - stagePos.y) / stageScale
+    const target = findBoxAt(x, y)
+    const next = target && draggedPhotos().length === 1
+      ? (orientationFits(photo, target) || e.ctrlKey || e.metaKey ? { x: target.x / STAGE_WIDTH, y: target.y / stageHeight, width: target.width / STAGE_WIDTH, height: target.height / stageHeight } : reshapedFrameRect(target, photo))
+      : exactFrameRect(photo, x, y)
+    const same = dropGhost && Math.abs(dropGhost.x - next.x) < 0.002 && Math.abs(dropGhost.y - next.y) < 0.002 && Math.abs(dropGhost.width - next.width) < 0.002 && Math.abs(dropGhost.height - next.height) < 0.002
+    if (!same) setDropGhost(next)
+  }
   async function handleContainerDrop(e: React.DragEvent) {
     e.preventDefault()
     e.stopPropagation() // handled here (import + place in one step) — don't also let GlobalDropZone import these
@@ -963,16 +1033,21 @@ export default function DesignerCanvas() {
     const pattern = readDraggedPattern(e.dataTransfer)
     if (pattern) { updateSpread(spread.id, { backgroundPattern: pattern }); return }
 
+    setDropGhost(null)
     // Dragging a photo from the bottom dock onto a frame — the existing "place" path.
-    const dropRect = spread.isCover && boxes.length === 0 ? { x: 0, y: 0, width: 1, height: 1 } : { x: Math.max(0, Math.min(0.7, x / STAGE_WIDTH)), y: Math.max(0, Math.min(0.7, y / stageHeight)), width: 0.3, height: 0.3 }
+    // A photo dropped on empty canvas becomes a frame of its own exact proportions (it used to be a fixed 30% square, whatever the photo).
+    const rectFor = (photo?: { width: number; height: number }) => spread!.isCover && boxes.length === 0 ? { x: 0, y: 0, width: 1, height: 1 } : exactFrameRect(photo, x, y)
     // A dragged multi-selection fills a frame with the first photo and stacks the rest as overlapping frames (one undo step).
     function placeAll(ids: string[]) {
-      // A photo only drops into a frame of its own shape; Ctrl overrides it and crops to the frame.
+      const first = useProjectStore.getState().project.photos.find(p => p.id === ids[0])
+      const dropRect = rectFor(first)
+      // A photo may go into any frame. One of the frame's own shape fills it as it is; a photo of another shape (a landscape on a portrait
+      // frame) gives the frame its exact proportions, about the same centre and of the same area, so nothing is cropped away. Ctrl keeps the
+      // frame as it is and crops the photo to it.
       if (target && ids.length === 1) {
-        const photo = useProjectStore.getState().project.photos.find(p => p.id === ids[0])
-        if (photo && !(e.ctrlKey || e.metaKey) && !orientationFits(photo, target)) {
-          window.dispatchEvent(new CustomEvent('album-studio:preference-notice', { detail: `This frame is ${shapeOf(target.width, target.height)} and the photo is ${shapeOf(photo.width, photo.height)}. Hold Ctrl while dropping to use it anyway — it will be cropped to the frame.` }))
-          return
+        if (first && !(e.ctrlKey || e.metaKey) && !orientationFits(first, target)) {
+          useProjectStore.getState().updateImageFrame(spread!.id, target.placeholderId, reshapedFrameRect(target, first))
+          window.dispatchEvent(new CustomEvent('album-studio:preference-notice', { detail: `The frame now has this ${shapeOf(first.width, first.height)} photo's exact proportions. Hold Ctrl while dropping to keep the frame and crop the photo to it instead.` }))
         }
         setPlacementPhoto(spread!.id, target.placeholderId, ids[0])
       }
@@ -1112,7 +1187,9 @@ export default function DesignerCanvas() {
         onDragOver={(e) => {
           e.preventDefault()
           e.stopPropagation()
+          updateDropGhost(e)
         }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropGhost(null) }}
         onDrop={(e) => void handleContainerDrop(e)}
       >
       <Stage
@@ -1438,8 +1515,25 @@ export default function DesignerCanvas() {
           </Group>)}
         </Layer>}
         <Layer listening={false} name="located-text-highlight">{locatedText && <Rect name="located-text-outline" x={locatedText.x * STAGE_WIDTH} y={locatedText.y * stageHeight} width={locatedText.width * STAGE_WIDTH} height={locatedText.height * stageHeight} stroke={accent} strokeWidth={3 / stageScale} fill={accent+'1f'} />}</Layer>
+        <Layer name="round-handles">{canvasTool==='round'&&selectedBox&&(()=>{
+          const pl=spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)
+          if(!pl||pl.locked||!pl.photoId)return null
+          const radii=roundedRadii(pl),r=6/stageScale,reach=Math.max(selectedBox.width,selectedBox.height)
+          return <Group x={selectedBox.x+selectedBox.width/2} y={selectedBox.y+selectedBox.height/2} rotation={pl.rotationDeg??0}>
+            <Rect name="round-frame-outline" x={-selectedBox.width/2} y={-selectedBox.height/2} width={selectedBox.width} height={selectedBox.height} stroke={accent} strokeWidth={1/stageScale} dash={[6/stageScale,4/stageScale]} listening={false}/>
+            {radii.map((radius,i)=>{
+              const sx=i===0||i===3?-1:1,sy=i<2?-1:1,inset=Math.min(Math.max(radius,14/stageScale),selectedBox.width/2,selectedBox.height/2,reach)
+              return <Circle key={i} name={`round-handle-${i}`} x={sx*(selectedBox.width/2-inset)} y={sy*(selectedBox.height/2-inset)} radius={r} fill="#ffffff" stroke={accent} strokeWidth={2/stageScale} onMouseDown={e=>startRounding(i,selectedBox,pl,e)} onMouseEnter={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor='nwse-resize'}} onMouseLeave={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor=''}}/>
+            })}
+          </Group>
+        })()}</Layer>
+        <Layer listening={false} name="drop-ghost">{dropGhost&&<Rect name="drop-ghost-frame" x={dropGhost.x*STAGE_WIDTH} y={dropGhost.y*stageHeight} width={dropGhost.width*STAGE_WIDTH} height={dropGhost.height*stageHeight} stroke={accent} strokeWidth={2/stageScale} dash={[8/stageScale,5/stageScale]} fill={accent+'26'}/>}</Layer>
         <Layer listening={false} name="selection-marquee">{marquee&&<Rect {...marquee} fill={accent+'1f'} stroke={accent} strokeWidth={1/stageScale}/>}</Layer>
         <Layer name="smart-guides">
+          {guideInteraction&&canvasTool==='select'&&<Group name="page-reference-lines" listening={false}>
+            {pageReferenceX.map(v=><Line key={'rx'+v} points={[v,0,v,stageHeight]} stroke="#2583ff" strokeWidth={1} opacity={.7} strokeScaleEnabled={false}/>)}
+            {pageReferenceY.map(v=><Line key={'ry'+v} points={[pageLeft,v,pageRight,v]} stroke="#2583ff" strokeWidth={1} opacity={.7} strokeScaleEnabled={false}/>)}
+          </Group>}
           {displayedGuides.map((g,i)=>g.matches?<Group key={i} name="matching-size-guide" listening={false}>{g.matches.map((r,j)=>{
             const horizontal=g.axis==='x', x=horizontal?r.x:r.x+r.width+8/stageScale, y=horizontal?r.y-8/stageScale:r.y
             const points=horizontal?[x,y,x+r.width,y]:[x,y,x,y+r.height]

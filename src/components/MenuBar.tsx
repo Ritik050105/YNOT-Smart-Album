@@ -338,6 +338,7 @@ export default function MenuBar() {
         { label: `${canvasTool === 'select' ? '✓ ' : ''}Selection Tool`, shortcut: 'V', onClick: () => setCanvasTool('select') },
         { label: `${canvasTool === 'pan' ? '✓ ' : ''}Hand Tool`, shortcut: 'H', onClick: () => setCanvasTool('pan') },
         { label: `${canvasTool === 'zoom' ? '✓ ' : ''}Zoom Tool`, shortcut: 'Z', onClick: () => setCanvasTool('zoom') },
+        { label: `${canvasTool === 'round' ? '✓ ' : ''}Rounded Edge Tool`, onClick: () => setCanvasTool('round') },
         {
           label: 'Reset Panel Layout',
           onClick: () => {

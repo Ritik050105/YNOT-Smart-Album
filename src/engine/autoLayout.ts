@@ -3,9 +3,10 @@ import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
 import { PhotoAsset, PlaceholderRect, Spread, PlacedPhoto, TemplateDefinition, TextBox } from '@/types'
 import { suggestTemplate, findTemplate, templatesForCount, sequenceCandidates, mixCandidates, showcaseCandidates, TemplateFrameFilter } from './templates'
 import { supportsUniformGap } from './templateLayout'
-import { templateCategory } from './templateTransfer'
+import { mustHoldGap } from './templateTransfer'
 import { applyFaceFraming } from './faceFraming'
 import { crossesTheFold, offeredLayouts, preferEvenLayouts, uniformGapLayouts, varyPatterns } from './layoutOffer'
+import { wantedTemplates } from './templateCounts'
 import { rankTemplates, templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches } from './templateMatching'
 
 export interface AutoLayoutOptions {
@@ -311,7 +312,7 @@ export function buildSpreadsFromGroups(
     if (!side && !candidates.some(t => templateShapeMismatches(group, t, aspectOf, appearance.marginPx, appearance.gapPx) === 0)) {
       const ids = groupDesigns?.[index]?.templateIds ?? enabledTemplateIds, filter = layout.frameFilter ?? 'all'
       const extra = [...mixCandidates(group, group.length, ids, filter, aspectOf), ...showcaseCandidates(group, group.length, ids, filter, aspectOf).filter(t => /left · .*right$/.test(t.name))]
-        .filter(t => !t.textBoxes?.length && !crossesTheFold(t) && (templateCategory(t) !== 'reference' || supportsUniformGap(t.placeholders, aspectOf, appearance.marginPx, appearance.gapPx)))
+        .filter(t => !t.textBoxes?.length && !crossesTheFold(t) && (!mustHoldGap(t) || supportsUniformGap(t.placeholders, aspectOf, appearance.marginPx, appearance.gapPx)))
       candidates = [...candidates, ...extra]
     }
     // (Only when nothing at all is left off the fold does one across it stand in, rather than no layout.)
@@ -459,7 +460,7 @@ export function defaultLayouts(photos: PhotoAsset[], pageSide: Spread['pageSide'
     const pages = showcaseCandidates(ordered, count, enabledTemplateIds, 'all', aspect)
     // A spread normally starts with a library layout; a mix none suits may take the page layouts that fill both pages. A single page takes what sits on its half.
     const pool = (half ? [...library, ...pages].filter(t => !!templateHalf(t)) : withPages ? [...library, ...pages.filter(t => count === 1 ? /-pg[LR](FullPage|InsetPage)$/.test(t.id) : /fill left · .*fill right$/.test(t.name))] : library).filter(usable)
-    return varyPatterns(offeredLayouts(ordered, pool, aspect, marginPx, gapPx, true, strict), t => t, aspect)
+    return varyPatterns(offeredLayouts(ordered, pool, aspect, marginPx, gapPx, true, strict), t => t, aspect, wantedTemplates(ordered))
   }
   for (const ordered of orders) for (const withPages of half ? [true] : [false, true]) { const offered = shelf(ordered, true, withPages); if (offered.length) return offered }
   return shelf(photos, false, true)

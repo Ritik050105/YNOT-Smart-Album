@@ -29,8 +29,14 @@ const make = (n, gap = 6) => {
 
 const { project, spread } = make(6)
 const none = []   // the store hands out one favourites list until it changes, so a test must too
+const coldStart = performance.now()
 const first = m.cyclingTemplates(project, spread, 'all', none)
+const cold = performance.now() - coldStart
 assert.ok(first.length >= 1, 'a six-photo spread has layouts to cycle through')
+// The first press on a set of photographs works the whole list out on the one thread the window runs on, so it freezes the window for as
+// long as it takes: it was about ten seconds for six photographs (a layout search that kept drawing long after it had stopped finding
+// anything new), and is now about a second. Allowed generously, since a loaded machine runs slower.
+assert.ok(cold < 6000, `the first list for a six-photo spread is worked out in under six seconds (${Math.round(cold)} ms)`)
 // A change of layout makes a new spread object. The answer for it is the very same list.
 const changed = { ...spread, templateId: 'something-else', placements: [...spread.placements].reverse().reverse() }
 assert.equal(m.cyclingTemplates(project, changed, 'all', none), first, 'a new spread object with the same photographs gets the same list back')
