@@ -151,6 +151,8 @@ export interface TextBox {
   blendMode?:'source-over'|'multiply'|'screen'|'overlay'|'darken'|'lighten'
   shape?:'rectangle'|'circle'|'triangle'|'line'
   shapeRoundedEnds?:boolean
+  /** A rectangle's corner radii (top left, top right, bottom right, bottom left), in design pixels: the Rounded Edge tool sets one corner at a time. */
+  shapeCornerRadiiPx?:[number,number,number,number]
   shapeStrokeStyle?:'solid'|'dashed'|'short-dashed'|'dotted'
   shapeMode?:'fill'|'stroke'|'both'
   shapeStroke?:string

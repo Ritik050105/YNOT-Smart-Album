@@ -26,7 +26,7 @@ import { isEditableTarget } from '@/engine/keyboard'
 import { importAndDedupe } from '@/engine/importWorkflow'
 import { readDraggedPattern } from '@/engine/patterns'
 import { imageToneFilter, applyBlackWhiteMix } from '@/engine/imageTone'
-import { Spread, FrameStyle, PlacedPhoto } from '@/types'
+import { Spread, FrameStyle, PlacedPhoto, TextBox } from '@/types'
 import Icon from './Icon'
 import GapPresetImportPreview from './GapPresetImportPreview'
 import PhotoContextMenu from './PhotoContextMenu'
@@ -990,6 +990,35 @@ export default function DesignerCanvas() {
     const up = () => finish(true), cancel = () => finish(false)
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel)
   }
+  // The same tool on a rectangle drawn with the shape tool: its own handles, one corner at a time.
+  function startShapeRounding(index: number, shapeBox: TextBox, event: Konva.KonvaEventObject<MouseEvent>) {
+    if (event.evt.button !== 0 || !spread || shapeBox.locked) return
+    event.cancelBubble = true
+    const spreadId = spread.id, rotation = (shapeBox.rotationDeg ?? 0) * Math.PI / 180
+    const w = shapeBox.width * STAGE_WIDTH, h = shapeBox.height * stageHeight, ox = shapeBox.x * STAGE_WIDTH, oy = shapeBox.y * stageHeight
+    const original = shapeBox.shapeCornerRadiiPx
+    const drag = { latest: [...(original ?? [0, 0, 0, 0])] as [number, number, number, number], frame: 0 }
+    const live = (radii: [number, number, number, number] | undefined) => useProjectStore.setState(state => ({ project: { ...state.project, spreads: state.project.spreads.map(sp => sp.id !== spreadId ? sp : { ...sp, textBoxes: sp.textBoxes.map(t => t.id === shapeBox.id ? { ...t, shapeCornerRadiiPx: radii } : t) }) } }))
+    const move = (e: PointerEvent) => {
+      const rect = containerRef.current?.getBoundingClientRect(); if (!rect) return
+      // The pointer in the shape's own turned space (it turns about its top left corner), measured in from the corner being dragged along both edges.
+      const px = (e.clientX - rect.left - stagePos.x) / stageScale - ox, py = (e.clientY - rect.top - stagePos.y) / stageScale - oy
+      const lx = px * Math.cos(-rotation) - py * Math.sin(-rotation), ly = px * Math.sin(-rotation) + py * Math.cos(-rotation)
+      const sx = index === 0 || index === 3 ? 0 : w, sy = index < 2 ? 0 : h
+      const inward = ((lx - sx) * (sx ? -1 : 1) + (ly - sy) * (sy ? -1 : 1)) / 2
+      const next = [...drag.latest] as [number, number, number, number]; next[index] = Math.round(Math.max(0, Math.min(inward, w / 2, h / 2)))
+      drag.latest = next
+      if (!drag.frame) drag.frame = requestAnimationFrame(() => { drag.frame = 0; live(drag.latest) })
+    }
+    const finish = (commit: boolean) => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel)
+      if (drag.frame) cancelAnimationFrame(drag.frame); drag.frame = 0
+      live(original)
+      if (commit && drag.latest.some((r, i) => r !== (original ?? [0, 0, 0, 0])[i])) useProjectStore.getState().updateTextBox(spreadId, shapeBox.id, { shapeCornerRadiiPx: drag.latest })
+    }
+    const up = () => finish(true), cancel = () => finish(false)
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel)
+  }
   /** A frame of this photograph's own proportions, about a point of the canvas, kept inside it; as stage units turned into the fractions the store takes. */
   function exactFrameRect(photo: { width: number; height: number } | undefined, cx: number, cy: number) {
     const ratio = photo && photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1
@@ -1515,7 +1544,18 @@ export default function DesignerCanvas() {
           </Group>)}
         </Layer>}
         <Layer listening={false} name="located-text-highlight">{locatedText && <Rect name="located-text-outline" x={locatedText.x * STAGE_WIDTH} y={locatedText.y * stageHeight} width={locatedText.width * STAGE_WIDTH} height={locatedText.height * stageHeight} stroke={accent} strokeWidth={3 / stageScale} fill={accent+'1f'} />}</Layer>
-        <Layer name="round-handles">{canvasTool==='round'&&selectedBox&&(()=>{
+        <Layer name="round-handles">{canvasTool==='round'&&selectedTextBoxId&&(()=>{
+          const shapeBox=spread.textBoxes.find(t=>t.id===selectedTextBoxId)
+          if(!shapeBox||shapeBox.shape!=='rectangle'||shapeBox.locked||shapeBox.hidden)return null
+          const w=shapeBox.width*STAGE_WIDTH,h=shapeBox.height*stageHeight,radii=shapeBox.shapeCornerRadiiPx??[0,0,0,0]
+          return <Group x={shapeBox.x*STAGE_WIDTH} y={shapeBox.y*stageHeight} rotation={shapeBox.rotationDeg??0}>
+            <Rect name="round-shape-outline" width={w} height={h} stroke={accent} strokeWidth={1/stageScale} dash={[6/stageScale,4/stageScale]} listening={false}/>
+            {radii.map((radius,i)=>{
+              const sx=i===0||i===3?1:-1,sy=i<2?1:-1,inset=Math.min(Math.max(radius,14/stageScale),w/2,h/2)
+              return <Circle key={i} name={`round-shape-handle-${i}`} x={sx>0?inset:w-inset} y={sy>0?inset:h-inset} radius={6/stageScale} fill="#ffffff" stroke={accent} strokeWidth={2/stageScale} onMouseDown={e=>startShapeRounding(i,shapeBox,e)} onMouseEnter={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor='nwse-resize'}} onMouseLeave={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor=''}}/>
+            })}
+          </Group>
+        })()}{canvasTool==='round'&&selectedBox&&(()=>{
           const pl=spread.placements.find(p=>p.placeholderId===selectedBox.placeholderId)
           if(!pl||pl.locked||!pl.photoId)return null
           const radii=roundedRadii(pl),r=6/stageScale,reach=Math.max(selectedBox.width,selectedBox.height)

@@ -368,7 +368,16 @@ export async function drawTextBox(ctx:CanvasRenderingContext2D,box:TextBox,width
    else {ctx.moveTo(w/2,inset);ctx.lineTo(w-inset,h-inset);ctx.lineTo(inset,h-inset);ctx.closePath()}
    if(box.shapeMode!=='stroke')ctx.fill();if(box.shapeMode!=='fill'&&stroke>0)ctx.stroke()
   }
-  else {if(box.shapeMode!=='stroke')ctx.fillRect(0,0,w,h);if(box.shapeMode!=='fill'&&stroke>0)ctx.strokeRect(stroke/2,stroke/2,Math.max(0,w-stroke),Math.max(0,h-stroke))}
+  else {
+   // A rectangle, with a radius for each corner when it has any (the Rounded Edge tool sets them one at a time).
+   const radii=(box.shapeCornerRadiiPx??[0,0,0,0]).map(r=>Math.max(0,r*scale)) as [number,number,number,number]
+   const rect=(x0:number,y0:number,rw:number,rh:number,inset:number)=>{
+    const cap=Math.min(rw,rh)/2,[tl,tr,br,bl]=radii.map(r=>Math.max(0,Math.min(r-inset,cap)))
+    ctx.beginPath();ctx.moveTo(x0+tl,y0);ctx.arcTo(x0+rw,y0,x0+rw,y0+rh,tr);ctx.arcTo(x0+rw,y0+rh,x0,y0+rh,br);ctx.arcTo(x0,y0+rh,x0,y0,bl);ctx.arcTo(x0,y0,x0+rw,y0,tl);ctx.closePath()
+   }
+   if(box.shapeMode!=='stroke'){rect(0,0,w,h,0);ctx.fill()}
+   if(box.shapeMode!=='fill'&&stroke>0){rect(stroke/2,stroke/2,Math.max(0,w-stroke),Math.max(0,h-stroke),stroke/2);ctx.stroke()}
+  }
   ctx.restore();return h
  }
  const art=box.sourceArtwork

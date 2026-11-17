@@ -137,7 +137,9 @@ function varyCore<T>(items: T[], templateOf: (item: T) => TemplateDefinition, as
     // The same arrangement mirrored, or drawn in a smaller or moved block, is not another template: it only moves the pictures about.
     // A layout is only another one's copy within the same structure (what goes on which page, and how each page is set): a layout with the
     // photographs on the other page, or a page full instead of filled, is a different template whatever it looks like.
-    const structure = /^show2-/.test(t.id) ? t.name : ''
+    // (Which pages the photographs are on and how many, not whether a page is "full" or "fill": the same arrangement with the frames run to the trim or
+    // held to the album's margin looks the same, so it is a copy, not another template.)
+    const structure = /^show2-/.test(t.id) ? t.name.replace(/(full|fill) /g, '') : ''
     const look = lookKey(t)
     if (look) { const id = `${head}:${structure}:${look}`; if (looks.has(id)) { const c = copies.get(id); if (c) c.push(item); else copies.set(id, [item]); continue } looks.add(id) }
     // Page layouts rotate by structure, the rest by pattern class, so one press after another is another way of setting the photographs.
@@ -162,7 +164,7 @@ function varyCore<T>(items: T[], templateOf: (item: T) => TemplateDefinition, as
  *  the page, flipped each way, the first of the four readings in order. Two layouts with the same one are "the same template" as far as Next and Previous go. */
 export function pictureKey(t: TemplateDefinition): string {
   const flips = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([fx, fy]) => t.placeholders
-    .map(p => [fx ? 1 - p.x - p.width : p.x, fy ? 1 - p.y - p.height : p.y, fx ? 1 - p.x : p.x + p.width, fy ? 1 - p.y : p.y + p.height].map(v => Math.round(v * 12)).join(','))
+    .map(p => [fx ? 1 - p.x - p.width : p.x, fy ? 1 - p.y - p.height : p.y, fx ? 1 - p.x : p.x + p.width, fy ? 1 - p.y : p.y + p.height].map(v => Math.round(v * 6)).join(','))
     .sort().join('|'))
   return flips.sort()[0]
 }

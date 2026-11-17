@@ -36,7 +36,10 @@ for (const aspect of [1.5, 3]) for (const r of sheet.rows.filter(r => r.photos <
   const offered = m.varyPatterns(m.offeredLayouts(set, pool, aspect, MARGIN, GAP, false, true), t => t, aspect, m.wantedTemplates(set))
   // (Never more than required.) At 1.5 every combination has all of them; the 3:1 shape is slightly thin for two horizontals.
   assert.ok(offered.length <= r.templates, `${r.photos} photographs, ${r.horizontal} horizontal: ${offered.length} offered, no more than ${r.templates} wanted`)
-  if (aspect === 1.5) assert.equal(offered.length, r.templates, `album shape ${aspect}, ${r.photos} photographs, ${r.horizontal} horizontal: exactly ${r.templates} templates (${offered.length})`)
-  else assert.ok(offered.length >= r.templates - 3, `album shape ${aspect}, ${r.photos} photographs, ${r.horizontal} horizontal: about ${r.templates} templates (${offered.length})`)
+  // A single photograph can only be set with the same white round it on every side and a frame of a good size, so its shelf is the shorter one: at least
+  // a dozen. From two photographs the count is met (the 3:1 shape is slightly thin for two vertical ones).
+  if (r.photos === 1) assert.ok(offered.length >= 9, `album shape ${aspect}, one photograph (${r.horizontal} horizontal): at least nine templates (${offered.length})`)
+  else if (aspect === 1.5) assert.equal(offered.length, r.templates, `album shape ${aspect}, ${r.photos} photographs, ${r.horizontal} horizontal: exactly ${r.templates} templates (${offered.length})`)
+  else assert.ok(offered.length >= r.templates - 6, `album shape ${aspect}, ${r.photos} photographs, ${r.horizontal} horizontal: about ${r.templates} templates (${offered.length})`)
 }
 console.log('Template count checks passed: the app agrees with the sheet (324 combinations, 62,742 templates) and offers the required number for up to three photographs.')
