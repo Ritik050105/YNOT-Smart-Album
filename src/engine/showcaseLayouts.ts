@@ -136,6 +136,23 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
     }
     // (A page this narrow is a strip, which no layout is.)
     if (0.5 * aspect >= 0.42) for (const page of [0, 1] as const) out.push({ key: `pg${page ? 'R' : 'L'}Bleed`, name: `1 photo full ${page ? 'right' : 'left'}`, boxes: [[page * 0.5, 0, 0.5, 1]], bleed: [0] })
+    // The photograph in a frame as tall as the spread (to the trim, "full", or to the album's margin, "fill") and as wide as a square, or as its own shape, or
+    // between: at the left edge, in the middle of the left page, at the fold, in the middle of the right page or at the right edge. Squared frames also sit
+    // centred, a little smaller, on a page or on the spread. Every frame suits the photograph's shape (a landscape one is never given a tall frame).
+    const r = ratios[0], kind = shapeKind(r)
+    const frameRatios = (kind === 2 ? [r] : [0, 0.25, 0.5, 0.75, 1].map(t => (kind === 0 ? 1 + (r - 1) * t : r + (1 - r) * t))).filter((v, i, all) => all.findIndex(u => Math.abs(u - v) < 0.04) === i)
+    const POSITIONS: [name: string, at: (w: number) => number][] = [['far left', () => 0], ['left', w => (0.5 - w) / 2], ['inner left', w => 0.5 - w], ['centre', w => 0.5 - w / 2], ['inner right', () => 0.5], ['right', w => 0.5 + (0.5 - w) / 2], ['far right', w => 1 - w]]
+    for (const rho of frameRatios) {
+      const w = rho / aspect, word = Math.abs(rho - 1) < 0.04 ? 'squared' : 'frame'
+      if (w > 1 || w < 0.1) continue
+      const spots = w <= 0.5 ? POSITIONS : POSITIONS.filter(([name]) => ['far left', 'centre', 'far right'].includes(name))
+      for (const [name, at] of spots) for (const mode of ['full', 'fill'] as const) out.push({ key: `col${Math.round(rho * 100)}${name.replace(' ', '')}${mode}`, name: `1 photo ${mode} ${word} ${name}`, boxes: [[at(w), 0, w, 1]], ...(mode === 'full' ? { bleed: [0] } : {}) })
+    }
+    if (kind !== 2 || Math.abs(r - 1) < 0.04) for (const h of [0.92, 0.84, 0.76, 0.68]) {
+      const w = h / aspect
+      if (w > 0.5 - 0.02 / aspect) continue
+      for (const [name, at] of [['left', (0.5 - w) / 2], ['right', 0.5 + (0.5 - w) / 2], ['spread', 0.5 - w / 2]] as [string, number][]) out.push({ key: `sqc${Math.round(h * 100)}${name}`, name: `1 photo squared ${name}`, boxes: [[at, (1 - h) / 2, w, h]] })
+    }
   }
   // The set in a block of its own proportions (tall to wide) or as a grid of squares, set in the spread or on either page with the same white on the
   // sides that matter: on a page the block is as tall as the page allows less a margin at the top and the bottom, and sits that margin from the page's outer
@@ -173,7 +190,13 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
       out.push({ key: `pg${page ? 'R' : 'L'}${o.key}`, name: `${photosWord(n)} ${modeWord(o.mode)}${page ? 'right' : 'left'}`, boxes: o.boxes, ...(o.bleed ? { bleed: o.boxes.map((_, q) => q) } : {}) })
     }
   }
-  if (n === 1) { addNested(); return out }
+  if (n === 1) {
+    addNested()
+    // The classic single-photograph templates lead, in the order a designer lists them; the columns and the squares follow.
+    const lead = ['1 photo full spread', '1 photo fill spread', '1 photo full right', '1 photo fill right', '1 photo full left', '1 photo fill left', '1 photo right', '1 photo left', '1 photo spread', '1 photo squared spread', '1 photo squared right', '1 photo squared left']
+    const rank = (v: Variant) => { const i = lead.indexOf(v.name); return i < 0 ? lead.length : i }
+    return out.map((v, i) => ({ v, i })).sort((x, y) => rank(x.v) - rank(y.v) || x.i - y.i).map(x => x.v)
+  }
   // Split between the two pages, near the middle first (every split for a short set, a few for a long one).
   const mid = Math.floor(n / 2), order = Array.from({ length: n - 1 }, (_, i) => i + 1).sort((p, q) => Math.abs(p - mid) - Math.abs(q - mid) || p - q)
   const splits = new Set(order.slice(0, n > 12 ? 10 : n - 1))
@@ -285,6 +308,9 @@ export function balancedWhite(boxes: Box[], aspect: number, tolerance = 0.03): b
     if (frames.reduce((sum, b) => sum + b[2] * b[3], 0) < 0.3 * (to - from) - 1e-9) return false
     const top = y0, bottom = 1 - y1, lm = (x0 - from) * aspect, rm = (to - x1) * aspect
     if (Math.abs(top - bottom) > tolerance) return false
+    // A single frame as tall as the spread, at the left, in the middle or at the right, has no white above or below to be unequal: it is a column, not a
+    // floating picture, and (with the 30% cover above) no stamp.
+    if (frames.length === 1 && top <= 0.02 && bottom <= 0.02) continue
     if (page === 'S') { if (Math.abs(lm - rm) > tolerance) return false; continue }
     const outer = page === 'L' ? lm : rm, inner = page === 'L' ? rm : lm
     // Either the white above, below and outside is equal, or the group is centred on its page (the same white at both sides and so the same above and

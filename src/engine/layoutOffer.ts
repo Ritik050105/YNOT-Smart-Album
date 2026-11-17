@@ -47,6 +47,8 @@ export function uniformGapLayouts(templates: TemplateDefinition[], aspect: numbe
  *  strip, and a photograph cropped into one loses most of itself. Designers can still draw one by hand. */
 const NORMAL_RATIO = 2.5
 export function normalFrames(t: TemplateDefinition, aspect: number) {
+  // A single photograph given the whole spread or a whole page is the template as it is, however wide the spread.
+  if (t.placeholders.length === 1 && /-(spreadBleed|spreadMargin|pg[LR]Bleed)$/.test(t.id)) return true
   return t.placeholders.every(p => { const ratio = (p.width * aspect) / p.height; return ratio <= NORMAL_RATIO && ratio >= 1 / NORMAL_RATIO })
 }
 
@@ -94,7 +96,9 @@ const MIN_PER_SPLIT = 12
  *  the photographs' own proportions pass at once. Designers' own templates are left as they are. */
 export function wellCovered(photos: PhotoAsset[], templates: TemplateDefinition[], aspect: number, keepOrder = false): TemplateDefinition[] {
   if (!photos.length) return templates
-  const judged = templates.filter(t => t.isBuiltIn && t.placeholders.length === photos.length)
+  // A single photograph given the whole spread or a whole page (to the trim or to the margin) is the template as it is, however much of the picture the
+  // frame's shape takes, and so is a squared frame (a square crop of the photograph is what the template is): they are exempt, as the designer's own are.
+  const judged = templates.filter(t => t.isBuiltIn && t.placeholders.length === photos.length && !(photos.length === 1 && (/-(spreadBleed|spreadMargin|pg[LR]Bleed)$/.test(t.id) || /squared/.test(t.name))))
   if (judged.length < 2) return templates
   const losses = new Map(judged.map(t => { const l = cropLosses(photos, t, aspect, keepOrder); return [t.id, { max: Math.max(...l), mean: l.reduce((a, v) => a + v, 0) / l.length }] as const }))
   const keep = (maxLoss: number, meanLoss: number) => templates.filter(t => !losses.has(t.id) || (losses.get(t.id)!.max <= maxLoss && losses.get(t.id)!.mean <= meanLoss))
@@ -164,7 +168,8 @@ function varyCore<T>(items: T[], templateOf: (item: T) => TemplateDefinition, as
     // photographs on the other page, or a page full instead of filled, is a different template whatever it looks like.
     // (Which pages the photographs are on and how many, not whether a page is "full" or "fill": the same arrangement with the frames run to the trim or
     // held to the album's margin looks the same, so it is a copy, not another template.)
-    const structure = /^show2-/.test(t.id) ? t.name.replace(/(full|fill) /g, '') : ''
+    // (A single photograph keeps its words: "full left", "fill left" and "left" are three templates, not three sizes of one.)
+    const structure = /^show2-/.test(t.id) ? (t.placeholders.length === 1 ? t.name : t.name.replace(/(full|fill) /g, '')) : ''
     const look = lookKey(t)
     if (look) { const id = `${head}:${structure}:${look}`; if (looks.has(id)) { const c = copies.get(id); if (c) c.push(item); else copies.set(id, [item]); continue } looks.add(id) }
     // Page layouts rotate by structure, the rest by pattern class, so one press after another is another way of setting the photographs.

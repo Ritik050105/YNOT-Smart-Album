@@ -4,51 +4,47 @@ Measured by `node scripts/count-templates.mjs` on the rearranging shelf (every p
 
 ## Album shape 3 (spread width / height)
 
-Album shape 3: 323 of 324 combinations have the required count (62729 templates offered of 62742 required) in 321 s
+Album shape 3: 324 of 324 combinations have the required count (62742 templates offered of 62742 required) in 276 s
 
-Short:
-
-- 1 photos, 0 horizontal / 1 vertical: 14 of 27
+Every combination has the required count.
 
 ## Album shape 2 (spread width / height)
 
-Album shape 2: 324 of 324 combinations have the required count (62742 templates offered of 62742 required) in 237 s
+Album shape 2: 324 of 324 combinations have the required count (62742 templates offered of 62742 required) in 255 s
 
 Every combination has the required count.
 
 ## Album shape 1.5 (spread width / height)
 
-Album shape 1.5: 322 of 324 combinations have the required count (62725 templates offered of 62742 required) in 231 s
+Album shape 1.5: 323 of 324 combinations have the required count (62739 templates offered of 62742 required) in 254 s
 
 Short:
 
-- 1 photos, 1 horizontal / 0 vertical: 22 of 36
 - 6 photos, 6 horizontal / 0 vertical: 197 of 200
 
 ## Album shape 1.25 (spread width / height)
 
-Album shape 1.25: 323 of 324 combinations have the required count (62725 templates offered of 62742 required) in 267 s
+Album shape 1.25: 323 of 324 combinations have the required count (62731 templates offered of 62742 required) in 286 s
 
 Short:
 
-- 1 photos, 1 horizontal / 0 vertical: 19 of 36
+- 1 photos, 1 horizontal / 0 vertical: 25 of 36
 
 ## Album shape 1 (spread width / height)
 
-Album shape 1: 322 of 324 combinations have the required count (62720 templates offered of 62742 required) in 219 s
+Album shape 1: 323 of 324 combinations have the required count (62727 templates offered of 62742 required) in 234 s
 
 Short:
 
-- 1 photos, 0 horizontal / 1 vertical: 20 of 27
 - 1 photos, 1 horizontal / 0 vertical: 21 of 36
 
 ## Album shape 0.6777 (spread width / height)
 
-Album shape 0.6777: 304 of 324 combinations have the required count (62187 templates offered of 62742 required) in 242 s
+Album shape 0.6777: 304 of 324 combinations have the required count (62186 templates offered of 62742 required) in 256 s
 
 Short:
 
-- 1 photos, 0 horizontal / 1 vertical: 18 of 27
+- 1 photos, 0 horizontal / 1 vertical: 17 of 27
 - 1 photos, 1 horizontal / 0 vertical: 4 of 36
 - 2 photos, 0 horizontal / 2 vertical: 29 of 33
 - 2 photos, 2 horizontal / 0 vertical: 22 of 62

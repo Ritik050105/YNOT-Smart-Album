@@ -38,7 +38,12 @@ for (const aspect of [1.5, 3]) for (const r of sheet.rows.filter(r => r.photos <
   assert.ok(offered.length <= r.templates, `${r.photos} photographs, ${r.horizontal} horizontal: ${offered.length} offered, no more than ${r.templates} wanted`)
   // A single photograph can only be set with the same white round it on every side and a frame of a good size, so its shelf is the shorter one: at least
   // a dozen. From two photographs the count is met (the 3:1 shape is slightly thin for two vertical ones).
-  if (r.photos === 1) assert.ok(offered.length >= 9, `album shape ${aspect}, one photograph (${r.horizontal} horizontal): at least nine templates (${offered.length})`)
+  if (r.photos === 1) {
+    assert.equal(offered.length, r.templates, `album shape ${aspect}, one photograph (${r.horizontal} horizontal): exactly ${r.templates} templates (${offered.length})`)
+    // The single-photograph templates a designer lists: the whole spread to the trim and to the margin, each page to the trim and to the margin, inset on a page,
+    // centred on the spread, and squared frames, none of them a resized copy of another.
+    if (r.horizontal) for (const name of aspect >= 2 ? ['full spread', 'fill spread', 'full left', 'fill left', 'full right', 'fill right', 'squared'] : ['full spread', 'fill spread', 'squared']) assert.ok(offered.some(t => t.name.includes(name)), `album shape ${aspect}: a "${name}" template is offered for one horizontal photograph (${offered.map(t => t.name.replace("Showcase · ", "")).join("; ")})`)
+  }
   else if (aspect === 1.5) assert.equal(offered.length, r.templates, `album shape ${aspect}, ${r.photos} photographs, ${r.horizontal} horizontal: exactly ${r.templates} templates (${offered.length})`)
   else assert.ok(offered.length >= r.templates - 6, `album shape ${aspect}, ${r.photos} photographs, ${r.horizontal} horizontal: about ${r.templates} templates (${offered.length})`)
 }
