@@ -236,7 +236,19 @@ export function lookKey(t: TemplateDefinition): string {
       return [q(left), q(top), q(left + ww), q(top + hh)].join(',')
     }).sort().join('|')
   }
-  const variants = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([fx, fy]) => (fx ? [...sides].reverse() : sides).map(list => topology(list, fx, fy)).join('/'))
+  // What a page's block is, apart from its size: as wide as the page, nearly so, a column or a narrow one; as tall as the page or held in white; at the outer
+  // edge, the middle or the inner edge; run to the trim or not. A full-height column at the edge and the same tiling set in a block with white round it are
+  // two templates; the block with 3.5% white and the one with 13% are one.
+  const placed = (list: typeof f, fx: number, page: number) => {
+    if (!list.length) return ''
+    const span = crossing ? 1 : 0.5, x0 = Math.min(...list.map(p => p.x)), x1 = Math.max(...list.map(p => p.x + p.width))
+    const y0 = Math.min(...list.map(p => p.y)), y1 = Math.max(...list.map(p => p.y + p.height)), w = (x1 - x0) / span, free = span - (x1 - x0)
+    const left = (fx ? 1 - x1 : x0) - (crossing ? 0 : 0.5 * page)
+    const at = free < 0.04 * span ? 'c' : 'LCR'[Math.round((left / free) * 2)] ?? 'c'
+    const tall = y1 - y0 >= 0.97
+    return `${w >= 0.97 ? 'W' : tall ? 'c' + Math.round(w * 10) : w >= 0.75 ? 'V' : w >= 0.5 ? 'm' : 'n'}${tall ? 'H' : 'i'}${at}${list.some(p => p.bleed) ? 'b' : ''}`
+  }
+  const variants = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([fx, fy]) => (fx ? [...sides].reverse() : sides).map((list, page) => placed(list, fx, page) + topology(list, fx, fy)).join('/'))
   // (A layout on the left page and its mirror on the right are one look: the right-hand copy is only where the same design sits.)
   return (crossing ? 'X' : sides[0].length && sides[1].length ? 'B' : 'S') + variants.sort()[0]
 }

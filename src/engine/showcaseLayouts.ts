@@ -16,6 +16,9 @@ import { MAX_PHOTOS_PER_SPREAD } from './spreadLimits'
 
 const RATIO = [1.5, 2 / 3, 1]
 const shapeKind = (ratio: number) => ratio > 1.15 ? 0 : ratio < 1 / 1.15 ? 1 : 2
+/** The frame shapes (width to height) a photograph of this proportion may be given: its own, a square, and those between (a wide one is never given a tall
+ *  frame, nor a tall one a wide one). */
+const frameRatiosOf = (r: number) => (shapeKind(r) === 2 ? [r] : [0, 0.25, 0.5, 0.75, 1].map(t => (shapeKind(r) === 0 ? 1 + (r - 1) * t : r + (1 - r) * t))).filter((v, i, all) => all.findIndex(u => Math.abs(u - v) < 0.04) === i)
 
 /** `bleed` lists the frames that run to the trim; `moved` marks a layout drawn for the photographs in another order (one picked out to fill a
  *  page), which only the rearranging browser row can use. */
@@ -92,26 +95,63 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
   /** Every way to set these photographs on one page, as boxes in the spread. One photograph can fill the page, be held inset, or be smaller
    *  (two sizes) and set in the middle, at an edge or in a corner of the inset page (anchors run from the inner edge to the outer one and from the
    *  top to the bottom); more than one are tiled, filling the page or held inset. */
-  type Option = { key: string; boxes: Box[]; bleed?: boolean; mode: Mode }
+  type Option = { key: string; boxes: Box[]; bleed?: boolean; mode: Mode; fam: string }
+  // A page is set with a little white round it in a few steps only: more steps of white are the same layout in another size.
+  const margins = (count: number) => marginsFor(count, aspect).filter(([, m]) => n === 1 || m <= 0.13)
+  /** Frames of a chosen shape as tall as the page (run to the trim, "full", or to the album's margin, "fill"), at the outer edge, in the middle or at the inner
+   *  edge of the page: a vertical, a squared or a horizontal frame (a set of photographs is tiled in a block of that shape). These are different templates, not
+   *  one template in several sizes. A band as wide as the page and not as tall is the horizontal one. */
+  const familyOptions = (sub: number[], page: 0 | 1): Option[] => {
+    const out: Option[] = [], pageAspect = 0.5 * aspect
+    const shapes = sub.length === 1 ? frameRatiosOf(sub[0]) : sub.length > 8 ? [1] : sub.length > 4 ? [0.8, 1.3] : [0.9, 1, 1.15, 1.3, 1.45]
+    const spots: [string, (w: number) => number][] = [['outer', w => (page ? 1 - w : 0)], ['centre', w => page * 0.5 + (0.5 - w) / 2], ['inner', w => (page ? 0.5 : 0.5 - w)]]
+    for (const A of shapes) {
+      const w = A / aspect
+      if (w > 0.5 - 0.02 / aspect || w / 0.5 < (sub.length === 1 ? 0.5 : 0.58)) continue
+      for (const l of sub.length === 1 ? [[[0, 0, 1, 1]] as Box[]] : blockLayouts(sub, A, sub.length <= 4 ? 4 : 2)) for (const [name, at] of spots) {
+        if (sub.length > 1 && name === 'inner') continue
+        for (const mode of ['full', 'fill'] as const) {
+          const boxes = into({ x: at(w), y: 0, w, h: 1 }, l)
+          if (fits(boxes, sub.length === 1 ? Math.min(0.07, 0.15 * aspect) : floor)) out.push({ key: `k${Math.round(A * 100)}${name}${mode[1]}-${out.length}`, boxes, mode, bleed: mode === 'full', fam: `k${Math.round(A * 100)}${name}` })
+        }
+      }
+    }
+    if (sub.length > 1 && sub.length <= 6) for (const A of [2, 2.6]) {
+      if (A <= pageAspect * 1.15) continue
+      const b = { x: page * 0.5, y: 0, w: 0.5, h: pageAspect / A }; b.y = (1 - b.h) / 2
+      blockLayouts(sub, A, 2).forEach((l, i) => { const boxes = into(b, l); if (fits(boxes)) out.push({ key: `band${Math.round(A * 100)}-${i}`, boxes, mode: 'loose', fam: `band${Math.round(A * 100)}` }) })
+    }
+    return out
+  }
+  /** Round-robin over the families, so the first of a list are one of each kind and not several of the same. */
+  const diversified = (list: Option[]): Option[] => {
+    const byFam = new Map<string, Option[]>()
+    for (const o of list) { const g = byFam.get(o.fam); if (g) g.push(o); else byFam.set(o.fam, [o]) }
+    const out: Option[] = []
+    for (let d = 0; out.length < list.length; d++) for (const g of byFam.values()) if (g[d]) out.push(g[d])
+    return out
+  }
   const options = (sub: number[], page: 0 | 1, limit: number): Option[] => {
     const list: Option[] = []
     if (sub.length === 1) {
-      for (const [name, margin] of marginsFor(sub.length, aspect)) { const b = block(page, margin); list.push({ key: name.replace(/ /g, ''), boxes: into(b, blockLayouts(sub, aspectOf(b), 1)[0]), mode: margin === 0 ? 'fill' : 'loose' }) }
+      for (const [name, margin] of margins(sub.length)) { const b = block(page, margin); list.push({ key: name.replace(/ /g, ''), boxes: into(b, blockLayouts(sub, aspectOf(b), 1)[0]), mode: margin === 0 ? 'fill' : 'loose', fam: margin === 0 ? 'page' : 'inset' }) }
       // The page edge to edge, to the trim.
-      if (0.5 * aspect >= 0.42) list.push({ key: 'Bleed', boxes: [[page * 0.5, 0, 0.5, 1]], bleed: true, mode: 'full' })
+      if (0.5 * aspect >= 0.42) list.push({ key: 'Bleed', boxes: [[page * 0.5, 0, 0.5, 1]], bleed: true, mode: 'full', fam: 'page' })
+      if (n > 1) list.push(...familyOptions(sub, page))
       // A single photograph on a narrow page is small whatever is done, so it is only asked not to be a stamp.
-      return list.filter(o => fits(o.boxes, Math.min(0.07, 0.15 * aspect)))
+      return diversified(list.filter(o => fits(o.boxes, Math.min(0.07, 0.15 * aspect))))
     }
-    for (const [, margin, tag] of marginsFor(sub.length, aspect)) {
+    for (const [, margin, tag] of margins(sub.length)) {
       const b = block(page, margin)
       blockLayouts(sub, aspectOf(b), limit).forEach((l, i) => {
         const boxes = into(b, l)
         if (!fits(boxes)) return
-        list.push({ key: `${tag}${i}`, boxes, mode: margin === 0 ? 'fill' : 'loose' })
+        list.push({ key: `${tag}${i}`, boxes, mode: margin === 0 ? 'fill' : 'loose', fam: margin === 0 ? `page${i}` : 'inset' })
         // The same tiling run to the trim, the frames flush: the page "full".
-        if (margin === 0) list.push({ key: `B${i}`, boxes, bleed: true, mode: 'full' })
+        if (margin === 0) list.push({ key: `B${i}`, boxes, bleed: true, mode: 'full', fam: `page${i}` })
       })
     }
+    list.push(...familyOptions(sub, page))
     // The set in a block of its own natural proportion (a row, a column, or between), centred on the page with the same white at both sides and above and
     // below: a wide and a tall photograph side by side, say, make a block far wider than a square page, so they are set in a band across it.
     if (sub.length <= 6) {
@@ -120,10 +160,10 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
         const w = Math.min(((1 - 2 * e) * A) / aspect, 0.5 - (2 * e) / aspect), h = (w * aspect) / A
         if (w <= 0 || h <= 0 || h > 1 - 2 * e + 1e-9) continue
         const b = { x: page * 0.5 + (0.5 - w) / 2, y: (1 - h) / 2, w, h }
-        blockLayouts(sub, A, 2).forEach((l, i) => { const boxes = into(b, l); if (fits(boxes)) list.push({ key: `c${Math.round(A * 100)}e${Math.round(e * 100)}-${i}`, boxes, mode: 'loose' }) })
+        blockLayouts(sub, A, 2).forEach((l, i) => { const boxes = into(b, l); if (fits(boxes)) list.push({ key: `c${Math.round(A * 100)}e${Math.round(e * 100)}-${i}`, boxes, mode: 'loose', fam: 'natural' }) })
       }
     }
-    return list
+    return diversified(list)
   }
   // One photograph can also run to the trim: the whole spread, or a whole page, edge to edge, or the spread held to the album's margin.
   if (n === 1) {
@@ -140,7 +180,7 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
     // between: at the left edge, in the middle of the left page, at the fold, in the middle of the right page or at the right edge. Squared frames also sit
     // centred, a little smaller, on a page or on the spread. Every frame suits the photograph's shape (a landscape one is never given a tall frame).
     const r = ratios[0], kind = shapeKind(r)
-    const frameRatios = (kind === 2 ? [r] : [0, 0.25, 0.5, 0.75, 1].map(t => (kind === 0 ? 1 + (r - 1) * t : r + (1 - r) * t))).filter((v, i, all) => all.findIndex(u => Math.abs(u - v) < 0.04) === i)
+    const frameRatios = frameRatiosOf(r)
     const POSITIONS: [name: string, at: (w: number) => number][] = [['far left', () => 0], ['left', w => (0.5 - w) / 2], ['inner left', w => 0.5 - w], ['centre', w => 0.5 - w / 2], ['inner right', () => 0.5], ['right', w => 0.5 + (0.5 - w) / 2], ['far right', w => 1 - w]]
     for (const rho of frameRatios) {
       const w = rho / aspect, word = Math.abs(rho - 1) < 0.04 ? 'squared' : 'frame'
@@ -180,6 +220,8 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
   }
   // Everything on one page, either page.
   const PER = n > 8 ? 2 : 3
+  // How many pairings of a left page with a right page are made for each way the pages are set.
+  const PAIRS = n <= 4 ? 20 : n <= 8 ? 5 : n <= 12 ? 3 : 2
   for (const page of [0, 1] as const) {
     const taken: Record<Mode, number> = { full: 0, fill: 0, loose: 0 }
     for (const o of options(ratios, page, n > 8 ? 6 : 8)) {
@@ -210,7 +252,7 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
       const A = left.filter(o => o.mode === ml), B = right.filter(o => o.mode === mr)
       if (!A.length || !B.length) continue
       const seenPair = new Set<string>()
-      for (let t = 0; t < PER * (ml === 'loose' || mr === 'loose' ? 3 : 1) && seenPair.size < PER * (ml === 'loose' || mr === 'loose' ? 3 : 1); t++) {
+      for (let t = 0; t < PAIRS * (ml === 'loose' || mr === 'loose' ? 2 : 1) && seenPair.size < PAIRS * (ml === 'loose' || mr === 'loose' ? 2 : 1); t++) {
         const a = A[t % A.length], b = B[(t * 2 + 1) % B.length], id = `${a.key}-${b.key}`
         if (seenPair.has(id)) continue
         seenPair.add(id)
@@ -262,6 +304,20 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
       out.push({ key: `spFull${i}`, name: `${photosWord(n)} full spread`, boxes, bleed: boxes.map((_, q) => q) })
     })
   }
+  // The whole set tiled in a block as tall as the spread and as wide as its shape asks, in the middle of the spread (so the white at the two sides is
+  // equal): run to the trim above and below ("full") or to the album's margin ("fill"). A tall block, a squarer one, a wide one: different templates.
+  if (n >= 2 && n <= 12) {
+    for (const A of [1.4, 1.8, 2.2, 2.6]) {
+      const w = A / aspect
+      if (w < 0.45 || w > 0.94) continue
+      blockLayouts(ratios, A, 3).forEach((l, i) => {
+        const boxes = into({ x: 0.5 - w / 2, y: 0, w, h: 1 }, l)
+        if (!fits(boxes)) return
+        out.push({ key: `sc${Math.round(A * 100)}fill-${i}`, name: `${photosWord(n)} fill block spread`, boxes })
+        out.push({ key: `sc${Math.round(A * 100)}full-${i}`, name: `${photosWord(n)} full block spread`, boxes, bleed: boxes.map((_, q) => q) })
+      })
+    }
+  }
   // The whole set tiled in one block across the spread, as tall as the spread or a band of it (nine tenths, four fifths...): each height is a
   // different shape to tile, so these are different arrangements, not the same one resized, and the spread is used to near its edges.
   if (n >= 2 && n <= 12) {
@@ -295,7 +351,7 @@ function pageVariants(ratios: number[], aspect: number): Variant[] {
 }
 
 /** Whether a layout's white space is even and its frames are not small for the page they are on. Each group of frames (the left page's, the right page's, or
- *  all of them when one crosses the fold) must cover at least 30% of its page or spread; on a page the white above and below the group, and on its outer
+ *  all of them when one crosses the fold) must cover at least 30% of its page or spread (40% when it is a group of several, which are not to be small blocks in a sea of white); on a page the white above and below the group, and on its outer
  *  side, must be equal (the inner side, at the fold, is free); on the spread the white above and below must be equal, and at the two sides. Frames
  *  that run to the trim or to the album's margin have none, which is equal. */
 export function balancedWhite(boxes: Box[], aspect: number, tolerance = 0.03): boolean {
@@ -305,7 +361,7 @@ export function balancedWhite(boxes: Box[], aspect: number, tolerance = 0.03): b
   if (!crossing) { if (left.length) groups.push({ frames: left, from: 0, to: 0.5, page: 'L' }); if (right.length) groups.push({ frames: right, from: 0.5, to: 1, page: 'R' }) }
   for (const { frames, from, to, page } of groups) {
     const x0 = Math.min(...frames.map(b => b[0])), x1 = Math.max(...frames.map(b => b[0] + b[2])), y0 = Math.min(...frames.map(b => b[1])), y1 = Math.max(...frames.map(b => b[1] + b[3]))
-    if (frames.reduce((sum, b) => sum + b[2] * b[3], 0) < 0.3 * (to - from) - 1e-9) return false
+    if (frames.reduce((sum, b) => sum + b[2] * b[3], 0) < (frames.length > 1 ? 0.4 : 0.3) * (to - from) - 1e-9) return false
     const top = y0, bottom = 1 - y1, lm = (x0 - from) * aspect, rm = (to - x1) * aspect
     if (Math.abs(top - bottom) > tolerance) return false
     // A single frame as tall as the spread, at the left, in the middle or at the right, has no white above or below to be unequal: it is a column, not a

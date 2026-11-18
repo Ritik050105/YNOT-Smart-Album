@@ -8,7 +8,7 @@ const result = await build({
   stdin: { contents: `export {showcaseForRatios,balancedWhite} from './src/engine/showcaseLayouts'
 export {ratiosOf} from './src/engine/balancedLayouts'
 export {templatesForCount,sequenceCandidates,mixCandidates,showcaseCandidates,uniqueTemplates} from './src/engine/templates'
-export {offeredLayouts,varyPatterns} from './src/engine/layoutOffer'
+export {offeredLayouts,varyPatterns,lookKey} from './src/engine/layoutOffer'
 export {supportsUniformGap} from './src/engine/templateLayout'
 export {mustHoldGap} from './src/engine/templateTransfer'`, resolveDir: process.cwd() },
   bundle: true, loader: { '.bin': 'dataurl', '.ttf': 'dataurl' }, platform: 'node', format: 'esm', write: false,
@@ -57,4 +57,13 @@ for (const word of ['LL', 'LP', 'PP', 'LLL', 'LPL', 'PPP', 'LLLL', 'LPLP', 'PPLL
 }
 // And the shelf does not start with a block on one page and the other page empty.
 for (const word of ['LPLP', 'LLL', 'LLLL']) assert.ok(!/^(\d+\|0|0\|\d+)$/.test(split(shelfOf(word, 1.5)[0])), `${word}: the first template shares the photographs between the pages or runs across the spread`)
+// The shelves of two to six photographs are not padded with the same layout in other sizes: nearly every template is its own look, and the page splits come in
+// the shapes a designer names (a full-height column to the trim, a fill column, a squared frame) as well as whole pages.
+for (const [word, share] of [['LL', 0.8], ['LP', 0.9], ['PP', 0.9], ['LLPP', 0.95], ['LPLPLP', 0.95]]) {
+  const shelf = shelfOf(word, 3), looks = new Set(shelf.map(t => m.lookKey(t) || t.id)).size
+  assert.ok(looks >= share * shelf.length, `${word}: ${looks} different looks among ${shelf.length} templates, at least ${Math.round(share * 100)}% expected`)
+}
+const two = shelfOf('LP', 3), column = (t, bleed) => t.placeholders.some(p => p.height > 0.99 && p.width < 0.45 && (!!p.bleed === bleed))
+assert.ok(two.some(t => column(t, true)), 'LP: a page split with a full-height column run to the trim')
+assert.ok(two.some(t => column(t, false)), 'LP: a page split with a full-height column held to the margin')
 console.log('Even white checks passed: page layouts keep equal white and good sizes on three album shapes, a mixed four has 1|3 and 3|1 page splits, and every split of every order up to five photographs is on the shelf.')
