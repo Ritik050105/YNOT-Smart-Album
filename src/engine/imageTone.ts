@@ -1,6 +1,9 @@
 import { PlacedPhoto } from '@/types'
 
 export function imageToneFilter(tone: Pick<PlacedPhoto, 'brightness' | 'contrast' | 'saturation'>) {
+  // A photograph with no tone changes is drawn with no filter at all: the canvas runs a software filter pass over every picture it draws with one, even a
+  // neutral one, and that was most of what a card cost to redraw (and so of the lag when a key is held to step through templates).
+  if (!tone.brightness && !tone.contrast && !tone.saturation) return 'none'
   return `brightness(${1 + tone.brightness / 100}) contrast(${1 + tone.contrast / 100}) saturate(${1 + tone.saturation / 100})`
 }
 

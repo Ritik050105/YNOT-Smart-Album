@@ -8,7 +8,6 @@ import { DisplayUnit } from '@/engine/units'
 import { recordRecentProject } from '@/engine/recentProjects'
 import { clearOpenSession } from '@/engine/sessionMarker'
 import { finishNewProjectSetup } from '@/engine/newProjectFlow'
-import { confirmDiscardUnsaved } from '@/engine/unsavedChanges'
 import Icon from './Icon'
 import Modal from './Modal'
 import ExportModal from './ExportModal'
@@ -42,7 +41,8 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
   const [customSizeOpen, setCustomSizeOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
-  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  /** What waits on the answer to "you have unsaved changes": save them, discard them, or cancel. */
+  const [unsaved, setUnsaved] = useState<{ title: string; proceed: () => void } | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
   useEffect(() => { const observer = new MutationObserver(() => setTheme(getStoredTheme())); observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); return () => observer.disconnect() }, [])
@@ -81,8 +81,10 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
     }
   }
 
-  async function handleSaveProject(saveAs = false, closeAfterSave = false) {
-    const { project, userTemplates } = useProjectStore.getState()
+  /** Saves the album; true once it is on disk (and the user did not cancel the dialog). */
+  async function handleSaveProject(saveAs = false, closeAfterSave = false): Promise<boolean> {
+    const { project, userTemplates, editCount } = useProjectStore.getState()
+    let saved = false
     setProjectBusy('save')
     try {
       const result = await saveProjectToFile(project, userTemplates, saveAs ? null : useProjectStore.getState().currentFilePath)
@@ -98,7 +100,10 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
           kind: project.kind,
         })
         const current = useProjectStore.getState()
-        const unchanged = current.project === project && current.userTemplates === userTemplates
+        // Unchanged means no edit was made while it saved. (The project object itself may be a new one: the photographs are measured in the background, which
+        // is not an edit; comparing the objects left a saved album marked as unsaved, and asking to save again on closing.)
+        const unchanged = current.project.id === project.id && current.editCount === editCount && current.userTemplates === userTemplates
+        saved = true
         if (current.project.id === project.id) setCurrentFilePath(result.filePath ?? null)
         if (unchanged) {
           markSaved()
@@ -113,6 +118,7 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
     } finally {
       setProjectBusy(null)
     }
+    return saved
   }
 
   async function handleOpenProject(filePath?: string) {
@@ -121,7 +127,19 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
       const file = filePath ? await openProjectFromPath(filePath) : null
       const opened = filePath ? (file ? { file, filePath } : null) : await openProjectFromFile()
       if (opened) {
-        if (!confirmDiscardUnsaved(useProjectStore.getState().isDirty)) return
+        // Unsaved edits: ask first, with a way to save them (the album is opened once they are).
+        if (useProjectStore.getState().isDirty) { setUnsaved({ title: 'Open another album?', proceed: () => finishOpen(opened) }); return }
+        finishOpen(opened)
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not open that project file.')
+    } finally {
+      setProjectBusy(null)
+    }
+  }
+
+  function finishOpen(opened: { file: Parameters<typeof loadProjectFile>[0]; filePath?: string }) {
+    try {
         loadProjectFile(opened.file)
         recordRecentProject({
           projectId: opened.file.project.id,
@@ -136,11 +154,8 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
         setCurrentFilePath(opened.filePath ?? null)
         // A freshly opened project has no unsaved edits yet.
         clearOpenSession()
-      }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Could not open that project file.')
-    } finally {
-      setProjectBusy(null)
     }
   }
 
@@ -163,8 +178,9 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
   }
 
   function handleNewProjectClick() {
-    if (project.spreads.length > 0 || project.photos.length > 0) {
-      setConfirmDiscard(true)
+    // Asked only when there is something unsaved to lose: an album that is saved is simply left behind (it used to ask even then).
+    if (useProjectStore.getState().isDirty && (project.spreads.length > 0 || project.photos.length > 0)) {
+      setUnsaved({ title: 'Start a new album?', proceed: openNewProjectUI })
       return
     }
     openNewProjectUI()
@@ -274,30 +290,41 @@ export default function TopBar({ actionsOnly = false }: { actionsOnly?: boolean 
         <NewProjectWizard onClose={() => setNewProjectOpen(false)} onCreated={() => void handleAlbumCreated()} />
       )}
       {infoOpen && <ProjectInfoPanel onClose={() => setInfoOpen(false)} />}
-      {confirmDiscard && (
+      {unsaved && (
         <Modal
-          title="Start a new album?"
-          onClose={() => setConfirmDiscard(false)}
-          width={380}
+          title={unsaved.title}
+          onClose={() => setUnsaved(null)}
+          width={420}
           footer={
             <>
-              <button className="btn" onClick={() => setConfirmDiscard(false)}>
+              <button className="btn" onClick={() => setUnsaved(null)}>
                 Cancel
               </button>
               <div className="footer-spacer" />
               <button
                 className="btn btn--danger"
                 onClick={() => {
-                  setConfirmDiscard(false)
-                  openNewProjectUI()
+                  const next = unsaved.proceed
+                  setUnsaved(null)
+                  next()
                 }}
               >
                 Discard & Continue
               </button>
+              <button
+                className="btn btn--primary"
+                disabled={projectBusy !== null}
+                onClick={() => {
+                  const next = unsaved.proceed
+                  void handleSaveProject().then(saved => { if (saved) { setUnsaved(null); next() } })
+                }}
+              >
+                Save & Continue
+              </button>
             </>
           }
         >
-          <p className="muted">Unsaved changes to the current album will be lost. Save first if you want to keep them.</p>
+          <p className="muted">The current album has changes that are not saved. Save them to keep them, or discard them and carry on.</p>
         </Modal>
       )}
       {copyStatus && <Modal title={copyStatus.busy ? 'Copying your project' : copyStatus.error ? 'Project copy incomplete' : 'Your project copy is ready'} onClose={() => setCopyStatus(null)} footer={<>

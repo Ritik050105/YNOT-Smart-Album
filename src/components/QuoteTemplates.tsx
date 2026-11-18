@@ -15,6 +15,7 @@ import {fitTextBoxSize} from '@/engine/textBoxSize'
 import {stepFontTemplate} from '@/engine/fontTemplateStep'
 
 import Modal from './Modal'
+import PanelResizer from './PanelResizer'
 import ContextMenu from './ContextMenu'
 import Icon from './Icon'
 import {createPortal} from 'react-dom'
@@ -24,7 +25,9 @@ import {useProjectStore} from '@/state/projectStore'
 function QuoteBrowser({children,onClose}:{children:ReactNode;onClose:()=>void}){
  useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();onClose()}};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true)},[onClose])
  const host=document.getElementById('designer-font-template-browser')??document.getElementById('overview-font-template-browser')
- return host?createPortal(<section className="font-template-browser" aria-label="Font templates"><header><strong>Font templates</strong><button className="btn" onClick={onClose} aria-label="Close font templates">×</button></header>{children}</section>,host):<Modal title="Font templates" onClose={onClose} width={900}>{children}</Modal>
+ // The drag line under the panel, as under the other panels: the font panel is as tall as it is dragged to, with a height of its own (it starts a third of the window).
+ const designer=useProjectStore(s=>!!s.designerViewSpreadId)
+ return host?createPortal(<><section className="font-template-browser" aria-label="Font templates"><header><strong>Font templates</strong><button className="btn" onClick={onClose} aria-label="Close font templates">×</button></header>{children}</section><PanelResizer axis="y" variable="--font-browser-height" label="Resize font templates" placed="before" initial={Math.round(window.innerHeight*(designer?0.3:0.34))} min={150} max={0.7}/></>,host):<Modal title="Font templates" onClose={onClose} width={900}>{children}</Modal>
 }
 // fontCombinations()/quotes.json are static per aspect ratio, but every spread card on the
 // timeline renders its own QuoteTemplates instance — without this cache each one was recomputing

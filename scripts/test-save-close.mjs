@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
-const state={project:{id:'test',name:'Test',size:{id:'test',label:'Test'},spreads:[],photos:[]},userTemplates:[],isDirty:true,currentFilePath:'test.json',history:[],future:[],markSaved(){state.isDirty=false},setCurrentFilePath(path){state.currentFilePath=path}}
+const state={project:{id:'test',name:'Test',size:{id:'test',label:'Test'},spreads:[],photos:[]},userTemplates:[],isDirty:true,editCount:0,currentFilePath:'test.json',history:[],future:[],markSaved(){state.isDirty=false},setCurrentFilePath(path){state.currentFilePath=path}}
 globalThis.__saveState=state
 let closeRequest,closes=0,clears=0,alerts=[]
 globalThis.__clearRecovery=()=>clears++
@@ -34,12 +34,17 @@ closeRequest();await flush()
 assert.equal(closes,0);assert.equal(state.isDirty,true);assert.match(alerts.pop(),/Disk full/)
 let resolveSave
 globalThis.__saveFile=()=>new Promise((resolve)=>{resolveSave=resolve})
-closeRequest();state.project={...state.project,name:'New edit'};resolveSave({saved:true,filePath:'test.json'});await flush()
+closeRequest();state.project={...state.project,name:'New edit'};state.editCount++;resolveSave({saved:true,filePath:'test.json'});await flush()
 assert.equal(closes,0);assert.equal(state.isDirty,true);assert.equal(clears,0,'Saving an older snapshot must retain current recovery')
 assert.match(alerts.pop(),/changed while saving/)
 globalThis.__saveFile=async()=>({saved:true,filePath:'saved.json'})
 closeRequest();await flush()
 assert.equal(closes,1);assert.equal(state.isDirty,false);assert.equal(state.currentFilePath,'saved.json');assert.equal(clears,1)
-console.log('Save-on-close checks passed: successful save closes, cancelled/failed saves stay open, and concurrent edits retain dirty state and recovery.')
+// The photographs being measured in the background replaces the project object while a save runs; that is not an edit, and the album is saved, not unsaved.
+state.isDirty=true
+globalThis.__saveFile=()=>new Promise((resolve)=>{resolveSave=resolve})
+closeRequest();state.project={...state.project,photos:[{id:'measured'}]};resolveSave({saved:true,filePath:'measured.json'});await flush()
+assert.equal(closes,2);assert.equal(state.isDirty,false,'A background change is not an unsaved edit');assert.equal(clears,2)
+console.log('Save-on-close checks passed: successful save closes, cancelled/failed saves stay open, concurrent edits retain dirty state and recovery, and background measuring does not leave a saved album marked unsaved.')
 
 

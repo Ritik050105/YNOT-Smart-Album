@@ -88,6 +88,8 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
   photosRef.current=photosById
   /** Where each photograph is drawn on the card right now, so a move begun mid-move carries on from there. */
   const shownRects=useRef<Map<string,Rect>>()
+  /** When the layout last changed, so changes coming one after another (a key held down) are shown at once and only a lone change glides. */
+  const lastChange=useRef(0)
   const highResolution=usePreferences(s=>s.values.highResolution)
   size = spread.size ?? size
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -115,9 +117,11 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
     // where each photograph has got to (shownRects), instead of jumping back to where the last one began.
     const inMotion = !!shownRects.current
     const layoutDiffers = !!prior && (prior.templateId !== spread.templateId || prior.customBoxes !== spread.customBoxes) && priorGeometry !== geometry
-    // Also when a move is under way and is asked to go back to where it began (Next then Previous quickly): the layout then equals the
-    // settled one, but the photographs are somewhere between, and must travel back rather than jump.
-    const leaving = (layoutDiffers || inMotion) && !!canvasRef.current && canvasRef.current.width > 0
+    // A key held down, or pressed again before the glide has finished, shows the new layout at once instead of starting another glide: every press that
+    // glided drew the whole spread again on every frame, which is what made stepping through the templates with the arrow keys lag behind the keys.
+    const now = performance.now(), rapid = inMotion || now - lastChange.current < 450
+    if (layoutDiffers) lastChange.current = now
+    const leaving = layoutDiffers && !rapid && !!canvasRef.current && canvasRef.current.width > 0
     void Promise.all([...photosById].filter(([id])=>spread.placements.some(p=>p.photoId===id)).map(async([id,p])=>[id,{...p,src:await previewSource(p.src)}] as const)).then(async entries=>{
       const dpi=(highResolution?renderWidth:Math.min(420,renderWidth))/size.widthIn
       // Presses that arrive faster than the screen redraws would each render a picture nobody sees: wait for the next frame, and

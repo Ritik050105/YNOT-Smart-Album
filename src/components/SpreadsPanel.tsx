@@ -41,7 +41,7 @@ const TimelinePhotos=memo(function TimelinePhotos({spread,index,selected,selecte
   const seen=new Map<string,number>()
   const keyOf=(photoId:string,placeholderId:string)=>{const n=(seen.get(photoId)??0)+1;seen.set(photoId,n);return n===1?photoId:`${photoId}#${n}`||placeholderId}
   return (
-          <div className={`spreads-panel__photos ${selected ? 'is-selected' : ''} ${target ? 'is-drop-target' : ''}`}
+          <div className={`spreads-panel__photos ${selected ? 'is-selected' : ''} ${selected && selectedPlaceholderId ? 'has-frame-selected' : ''} ${target ? 'is-drop-target' : ''}`}
             data-timeline-spread={spread.id} aria-label={`Images in spread ${index + 1}`}
             onClick={e => act().selectSpread(e.target===e.currentTarget?null:spread.id)} onDoubleClick={() => act().enterDesignerView(spread.id)}
             onContextMenu={(e) => act().openContextMenu(e, spread.id)}
@@ -374,7 +374,7 @@ export default function SpreadsPanel() {
         onClick={e=>{if(e.target===e.currentTarget)selectSpread(null)}} onClickCapture={e=>{if(canvasTool==='pan'&&!(e.target as HTMLElement).closest('button')){e.preventDefault();e.stopPropagation()}}}>
         {cover ? (
           <div
-            className={`spreads-panel__card spreads-panel__card--cover ${selectedSpreadId === cover.id ? 'is-selected' : ''}`}
+            className={`spreads-panel__card spreads-panel__card--cover ${selectedSpreadId === cover.id ? 'is-selected' : ''} ${selectedSpreadId === cover.id && selectedPlaceholderId ? 'has-frame-selected' : ''}`}
             data-overview-spread={cover.id}
             style={{ aspectRatio: (cover.size ?? project.size).widthIn / (cover.size ?? project.size).heightIn }}
             onClick={e => {
@@ -444,7 +444,7 @@ export default function SpreadsPanel() {
         {spreads.map((spread, index) => (
           <div
             key={spread.id}
-            className={`spreads-panel__column ${selectedSpreadId === spread.id ? 'is-selected' : ''} ${target?.spreadId === spread.id ? 'is-drop-target' : ''}`}
+            className={`spreads-panel__column ${selectedSpreadId === spread.id ? 'is-selected' : ''} ${selectedSpreadId === spread.id && selectedPlaceholderId ? 'has-frame-selected' : ''} ${target?.spreadId === spread.id ? 'is-drop-target' : ''}`}
             data-timeline-spread={spread.id}
             data-overview-spread={spread.id}
             style={{ '--spread-aspect': (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn } as CSSProperties}
@@ -455,7 +455,7 @@ export default function SpreadsPanel() {
             onContextMenu={(e) => openContextMenu(e, spread.id)}
             title={`Spread ${index + 1} — double-click to design, right-click for more options`}
           >
-            <div data-spread-drag className={`spreads-panel__card ${selectedSpreadId === spread.id ? 'is-selected' : ''}`} style={{ aspectRatio: (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn }} onClick={e => {
+            <div data-spread-drag className={`spreads-panel__card ${selectedSpreadId === spread.id ? 'is-selected' : ''} ${selectedSpreadId === spread.id && selectedPlaceholderId ? 'has-frame-selected' : ''}`} style={{ aspectRatio: (spread.size ?? project.size).widthIn / (spread.size ?? project.size).heightIn }} onClick={e => {
               e.stopPropagation()
               const r = e.currentTarget.getBoundingClientRect()
               const box = overviewPhotoAt(spread,e.clientX-r.left,e.clientY-r.top,r.width,r.height)

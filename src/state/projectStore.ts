@@ -225,6 +225,9 @@ interface ProjectState {
    *  project-content mutation goes through withHistory, which sets this true; explicit saves and
    *  freshly loaded/created projects set it back to false. */
   isDirty: boolean
+  /** Counts the edits made to the album. Saving compares it before and after: background measuring of the photographs changes the project object while a save
+   *  is running, but it is not an edit, and must not leave the album marked as unsaved. */
+  editCount: number
   /** The on-disk path of the current project, once known (set after a successful save or open) —
    *  only ever populated in Electron, where projects are real files. Cleared when a project with
    *  no file yet is created/opened or when returning to Home. Lets App.tsx know where to reopen
@@ -339,7 +342,7 @@ interface ProjectState {
   configureCover: (size: AlbumSize, details: NonNullable<Spread['coverDetails']>, photoIds?: string[]) => void
   duplicateSpread: (spreadId: string) => void
   deleteSpread: (spreadId: string) => void
-  applyTemplateToSpread: (spreadId: string, templateId: string, keepOrder?: boolean, scope?: TemplateScope) => void
+  applyTemplateToSpread: (spreadId: string, templateId: string, keepOrder?: boolean, scope?: TemplateScope, deferUse?: boolean) => void
   cycleSpreadTemplate: (spreadId: string, direction: -1 | 1) => void
   cycleSpreadMixedTemplate: (spreadId: string, direction: -1 | 1) => void
   cycleSpreadPhotos: (spreadId: string, direction: -1 | 1) => void
@@ -414,6 +417,7 @@ interface ProjectState {
   setSlideDuration: (ms: number) => void
 }
 
+let useTimer: ReturnType<typeof setTimeout> | undefined
 function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => void, mutate: (p: Project) => Project, changingLock = false, keepTemplateBrowser = false) {
   set((s) => {
     let mutated = mutate(s.project)
@@ -444,6 +448,7 @@ function withHistory(set: (fn: (s: ProjectState) => Partial<ProjectState>) => vo
       history: [...s.history, s.project].slice(-50),
       future: [],
       isDirty: true,
+      editCount: s.editCount + 1,
     }
   })
 }
@@ -476,6 +481,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   photoDockZoom: loadPhotoDockZoom(),
   preparingProject: false,
   isDirty: false,
+  editCount: 0,
   currentFilePath: null,
   drawingShape: 'rectangle',
   canvasTool: 'select',
@@ -1024,9 +1030,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  applyTemplateToSpread: (spreadId, templateId, keepOrder = true, scope = 'spread') => {
+  applyTemplateToSpread: (spreadId, templateId, keepOrder = true, scope = 'spread', deferUse = false) => {
     if (get().project.spreads.find((s) => s.id === spreadId)?.templateLocked) return
-    recordTemplateUse(templateId)
+    // Stepping through templates with the arrow keys counts only the one it stops on (a use is a disk write and a redraw of the panels that read it).
+    if (deferUse) { clearTimeout(useTimer); useTimer = setTimeout(() => recordTemplateUse(templateId), 700) } else recordTemplateUse(templateId)
     return withHistory(set, (p) => {
       const spreads = p.spreads.map((s) => (s.id === spreadId ? applyPageTemplate(s, templateId, p.photos, (s.size ?? p.size).widthIn / (s.size ?? p.size).heightIn, keepOrder, scope) : s))
       return spreads.some((spread, i) => spread !== p.spreads[i]) ? { ...p, spreads } : p
@@ -1045,7 +1052,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const current = candidates.findIndex((template) => template.id === spread.templateId)
     const next = current < 0 ? (direction > 0 ? 0 : candidates.length - 1) : (current + direction + candidates.length) % candidates.length
     setSlideDirection(direction)
-    get().applyTemplateToSpread(spreadId, candidates[next].id)
+    get().applyTemplateToSpread(spreadId, candidates[next].id, true, 'spread', true)
     if (get().selectedSpreadId === spreadId) set({ selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [] })
   },
 
@@ -1058,7 +1065,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const current = candidates.findIndex((template) => template.id === spread.templateId)
     const next = current < 0 ? (direction > 0 ? 0 : candidates.length - 1) : (current + direction + candidates.length) % candidates.length
     setSlideDirection(direction)
-    get().applyTemplateToSpread(spreadId, candidates[next].id)
+    get().applyTemplateToSpread(spreadId, candidates[next].id, true, 'spread', true)
     if (get().selectedSpreadId === spreadId) set({ selectedPlaceholderId: null, selectedTextBoxId: null, selectedLayerKeys: [], multiSelectedPlaceholderIds: [] })
   },
 
@@ -1581,14 +1588,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set((s) => {
       if (s.history.length === 0) return s
       const prev = s.history[s.history.length - 1]
-      return { project: prev, history: s.history.slice(0, -1), future: [s.project, ...s.future], isDirty: true, matchingTemplatesOpen: keepTemplateBrowser && s.matchingTemplatesOpen, templatePreview: null }
+      return { project: prev, history: s.history.slice(0, -1), future: [s.project, ...s.future], isDirty: true, editCount: s.editCount + 1, matchingTemplatesOpen: keepTemplateBrowser && s.matchingTemplatesOpen, templatePreview: null }
     }),
 
   redo: (keepTemplateBrowser = false) =>
     set((s) => {
       if (s.future.length === 0) return s
       const [next, ...rest] = s.future
-      return { project: next, history: [...s.history, s.project], future: rest, isDirty: true, matchingTemplatesOpen: keepTemplateBrowser && s.matchingTemplatesOpen, templatePreview: null }
+      return { project: next, history: [...s.history, s.project], future: rest, isDirty: true, editCount: s.editCount + 1, matchingTemplatesOpen: keepTemplateBrowser && s.matchingTemplatesOpen, templatePreview: null }
     }),
 
   renameProject: (name) => withHistory(set, (p) => ({ ...p, name })),

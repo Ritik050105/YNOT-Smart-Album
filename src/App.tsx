@@ -94,13 +94,13 @@ export default function App() {
       setShowHome(false)
     }
     async function onGoHome() {
-      const { project, userTemplates, currentFilePath, isDirty } = useProjectStore.getState()
+      const { project, userTemplates, currentFilePath, isDirty, editCount } = useProjectStore.getState()
       if (isDirty) {
         try {
           const result = await saveProjectToFile(project, userTemplates, currentFilePath)
           if (!result.saved) return // user canceled the save location dialog; stay in the editor
           const current = useProjectStore.getState()
-          const unchanged = current.project === project && current.userTemplates === userTemplates
+          const unchanged = current.project.id === project.id && current.editCount === editCount && current.userTemplates === userTemplates
           if (current.project.id === projectId && result.filePath) current.setCurrentFilePath(result.filePath)
           if (!unchanged) { window.alert('The album changed while saving. Your latest edits are still open; try again before leaving.'); return }
           current.markSaved()

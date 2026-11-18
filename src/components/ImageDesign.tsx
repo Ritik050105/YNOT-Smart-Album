@@ -54,15 +54,16 @@ export default function ImageDesign({ spreadId, placement, photo, width, height,
   // full re-renders in flight at once, so it lags a frame or two behind the pointer. Coalescing
   // them onto animation frames keeps the preview live under the cursor.
   useEffect(() => {
-    // Not while dragging. Redrawing here means a full drawPlacement - tone filters, black-and-white
+    // Not while dragging the crop (the window below stands in for it). Redrawing here means a full drawPlacement - tone filters, black-and-white
     // mix, border, the lot - on a 600x420 canvas, started afresh on every animation frame and
     // finishing whenever it finishes. That is what put the preview a few frames behind the
     // pointer. The window below shows the same pixels for free until the drag ends.
-    if (dragging || sliding) return
+    if (dragging) return
     let current = true
     const frame = requestAnimationFrame(() => {
       const preview = document.createElement('canvas')
-      const scale = Math.min(600 / width, 420 / height)
+      // While a slider moves the preview is redrawn live but smaller (a third of the size, a ninth of the pixels); letting go draws it in full.
+      const scale = Math.min(600 / width, 420 / height) * (sliding ? 0.34 : 1)
       preview.width = Math.max(1, Math.round(width * scale)); preview.height = Math.max(1, Math.round(height * scale))
       const ctx = preview.getContext('2d')!
       setError('')

@@ -50,6 +50,10 @@ export default function MatchingTemplatesPanel() {
   }
   const slideBack = () => { setSlideDirection(lastDirection.current === 1 ? -1 : 1) }
   const [offsets, setOffsets] = useState([0, 0])
+  // Either row of templates can be folded away with its eye button, and stays so: the panel is then as tall as what shows (nothing cut off or scrolled, and
+  // with both folded only its bars), and the row left is drawn as big as the room allows.
+  const [folded, setFolded] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem('ynot.templateRowsFolded') || '{}') } catch { return {} } })
+  const toggleFold = (label: string) => setFolded(current => { const next = { ...current, [label]: !current[label] }; try { localStorage.setItem('ynot.templateRowsFolded', JSON.stringify(next)) } catch { /* private window */ } return next })
   const [tileWidth, setTileWidth] = useState(220)
   const strips = useRef<(HTMLDivElement | null)[]>([])
   const spread = project.spreads.find(s => s.id === spreadId && !s.isCover)
@@ -68,9 +72,13 @@ export default function MatchingTemplatesPanel() {
       // Measured off the panel itself rather than read from the CSS variable: that variable is
       // '42vh' until the resizer has been dragged, and parseFloat of '42vh' is 42, which collapsed
       // the tiles to their minimum.
-      const panel = document.querySelector('.matching-templates')?.clientHeight || window.innerHeight * 0.42
+      // The height the panel has when both rows show (a folded row shrinks the panel, but the tiles keep their size).
+      const variable = getComputedStyle(document.documentElement).getPropertyValue('--template-browser-height').trim(), parsed = parseFloat(variable)
+      const panel = variable.endsWith('vh') ? parsed / 100 * window.innerHeight : variable.endsWith('px') ? parsed : document.querySelector('.matching-templates')?.clientHeight || window.innerHeight * 0.42
       // Room taken by the two labels, the header and the padding between the strips.
-      const perRow = Math.max(44, (panel - 86) / 2)
+      // With a row folded away to its bar, the one left shows bigger (it has the room of both); with none folded the two share it.
+      const labels = count > 1 ? ['Rearrange Timeline', 'Match Timeline Order'] : ['Match Timeline Order'], foldedCount = labels.filter(label => folded[label]).length
+      const perRow = Math.max(44, (panel - 86 - 34 * foldedCount) / (foldedCount ? Math.max(1, labels.length - foldedCount) : 2))
       const widest = window.innerWidth <= 800 ? 150 : Math.max(160, Math.min(420, window.innerWidth * 0.24))
       setTileWidth(Math.max(42, Math.min(widest, perRow * aspect)))
     }
@@ -80,7 +88,7 @@ export default function MatchingTemplatesPanel() {
     const observer = new MutationObserver(resize)
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
     return () => { window.removeEventListener('resize', resize); observer.disconnect() }
-  }, [aspect,designer,open])
+  }, [aspect,designer,open,folded,count])
   const {categories,setCategories,collection,setCollection,favoritesOnly,setFavoritesOnly}=useTemplateBrowsing()
   const rows = useMemo(() => {
     if (!open || !spread || !count) return [[], []]
@@ -130,7 +138,10 @@ export default function MatchingTemplatesPanel() {
       if (!['ArrowLeft', 'ArrowRight', 'Enter'].includes(event.key) || event.ctrlKey || event.metaKey || event.altKey) return
       event.preventDefault(); event.stopPropagation()
       const focusedRow = strips.current.findIndex(strip => event.target instanceof Node && strip?.contains(event.target))
-      const row = Math.min(active?.row ?? Math.max(0, focusedRow), rows.length - 1)
+      const labels = count > 1 ? ['Rearrange Timeline', 'Match Timeline Order'] : ['Match Timeline Order']
+      let row = Math.min(active?.row ?? Math.max(0, focusedRow), rows.length - 1)
+      if (folded[labels[row]]) row = labels.findIndex(label => !folded[label])
+      if (row < 0) return
       const keepOrder = !autoRearrange || count <= 1 || row === 1
       // The template the spread already has is the first tile, so the arrow keys start from it and the first press moves on to the next one.
       let index = active?.index ?? (rows[row][0]?.template.id === spread?.templateId ? 0 : -1)
@@ -149,14 +160,14 @@ export default function MatchingTemplatesPanel() {
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, rows, active, preview, close, apply, spreadId, spread?.templateId, tileWidth, count, target, autoRearrange])
+  }, [open, rows, active, preview, close, apply, spreadId, spread?.templateId, tileWidth, count, target, autoRearrange, folded])
   useEffect(() => {
     if (open && !spread) close()
     return () => { useProjectStore.getState().previewMatchingTemplate(null) }
   }, [open, spreadId, !!spread, close])
   if (!open || !spread) return null
   const number = project.spreads.filter(s => !s.isCover).sort((a, b) => a.order - b.order).findIndex(s => s.id === spread.id) + 1
-  return <section className="matching-templates" aria-label="Matching templates" onMouseLeave={() => { slideBack(); setActive(null); preview(null) }}>
+  return <section className="matching-templates" aria-label="Matching templates" style={(count > 1 ? ['Rearrange Timeline', 'Match Timeline Order'] : ['Match Timeline Order']).some(label => folded[label]) ? { height: 'auto', maxHeight: 'none' } : undefined} onMouseLeave={() => { slideBack(); setActive(null); preview(null) }}>
     <header className="matching-templates__header">
       <span role="status">Spread {number}: {rows[0].length} matching {kind} templates found.</span>
       {!designer&&<QuoteTemplates spreadId={spread.id} buttonsOnly/>}{spread.pageSide === 'spread' && <select aria-label="Template page" value={scope} onChange={e=>setScope(e.target.value as TemplateScope)}>
@@ -172,9 +183,9 @@ export default function MatchingTemplatesPanel() {
     {target !== 'spread' && <div className="matching-templates__info">Changes apply to the {target} page only. Images crossing the center line stay unchanged.</div>}
     {count === 0 && <div className="matching-templates__info">No visible, unlocked photos or frames on this page. Hidden photos, locked photos and background images stay unchanged.</div>}
     {count === 1 && <div className="matching-templates__info"><strong>Rearrange Timeline:</strong><span>A single image has no timeline order to rearrange.</span></div>}
-    {(count > 1 ? ['Rearrange Timeline', 'Match Timeline Order'] : ['Match Timeline Order']).map((label, row) => <div className="matching-templates__row" key={label}>
-      <span className="matching-templates__label">{label}:</span>
-      <button className="btn btn--icon" aria-label={`Previous ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ left: -strips.current[row]!.clientWidth * 0.8, behavior: 'smooth' })}><Icon name="chevronLeft" size={14} /></button>
+    {(count > 1 ? ['Rearrange Timeline', 'Match Timeline Order'] : ['Match Timeline Order']).map((label, row) => <div className={`matching-templates__row ${folded[label] ? 'is-folded' : ''}`} key={label}>
+      <span className="matching-templates__label">{label}:<button className="btn btn--icon btn--tiny matching-templates__eye" aria-pressed={!folded[label]} aria-label={`${folded[label] ? 'Show' : 'Hide'} ${label} templates`} title={`${folded[label] ? 'Show' : 'Hide'} the ${label} templates`} onClick={() => toggleFold(label)}><Icon name={folded[label] ? 'eyeOff' : 'eye'} size={14} /></button></span>
+      {!folded[label] && <><button className="btn btn--icon" aria-label={`Previous ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ left: -strips.current[row]!.clientWidth * 0.8, behavior: 'smooth' })}><Icon name="chevronLeft" size={14} /></button>
       <div className="matching-templates__strip" ref={el => { strips.current[row] = el }} aria-label={label} onPointerDown={e=>{if(e.button!==0||(e.target as Element).closest('button'))return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setMarquee({x:e.clientX,y:e.clientY,left:e.clientX,top:e.clientY,width:0,height:0});setSelection([])}} onPointerMove={e=>{if(!marquee)return;const box={...marquee,left:Math.min(marquee.x,e.clientX),top:Math.min(marquee.y,e.clientY),width:Math.abs(e.clientX-marquee.x),height:Math.abs(e.clientY-marquee.y)};setMarquee(box);setSelection(Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-template-id]')).filter(el=>{const r=el.getBoundingClientRect();return r.right>=box.left&&r.left<=box.left+box.width&&r.bottom>=box.top&&r.top<=box.top+box.height}).map(el=>el.dataset.templateId!))}} onPointerUp={()=>setMarquee(null)} onPointerCancel={()=>setMarquee(null)} onScroll={event => { const offset = Math.max(0, Math.floor(event.currentTarget.scrollLeft / (tileWidth + 12)) - 2); setOffsets(current => current[row] === offset ? current : current.map((value, i) => i === row ? offset : value)) }}>
         <div style={{ position: 'relative', flex: '0 0 auto', width: Math.max(0, rows[row].length * (tileWidth + 12) - 12), height: tileWidth / aspect + 12 }}>
         {rows[row].slice(offsets[row], offsets[row] + Math.ceil((strips.current[row]?.clientWidth ?? tileWidth * 10) / (tileWidth + 12)) + 8).map(({template, photos}, slot) => { const index = offsets[row] + slot; return <div className={`matching-template ${active?.row === row && active.index === index ? 'is-previewing' : ''} ${spread.templateId === template.id ? 'is-current' : ''} ${selection.includes(template.id)?'is-selected':''}`} key={template.id} data-template-id={template.id} onContextMenu={e=>{e.preventDefault();setMenu({x:e.clientX,y:e.clientY,id:template.id});if(!selection.includes(template.id))setSelection([template.id])}} style={{ position: 'absolute', left: index * (tileWidth + 12), width: tileWidth }}>
@@ -187,7 +198,7 @@ export default function MatchingTemplatesPanel() {
         </div>
         {!rows[row].length && <p className="muted">No matching templates. Change the frame filter{favoritesOnly ? ' or turn off Favorites' : ''}.</p>}
       </div>
-      <button className="btn btn--icon" aria-label={`Next ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ left: strips.current[row]!.clientWidth * 0.8, behavior: 'smooth' })}><Icon name="chevronRight" size={14} /></button>
+      <button className="btn btn--icon" aria-label={`Next ${label} templates`} onClick={() => strips.current[row]?.scrollBy({ left: strips.current[row]!.clientWidth * 0.8, behavior: 'smooth' })}><Icon name="chevronRight" size={14} /></button></>}
     </div>)}
     {marquee&&<div style={{position:"fixed",left:marquee.left,top:marquee.top,width:marquee.width,height:marquee.height,border:"1px solid var(--accent)",background:"rgba(100,140,220,.16)",pointerEvents:"none",zIndex:1000}}/>}
     {menu&&<ContextMenu x={menu.x} y={menu.y} onClose={()=>setMenu(null)} items={[

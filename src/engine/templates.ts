@@ -1221,8 +1221,14 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
   if (hero) return generateHeroGrid(Number(hero[1]))
   const custom = id.match(/^custom-grid-(\d+)x(\d+)$/)
   if (custom) return generateCustomGrid(Number(custom[1]), Number(custom[2]))
-  return balancedFromId(id) ?? showcaseFromId(id)
+  // Worked out from the id, and remembered: stepping through templates asks for the same few over and over, and drawing a balanced one is not free.
+  if (byIdCache.has(id)) return byIdCache.get(id)
+  const made = balancedFromId(id) ?? showcaseFromId(id)
+  if (byIdCache.size > 600) byIdCache.clear()
+  byIdCache.set(id, made)
+  return made
 }
+const byIdCache = new Map<string, TemplateDefinition | undefined>()
 
 /** Coarse family label derived from a template's id — used only to group the Template Gallery
  *  browser into tabs (Classic / Seamless / Grid / Hero / Split / Mosaic / Collage / Filmstrip /

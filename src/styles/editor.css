@@ -1060,8 +1060,12 @@ button:disabled { cursor:not-allowed; }
 .album-editor:not(.designer-view):has(.matching-templates, .font-template-browser) .bottom-panel:has(.photo-dock):not([hidden]) {
   flex-basis: min(var(--dock-height, 35vh), 20vh) !important; max-height: min(var(--dock-height, 35vh), 20vh); min-height: 120px;
 }
-.album-editor:not(.designer-view) .matching-templates, .album-editor:not(.designer-view) .font-template-browser {
+.album-editor:not(.designer-view) .matching-templates {
   height: min(var(--template-browser-height), 34vh); max-height: min(var(--template-browser-height), 34vh);
+}
+/* The font panel is as tall as its own drag line sets (a third of the window until it is dragged). */
+.album-editor:not(.designer-view) .font-template-browser {
+  height: var(--font-browser-height, 34vh); max-height: var(--font-browser-height, 34vh);
 }
 
 /* The text panel, tighter: the font tools sit two to a row, bold/italic/alignment share one row of
@@ -1148,8 +1152,11 @@ body.has-effect-panel .designer-canvas-wrap { margin-right: min(342px, calc(100v
 .album-editor.designer-view:has(.matching-templates, .font-template-browser) .bottom-panel:has(.photo-dock):not([hidden]) {
   flex-basis: min(var(--dock-height, 35vh), 20vh) !important; max-height: min(var(--dock-height, 35vh), 20vh); min-height: 120px;
 }
-.album-editor.designer-view .matching-templates, .album-editor.designer-view .font-template-browser {
+.album-editor.designer-view .matching-templates {
   height: min(var(--template-browser-height), 30vh); max-height: min(var(--template-browser-height), 30vh);
+}
+.album-editor.designer-view .font-template-browser {
+  height: var(--font-browser-height, 30vh); max-height: var(--font-browser-height, 30vh);
 }
 .timeline-drag-preview, .timeline-drag-hint { will-change: transform; }
 
@@ -1309,3 +1316,13 @@ body.has-effect-panel .designer-canvas-wrap { margin-right: min(342px, calc(100v
 .shape-panel .checkbox-row{justify-content:flex-start}
 .shape-panel__row>span{font-size:12px}
 .shape-panel .slider-field{margin:0}
+
+/* Once a picture on the spread is clicked, that picture is what is highlighted: the spread's own highlight (the ring round the card, the pointer under it, the bar on its timeline strip) goes. */
+.album-editor .spreads-panel__card.is-selected.has-frame-selected { box-shadow: var(--shadow-sm); }
+.album-editor .spreads-panel__column.is-selected.has-frame-selected::after { display: none; }
+.album-editor .spreads-panel__photos.is-selected.has-frame-selected { background: transparent; box-shadow: none; }
+
+/* A folded template row is a slim bar with only its label and eye, so the panel is as short as what it shows. */
+.matching-templates__label { display: flex; align-items: center; gap: 4px; }
+.matching-templates__eye { padding: 2px 4px; }
+.matching-templates__row.is-folded { padding-block: 2px; }

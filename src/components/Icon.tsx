@@ -62,6 +62,8 @@ const PATHS: Record<string, string> = {
   // A square's corner turned to a quarter circle: the rounded-edge tool.
   roundCorner: 'M4 20V12a8 8 0 0 1 8-8h8 M4 20h2 M20 4v2',
   search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z M21 21l-4.3-4.3',
+  eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z M12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6Z',
+  eyeOff: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z M12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6Z M3 3l18 18',
   heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z',
   wand: 'M15 4V2 M15 16v-2 M8 9h2 M20 9h2 M17.8 6.2l1.4-1.4 M17.8 11.8l1.4 1.4 M3 21l9-9 M12.2 12.2 15 15',
   cursor: 'M4 3l16 8-7 1.5L11 20z',

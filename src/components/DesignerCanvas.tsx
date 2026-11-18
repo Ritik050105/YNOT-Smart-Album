@@ -990,6 +990,24 @@ export default function DesignerCanvas() {
     const up = () => finish(true), cancel = () => finish(false)
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel)
   }
+  // Double-clicking a corner's handle puts that corner back to its own default, the square corner it started with; the other corners keep what they have.
+  function resetCorner(index: number, placeholderId: string, placement: PlacedPhoto, event: Konva.KonvaEventObject<MouseEvent>) {
+    event.cancelBubble = true
+    if (!spread || placement.locked) return
+    const radii = [...roundedRadii(placement)] as [number, number, number, number]
+    if (radii[index] === 0) return
+    radii[index] = 0
+    const patch: Partial<PlacedPhoto> = radii.every(r => r === 0) ? { frameStyle: 'none', cornerRadiiPx: undefined } : radii.every(r => r === radii[0]) ? { frameStyle: 'rounded', cornerRadiusPx: radii[0], cornerRadiiPx: undefined } : { frameStyle: 'rounded', cornerRadiusPx: Math.max(...radii), cornerRadiiPx: radii }
+    useProjectStore.getState().updatePlacement(spread.id, placeholderId, patch)
+  }
+  function resetShapeCorner(index: number, shapeBox: TextBox, event: Konva.KonvaEventObject<MouseEvent>) {
+    event.cancelBubble = true
+    if (!spread || shapeBox.locked) return
+    const radii = [...(shapeBox.shapeCornerRadiiPx ?? [0, 0, 0, 0])] as [number, number, number, number]
+    if (radii[index] === 0) return
+    radii[index] = 0
+    useProjectStore.getState().updateTextBox(spread.id, shapeBox.id, { shapeCornerRadiiPx: radii.every(r => r === 0) ? undefined : radii })
+  }
   // The same tool on a rectangle drawn with the shape tool: its own handles, one corner at a time.
   function startShapeRounding(index: number, shapeBox: TextBox, event: Konva.KonvaEventObject<MouseEvent>) {
     if (event.evt.button !== 0 || !spread || shapeBox.locked) return
@@ -1552,7 +1570,7 @@ export default function DesignerCanvas() {
             <Rect name="round-shape-outline" width={w} height={h} stroke={accent} strokeWidth={1/stageScale} dash={[6/stageScale,4/stageScale]} listening={false}/>
             {radii.map((radius,i)=>{
               const sx=i===0||i===3?1:-1,sy=i<2?1:-1,inset=Math.min(Math.max(radius,14/stageScale),w/2,h/2)
-              return <Circle key={i} name={`round-shape-handle-${i}`} x={sx>0?inset:w-inset} y={sy>0?inset:h-inset} radius={6/stageScale} fill="#ffffff" stroke={accent} strokeWidth={2/stageScale} onMouseDown={e=>startShapeRounding(i,shapeBox,e)} onMouseEnter={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor='nwse-resize'}} onMouseLeave={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor=''}}/>
+              return <Circle key={i} name={`round-shape-handle-${i}`} x={sx>0?inset:w-inset} y={sy>0?inset:h-inset} radius={6/stageScale} fill="#ffffff" stroke={accent} strokeWidth={2/stageScale} onMouseDown={e=>startShapeRounding(i,shapeBox,e)} onDblClick={e=>resetShapeCorner(i,shapeBox,e)} onMouseEnter={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor='nwse-resize'}} onMouseLeave={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor=''}}/>
             })}
           </Group>
         })()}{canvasTool==='round'&&selectedBox&&(()=>{
@@ -1563,7 +1581,7 @@ export default function DesignerCanvas() {
             <Rect name="round-frame-outline" x={-selectedBox.width/2} y={-selectedBox.height/2} width={selectedBox.width} height={selectedBox.height} stroke={accent} strokeWidth={1/stageScale} dash={[6/stageScale,4/stageScale]} listening={false}/>
             {radii.map((radius,i)=>{
               const sx=i===0||i===3?-1:1,sy=i<2?-1:1,inset=Math.min(Math.max(radius,14/stageScale),selectedBox.width/2,selectedBox.height/2,reach)
-              return <Circle key={i} name={`round-handle-${i}`} x={sx*(selectedBox.width/2-inset)} y={sy*(selectedBox.height/2-inset)} radius={r} fill="#ffffff" stroke={accent} strokeWidth={2/stageScale} onMouseDown={e=>startRounding(i,selectedBox,pl,e)} onMouseEnter={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor='nwse-resize'}} onMouseLeave={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor=''}}/>
+              return <Circle key={i} name={`round-handle-${i}`} x={sx*(selectedBox.width/2-inset)} y={sy*(selectedBox.height/2-inset)} radius={r} fill="#ffffff" stroke={accent} strokeWidth={2/stageScale} onMouseDown={e=>startRounding(i,selectedBox,pl,e)} onDblClick={e=>resetCorner(i,selectedBox.placeholderId,pl,e)} onMouseEnter={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor='nwse-resize'}} onMouseLeave={e=>{const c=e.target.getStage()?.container();if(c)c.style.cursor=''}}/>
             })}
           </Group>
         })()}</Layer>
