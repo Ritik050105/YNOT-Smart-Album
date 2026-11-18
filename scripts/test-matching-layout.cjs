@@ -28,13 +28,13 @@ app.whenReady().then(async()=>{
   }
   assert.equal(await evaluate(`document.body.textContent.includes('Rearrange Timeline')`),true)
   assert.equal(await evaluate(`document.querySelector('.matching-templates__info')`),null,'Multiple images retain rearrange template choices')
-  await evaluate(`document.querySelector('.matching-template__apply').dispatchEvent(new MouseEvent('mouseover',{bubbles:true}))`)
+  await evaluate(`document.querySelector('.matching-template:not(.is-current) .matching-template__apply').dispatchEvent(new MouseEvent('mouseover',{bubbles:true}))`)
   await new Promise(r=>setTimeout(r,100))
   assert.equal(await evaluate('store.getState().project===window.original'),true)
   assert.ok(await evaluate('!!store.getState().templatePreview'),'Hover must preview the candidate')
   for(const row of [0,1]){
-   await evaluate(`document.querySelectorAll('.matching-templates__strip')[${row}].querySelector('.matching-template__apply').dispatchEvent(new MouseEvent('mouseover',{bubbles:true}))`);await new Promise(r=>setTimeout(r,1500)); // thumbnails are resampled asynchronously
-   assert.ok(await evaluate(`(async()=>{const cells=[...document.querySelectorAll('.matching-templates__strip')[${row}].querySelectorAll('.matching-template:first-child .gallery-cell')],s=store.getState();if(cells.length!==24)return false;for(let i=0;i<cells.length;i++){const photo=s.project.photos.find(p=>p.id===s.templatePreview.placements[i].photoId);if(!cells[i].style.backgroundImage.includes(await window.previewSource(photo.src,512)))return false}return true})()`),'Thumbnail photo assignment matches applied preview for row '+row);
+   await evaluate(`document.querySelectorAll('.matching-templates__strip')[${row}].querySelector('.matching-template:not(.is-current) .matching-template__apply').dispatchEvent(new MouseEvent('mouseover',{bubbles:true}))`);await new Promise(r=>setTimeout(r,1500)); // thumbnails are resampled asynchronously
+   assert.ok(await evaluate(`(async()=>{const cells=[...document.querySelectorAll('.matching-templates__strip')[${row}].querySelector('.matching-template:not(.is-current)').querySelectorAll('.gallery-cell')],s=store.getState();if(cells.length!==24)return false;for(let i=0;i<cells.length;i++){const photo=s.project.photos.find(p=>p.id===s.templatePreview.placements[i].photoId);if(!cells[i].style.backgroundImage.includes(await window.previewSource(photo.src,512)))return false}return true})()`),'Thumbnail photo assignment matches applied preview for row '+row);
   }
   assert.ok(await evaluate(`Promise.all(store.getState().project.photos.map(p=>{const image=new Image();image.src=p.src;return image.decode().then(()=>true)})).then(values=>values.every(Boolean))`));
   await fs.writeFile(path.join(output,'matching-with-photos.png'),(await win.webContents.capturePage()).toPNG());

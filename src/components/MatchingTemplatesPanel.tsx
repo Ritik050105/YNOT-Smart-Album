@@ -14,7 +14,7 @@ import { usePreferences } from '@/state/preferences'
 import { pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { importedDesignTemplates, isFullSpreadTemplate, mixCandidates, sequenceCandidates, showcaseCandidates, templatesForCount, uniqueTemplates } from '@/engine/templates'
+import { findTemplate, importedDesignTemplates, isFullSpreadTemplate, mixCandidates, sequenceCandidates, showcaseCandidates, templatesForCount, uniqueTemplates } from '@/engine/templates'
 import {rankTemplates, templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches} from '@/engine/templateMatching'
 import { isEditableTarget } from '@/engine/keyboard'
 import TemplateThumb from './TemplatePreview'
@@ -107,8 +107,17 @@ export default function MatchingTemplatesPanel() {
       const missed = new Map(fitting.map(t => [t.id, photos.length === count ? mismatches(photos, t, aspect, marginPx, gapPx) : 0]))
       return { fitting, missed }
     }
-    return (count > 1 ? [false, true] : [true]).map(keepOrder => { const rowKeep = !autoRearrange || keepOrder, { fitting, missed } = shelf(rowKeep); return varyPatterns((rankTemplates(photos, fitting, aspect, rowKeep, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
-      .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(b.template.id)) - Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))), r => r.template, aspect, photos.length === count ? wantedTemplates(photos) : undefined) })
+    // The template the spread has now comes first (and is marked), the favourites follow it, then the rest. It is put there even when the shelf would not have
+    // offered it, so the one in use is always the first thing in the row.
+    const currentTemplate = spread.templateId ? findTemplate(spread.templateId) : undefined
+    const selectedFirst = (rowKeep: boolean, list: ReturnType<typeof rankTemplates>) => {
+      let pinned = list.find(r => r.template.id === spread.templateId)
+      if (!pinned && currentTemplate && !halfPage && target === 'spread' && !favoritesOnly && !collection && photos.length === count && currentTemplate.placeholders.length === count && (kind === 'mixed' ? !!currentTemplate.textBoxes?.length : !currentTemplate.textBoxes?.length)) pinned = rankTemplates(photos, [currentTemplate], aspect, rowKeep, marginPx, gapPx)[0]
+      const rest = list.filter(r => r !== pinned)
+      return [...(pinned ? [pinned] : []), ...rest.filter(r => favorites.includes(r.template.id)), ...rest.filter(r => !favorites.includes(r.template.id))]
+    }
+    return (count > 1 ? [false, true] : [true]).map(keepOrder => { const rowKeep = !autoRearrange || keepOrder, { fitting, missed } = shelf(rowKeep); return selectedFirst(rowKeep, varyPatterns((rankTemplates(photos, fitting, aspect, rowKeep, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
+      .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(b.template.id)) - Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))), r => r.template, aspect, photos.length === count ? wantedTemplates(photos) : undefined)) })
   }, [kind,collection,collections,userTemplates, categories, open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
   useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [kind,collection, categories, userTemplates, open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
   useEffect(() => {
@@ -123,7 +132,8 @@ export default function MatchingTemplatesPanel() {
       const focusedRow = strips.current.findIndex(strip => event.target instanceof Node && strip?.contains(event.target))
       const row = Math.min(active?.row ?? Math.max(0, focusedRow), rows.length - 1)
       const keepOrder = !autoRearrange || count <= 1 || row === 1
-      let index = active?.index ?? -1
+      // The template the spread already has is the first tile, so the arrow keys start from it and the first press moves on to the next one.
+      let index = active?.index ?? (rows[row][0]?.template.id === spread?.templateId ? 0 : -1)
       if (event.key === 'Enter') {
         const template = rows[row][Math.max(0, index)]?.template
         if (template && spreadId) { apply(spreadId, template.id, keepOrder, target); close() }
@@ -139,7 +149,7 @@ export default function MatchingTemplatesPanel() {
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, rows, active, preview, close, apply, spreadId, tileWidth, count, target, autoRearrange])
+  }, [open, rows, active, preview, close, apply, spreadId, spread?.templateId, tileWidth, count, target, autoRearrange])
   useEffect(() => {
     if (open && !spread) close()
     return () => { useProjectStore.getState().previewMatchingTemplate(null) }

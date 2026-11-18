@@ -92,6 +92,8 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
   size = spread.size ?? size
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [failed, setFailed] = useState(false)
+  // A card whose drawing failed (a photograph that was not ready, the image cache busy while a file opens) tries again a few times instead of staying blank.
+  const [retry, setRetry] = useState(0), tries = useRef(0)
   const [renderWidth, setRenderWidth] = useState(width)
   useEffect(() => {
     const element = canvasRef.current?.parentElement
@@ -104,7 +106,7 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
   // (one more finished importing, a subject found) used to restart every card's drawing, and cut short a move in progress.
   const usedPhotos = spread.placements.map(p => p.photoId ? `${p.photoId}:${photosById.get(p.photoId)?.src ?? ''}` : '').join('|')
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false, retryTimer = 0
     setFailed(false)
     const photosById = photosRef.current
     const prior = settled.current?.spread, priorGeometry = settled.current?.geometry
@@ -159,11 +161,12 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
       const canvas = canvasRef.current
       if (cancelled || !canvas || !rendered) return
       settled.current={spread,geometry}
+      tries.current=0
       shownRects.current=undefined
       drawFrame(canvas,rendered)
-    }).catch(() => { if (!cancelled) setFailed(true) })
-    return () => { cancelled = true }
-  }, [spread, usedPhotos, size, renderWidth, highResolution])
+    }).catch(() => { if (cancelled) return; setFailed(true); if (tries.current < 6) retryTimer = window.setTimeout(() => setRetry(n => n + 1), 600 * ++tries.current) })
+    return () => { cancelled = true; window.clearTimeout(retryTimer) }
+  }, [spread, usedPhotos, size, renderWidth, highResolution, retry])
 
   const previewHeight = 100 * size.heightIn / size.widthIn
   // Once per card, not twice per render. Every card in the overview runs this, and resolving a
@@ -180,7 +183,7 @@ function SpreadThumbnail({ spread, photosById, size, width = 420, responsive, se
       {selectedBox && !selectedPlacement?.hidden && <span className="spread-thumb__selection" aria-hidden="true" style={{ left: `${selectedBox.x}%`, top: `${selectedBox.y / previewHeight * 100}%`, width: `${selectedBox.width}%`, height: `${selectedBox.height / previewHeight * 100}%`, transform: `rotate(${selectedPlacement?.rotationDeg ?? 0}deg)` }} />}
       {dropBox&&<span className={`spread-drop-replace${dropRefused?' is-refused':''}`} style={{position:'absolute',pointerEvents:'none',background:dropRefused?'#d4452f55':'#7779',outline:`3px solid ${dropRefused?'#d4452f':'var(--accent)'}`,left:dropBox.x+'%',top:dropBox.y/previewHeight*100+'%',width:dropBox.width+'%',height:dropBox.height/previewHeight*100+'%'}}/>}
       {responsive&&<OverviewTextControls spread={spread}/>}
-      {failed && <span role="status">Preview unavailable</span>}
+      {failed && <span role="status" style={{ position: 'absolute', left: 6, bottom: 4, fontSize: 11, color: '#888' }}>Loading the photographs…</span>}
     </div>
   )
 }

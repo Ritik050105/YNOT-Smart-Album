@@ -2619,7 +2619,8 @@ input[type='checkbox'] {
 .matching-templates__label { width: clamp(108px, 15vw, 240px); flex-shrink: 0; font-size: 12px; color: var(--text-muted); }
 .matching-templates__strip { display: flex; gap: 12px; flex: 1; min-width: 0; overflow-x: auto; padding: 2px 0 7px; }
 .matching-template { position: relative; flex: 0 0 auto; width: clamp(160px, 24vw, 360px); border: 2px solid transparent; border-radius: 3px; }
-.matching-template.is-current { border-color: var(--border); }
+.matching-template.is-current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.matching-template.is-current::after { content: "Selected"; position: absolute; left: 6px; top: 6px; padding: 1px 7px; border-radius: 9px; background: var(--accent); color: var(--accent-contrast, #fff); font-size: 11px; font-weight: 600; pointer-events: none; }
 .matching-template.is-previewing { border-color: var(--accent); }
 .matching-template__apply { display: block; width: 100%; padding: 4px; background: var(--panel); border: 0; cursor: pointer; }
 .matching-template .gallery-cell { background-color: var(--bg-canvas); border-color: var(--text-muted); }
