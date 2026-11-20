@@ -66,6 +66,25 @@ function manifest(dir) {
   }
   assert(asar.extractFile(archive, path.join('dist', 'index.html')).equals(fs.readFileSync(path.join(repo, 'dist', 'index.html'))), 'index.html differs from this build')
 
+  // The font step, as in the Windows installer: the scan script and the fonts folder ride in the payload, BUILD UPDATE puts them in the app's Resources, and INSTALL UPDATE
+  // detects the fonts on this Mac during the install (progress in the Terminal window), so the app opens with them ready and nothing needs scanning by hand.
+  fs.copyFileSync(path.join(repo, 'scripts', 'scan-local-fonts.cjs'), path.join(kit, 'payload', 'scan-local-fonts.cjs'))
+  fs.rmSync(path.join(kit, 'payload', 'fonts'), { recursive: true, force: true })
+  fs.cpSync(path.join(repo, 'build', 'fonts'), path.join(kit, 'payload', 'fonts'), { recursive: true })
+  // Added to the kit's own scripts once (they are carried from kit to kit, so this is where the step lives for good).
+  const addOnce = (name, marker, anchor, text, before = false) => {
+    const file = path.join(kit, name), source = fs.readFileSync(file, 'utf8')
+    if (source.includes(marker)) return
+    assert(source.includes(anchor), `${name} has no line to attach the font step to: ${anchor}`)
+    fs.writeFileSync(file, anchor === '' ? source.replace(/\n*$/, '\n') + text : source.replace(anchor, () => (before ? text + anchor : anchor + text)))
+  }
+  addOnce('BUILD UPDATE.command', 'scan-local-fonts.cjs', 'ditto "$here/payload/icon.ico" "$resources/ynot-app.ico"\n',
+    'ditto "$here/payload/scan-local-fonts.cjs" "$resources/scan-local-fonts.cjs"\nif [ -d "$here/payload/fonts" ]; then ditto "$here/payload/fonts" "$resources/fonts"; fi\n')
+  addOnce('INSTALL UPDATE.command', 'scan-local-fonts.cjs', 'open "$target"', [
+    "echo 'Detecting the fonts on this Mac (this can take a few minutes; the app opens with them ready)...'",
+    'ELECTRON_RUN_AS_NODE=1 "$target/Contents/MacOS/YNOT Album Studio" "$target/Contents/Resources/scan-local-fonts.cjs" "$HOME/Library/Application Support/YNOT Album Studio/local-fonts.json" || echo "Font detection did not finish. Use Scan PC & connected drives in the font list later."',
+    ''].join('\n'), true)
+  addOnce('READ ME FIRST.txt', 'Fonts:', '', '\nFonts: while INSTALL UPDATE.command runs it also detects the fonts on this Mac (a few minutes, shown in the Terminal window), so the app opens with them ready. Fonts shipped inside the build need no scan at all.\n')
   // The installer checks the archive's header against this value before it trusts the archive.
   fs.writeFileSync(path.join(kit, 'payload', 'asar-header.sha256'), crypto.createHash('sha256').update(asar.getRawHeader(archive).headerString).digest('hex') + '\n')
   const count = manifest(kit)

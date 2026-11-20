@@ -9,14 +9,22 @@ if (!out) { console.error('Usage: scan-local-fonts.cjs <output json>'); process.
 
 const FONT = /\.(ttf|otf|woff2?)$/i
 // Folders that hold programs, not fonts, or that are very large and never do: skipped, so the scan is minutes, not an hour.
-const SKIP = /^(node_modules|\.git|\$recycle\.bin|system volume information|winsxs|windows\.old|\$windows\.~bt|programdata|appdata|windows|recovery|config\.msi|intel|perflogs)$/i
+const SKIP = process.platform === 'darwin'
+  ? /^(node_modules|\.git|\.trash|library|applications|system|private|cores|opt|usr|bin|sbin|var|dev)$/i
+  : /^(node_modules|\.git|\$recycle\.bin|system volume information|winsxs|windows\.old|\$windows\.~bt|programdata|appdata|windows|recovery|config\.msi|intel|perflogs)$/i
 
 function roots() {
   if (process.env.YNOT_FONT_SCAN_ROOTS) return process.env.YNOT_FONT_SCAN_ROOTS.split(path.delimiter).filter(Boolean)
   const installed = [process.env.WINDIR && path.join(process.env.WINDIR, 'Fonts'), process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Microsoft', 'Windows', 'Fonts')]
   const drives = []
   if (process.platform === 'win32') for (let i = 0; i < 26; i++) { const p = String.fromCharCode(65 + i) + ':\\'; try { if (fs.statSync(p).isDirectory()) drives.push(p) } catch { /* no such drive */ } }
-  else drives.push(require('os').homedir(), '/Library/Fonts', '/System/Library/Fonts')
+  else {
+    const home = require('os').homedir()
+    // The Mac's installed font folders, then the user's folders and any mounted drives.
+    installed.push('/System/Library/Fonts', '/Library/Fonts', path.join(home, 'Library', 'Fonts'))
+    drives.push(home)
+    try { for (const volume of fs.readdirSync('/Volumes')) drives.push(path.join('/Volumes', volume)) } catch { /* no volumes folder */ }
+  }
   // Installed fonts first (they matter most), then every drive; the user's own profile folders are searched as part of their drive.
   return [...installed.filter(Boolean), ...drives]
 }

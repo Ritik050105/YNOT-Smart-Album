@@ -31,6 +31,11 @@ const {build}=require('esbuild'),fs=require('node:fs/promises'),path=require('no
  assert.equal(discovery.status.fonts.length,2,'a missing bundled folder or installer index changes nothing')
  // A manual scan skips junk folders too.
  await discovery.start([client]);assert.ok(![...discovery.status.fonts].some(f=>/node_modules/.test(f.path)),'the manual scan also skips node_modules')
+ // Both installers run the step: the Windows one in its wizard (a page and a scan, skipped by a silent install), the Mac kit through its INSTALL UPDATE script.
+ const nsis=await fs.readFile('build/installer.nsh','utf8'),kit=await fs.readFile('scripts/assemble-employee-mac-kit.cjs','utf8'),pkg=JSON.parse(await fs.readFile('package.json','utf8'))
+ assert.ok(/RunFontScan == "1"/.test(nsis)&&/scan-local-fonts.cjs/.test(nsis)&&/local-fonts.json/.test(nsis),'the Windows installer runs the font scan')
+ assert.ok(/scan-local-fonts.cjs/.test(kit)&&/INSTALL UPDATE.command/.test(kit)&&/BUILD UPDATE.command/.test(kit)&&/local-fonts.json/.test(kit),'the Mac kit assembler adds the font step to its install scripts')
+ assert.ok(pkg.build.extraResources.some(r=>r.to==='scan-local-fonts.cjs')&&pkg.build.extraResources.some(r=>r.to==='fonts'),'the scan script and the fonts folder are packed into the Windows installer')
  await fs.rm(dir,{recursive:true,force:true})
- console.log('Font installer index checks passed: the installer scan finds client fonts, the app adopts them and the shipped fonts with no scan, and junk folders are skipped.')
+ console.log('Font installer index checks passed: the installer scan finds client fonts, the app adopts them and the shipped fonts with no scan, and junk folders are skipped, and both the Windows and Mac installers run the font step.')
 })().catch(e=>{console.error(e);process.exitCode=1})
