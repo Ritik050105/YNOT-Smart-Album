@@ -14,7 +14,7 @@ import { usePreferences } from '@/state/preferences'
 import { pagePlacements, TemplateScope } from '@/engine/pageTemplates'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProjectStore } from '@/state/projectStore'
-import { findTemplate, importedDesignTemplates, isFullSpreadTemplate, mixCandidates, sequenceCandidates, showcaseCandidates, templatesForCount, uniqueTemplates } from '@/engine/templates'
+import { findTemplate, importedDesignTemplates, onLivePage, isFullSpreadTemplate, mixCandidates, sequenceCandidates, showcaseCandidates, templatesForCount, uniqueTemplates } from '@/engine/templates'
 import {rankTemplates, templateFramesInReadingOrder, templateOrderMismatches, templateShapeMismatches} from '@/engine/templateMatching'
 import { isEditableTarget } from '@/engine/keyboard'
 import TemplateThumb from './TemplatePreview'
@@ -91,16 +91,19 @@ export default function MatchingTemplatesPanel() {
   }, [aspect,designer,open,folded,count])
   const {categories,setCategories,collection,setCollection,albumSize,setAlbumSize,favoritesOnly,setFavoritesOnly}=useTemplateBrowsing()
   const rows = useMemo(() => {
+    // A single-page spread (the other page greyed out) is offered the mixed designs as they would be drawn on that one page; they are put on the live half afterwards.
+    const liveMixed = kind === 'mixed' && (spread?.pageSide === 'left' || spread?.pageSide === 'right'), useAspect = liveMixed ? aspect / 2 : aspect, pageFactor = liveMixed || target !== 'spread' ? 2 : 1
+    const live = (list: ReturnType<typeof rankTemplates>) => (liveMixed ? list.map(r => ({ ...r, template: onLivePage(r.template, spread.pageSide as 'left' | 'right') })) : list)
     if (!open || !spread || !count) return [[], []]
     const photos = placements.flatMap(p => { const photo = project.photos.find(photo => photo.id === p.photoId); return photo ? [photo] : [] })
     // A single page (a split spread) is offered what sits on its half, the layouts a split starts it with among them.
     const halfPage = kind === 'image' && (spread.pageSide === 'left' || spread.pageSide === 'right') && photos.length === count
-    const candidates = halfPage ? defaultLayouts(photos, spread.pageSide, aspect, spread.marginPx, spread.gapPx, project.enabledTemplateIds) : uniqueTemplates([...sequenceCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...showcaseCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...mixCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)])
-      .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (!mustHoldGap(t)||supportsUniformGap(t.placeholders,aspect,spread.marginPx*(target==='spread'?1:2),spread.gapPx*(target==='spread'?1:2))) && categories[templateCategory(t)] && matchesCollection(t.id,collection,collections,favorites)&&matchesAlbumSize(t.id,albumSize,collections) && (!favoritesOnly || favorites.includes(t.id)))
+    const candidates = halfPage ? defaultLayouts(photos, spread.pageSide, useAspect, spread.marginPx, spread.gapPx, project.enabledTemplateIds) : uniqueTemplates([...sequenceCandidates(photos, count, project.enabledTemplateIds, filter, useAspect), ...showcaseCandidates(photos, count, project.enabledTemplateIds, filter, useAspect), ...mixCandidates(photos, count, project.enabledTemplateIds, filter, useAspect), ...templatesForCount(count, project.enabledTemplateIds, filter, useAspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, useAspect)])
+      .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (!mustHoldGap(t)||supportsUniformGap(t.placeholders,useAspect,spread.marginPx*pageFactor,spread.gapPx*pageFactor)) && categories[templateCategory(t)] && matchesCollection(t.id,collection,collections,favorites)&&matchesAlbumSize(t.id,albumSize,collections) && (!favoritesOnly || favorites.includes(t.id)))
     // Offer only layouts that can give every photo a frame of its own shape — a portrait photo in
     // a landscape frame loses its top and bottom. If nothing fits, show everything rather than an
     // empty browser, since the designer may want to crop deliberately.
-    const marginPx = spread.marginPx * (target === 'spread' ? 1 : 2), gapPx = spread.gapPx * (target === 'spread' ? 1 : 2)
+    const marginPx = spread.marginPx * pageFactor, gapPx = spread.gapPx * pageFactor
     // A layout that cannot give every photograph a frame of its own shape is still shown — the
     // designer may want to crop one deliberately, and hiding two thirds of the library to spare
     // them the choice is not help. It simply sorts after the ones that fit, so the first tile in
@@ -110,9 +113,9 @@ export default function MatchingTemplatesPanel() {
     // The row that keeps the timeline order judges each photograph against the frame it would
     // really be given; the rearranging row only needs the right number of each shape.
     const shelf = (keep: boolean) => {
-      const fitting = offeredLayouts(photos.length === count ? photos : [], candidates, aspect, marginPx, gapPx, keep, true)
+      const fitting = offeredLayouts(photos.length === count ? photos : [], candidates, useAspect, marginPx, gapPx, keep, true)
       const mismatches = keep ? templateOrderMismatches : templateShapeMismatches
-      const missed = new Map(fitting.map(t => [t.id, photos.length === count ? mismatches(photos, t, aspect, marginPx, gapPx) : 0]))
+      const missed = new Map(fitting.map(t => [t.id, photos.length === count ? mismatches(photos, t, useAspect, marginPx, gapPx) : 0]))
       return { fitting, missed }
     }
     // The template the spread has now comes first (and is marked), the favourites follow it, then the rest. It is put there even when the shelf would not have
@@ -120,12 +123,12 @@ export default function MatchingTemplatesPanel() {
     const currentTemplate = spread.templateId ? findTemplate(spread.templateId) : undefined
     const selectedFirst = (rowKeep: boolean, list: ReturnType<typeof rankTemplates>) => {
       let pinned = list.find(r => r.template.id === spread.templateId)
-      if (!pinned && currentTemplate && !halfPage && target === 'spread' && !favoritesOnly && !collection && photos.length === count && currentTemplate.placeholders.length === count && (kind === 'mixed' ? !!currentTemplate.textBoxes?.length : !currentTemplate.textBoxes?.length)) pinned = rankTemplates(photos, [currentTemplate], aspect, rowKeep, marginPx, gapPx)[0]
+      if (!pinned && currentTemplate && !halfPage && target === 'spread' && !favoritesOnly && !collection && photos.length === count && currentTemplate.placeholders.length === count && (kind === 'mixed' ? !!currentTemplate.textBoxes?.length : !currentTemplate.textBoxes?.length)) pinned = rankTemplates(photos, [currentTemplate], useAspect, rowKeep, marginPx, gapPx)[0]
       const rest = list.filter(r => r !== pinned)
       return [...(pinned ? [pinned] : []), ...rest.filter(r => favorites.includes(r.template.id)), ...rest.filter(r => !favorites.includes(r.template.id))]
     }
-    return (count > 1 ? [false, true] : [true]).map(keepOrder => { const rowKeep = !autoRearrange || keepOrder, { fitting, missed } = shelf(rowKeep); return selectedFirst(rowKeep, varyPatterns((rankTemplates(photos, fitting, aspect, rowKeep, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
-      .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(b.template.id)) - Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))), r => r.template, aspect, photos.length === count ? wantedTemplates(photos) : undefined)) })
+    return (count > 1 ? [false, true] : [true]).map(keepOrder => { const rowKeep = !autoRearrange || keepOrder, { fitting, missed } = shelf(rowKeep); return selectedFirst(rowKeep, live(varyPatterns((rankTemplates(photos, fitting, useAspect, rowKeep, spread.marginPx * pageFactor, spread.gapPx * pageFactor))
+      .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(b.template.id)) - Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))), r => r.template, useAspect, photos.length === count ? wantedTemplates(photos) : undefined))) })
   }, [kind,collection,albumSize,collections,userTemplates, categories, open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
   useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [kind,collection,albumSize, categories, userTemplates, open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
   useEffect(() => {

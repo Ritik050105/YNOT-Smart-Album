@@ -521,7 +521,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     // Layouts drawn for these photographs in their own order are offered by the browser too, so they are
     // preview-able like the rest.
     const spreadPhotos = selected.flatMap(p => { const photo = project.photos.find(ph => ph.id === p.photoId); return photo ? [photo] : [] })
-    if (![...sequenceCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...mixCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...showcaseCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...importedDesignTemplates(count, project.enabledTemplateIds, templateFrameFilter, previewAspect)].some(t => t.id === templateId)) return
+    if (![...sequenceCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...mixCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...showcaseCandidates(spreadPhotos, count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...templatesForCount(count, project.enabledTemplateIds, templateFrameFilter, previewAspect), ...importedDesignTemplates(count, project.enabledTemplateIds, templateFrameFilter, previewAspect)].some(t => t.id === templateId.replace(/^half-(left|right)-/, ''))) return
     set({ templatePreview: applyPageTemplate(spread, templateId, project.photos, size.widthIn / size.heightIn, keepOrder, scope) })
   },
   toggleTemplateFavorite: (templateId) => {
@@ -1490,7 +1490,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   addTextBox: (spreadId, box) =>
     withHistory(set, (p) => ({
       ...p,
-      spreads: p.spreads.map((s) => (s.id === spreadId ? { ...s, textBoxes: [...s.textBoxes, fitTextBoxSize({ ...box, autoWidth: box.autoWidth ?? true }, s.size ?? p.size)] } : s)),
+      spreads: p.spreads.map((s) => {
+        if (s.id !== spreadId) return s
+        // On a single-page spread the greyed-out page holds nothing: text drawn for the whole spread is set on the live page instead.
+        const start = s.pageSide === 'right' ? 0.5 : 0, end = s.pageSide === 'left' ? 0.5 : 1, single = s.pageSide === 'left' || s.pageSide === 'right'
+        const placed = single && (box.x < start - 0.001 || box.x + box.width > end + 0.001) ? { ...box, x: start + box.x * (end - start), width: box.width * (end - start) } : box
+        return { ...s, textBoxes: [...s.textBoxes, fitTextBoxSize({ ...placed, autoWidth: placed.autoWidth ?? true }, s.size ?? p.size)] }
+      }),
     })),
 
   updateTextBox: (spreadId, textBoxId, patch) =>

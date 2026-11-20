@@ -1207,6 +1207,14 @@ export function importedDesignTemplates(
     (frameFilter === 'all' || matchesFrameFilter(t, frameFilter, aspect)))
 }
 
+/** A whole-spread design (frames and text) drawn on the one page a single-page spread really uses, the way it would be drawn on a canvas that is just that page: every position
+ *  and width goes into the live half (the other half is greyed out and holds nothing), and the type shrinks with the page. Its id is the original's with the page in front, which
+ *  findTemplate understands, so it saves, previews and renders like any other. */
+export function onLivePage(t: TemplateDefinition, side: 'left' | 'right'): TemplateDefinition {
+  const at = (x: number) => (side === 'right' ? 0.5 : 0) + x / 2
+  return { ...t, id: `half-${side}-${t.id}`, placeholders: t.placeholders.map(p => ({ ...p, x: at(p.x), width: p.width / 2 })), textBoxes: t.textBoxes?.map(b => ({ ...b, x: at(b.x), width: b.width / 2, fontSize: b.fontSize / 2 })) }
+}
+
 /** Looks up a template by id across both the built-in library and the user's saved/imported ones. */
 export function findTemplate(id: string): TemplateDefinition | undefined {
   const known = templateIndex().get(id)
@@ -1223,7 +1231,9 @@ export function findTemplate(id: string): TemplateDefinition | undefined {
   if (custom) return generateCustomGrid(Number(custom[1]), Number(custom[2]))
   // Worked out from the id, and remembered: stepping through templates asks for the same few over and over, and drawing a balanced one is not free.
   if (byIdCache.has(id)) return byIdCache.get(id)
-  const made = balancedFromId(id) ?? showcaseFromId(id)
+  const half = id.match(/^half-(left|right)-(.+)$/)
+  const base = half ? findTemplate(half[2]) : undefined
+  const made = half ? base && onLivePage(base, half[1] as 'left' | 'right') : balancedFromId(id) ?? showcaseFromId(id)
   if (byIdCache.size > 600) byIdCache.clear()
   byIdCache.set(id, made)
   return made

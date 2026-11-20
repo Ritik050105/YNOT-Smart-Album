@@ -1,5 +1,5 @@
 import {create} from 'zustand'
-import {importedDesignTemplates,sequenceCandidates,showcaseCandidates,templateLibraryVersion,templatesForCount,TemplateFrameFilter} from '@/engine/templates'
+import {importedDesignTemplates,onLivePage,sequenceCandidates,showcaseCandidates,templateLibraryVersion,templatesForCount,TemplateFrameFilter} from '@/engine/templates'
 import {templateCategory,mustHoldGap} from '@/engine/templateTransfer'
 import {matchesAlbumSize,matchesCollection,readCollectionsShared} from '@/engine/templateCollections'
 import {supportsUniformGap} from '@/engine/templateLayout'
@@ -24,7 +24,7 @@ function cycleContext(project:Project,spread:Spread,filter:TemplateFrameFilter,k
  const state=useTemplateBrowsing.getState(),{categories,collection,albumSize,favoritesOnly}=state
  const lookup=photoLookup(project.photos)
  const photos=spread.placements.flatMap(pl=>{const photo=pl.photoId?lookup.get(pl.photoId):undefined;return photo?[photo]:[]})
- return {size,aspect,count,categories,collection,albumSize,favoritesOnly,photos,key:[kind,count,photos.length,photoShapeCodes(photos),aspect,spread.marginPx,spread.gapPx,filter,collection,albumSize,favoritesOnly].join('|')}
+ return {size,aspect,count,categories,collection,albumSize,favoritesOnly,photos,key:[kind,count,photos.length,photoShapeCodes(photos),aspect,spread.pageSide,spread.marginPx,spread.gapPx,filter,collection,albumSize,favoritesOnly].join('|')}
 }
 /** How many layouts cycling has for a spread, for the overview's enabled/disabled buttons, which ask on every
  *  render for every spread. The first answer for a set of photographs can take a second to work out (the shelf is
@@ -68,8 +68,11 @@ export function cyclingTemplates(project:Project,spread:Spread,filter:TemplateFr
   return onPage
  }
  const collections=readCollectionsShared()
- const list=[...sequenceCandidates(photos,count,project.enabledTemplateIds,filter,aspect),...templatesForCount(count,project.enabledTemplateIds,filter,aspect),...showcaseCandidates(photos,count,project.enabledTemplateIds,filter,aspect),...importedDesignTemplates(count,project.enabledTemplateIds,filter,aspect)].filter(t=>(!favoritesOnly||favorites.includes(t.id))&&(kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length)&&categories[templateCategory(t)]&&matchesCollection(t.id,collection,collections,favorites)&&matchesAlbumSize(t.id,albumSize,collections)&&(!mustHoldGap(t)||supportsUniformGap(t.placeholders,aspect,spread.marginPx,spread.gapPx)))
- const offered=varyPatterns(offeredLayouts(photos.length===count?photos:[],list,aspect,spread.marginPx,spread.gapPx,true,true),t=>t,aspect,photos.length===count?wantedTemplates(photos):undefined)
+ // A single-page spread (the other page greyed out) is offered the mixed designs as they would be drawn on that one page, and they are put on the live half afterwards.
+ const half=spread.pageSide==='left'||spread.pageSide==='right',live=kind==='mixed'&&half,useAspect=live?aspect/2:aspect,factor=live?2:1
+ const list=[...sequenceCandidates(photos,count,project.enabledTemplateIds,filter,useAspect),...templatesForCount(count,project.enabledTemplateIds,filter,useAspect),...showcaseCandidates(photos,count,project.enabledTemplateIds,filter,useAspect),...importedDesignTemplates(count,project.enabledTemplateIds,filter,useAspect)].filter(t=>(!favoritesOnly||favorites.includes(t.id))&&(kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length)&&categories[templateCategory(t)]&&matchesCollection(t.id,collection,collections,favorites)&&matchesAlbumSize(t.id,albumSize,collections)&&(!mustHoldGap(t)||supportsUniformGap(t.placeholders,useAspect,spread.marginPx*factor,spread.gapPx*factor)))
+ const placed=varyPatterns(offeredLayouts(photos.length===count?photos:[],list,useAspect,spread.marginPx*factor,spread.gapPx*factor,true,true),t=>t,useAspect,photos.length===count?wantedTemplates(photos):undefined)
+ const offered=live?placed.map(t=>onLivePage(t,spread.pageSide as 'left'|'right')):placed
  cycleLists.set(key,{deps,list:offered})
  if(cycleLists.size>160)cycleLists.delete(cycleLists.keys().next().value!)
  return offered

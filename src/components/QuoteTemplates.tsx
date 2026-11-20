@@ -79,7 +79,9 @@ function QuoteTemplates({spreadId,compact=false,saveHost,buttonsOnly=false}:{spr
  const [subcategory,setSubcategory]=useState(''),[subfilter,setSubfilter]=useState('')
  const [category,setCategory]=useState('Wedding'),[custom,setCustom]=useState(''),[title,setTitle]=useState(true),[content,setContent]=useState(true)
  const [filter,setFilter]=useState(false),[event,setEvent]=useState('All events'),[titles,setTitles]=useState(true),[contents,setContents]=useState(true)
- const items=useMemo(()=>[...staticQuoteItems(size.widthIn/size.heightIn),...saved.map(q=>({...q,name:q.boxes.map(b=>b.text).join(' · '),title:q.title??true,content:q.content??true,boxes:q.boxes.map(b=>({...b,id:crypto.randomUUID(),locked:false,hidden:false,groupId:q.id}))}))],[saved,size.widthIn,size.heightIn])
+ // On a single-page spread (the other page greyed out) the font templates are drawn for that one page and sit on its half, as the image templates do.
+ const side=spread?.pageSide==='left'||spread?.pageSide==='right'?spread.pageSide:null
+ const items=useMemo(()=>{const all=[...staticQuoteItems(size.widthIn/size.heightIn/(side?2:1)),...saved.map(q=>({...q,name:q.boxes.map(b=>b.text).join(' · '),title:q.title??true,content:q.content??true,boxes:q.boxes.map(b=>({...b,id:crypto.randomUUID(),locked:false,hidden:false,groupId:q.id}))}))];return side?all.map(q=>({...q,boxes:q.boxes.map(b=>({...b,x:(side==='right'?0.5:0)+b.x/2,width:b.width/2,fontSize:b.fontSize/2}))})):all},[saved,size.widthIn,size.heightIn,side])
  const visible=items.filter(q=>(q.id.startsWith('ynot-combination-')?inspiredTemplates:localTemplates)&&(q.name.toLowerCase().includes(search.toLowerCase()))&&(!filter||((event==='All events'||q.category===event)&&(!subfilter||q.subcategory===subfilter)&&((titles&&q.title)||(contents&&q.content)))))
  // Hovering previews, exactly as the image-template strip does. Clicking places the composition on
  // the spread for real and clicking again takes it off, so several can be stacked at once — which
