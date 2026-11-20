@@ -1,4 +1,4 @@
-import {CSSProperties,PointerEvent as ReactPointerEvent,useRef,useState} from 'react'
+import {CSSProperties,PointerEvent as ReactPointerEvent,useEffect,useRef,useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import type {Layer} from 'ag-psd'
 import type {readPsd as ReadPsd} from 'ag-psd'
@@ -222,6 +222,27 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
  const [useBackground,setUseBackground]=useState(!!found.backgroundColor)
  const [selected,setSelected]=useState(0)
  const [pickedText,setPickedText]=useState<string|null>(null)
+ // Keyboard, for the frame selected (wherever the focus is, short of a number field): the arrow keys move it (Shift for a bigger step), Alt with the arrows resizes it, Delete
+ // removes it, Ctrl+D duplicates it, and Page Up / Page Down pick the previous / next frame.
+ useEffect(()=>{
+  const onKey=(e:KeyboardEvent)=>{
+   const target=e.target
+   if(target instanceof HTMLElement&&(target.closest('input,textarea,select')||target.isContentEditable))return
+   const step=e.shiftKey?0.05:0.005,arrow=({ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]} as Record<string,[number,number]|undefined>)[e.key]
+   if(arrow&&!e.ctrlKey&&!e.metaKey){
+    e.preventDefault()
+    setBoxes(bs=>bs.map((b,i)=>i!==selected?b:e.altKey?{...b,width:Math.max(0.01,b.width+arrow[0]*step),height:Math.max(0.01,b.height+arrow[1]*step)}:{...b,x:b.x+arrow[0]*step,y:b.y+arrow[1]*step}))
+   }else if((e.key==='Delete'||e.key==='Backspace')&&boxes[selected]){
+    e.preventDefault();setBoxes(bs=>bs.filter((_,i)=>i!==selected));setSelected(Math.max(0,selected-1))
+   }else if((e.key==='d'||e.key==='D')&&(e.ctrlKey||e.metaKey)&&boxes[selected]&&boxes.length<100){
+    e.preventDefault();setBoxes(bs=>[...bs,{...bs[selected],id:crypto.randomUUID(),x:bs[selected].x+0.02,y:bs[selected].y+0.02}]);setSelected(boxes.length)
+   }else if((e.key==='PageUp'||e.key==='PageDown')&&boxes.length){
+    e.preventDefault();setSelected(s=>(s+(e.key==='PageDown'?1:-1)+boxes.length)%boxes.length)
+   }
+  }
+  window.addEventListener('keydown',onKey)
+  return()=>window.removeEventListener('keydown',onKey)
+ },[selected,boxes])
  const box=boxes[selected]
  const texts=found.textBoxes.filter(t=>textIds.includes(t.id))
  // A frame drawn at an angle is measured unrotated, so its upright box can poke past the artwork
@@ -248,8 +269,7 @@ function Review({found,name,onFinish}:{found:Detected;name:string;onFinish:(t:Te
      {texts.map(t=><span key={t.id} className={`frame-review__text${pickedText===t.id?' is-picked':''}`} style={{left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`}}/>)}
      {boxes.map((b,i)=><div key={b.id} role="button" tabIndex={0} aria-label={`Frame ${i+1}${b.rotationDeg?`, turned ${Math.round(b.rotationDeg)} degrees`:''}`} aria-pressed={i===selected}
       className={`frame-review__frame${i===selected?' is-selected':''}`} onPointerDown={e=>grab(e,i)}
-      onKeyDown={e=>{const step=e.shiftKey?0.05:0.005;const by=(dx:number,dy:number)=>{e.preventDefault();setSelected(i);setBoxes(bs=>bs.map((v,j)=>j===i?{...v,x:v.x+dx,y:v.y+dy}:v))};
-       if(e.key==='ArrowLeft')by(-step,0);else if(e.key==='ArrowRight')by(step,0);else if(e.key==='ArrowUp')by(0,-step);else if(e.key==='ArrowDown')by(0,step)}}
+      onFocus={()=>setSelected(i)}
       style={{left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,transform:b.rotationDeg?`rotate(${b.rotationDeg}deg)`:undefined,
        borderRadius:b.cornerRadiiPx?b.cornerRadiiPx.map(r=>`${r/900*100}%`).join(' '):b.cornerRadiusPx?`${b.cornerRadiusPx/900*100}%`:undefined}}>
       <span className="frame-review__badge">{i+1}</span>

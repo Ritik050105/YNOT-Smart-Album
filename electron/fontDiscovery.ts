@@ -33,7 +33,7 @@ export class FontDiscovery {
           for(const entry of entries){
             if(entry.isSymbolicLink())continue
             const file=path.join(dir,entry.name)
-            if(entry.isDirectory()){pending.push(file);continue}
+            if(entry.isDirectory()){if(!/^(node_modules|\.git|\$recycle\.bin|system volume information|winsxs)$/i.test(entry.name))pending.push(file);continue}
             if(entry.isFile()&&/\.(ttf|otf|woff2?)$/i.test(entry.name)){
               const info=await fs.stat(file);if(info.size>10*1024*1024||!info.size)continue
               this.known.set(file,{family:path.basename(file,path.extname(file)),path:file})
@@ -46,6 +46,25 @@ export class FontDiscovery {
       await fs.mkdir(path.dirname(this.cacheFile),{recursive:true})
       await fs.writeFile(this.cacheFile,JSON.stringify(this.status.fonts))
     }finally{this.status.running=false;this.controller=null}
+  }
+  /** Adds the fonts an installer-time scan (scripts/scan-local-fonts.cjs) found, if they are still on disk, so the first start needs no scan. */
+  async adopt(indexFile:string){
+    try{
+      const rows=JSON.parse(await fs.readFile(indexFile,'utf8'));if(!Array.isArray(rows))return
+      for(const row of rows)if(typeof row?.family==='string'&&typeof row?.path==='string'&&path.isAbsolute(row.path)&&!this.known.has(row.path)&&/\.(ttf|otf|woff2?)$/i.test(row.path)&&await fs.stat(row.path).then(s=>s.isFile()&&s.size>0&&s.size<=10*1024*1024,()=>false))this.known.set(row.path,{family:row.family,path:row.path})
+      this.status.fonts=[...this.known.values()]
+    }catch{/* no installer scan, or it is unreadable: nothing to adopt */}
+  }
+  /** Registers the font files shipped inside the installer (resources/fonts, one level of sub-folders): no scan, just a listing. */
+  async addFolder(dir:string){
+    try{
+      for(const entry of await fs.readdir(dir,{withFileTypes:true})){
+        const file=path.join(dir,entry.name)
+        if(entry.isDirectory())await this.addFolder(file)
+        else if(entry.isFile()&&/\.(ttf|otf|woff2?)$/i.test(entry.name)&&!this.known.has(file))this.known.set(file,{family:path.basename(file,path.extname(file)),path:file})
+      }
+      this.status.fonts=[...this.known.values()]
+    }catch{/* no bundled fonts folder */}
   }
   has(file:string){return this.known.has(file)}
   cancel(){this.controller?.abort()}

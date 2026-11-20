@@ -117,7 +117,7 @@ function QuoteTemplates({spreadId,compact=false,saveHost,buttonsOnly=false}:{spr
   lastPlaced.current=boxes.map(b=>b.id)
   setActive(quote.id)
  }
- useEffect(()=>{if(compact&&selectedSpreadId!==spreadId)setOpen(false)},[compact,selectedSpreadId,spreadId])
+ // (Clicking a spread no longer folds the font templates away: selectSpread keeps the panel open and moves it to the spread clicked.)
  useEffect(()=>{if(matchingOpen)setOpen(false)},[matchingOpen])
  useEffect(()=>{if(buttonsOnly)return;if(open&&chosen&&spread)useProjectStore.setState({templatePreview:{...spread,textBoxes:[...spread.textBoxes,...chosen.boxes]}});else if(open)useProjectStore.setState({templatePreview:null});return()=>{if(useProjectStore.getState().templatePreview?.id===spreadId)useProjectStore.setState({templatePreview:null})}},[open,chosen,spread,spreadId,buttonsOnly])
  // Previous / Next replace the template on the spread with its neighbour in the list, as one undo step.

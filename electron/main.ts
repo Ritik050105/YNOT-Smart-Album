@@ -34,13 +34,17 @@ ipcMain.handle('export:revealLocation', async (_event, location: string) => {
 })
 
 const fontDiscovery=new FontDiscovery(path.join(app.getPath('userData'),'discovered-fonts.json'))
-const fontsReady=fontDiscovery.load()
+// Ready at once on a first start: the fonts the installer's own scan found (it ran in the installer window, not in the app), and the font files shipped inside the installer, are
+// listed here, so there is nothing to scan by hand.
+const fontsReady=fontDiscovery.load().then(()=>fontDiscovery.adopt(path.join(app.getPath('appData'),'YNOT Album Studio','local-fonts.json'))).then(()=>fontDiscovery.addFolder(path.join(process.resourcesPath,'fonts')))
 ipcMain.handle('fonts:scan',async (_event,action:string)=>{
   await fontsReady
   if(action==='start')void fontDiscovery.start().catch(console.error)
   else if(action==='cancel')fontDiscovery.cancel()
   else if(action!=='status')throw new Error('Invalid font scan action')
-  return fontDiscovery.status
+  // While a scan runs the poll carries the count, not the whole growing list (tens of thousands of rows over IPC every second was a large part of the lag).
+  const {status}=fontDiscovery
+  return {...status,count:status.fonts.length,fonts:status.running&&action==='status'?[]:status.fonts}
 })
 // Fonts are served like images: installer-downloaded or previously cached faces come back as ynot-img://f/ URLs, scanned files as ynot-img://g/.
 allowScannedFonts(async file=>{await fontsReady;return fontDiscovery.has(file)})

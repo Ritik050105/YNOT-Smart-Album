@@ -2,7 +2,7 @@ import { setSlideDirection } from '@/engine/slideDirection'
 import {useTemplateBrowsing} from '@/state/templateBrowsing'
 import {askTemplateCategory} from './ClassifyTemplate'
 import ContextMenu from './ContextMenu'
-import {classifyTemplates,useTemplateCollections,matchesCollection} from '@/engine/templateCollections'
+import {classifyTemplates,useTemplateCollections,matchesCollection,matchesAlbumSize} from '@/engine/templateCollections'
 import {offeredLayouts,varyPatterns} from '@/engine/layoutOffer'
 import {defaultLayouts} from '@/engine/autoLayout'
 import {supportsUniformGap} from '@/engine/templateLayout'
@@ -89,14 +89,14 @@ export default function MatchingTemplatesPanel() {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
     return () => { window.removeEventListener('resize', resize); observer.disconnect() }
   }, [aspect,designer,open,folded,count])
-  const {categories,setCategories,collection,setCollection,favoritesOnly,setFavoritesOnly}=useTemplateBrowsing()
+  const {categories,setCategories,collection,setCollection,albumSize,setAlbumSize,favoritesOnly,setFavoritesOnly}=useTemplateBrowsing()
   const rows = useMemo(() => {
     if (!open || !spread || !count) return [[], []]
     const photos = placements.flatMap(p => { const photo = project.photos.find(photo => photo.id === p.photoId); return photo ? [photo] : [] })
     // A single page (a split spread) is offered what sits on its half, the layouts a split starts it with among them.
     const halfPage = kind === 'image' && (spread.pageSide === 'left' || spread.pageSide === 'right') && photos.length === count
     const candidates = halfPage ? defaultLayouts(photos, spread.pageSide, aspect, spread.marginPx, spread.gapPx, project.enabledTemplateIds) : uniqueTemplates([...sequenceCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...showcaseCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...mixCandidates(photos, count, project.enabledTemplateIds, filter, aspect), ...templatesForCount(count, project.enabledTemplateIds, filter, aspect), ...importedDesignTemplates(count, project.enabledTemplateIds, filter, aspect)])
-      .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (!mustHoldGap(t)||supportsUniformGap(t.placeholders,aspect,spread.marginPx*(target==='spread'?1:2),spread.gapPx*(target==='spread'?1:2))) && categories[templateCategory(t)] && matchesCollection(t.id,collection,collections,favorites) && (!favoritesOnly || favorites.includes(t.id)))
+      .filter(t => (kind==='mixed'?!!t.textBoxes?.length:!t.textBoxes?.length) && (!mustHoldGap(t)||supportsUniformGap(t.placeholders,aspect,spread.marginPx*(target==='spread'?1:2),spread.gapPx*(target==='spread'?1:2))) && categories[templateCategory(t)] && matchesCollection(t.id,collection,collections,favorites)&&matchesAlbumSize(t.id,albumSize,collections) && (!favoritesOnly || favorites.includes(t.id)))
     // Offer only layouts that can give every photo a frame of its own shape — a portrait photo in
     // a landscape frame loses its top and bottom. If nothing fits, show everything rather than an
     // empty browser, since the designer may want to crop deliberately.
@@ -126,8 +126,8 @@ export default function MatchingTemplatesPanel() {
     }
     return (count > 1 ? [false, true] : [true]).map(keepOrder => { const rowKeep = !autoRearrange || keepOrder, { fitting, missed } = shelf(rowKeep); return selectedFirst(rowKeep, varyPatterns((rankTemplates(photos, fitting, aspect, rowKeep, spread.marginPx * (target === 'spread' ? 1 : 2), spread.gapPx * (target === 'spread' ? 1 : 2)))
       .sort((a, b) => (missed.get(a.template.id)! - missed.get(b.template.id)!) || Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(b.template.id)) - Number(/^(ref-(bleed|album|edge|signature)-|mix(seq3?)?-)/.test(a.template.id)) || Number(isFullSpreadTemplate(b.template)) - Number(isFullSpreadTemplate(a.template)) || (['reference','creative'].indexOf(templateCategory(a.template))-['reference','creative'].indexOf(templateCategory(b.template))) || Number(favorites.includes(b.template.id)) - Number(favorites.includes(a.template.id))), r => r.template, aspect, photos.length === count ? wantedTemplates(photos) : undefined)) })
-  }, [kind,collection,collections,userTemplates, categories, open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
-  useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [kind,collection, categories, userTemplates, open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
+  }, [kind,collection,albumSize,collections,userTemplates, categories, open, spread, project.photos, project.enabledTemplateIds, count, filter, aspect, favorites, favoritesOnly, placements, target, autoRearrange])
+  useEffect(() => { setActive(null); setOffsets([0, 0]); preview(null); strips.current.forEach(strip => { if (strip) strip.scrollLeft = 0 }) }, [kind,collection,albumSize, categories, userTemplates, open, spreadId, count, filter, favoritesOnly, favorites, preview, target])
   useEffect(() => {
     if (!open) return
     function onKey(event: KeyboardEvent) {
@@ -179,7 +179,7 @@ export default function MatchingTemplatesPanel() {
       <button className={`btn btn--tiny ${favoritesOnly ? 'is-active' : ''}`} aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly(!favoritesOnly)}><Icon name="heart" size={12} /> Favorites</button>
       <button className="btn btn--icon btn--tiny" onClick={close} aria-label="Close matching templates" title="Close matching templates (Escape)"><Icon name="x" size={14} /></button>
     </header>
-    <div className="template-source-controls">{(['reference','creative'] as const).filter(key=>kind!=='mixed'||key==='creative').map(key=><label key={key}><input type="checkbox" checked={categories[key]} onChange={e=>setCategories({...categories,[key]:e.target.checked})}/>{key==='reference'?'Smart design':'Creative design'}</label>)}<TemplateTransfer/><select aria-label="Saved template category" value={collection} onChange={e=>setCollection(e.target.value)}><option value="">All categories</option>{['Favorites','Frequently used',...Object.keys(collections.categories)].map(c=><option key={c}>{c}</option>)}</select></div>
+    <div className="template-source-controls">{(['reference','creative'] as const).filter(key=>kind!=='mixed'||key==='creative').map(key=><label key={key}><input type="checkbox" checked={categories[key]} onChange={e=>setCategories({...categories,[key]:e.target.checked})}/>{key==='reference'?'Smart design':kind==='mixed'?'Mixed design':'Creative design'}</label>)}<TemplateTransfer/><select aria-label="Saved template category" value={collection} onChange={e=>setCollection(e.target.value)}><option value="">All categories</option>{['Favorites','Frequently used',...Object.keys(collections.categories)].map(c=><option key={c}>{c}</option>)}</select><select aria-label="Album size category" title="Show only the templates saved for one album size" value={albumSize} onChange={e=>setAlbumSize(e.target.value)}><option value="">All album sizes</option>{Object.keys(collections.sizes).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(s=><option key={s}>{s}</option>)}</select></div>
     {target !== 'spread' && <div className="matching-templates__info">Changes apply to the {target} page only. Images crossing the center line stay unchanged.</div>}
     {count === 0 && <div className="matching-templates__info">No visible, unlocked photos or frames on this page. Hidden photos, locked photos and background images stay unchanged.</div>}
     {count === 1 && <div className="matching-templates__info"><strong>Rearrange Timeline:</strong><span>A single image has no timeline order to rearrange.</span></div>}

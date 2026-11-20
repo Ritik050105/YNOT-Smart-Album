@@ -17,5 +17,7 @@ export function fitTextBoxSize(box: TextBox, size: AlbumSize): TextBox {
   const x = box.autoWidth ? Math.max(0, Math.min(1 - width, box.x + shift)) : box.x
   const height = node.height() / (DESIGN_WIDTH * size.heightIn / size.widthIn)
   node.destroy()
-  return { ...box, x, width, height }
+  // A box that grows (a bigger font, more text) never grows out past the spread's wall: it is moved back in, so its top left stays inside and, where it fits, its far edges too.
+  const inside = { x: Math.max(0, Math.min(1 - width, x)), y: Math.max(0, Math.min(1 - height, box.y)) }
+  return { ...box, ...inside, width, height }
 }

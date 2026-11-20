@@ -152,7 +152,7 @@ export default function PhotoBin() {
   }, [usageKey])
 
   const allBins = useMemo(
-    () => Array.from(new Set([...photos.flatMap((p) => p.bins), ...extraBins])).sort(),
+    () => Array.from(new Set([...photos.flatMap((p) => p.bins), ...extraBins])).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
     [photos, extraBins]
   )
 
@@ -256,6 +256,13 @@ export default function PhotoBin() {
     setNewBinName('')
   }
 
+  /** A new bin starts out named with the next free number from 1 (the name can be typed over). */
+  function nextBinName() {
+    let n = 1
+    while (allBins.includes(String(n))) n++
+    return String(n)
+  }
+
   function confirmAddBin() {
     const name = newBinDraft.trim()
     if (name && !allBins.includes(name)) setExtraBins((prev) => [...prev, name])
@@ -300,6 +307,7 @@ export default function PhotoBin() {
           {addingBin ? (
             <input
               autoFocus
+              onFocus={(e) => e.currentTarget.select()}
               className="photo-dock__bin-input"
               value={newBinDraft}
               placeholder="Bin name…"
@@ -308,7 +316,7 @@ export default function PhotoBin() {
               onBlur={confirmAddBin}
             />
           ) : (
-            <button className="btn btn--icon btn--tiny" title="Add bin" onClick={() => setAddingBin(true)}>
+            <button className="btn btn--icon btn--tiny" title="Add bin" onClick={() => { setNewBinDraft(nextBinName()); setAddingBin(true) }}>
               <Icon name="plus" size={16} />
             </button>
           )}

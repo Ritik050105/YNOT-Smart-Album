@@ -621,7 +621,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectSpread: (id) =>
     set({
       matchingTemplatesOpen: false,
-      fontBrowserSpreadId: null,
+      // The font templates panel stays open when a spread is clicked (it moves to the spread clicked, and stays where it is for a click on empty space);
+      // only its own close button, or its button pressed again, closes it.
+      fontBrowserSpreadId: id ? (get().fontBrowserSpreadId ? id : null) : get().fontBrowserSpreadId,
       fontPreview: null,
       templatePreview: null,
       selectedSpreadId: id,

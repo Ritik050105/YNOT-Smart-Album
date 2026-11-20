@@ -2,6 +2,8 @@
 !include "nsDialogs.nsh"
 Var FontDownloadCheckbox
 Var DownloadFonts
+Var ScanFontsCheckbox
+Var RunFontScan
 !macro customHeader
  ShowInstDetails show
 !macroend
@@ -16,10 +18,23 @@ Function FontOptionsCreate
  ${NSD_CreateCheckbox} 0 50u 100% 24u "Download fonts during installation (optional)"
  Pop $FontDownloadCheckbox
  ${NSD_SetState} $FontDownloadCheckbox $DownloadFonts
+ ${NSD_CreateCheckbox} 0 85u 100% 24u "Detect and load the fonts already on this computer during installation (recommended: no slow font scan later)"
+ Pop $ScanFontsCheckbox
+ ${if} $RunFontScan == "0"
+  ${NSD_SetState} $ScanFontsCheckbox ${BST_UNCHECKED}
+ ${else}
+  ${NSD_SetState} $ScanFontsCheckbox ${BST_CHECKED}
+ ${endIf}
  nsDialogs::Show
 FunctionEnd
 Function FontOptionsLeave
  ${NSD_GetState} $FontDownloadCheckbox $DownloadFonts
+ ${NSD_GetState} $ScanFontsCheckbox $0
+ ${if} $0 == ${BST_CHECKED}
+  StrCpy $RunFontScan "1"
+ ${else}
+  StrCpy $RunFontScan "0"
+ ${endIf}
 FunctionEnd
 
 !endif
@@ -61,6 +76,17 @@ FunctionEnd
     System::Call 'Kernel32::SetEnvironmentVariable(t "ELECTRON_RUN_AS_NODE", n)'
     ${if} $0 != 0
       DetailPrint "Font download did not finish (code $0). YNOT will download fonts on first use instead."
+    ${endIf}
+  ${endIf}
+  ; The fonts already on this computer are found here too, in the installer window (a silent install skips the page, and so the scan): the app adopts the list on its first start.
+  ${if} $RunFontScan == "1"
+    DetailPrint "Detecting fonts on this computer (this can take a few minutes; the app starts with them ready)..."
+    System::Call 'Kernel32::SetEnvironmentVariable(t "ELECTRON_RUN_AS_NODE", t "1")'
+    nsExec::ExecToLog '"$appExe" "$INSTDIR\resources\scan-local-fonts.cjs" "$APPDATA\YNOT Album Studio\local-fonts.json"'
+    Pop $0
+    System::Call 'Kernel32::SetEnvironmentVariable(t "ELECTRON_RUN_AS_NODE", n)'
+    ${if} $0 != 0
+      DetailPrint "Font detection did not finish (code $0). Use Scan PC & connected drives in the font list later."
     ${endIf}
   ${endIf}
   ${if} $installMode == "all"

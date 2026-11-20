@@ -48,7 +48,7 @@ export interface AlbumStudioBridge {
   onProjectOpen: (callback: () => void) => () => void
   openProjectFile: () => Promise<{ canceled: boolean; filePath?: string; contents?: string }>
   openProjectAtPath: (filePath: string) => Promise<{ ok: boolean; contents?: string }>
-  scanFonts: (action:'start'|'cancel'|'status') => Promise<{running:boolean;visited:number;skipped:number;fonts:{family:string;path:string}[]}>
+  scanFonts: (action:'start'|'cancel'|'status') => Promise<{running:boolean;visited:number;skipped:number;count?:number;fonts:{family:string;path:string}[]}>
   readCachedFont?: (family: string) => Promise<{url:string;weight:string;style:string;unicodeRange:string}[] | null>
   storeFontFaces?: (family: string, faces: {data:Uint8Array;weight:string;style:string;unicodeRange:string}[]) => Promise<void>
   readDiscoveredFont: (path:string) => Promise<string>

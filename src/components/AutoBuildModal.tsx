@@ -17,7 +17,7 @@ type BinKind = 'reference' | 'creative' | 'creative-mixed'
 const BIN_KINDS: { value: BinKind; label: string }[] = [
   { value: 'reference', label: 'Smart design' },
   { value: 'creative', label: 'Creative design' },
-  { value: 'creative-mixed', label: 'Creative design mixed' },
+  { value: 'creative-mixed', label: 'Mixed design' },
 ]
 interface BinRule { kind: BinKind; category: string; subcategory: string; favorites: boolean }
 
@@ -38,7 +38,7 @@ export default function AutoBuildModal({ photoIds, onClose }: { photoIds: string
   const autoLayoutOptions = useProjectStore((s) => s.autoLayoutOptions)
   const runAutoBuildFromGroups = useProjectStore((s) => s.runAutoBuildFromGroups)
 
-  const bins=[...new Set(allPhotos.flatMap(p=>p.bins))]
+  const bins=[...new Set(allPhotos.flatMap(p=>p.bins))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))
   const [binMode,setBinMode]=useState(false),[chosenBins,setChosenBins]=useState(bins),[followBins,setFollowBins]=useState(true)
   const [binRules,setBinRules]=useState<Record<string,BinRule>>({})
   // Every template the project allows, in one pass over the 1-24 photo counts. A bin narrows it

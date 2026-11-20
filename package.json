@@ -79,6 +79,14 @@
       {
         "from": "scripts/prepare-fonts.cjs",
         "to": "prepare-fonts.cjs"
+      },
+      {
+        "from": "scripts/scan-local-fonts.cjs",
+        "to": "scan-local-fonts.cjs"
+      },
+      {
+        "from": "build/fonts",
+        "to": "fonts"
       }
     ],
     "asarUnpack": [
